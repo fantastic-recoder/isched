@@ -1,0 +1,9 @@
+[requires]
+taocpp-pegtl/3.2.6
+
+[tool_requires]
+cmake/3.22.6
+
+[generators]
+CMakeDeps
+CMakeToolchain

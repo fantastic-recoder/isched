@@ -1,0 +1,10 @@
+{
+    "version": 4,
+    "vendor": {
+        "conan": {}
+    },
+    "include": [
+        "/usr/local/dev/wkspc-striboh/isched/build/CMakePresets.json",
+        "/usr/local/dev/wkspc-striboh/isched/cmake-build-debug/CMakePresets.json"
+    ]
+}
