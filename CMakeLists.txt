@@ -5,5 +5,10 @@ message("Building with CMake version: ${CMAKE_VERSION}")
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(pegtl)
-add_executable(isched src/main/cpp/isched/main.cpp)
-target_link_libraries(isched PRIVATE taocpp::pegtl)
+find_package(Catch2 3 REQUIRED)
+
+enable_testing()
+
+add_subdirectory("src/main/cpp/isched")
+add_subdirectory("src/test/cpp/isched")
+
