@@ -9,6 +9,7 @@ find_package(Catch2 3 REQUIRED)
 
 enable_testing()
 
+include_directories("src/main/cpp")
 add_subdirectory("src/main/cpp/isched")
 add_subdirectory("src/test/cpp/isched")
 

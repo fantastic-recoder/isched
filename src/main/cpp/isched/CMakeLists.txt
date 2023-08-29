@@ -1,3 +1,9 @@
-add_executable(isched main.cpp)
+add_library(isched
+        isched.hpp
+        GraphQlParser.cpp
+        GraphQlParser.hpp)
 target_link_libraries(isched PRIVATE taocpp::pegtl)
+
+add_executable(isched_srv isched_srv_main.cpp)
+target_link_libraries(isched_srv PRIVATE taocpp::pegtl)
 

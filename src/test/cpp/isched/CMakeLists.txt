@@ -1,3 +1,3 @@
 add_executable(isched_grammar_tests isched_grammar_tests.cpp)
-target_link_libraries(isched_grammar_tests Catch2::Catch2WithMain)
+target_link_libraries(isched_grammar_tests isched Catch2::Catch2WithMain)
 add_test(NAME isched_grammar_tests COMMAND isched_grammar_tests)
