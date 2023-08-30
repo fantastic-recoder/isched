@@ -4,10 +4,11 @@ message("Building with CMake version: ${CMAKE_VERSION}")
 
 set(CMAKE_CXX_STANDARD 23)
 
+enable_testing()
+
 find_package(pegtl)
 find_package(Catch2 3 REQUIRED)
-
-enable_testing()
+find_package(restbed)
 
 include_directories("src/main/cpp")
 add_subdirectory("src/main/cpp/isched")
