@@ -2,49 +2,93 @@
 // Created by grobap on 29.08.23.
 //
 
+#include <iostream>
 #include <tao/pegtl.hpp>
+#include <tao/pegtl/contrib/parse_tree.hpp>
+#include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
 #include "GraphQlParser.hpp"
 
 
 namespace isched {
     namespace v0_0_1 {
 
-        namespace pegtl = tao::pegtl;
+        namespace ns_pegtl = tao::pegtl;
+        using ns_pegtl::one;
+        using ns_pegtl::seq;
+        using ns_pegtl::star;
+        using ns_pegtl::ranges;
+        using ns_pegtl::sor;
+        using ns_pegtl::must_if;
 
-        struct beg : pegtl::one< '{' >{};
-        struct end : pegtl::one< '}' >{};
-
-        struct query : pegtl::seq<beg,end>{};
-
-        // Primary action class template.
-        template< typename Rule >
-        struct my_action
-                : tao::pegtl::nothing< Rule > {};
-
-        // Specialise the action class template.
-        template<>
-        struct my_action< tao::pegtl::any >
-        {
-            // Implement an apply() function that will be called by
-            // the PEGTL every time tao::pegtl::any matches during
-            // the parsing run.
-            template< typename ActionInput >
-            static void apply( const ActionInput& in, std::string& out )
-            {
-                // Get the portion of the original input that the
-                // rule matched this time as string and append it
-                // to the result string.
-                out += in.string();
-            }
+        struct ws : one<' ', '\t', '\n', '\r'> {
         };
+
+        struct beg : seq<
+                star<ws>,
+                one<'{'>,
+                star<ws>> {
+        };
+
+        struct end : seq<
+                star<ws>,
+                one<'}'>,
+                star<ws>> {
+        };
+
+        struct name : seq<
+                sor<
+                        one<'_'>,
+                        ranges<'A', 'Z', 'a', 'z'>
+                >,
+                star<
+                        sor<
+                                one<'_'>,
+                                ranges<'0', '9', 'A', 'Z', 'a', 'z'>
+                        >
+                >
+        > {
+        };
+
+        struct query : seq<beg, star<name>, end> {
+        };
+
+        template<typename Rule>
+        using selector = ns_pegtl::parse_tree::selector<
+                Rule,
+                ns_pegtl::parse_tree::store_content::on<
+                        name>
+        >;
+
+        template<typename> inline constexpr const char *error_message = nullptr;
+        template<> inline constexpr auto error_message<beg> = "expected {";
+        template<> inline constexpr auto error_message<end> = "incomplete query, expected }";
+        //template<> inline constexpr auto error_message<name> = "error parsing name";
+
+        struct error {
+            template<typename Rule>
+            static constexpr auto message = error_message<Rule>;
+        };
+
+        template<typename Rule>
+        using control = must_if<error>::control<Rule>;
+
         bool GraphQlParser::parse(std::string pQuery) {
             // Set up the states, here a single std::string as that is
             // what our action requires as additional function argument.
-            std::string out;
-            pegtl::string_input in(pQuery,"Query");
-            // Start the parsing run with our grammar, action and state.
-            bool myRetVal=tao::pegtl::parse< query, my_action >( in, out );
-            return myRetVal;
+            ns_pegtl::string_input in(pQuery, "Query");
+
+            try {
+                const auto root = ns_pegtl::parse_tree::parse<query, selector, ns_pegtl::nothing, control>(in);
+                ns_pegtl::parse_tree::print_dot(std::cout, *root);
+            }
+            catch (const ns_pegtl::parse_error &e) {
+                const auto p = e.positions().front();
+                std::cerr << e.what() << std::endl
+                          << in.line_at(p) << std::endl
+                          << std::setw(p.column) << '^' << std::endl;
+                return false;
+            }
+            return true;
         }
     }
 }

@@ -17,13 +17,21 @@ using isched::v0_0_1::GraphQlParser;
 
 TEST_CASE( "Simple grammar", "[grammar0]" ) {
     static const char* myQuery001="{}";
-    static const char* myQuery002=R"Query001(
+    static const char* myQuery002=" {} ";
+    static const char* myQuery010=R"Qry(
+    {
+        hero
+    }
+    )Qry";
+    static const char* myQuery011=R"Qry(
     {
         hero {
                 name
         }
     }
-    )Query001";
+    )Qry";
     GraphQlParser myParser;
     REQUIRE(true == myParser.parse(myQuery001));
+    REQUIRE(true == myParser.parse(myQuery002));
+    REQUIRE(true == myParser.parse(myQuery010));
 }
