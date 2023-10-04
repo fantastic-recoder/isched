@@ -18,7 +18,7 @@ namespace isched {
 
         class GraphQlParser {
         public:
-            bool parse(std::string );
+            bool parse(std::string&& pQuery, const std::string& pName );
         private:
             //std::unique_ptr<tao::pegtl::node> mRoot;
         };

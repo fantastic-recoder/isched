@@ -6,6 +6,7 @@
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/parse_tree.hpp>
 #include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
+#include <tao/pegtl/contrib/trace.hpp>
 #include "GraphQlParser.hpp"
 
 
@@ -19,23 +20,34 @@ namespace isched {
         using ns_pegtl::ranges;
         using ns_pegtl::sor;
         using ns_pegtl::must_if;
+        using ns_pegtl::opt;
+        using ns_pegtl::at;
 
-        struct ws : one<' ', '\t', '\n', '\r'> {
+        using std::endl;
+        using std::cout;
+        using std::cerr;
+
+        struct Ws : one<' ', '\t', '\n', '\r'> {
         };
 
-        struct beg : seq<
-                star<ws>,
-                one<'{'>,
-                star<ws>> {
+        struct HashComment : seq<
+                one<'#'>,
+                tao::pegtl::until<tao::pegtl::eolf>,
+                star<Ws>
+        > {
         };
 
-        struct end : seq<
-                star<ws>,
-                one<'}'>,
-                star<ws>> {
+        struct Beg : seq<
+                one<'{'>, star<Ws>
+        > {
         };
 
-        struct name : seq<
+        struct End : seq<
+                one<'}'>, star<Ws>
+        > {
+        };
+
+        struct GqlName : seq<
                 sor<
                         one<'_'>,
                         ranges<'A', 'Z', 'a', 'z'>
@@ -49,37 +61,90 @@ namespace isched {
         > {
         };
 
-        struct query : seq<beg, star<name>, end> {
+
+        struct GqlSubQuery : seq<
+                Beg,
+                star<HashComment>,
+                opt<GqlName>,
+                star<Ws>,
+                star<HashComment>,
+                opt<GqlSubQuery>,
+                star<HashComment>,
+                End
+        > {
         };
 
-        template<typename Rule>
-        using selector = ns_pegtl::parse_tree::selector<
-                Rule,
+        struct GqlCommentedSubQuery : seq<
+                star<Ws>, star<HashComment>, GqlSubQuery
+        > {
+        };
+
+        struct GqlQuery: seq<
+                opt<ns_pegtl::string<'q','u','e','r','y'>>,
+                GqlCommentedSubQuery
+                >{
+        };
+
+        struct GqlType : seq<
+                ns_pegtl::string<'q','u','e','r','y'>
+                >{
+        };
+
+        struct GqlGrammar: sor<
+                GqlCommentedSubQuery,
+                GqlType
+                >{
+        };
+        template<typename TRule>
+        using GqlSelector = ns_pegtl::parse_tree::selector<
+                TRule,
                 ns_pegtl::parse_tree::store_content::on<
-                        name>
+                        GqlCommentedSubQuery, GqlName
+                >
         >;
 
-        template<typename> inline constexpr const char *error_message = nullptr;
-        template<> inline constexpr auto error_message<beg> = "expected {";
-        template<> inline constexpr auto error_message<end> = "incomplete query, expected }";
-        //template<> inline constexpr auto error_message<name> = "error parsing name";
+        //template<typename> inline constexpr const char *error_message = nullptr;
+        //template<> inline constexpr auto error_message<Beg> = "expected {";
+        //template<> inline constexpr auto error_message<End> = "incomplete query, expected }";
+        //template<> inline constexpr auto error_message<name> = "GqlError parsing name";
 
-        struct error {
-            template<typename Rule>
-            static constexpr auto message = error_message<Rule>;
-        };
+        //struct GqlError {
+        //    template<typename Rule>
+        //    static constexpr auto message = error_message<Rule>;
+        //};
 
-        template<typename Rule>
-        using control = must_if<error>::control<Rule>;
+        //template<typename Rule>
+        //using control = must_if<GqlError>::control<Rule>;
 
-        bool GraphQlParser::parse(std::string pQuery) {
+        static const char *const K_OUTPUT_SEP = "************************************************************************";
+
+        /**
+         *
+         * @param pQuery GraphQL query to be parsed
+         * @param pName An identifier, can be for example a filename.
+         * @return true on success.
+         */
+        bool GraphQlParser::parse(std::string &&pQuery, const std::string &pName) {
             // Set up the states, here a single std::string as that is
             // what our action requires as additional function argument.
-            ns_pegtl::string_input in(pQuery, "Query");
+            ns_pegtl::string_input in(std::move(pQuery), "Query");
 
             try {
-                const auto root = ns_pegtl::parse_tree::parse<query, selector, ns_pegtl::nothing, control>(in);
-                ns_pegtl::parse_tree::print_dot(std::cout, *root);
+                const auto root = ns_pegtl::parse_tree::parse<
+                        GqlGrammar/*, GqlSelector, ns_pegtl::nothing, control*/
+                >(in);
+                cout << endl << endl << "AST of \"" << pName << "\":" << endl
+                     << K_OUTPUT_SEP << endl;
+                if (root) {
+                    ns_pegtl::parse_tree::print_dot(std::cout, *root);
+                    cout << endl
+                         << K_OUTPUT_SEP << endl
+                         << endl;
+                } else {
+                    cerr << "No AST generated!?" << endl;
+                    ns_pegtl::standard_trace<GqlGrammar>(in);
+                    return false;
+                }
             }
             catch (const ns_pegtl::parse_error &e) {
                 const auto p = e.positions().front();

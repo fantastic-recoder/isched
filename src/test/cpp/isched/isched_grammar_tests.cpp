@@ -15,15 +15,28 @@ REQUIRE( Factorial(10) == 3628800 );
 
 using isched::v0_0_1::GraphQlParser;
 
-TEST_CASE( "Simple grammar", "[grammar0]" ) {
+TEST_CASE("Empty query", "[grammar0]" ) {
     static const char* myQuery001="{}";
+    GraphQlParser myParser;
+    REQUIRE(true == myParser.parse(myQuery001,"myQuery001"));
+}
+
+TEST_CASE( "Simplest GQL query", "[grammar0]" ) {
+
     static const char* myQuery002=" {} ";
     static const char* myQuery010=R"Qry(
     {
         hero
     }
     )Qry";
-    static const char* myQuery011=R"Qry(
+    GraphQlParser myParser;
+    REQUIRE(true == myParser.parse(myQuery002,"myQuery002"));
+    REQUIRE(true == myParser.parse(myQuery010,"myQuery010"));
+}
+
+TEST_CASE( "Nested GQL query", "[grammar0]" ) {
+
+    static const char* myNestedQuery=R"Qry(
     {
         hero {
                 name
@@ -31,7 +44,46 @@ TEST_CASE( "Simple grammar", "[grammar0]" ) {
     }
     )Qry";
     GraphQlParser myParser;
-    REQUIRE(true == myParser.parse(myQuery001));
-    REQUIRE(true == myParser.parse(myQuery002));
-    REQUIRE(true == myParser.parse(myQuery010));
+    REQUIRE(true == myParser.parse(myNestedQuery,"myNestedQuery"));
+}
+
+TEST_CASE( "Comments in query", "[grammar0]" ) {
+    static const char* myQueryWithComments001=R"Qry(#graphql
+    {
+        hero
+    }
+    )Qry";
+    GraphQlParser myParser;
+    REQUIRE(true == myParser.parse(myQueryWithComments001, "myQueryWithComments001"));
+    static const char* myQueryWithComments002=R"Qry(#graphql
+    {
+        # Hero resource
+        hero
+    }
+    )Qry";
+    REQUIRE(true == myParser.parse(myQueryWithComments002, "myQueryWithComments002"));
+}
+
+TEST_CASE("Book grammar test","[grammar0]") {
+    static const char* myBookQuery=R"Qry(#graphql
+# Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
+# This "Book" type defines the queryable fields for every book in our data source.
+
+    type Book {
+            title: String
+            author: String
+    }
+
+# The "Query" type is special: it lists all of the available queries that
+# clients can execute, along with the return type for each. In this
+# case, the "books" query returns an array of zero or more Books (defined above).
+
+    type Query {
+            books: [Book]
+    }
+
+})Qry";
+    GraphQlParser myParser;
+    //REQUIRE(true == myParser.parse(myBookQuery,"book"));
+
 }
