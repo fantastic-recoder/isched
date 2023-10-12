@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>
-#include "../../../main/cpp/isched/GraphQlParser.hpp"
+#include "../../../main/cpp/isched/GqlParser.hpp"
 
 unsigned int Factorial( unsigned int number ) {
     return number <= 1 ? number : Factorial(number-1)*number;
@@ -13,11 +13,11 @@ REQUIRE( Factorial(3) == 6 );
 REQUIRE( Factorial(10) == 3628800 );
 }
 
-using isched::v0_0_1::GraphQlParser;
+using isched::v0_0_1::GqlParser;
 
 TEST_CASE("Empty query", "[grammar0]" ) {
     static const char* myQuery001="{}";
-    GraphQlParser myParser;
+    GqlParser myParser;
     REQUIRE(true == myParser.parse(myQuery001,"myQuery001"));
 }
 
@@ -29,7 +29,7 @@ TEST_CASE( "Simplest GQL query", "[grammar0]" ) {
         hero
     }
     )Qry";
-    GraphQlParser myParser;
+    GqlParser myParser;
     REQUIRE(true == myParser.parse(myQuery002,"myQuery002"));
     REQUIRE(true == myParser.parse(myQuery010,"myQuery010"));
 }
@@ -43,7 +43,7 @@ TEST_CASE( "Nested GQL query", "[grammar0]" ) {
         }
     }
     )Qry";
-    GraphQlParser myParser;
+    GqlParser myParser;
     REQUIRE(true == myParser.parse(myNestedQuery,"myNestedQuery"));
 }
 
@@ -53,7 +53,7 @@ TEST_CASE( "Comments in query", "[grammar0]" ) {
         hero
     }
     )Qry";
-    GraphQlParser myParser;
+    GqlParser myParser;
     REQUIRE(true == myParser.parse(myQueryWithComments001, "myQueryWithComments001"));
     static const char* myQueryWithComments002=R"Qry(#graphql
     {
@@ -83,7 +83,7 @@ TEST_CASE("Book grammar test","[grammar0]") {
     }
 
 })Qry";
-    GraphQlParser myParser;
+    GqlParser myParser;
     //REQUIRE(true == myParser.parse(myBookQuery,"book"));
 
 }

@@ -5,6 +5,6 @@
 #ifndef ISCHED_ISCHED_HPP
 #define ISCHED_ISCHED_HPP
 
-#include "GraphQlParser.hpp"
+#include "GqlParser.hpp"
 
 #endif //ISCHED_ISCHED_HPP

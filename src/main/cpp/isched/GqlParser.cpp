@@ -7,8 +7,8 @@
 #include <tao/pegtl/contrib/parse_tree.hpp>
 #include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
-#include "GraphQlParser.hpp"
 
+#include "GqlParser.hpp"
 
 namespace isched {
     namespace v0_0_1 {
@@ -124,7 +124,7 @@ namespace isched {
          * @param pName An identifier, can be for example a filename.
          * @return true on success.
          */
-        bool GraphQlParser::parse(std::string &&pQuery, const std::string &pName) {
+        bool GqlParser::parse(std::string &&pQuery, const std::string &pName) {
             // Set up the states, here a single std::string as that is
             // what our action requires as additional function argument.
             ns_pegtl::string_input in(std::move(pQuery), "Query");
