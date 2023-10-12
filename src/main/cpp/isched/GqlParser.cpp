@@ -7,9 +7,18 @@
 #include <tao/pegtl/contrib/parse_tree.hpp>
 #include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
-
+#include <spdlog/spdlog.h>
+#include <spdlog/cfg/env.h>
 #include "GqlParser.hpp"
 
+namespace {
+    struct LogEnvLoader {
+        LogEnvLoader() {
+            spdlog::cfg::load_env_levels();
+            spdlog::info("Log environment loaded.");
+        }
+    } myLoader;
+}
 namespace isched {
     namespace v0_0_1 {
 
@@ -133,8 +142,7 @@ namespace isched {
                 const auto root = ns_pegtl::parse_tree::parse<
                         GqlGrammar/*, GqlSelector, ns_pegtl::nothing, control*/
                 >(in);
-                cout << endl << endl << "AST of \"" << pName << "\":" << endl
-                     << K_OUTPUT_SEP << endl;
+                spdlog::debug("\n\nAST of \"{}\":\n{}",pName,K_OUTPUT_SEP) ;
                 if (root) {
                     ns_pegtl::parse_tree::print_dot(std::cout, *root);
                     cout << endl

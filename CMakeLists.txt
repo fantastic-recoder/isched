@@ -9,6 +9,7 @@ enable_testing()
 find_package(pegtl)
 find_package(Catch2 3 REQUIRED)
 find_package(restbed)
+find_package(spdlog)
 
 include_directories("src/main/cpp")
 add_subdirectory("src/main/cpp/isched")
