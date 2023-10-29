@@ -6,7 +6,7 @@ if __name__ == '__main__':
     myBuildDir = pathlib.Path("cmake-build-debug")
     if not myBuildDir.exists():
         myBuildDir.mkdir()
-        myRetVal = os.system("~/.local/bin/conan install . -of cmake-build-debug -s build_type=Debug --build=missing")
+        myRetVal = os.system("conan install . -of cmake-build-debug -s build_type=Debug --build=missing")
         if myRetVal != 0:
             myBuildDir.rmdir()
             exit(myRetVal)
