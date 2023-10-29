@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.22.6)
 project(isched)
 message("Building with CMake version: ${CMAKE_VERSION}")
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 
 enable_testing()
 

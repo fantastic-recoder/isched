@@ -22,3 +22,7 @@ cd isched/src/docker
 docker build -t isched .
 docker run -i isched
 ```
+To log in into the container:
+```bash
+docker run --rm -it isched:latest
+```
