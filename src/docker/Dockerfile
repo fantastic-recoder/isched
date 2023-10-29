@@ -8,12 +8,12 @@ RUN apt-get update \
     && echo 'tzdata tzdata/Zones/Europe select Berlin' | debconf-set-selections \
     && DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 RUN apt-get -y install python3 python3-pip python3-dev cmake ninja-build git \
-    && python3 -m pip install conan2 \
-    && git clone --recursive https://github.com/gogoba/isched.git \
-    && cd isched \
+    && pip install conan2 \
+    && git clone --recursive https://github.com/gogoba/isched.git
+RUN cd isched \
     && python3 configure.py
-
-
-
+RUN cd isched/cmake-build-debug \
+    && ninja build \
+    && ninja test
 # Put your own Dockfile commands here
 CMD ["/bin/bash"]

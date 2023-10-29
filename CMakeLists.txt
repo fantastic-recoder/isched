@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22.6)
+cmake_minimum_required(VERSION 3.16.3)
 project(isched)
 message("Building with CMake version: ${CMAKE_VERSION}")
 
