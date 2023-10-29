@@ -7,7 +7,7 @@ RUN apt-get update && apt-get upgrade \
     && echo 'tzdata tzdata/Zones/Europe select Berlin' | debconf-set-selections \
     && DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 
-RUN apt-get -y install python3 python3-pip python3-dev cmake ninja-build git \
+RUN apt-get -y install python3 python3-pip python3-dev cmake ninja-build git emacs \
     && pip install conan2 pandas matplotlib openpyxl
 
 RUN groupadd -f conan-1001 -g 1001 \
