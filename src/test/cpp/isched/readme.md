@@ -11,5 +11,5 @@
 *rest_hello_world* - Small "hello world" copied from the Restbed documentation.
 
 ```
-curl  --data Groby localhost:1984/resource
+
 ```

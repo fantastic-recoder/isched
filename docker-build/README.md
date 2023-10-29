@@ -1,1 +1,0 @@
-This is the working directory for the Docker/Ubuntu build from Dockerfile in src/docker.

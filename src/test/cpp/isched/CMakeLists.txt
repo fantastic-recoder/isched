@@ -8,3 +8,4 @@ add_test(NAME isched_srv_test COMMAND isched_grammar_tests)
 
 add_executable(rest_hello_world rest_hello_world.cpp)
 target_link_libraries(rest_hello_world restbed::restbed)
+

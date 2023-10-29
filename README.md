@@ -20,9 +20,12 @@ Build on Ubuntu with Docker
 git clone --recursive https://github.com/gogoba/isched.git
 cd isched/src/docker
 docker build -t isched .
-docker run -i isched
+docker run -d --name isched001 --rm -v results:/results -t isched:latest
+docker cp isched001:/results/rest_hello_world .
+docker stop isched001
 ```
-To log in into the container:
+Now we can run the resulting binary and send to it a message with curl:
 ```bash
-docker run --rm -it isched:latest
+./rest_hello_world & 
+curl  --data Groby localhost:1984/resource
 ```
