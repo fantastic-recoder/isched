@@ -15,6 +15,9 @@ parallel operation running from cloud server hardware down to embedded hardware.
 Build on Ubuntu with Docker
 ---------------------------
 
+Make sure you have [Docker installed](https://docs.docker.com/engine/install/) and 
+[git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) on your system.
+
 - Build Isched
 ```bash
 git clone --recursive https://github.com/gogoba/isched.git
