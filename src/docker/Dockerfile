@@ -6,7 +6,7 @@ RUN apt-get update && apt-get upgrade \
     && echo 'tzdata tzdata/Zones/Europe select Berlin' | debconf-set-selections \
     && DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 
-RUN apt-get -y install python3 python3-pip python3-dev ninja-build git emacs wget build-essetial \
+RUN apt-get -y install python3 python3-pip python3-dev ninja-build git emacs wget build-essential \
     && pip install conan
 
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1-Linux-x86_64.sh \
