@@ -6,8 +6,16 @@ RUN apt-get update && apt-get upgrade \
     && echo 'tzdata tzdata/Zones/Europe select Berlin' | debconf-set-selections \
     && DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 
-RUN apt-get -y install python3 python3-pip python3-dev cmake ninja-build git emacs \
+RUN apt-get -y install python3 python3-pip python3-dev ninja-build git emacs wget build-essetial \
     && pip install conan
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1-Linux-x86_64.sh \
+          -q -O /tmp/cmake-install.sh \
+          && chmod u+x /tmp/cmake-install.sh \
+          && mkdir /opt/cmake-3.28.1 \
+          && /tmp/cmake-install.sh --skip-license --prefix=/opt/cmake-3.28.1 \
+          && rm /tmp/cmake-install.sh \
+          && ln -s /opt/cmake-3.28.1/bin/* /usr/local/bin
 
 RUN groupadd -f conan-1001 -g 1001 \
         && groupadd -f conan-1000 -g 1000 \
