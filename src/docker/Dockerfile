@@ -27,9 +27,9 @@ RUN groupadd -f conan-1001 -g 1001 \
         && printf "conan ALL= NOPASSWD: ALL\\n" >> /etc/sudoers \
         && mkdir -p -v /home/conan/.conan2/profiles/ && chown -R conan: /home/conan
 
-RUN mkdir -p /results  \
-    && chown -R conan /results  \
-    && chmod 777 /results
+RUN mkdir -p /opt/isched  \
+    && chown -R conan /opt/isched  \
+    && chmod 777 /opt/isched
 
 USER conan
 WORKDIR /home/conan
@@ -41,7 +41,9 @@ COPY default /home/conan/.conan2/profiles/default
 RUN pip install conan && . ~/.profile \
         && cd isched && python3 configure.py
 
-RUN cp /home/conan/isched/cmake-build-debug/src/test/cpp/isched/rest_hello_world /results
+RUN cp /home/conan/isched/cmake-build-debug/src/test/cpp/isched/rest_hello_world /opt/isched
+RUN cp /home/conan/isched/cmake-build-debug/src/main/cpp/isched/isched_srv /opt/isched
 
 # Put your own Dockfile commands here
+#CMD ["/opt/isched/isched_srv"]
 CMD ["/bin/bash"]

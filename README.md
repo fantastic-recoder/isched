@@ -23,14 +23,19 @@ Make sure you have [Docker installed](https://docs.docker.com/engine/install/) a
 git clone --recursive https://github.com/gogoba/isched.git
 cd isched/src/docker
 docker build -t isched .
-docker run -d --name isched001 --rm -v results:/results -t isched:latest
-docker cp isched001:/results/rest_hello_world .
+docker run -d --name isched001 --rm -v isched:/opt/isched -p 1980 -t isched:latest
+docker cp isched001:/opt/isched/rest_hello_world .
+docker cp isched001:/opt/isched/isched_srv .
 docker stop isched001
 ```
 Now we can run the resulting binary and send to it a message with curl:
 ```bash
 ./rest_hello_world & 
 curl  --data Groby localhost:1984/resource
+```
+- or you can run isched server out of container:
+```
+docker run --name isched001 --rm -v isched:/opt/isched -t isched:latest /opt/isched/isched_srv
 ```
 
 Build on Ubuntu 20.04
