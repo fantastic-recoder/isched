@@ -7,7 +7,7 @@ RUN apt-get update && apt-get upgrade \
     && DEBIAN_FRONTEND="noninteractive" apt install -y tzdata
 
 RUN apt-get -y install python3 python3-pip python3-dev cmake ninja-build git emacs \
-    && pip install conan2 pandas matplotlib openpyxl
+    && pip install conan
 
 RUN groupadd -f conan-1001 -g 1001 \
         && groupadd -f conan-1000 -g 1000 \

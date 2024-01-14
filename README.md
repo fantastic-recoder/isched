@@ -32,3 +32,17 @@ Now we can run the resulting binary and send to it a message with curl:
 ./rest_hello_world & 
 curl  --data Groby localhost:1984/resource
 ```
+
+Build on Ubuntu 20.04
+---------------------
+
+Please see the RUN commands in the [Dokefile](src/docker/Dockerfile).
+
+Build with CLion
+----------------
+
+When building with **CLion** You start on command line and on **CLion**
+start fill-in in the [CMake options dialogue](doc/clion_cmake_options.png)
+the CMake options used in the [configure.py script](configure.py). The line
+is marked with commentary ```# CMake options after "cmake```. 
+
