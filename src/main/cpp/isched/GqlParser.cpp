@@ -19,9 +19,9 @@ namespace {
         }
     } myLoader;
 }
+
 namespace isched {
     namespace v0_0_1 {
-
         namespace ns_pegtl = tao::pegtl;
         using ns_pegtl::one;
         using ns_pegtl::seq;
@@ -40,76 +40,85 @@ namespace isched {
         };
 
         struct HashComment : seq<
-                one<'#'>,
-                tao::pegtl::until<tao::pegtl::eolf>,
-                star<Ws>
-        > {
+                    one<'#'>,
+                    tao::pegtl::until<tao::pegtl::eolf>
+                > {
         };
 
-        struct Beg : seq<
-                one<'{'>, star<Ws>
-        > {
+        struct Beg : one<'{'> {
         };
 
-        struct End : seq<
-                one<'}'>, star<Ws>
-        > {
+        struct End : one<'}'> {
         };
 
         struct GqlName : seq<
-                sor<
+                    sor<
                         one<'_'>,
                         ranges<'A', 'Z', 'a', 'z'>
-                >,
-                star<
+                    >,
+                    star<
                         sor<
-                                one<'_'>,
-                                ranges<'0', '9', 'A', 'Z', 'a', 'z'>
+                            one<'_'>,
+                            ranges<'0', '9', 'A', 'Z', 'a', 'z'>
                         >
-                >
-        > {
+                    >
+                > {
         };
 
+        struct TSeparator : sor<Ws, HashComment> {
+        }; // either/or
 
-        struct GqlSubQuery : seq<
-                Beg,
-                star<HashComment>,
-                opt<GqlName>,
-                star<Ws>,
-                star<HashComment>,
-                opt<GqlSubQuery>,
-                star<HashComment>,
-                End
-        > {
+        struct TSeps : tao::pegtl::star<TSeparator> {
+        }; // any separators, whitespace or comments
+
+        // template to generate rule
+        // tao::pegtl::seq<rule0, separator, rule1, separator, rule2, ... , separator, rulen>
+        template<typename TSeparator, typename... TRules>
+        struct SeqWithComments;
+
+        template<typename TSeparator, typename TRule0, typename... TRulesRest>
+        struct SeqWithComments<TSeparator, TRule0, TRulesRest...>
+                : seq<TRule0, TSeparator, SeqWithComments<TSeparator, TRulesRest...> > {
         };
 
-        struct GqlCommentedSubQuery : seq<
-                star<Ws>, star<HashComment>, GqlSubQuery
-        > {
+        template<typename TSeparator, typename TRule0>
+        struct SeqWithComments<TSeparator, TRule0>
+                : seq<TRule0, TSeparator> {
         };
 
-        struct GqlQuery: seq<
-                opt<ns_pegtl::string<'q','u','e','r','y'>>,
-                GqlCommentedSubQuery
-                >{
+        struct GqlSubQuery : SeqWithComments<
+                    TSeps,
+                    Beg,
+                    opt<GqlName>,
+                    opt<GqlSubQuery>,
+                    End
+                > {
+        };
+
+        struct GqlQuery : SeqWithComments<
+                    TSeps,
+                    opt<ns_pegtl::string<'q', 'u', 'e', 'r', 'y'> >,
+                    GqlSubQuery
+                > {
         };
 
         struct GqlType : seq<
-                ns_pegtl::string<'q','u','e','r','y'>
-                >{
+                    ns_pegtl::string<'q', 'u', 'e', 'r', 'y'>
+                > {
         };
 
-        struct GqlGrammar: sor<
-                GqlCommentedSubQuery,
-                GqlType
-                >{
+        struct GqlGrammar : sor<
+                    GqlQuery,
+                    GqlType
+                > {
         };
+
         template<typename TRule>
         using GqlSelector = ns_pegtl::parse_tree::selector<
-                TRule,
-                ns_pegtl::parse_tree::store_content::on<
-                        GqlCommentedSubQuery, GqlName
-                >
+            TRule,
+            ns_pegtl::parse_tree::store_content::on<
+                GqlQuery, GqlName
+            >
         >;
 
         //template<typename> inline constexpr const char *error_message = nullptr;
@@ -125,7 +134,8 @@ namespace isched {
         //template<typename Rule>
         //using control = must_if<GqlError>::control<Rule>;
 
-        static const char *const K_OUTPUT_SEP = "************************************************************************";
+        static const char *const K_OUTPUT_SEP =
+                "************************************************************************";
 
         /**
          *
@@ -134,31 +144,31 @@ namespace isched {
          * @return true on success.
          */
         bool GqlParser::parse(std::string &&pQuery, const std::string &pName) {
+            spdlog::debug("Parsing query named \"{}\".", pName);
             // Set up the states, here a single std::string as that is
             // what our action requires as additional function argument.
             ns_pegtl::string_input in(std::move(pQuery), "Query");
 
             try {
                 const auto root = ns_pegtl::parse_tree::parse<
-                        GqlGrammar/*, GqlSelector, ns_pegtl::nothing, control*/
+                    GqlGrammar /*, GqlSelector, ns_pegtl::nothing, control*/
                 >(in);
-                spdlog::debug("\n\nAST of \"{}\":\n{}",pName,K_OUTPUT_SEP) ;
+                spdlog::debug("\n\nAST of \"{}\":\n{}", pName, K_OUTPUT_SEP);
                 if (root) {
                     ns_pegtl::parse_tree::print_dot(std::cout, *root);
                     cout << endl
-                         << K_OUTPUT_SEP << endl
-                         << endl;
+                            << K_OUTPUT_SEP << endl
+                            << endl;
                 } else {
-                    cerr << "No AST generated!?" << endl;
+                    spdlog::error("\"{}\" error / no AST generated!?", pName);
                     ns_pegtl::standard_trace<GqlGrammar>(in);
                     return false;
                 }
-            }
-            catch (const ns_pegtl::parse_error &e) {
+            } catch (const ns_pegtl::parse_error &e) {
                 const auto p = e.positions().front();
                 std::cerr << e.what() << std::endl
-                          << in.line_at(p) << std::endl
-                          << std::setw(p.column) << '^' << std::endl;
+                        << in.line_at(p) << std::endl
+                        << std::setw(p.column) << '^' << std::endl;
                 return false;
             }
             return true;

@@ -2,35 +2,39 @@
 #include <isched/isched.hpp>
 #include "../../../main/cpp/isched/GqlParser.hpp"
 
-unsigned int Factorial( unsigned int number ) {
-    return number <= 1 ? number : Factorial(number-1)*number;
+unsigned int factorial( unsigned int number ) {
+    return number <= 1 ? number : factorial(number-1)*number;
 }
 
 TEST_CASE( "Factorials are computed", "[factorial]" ) {
-REQUIRE( Factorial(1) == 1 );
-REQUIRE( Factorial(2) == 2 );
-REQUIRE( Factorial(3) == 6 );
-REQUIRE( Factorial(10) == 3628800 );
+REQUIRE( factorial(1) == 1 );
+REQUIRE( factorial(2) == 2 );
+REQUIRE( factorial(3) == 6 );
+REQUIRE( factorial(10) == 3628800 );
 }
 
 using isched::v0_0_1::GqlParser;
 
-TEST_CASE("Empty query", "[grammar0]" ) {
+TEST_CASE("001 Empty query", "[grammar0]" ) {
     static const char* myQuery001="{}";
     GqlParser myParser;
     REQUIRE(true == myParser.parse(myQuery001,"myQuery001"));
 }
 
-TEST_CASE( "Simplest GQL query", "[grammar0]" ) {
-
+TEST_CASE("002 Empty query with whitespace", "[grammar0]" ) {
     static const char* myQuery002=" {} ";
+    GqlParser myParser;
+    REQUIRE(true == myParser.parse(myQuery002,"myQuery002"));
+}
+
+TEST_CASE( "003 Simplest GQL query", "[grammar0]" ) {
+
     static const char* myQuery010=R"Qry(
     {
         hero
     }
     )Qry";
     GqlParser myParser;
-    REQUIRE(true == myParser.parse(myQuery002,"myQuery002"));
     REQUIRE(true == myParser.parse(myQuery010,"myQuery010"));
 }
 
