@@ -57,7 +57,7 @@ jobs:
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -G Ninja 
-        -DCMAKE_TOOLCHAIN_FILE=${{steps.strings.outputs.build-output-dir}}/conan_toolchain.cmake 
+        -DCMAKE_TOOLCHAIN_FILE=${{ steps.strings.outputs.build-output-dir }}/../conan_toolchain.cmake 
         -DCMAKE_POLICY_DEFAULT_CMP0091=NEW 
         -DCMAKE_BUILD_TYPE=Debug
         -S ${{ github.workspace }}

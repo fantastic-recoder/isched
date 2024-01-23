@@ -3,8 +3,8 @@
 //
 
 #include <iostream>
+#include <utility>
 #include <tao/pegtl.hpp>
-#include <tao/pegtl/contrib/parse_tree.hpp>
 #include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
 #include <spdlog/spdlog.h>
@@ -31,10 +31,12 @@ namespace isched {
         using ns_pegtl::must_if;
         using ns_pegtl::opt;
         using ns_pegtl::at;
+        using ns_pegtl::parse_tree::node;
 
         using std::endl;
         using std::cout;
         using std::cerr;
+        using std::unique_ptr;
 
         struct Ws : one<' ', '\t', '\n', '\r'> {
         };
@@ -134,44 +136,67 @@ namespace isched {
         //template<typename Rule>
         //using control = must_if<GqlError>::control<Rule>;
 
-        static const char *const K_OUTPUT_SEP =
-                "************************************************************************";
+        typedef std::unique_ptr<ns_pegtl::parse_tree::node> ParseTreePtr;
+
+        class GdlParserTree: public IGdlParserTree {
+        public:
+            explicit GdlParserTree(std::string &&pQuery, const std::string &pName);
+            ~GdlParserTree() = default;
+            bool isParsingOk() const override { return mParsingOk; }
+
+        private:
+            ParseTreePtr mRoot;
+            bool         mParsingOk;
+        };
+
 
         /**
          *
          * @param pQuery GraphQL query to be parsed
-         * @param pName An identifier, can be for example a filename.
+         * @param pName An identifier, used as additional (debug/output) information,
+         *       can be for example a filename.
          * @return true on success.
          */
-        bool GqlParser::parse(std::string &&pQuery, const std::string &pName) {
+        std::unique_ptr<IGdlParserTree> GqlParser::parse(std::string &&pQuery, const std::string &pName) {
+             unique_ptr<IGdlParserTree> myGdlParserTree
+                     =std::make_unique<GdlParserTree>(std::move(pQuery),pName);
+             return myGdlParserTree;
+        }
+
+        static const char *const K_OUTPUT_SEP =
+            "************************************************************************";
+
+
+        GdlParserTree::GdlParserTree(std::string &&pQuery, const std::string &pName)  {
             spdlog::debug("Parsing query named \"{}\".", pName);
             // Set up the states, here a single std::string as that is
             // what our action requires as additional function argument.
             ns_pegtl::string_input in(std::move(pQuery), "Query");
 
             try {
-                const auto root = ns_pegtl::parse_tree::parse<
-                    GqlGrammar /*, GqlSelector, ns_pegtl::nothing, control*/
+                mRoot = ns_pegtl::parse_tree::parse<
+                        GqlGrammar, GqlSelector/*, ns_pegtl::nothing, control*/
                 >(in);
                 spdlog::debug("\n\nAST of \"{}\":\n{}", pName, K_OUTPUT_SEP);
-                if (root) {
-                    ns_pegtl::parse_tree::print_dot(std::cout, *root);
-                    cout << endl
-                            << K_OUTPUT_SEP << endl
-                            << endl;
+                if (mRoot) {
+                    ns_pegtl::parse_tree::print_dot(std::cout, *mRoot);
+                    std::cout << endl
+                         << K_OUTPUT_SEP << endl
+                         << endl;
+                    mParsingOk = true;
                 } else {
                     spdlog::error("\"{}\" error / no AST generated!?", pName);
                     ns_pegtl::standard_trace<GqlGrammar>(in);
-                    return false;
+                    mParsingOk = false;
                 }
             } catch (const ns_pegtl::parse_error &e) {
                 const auto p = e.positions().front();
                 std::cerr << e.what() << std::endl
-                        << in.line_at(p) << std::endl
-                        << std::setw(p.column) << '^' << std::endl;
-                return false;
+                          << in.line_at(p) << std::endl
+                          << std::setw(p.column) << '^' << std::endl;
+                mParsingOk =  false;
             }
-            return true;
         }
-    }
+
+    } // namespace v0_0_1
 }

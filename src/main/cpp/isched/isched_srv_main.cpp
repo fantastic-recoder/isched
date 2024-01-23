@@ -14,10 +14,10 @@ void get_method_handler( const shared_ptr< Session > session )
 
     int content_length = request->get_header( "Content-Length", 0 );
 
-    session->fetch( content_length, [ ]( const shared_ptr< Session > session, const Bytes & body )
+    session->fetch( content_length, [ ](const shared_ptr< Session > pSessionPtr, const Bytes & pBodyRef )
     {
-        fprintf( stdout, "%.*s\n", ( int ) body.size( ), body.data( ) );
-        session->close( OK, "Hello, World!", { { "Content-Length", "13" } } );
+        fprintf(stdout, "%.*s\n", ( int ) pBodyRef.size( ), pBodyRef.data( ) );
+        pSessionPtr->close(OK, "Hello, World!", {{"Content-Length", "13" } } );
     } );
 }
 
