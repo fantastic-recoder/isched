@@ -8,14 +8,6 @@
 #include <string>
 #include <memory>
 
-namespace tao {
-    namespace pegtl {
-        namespace parse_tree {
-            struct node;
-        }
-    }
-}
-
 namespace isched {
     namespace v0_0_1 {
 

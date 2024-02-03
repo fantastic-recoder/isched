@@ -9,7 +9,7 @@
 #include <tao/pegtl/contrib/trace.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
-#include "GqlParser.hpp"
+#include "isched_GqlParser.hpp"
 
 namespace {
     struct LogEnvLoader {
