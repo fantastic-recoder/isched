@@ -1,5 +1,5 @@
 [requires]
-taocpp-pegtl/3.2.6
+taocpp-pegtl/3.2.7
 catch2/3.4.0
 restbed/4.8
 spdlog/1.12.0

@@ -4,6 +4,6 @@
         "conan": {}
     },
     "include": [
-        "/home/grobap/dev/wkspc-striboh/isched/cmake-build-debug/CMakePresets.json"
+        "cmake-build-debug\\CMakePresets.json"
     ]
 }
