@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="isched_srv_test" type="CMakeCatchTestRunConfigurationType" factoryName="Catch Test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="isched" TARGET_NAME="isched_srv_test" CONFIG_NAME="cmake-build-debug" RUN_TARGET_PROJECT_NAME="isched" RUN_TARGET_NAME="isched_srv_test" TEST_MODE="SUITE_TEST">
+    <envs>
+      <env name="SPDLOG_LEVEL" value="trace" />
+    </envs>
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      <option name="BeforeTestRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>

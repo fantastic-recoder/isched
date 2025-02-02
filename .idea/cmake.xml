@@ -2,7 +2,7 @@
 <project version="4">
   <component name="CMakeSharedSettings">
     <configurations>
-      <configuration PROFILE_NAME="cmake-build-debug" ENABLED="true" GENERATION_DIR="cmake-build-debug" CONFIG_NAME="Debug" TOOLCHAIN_NAME="Visual Studio" GENERATION_OPTIONS="-G &quot;Visual Studio 17 2022&quot; -DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW" />
+      <configuration PROFILE_NAME="cmake-build-debug" ENABLED="true" GENERATION_DIR="cmake-build-debug" CONFIG_NAME="Debug" TOOLCHAIN_NAME="fedora" GENERATION_OPTIONS="-G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW" />
     </configurations>
   </component>
 </project>

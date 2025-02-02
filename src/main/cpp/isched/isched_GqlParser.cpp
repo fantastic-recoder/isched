@@ -10,15 +10,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
 #include "isched_GqlParser.hpp"
-
-namespace {
-    struct LogEnvLoader {
-        LogEnvLoader() {
-            spdlog::cfg::load_env_levels();
-            spdlog::info("Log environment loaded.");
-        }
-    } myLoader;
-}
+#include "isched_LogEnvLoader.hpp"
 
 namespace isched {
     namespace v0_0_1 {

@@ -3,6 +3,7 @@
  */
 #include <memory>
 #include <cstdlib>
+#include <iostream>
 #include <restbed>
 
 using namespace std;
@@ -16,7 +17,11 @@ void post_method_handler( const shared_ptr< Session > pSession )
 
     pSession->fetch( content_length, [ ]( const shared_ptr< Session > session, const Bytes & body )
     {
-        fprintf( stdout, "%.*s\n", ( int ) body.size( ), body.data( ) );
+        string myArg{body.begin(), body.end()};
+        if (myArg=="exit") {
+            exit(666);
+        }
+        cout << "Got: " << myArg << endl;
         session->close( OK, "Hello, World!", { { "Content-Length", "13" } } );
     } );
 }
