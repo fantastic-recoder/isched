@@ -9,20 +9,21 @@
 using namespace std;
 using namespace restbed;
 
-void post_method_handler( const shared_ptr< Session > pSession )
+static void post_method_handler( const shared_ptr< Session > pSession )
 {
     const auto request = pSession->get_request( );
 
-    int content_length = request->get_header( "Content-Length", 0 );
+    const int myContentLen = request->get_header( "Content-Length", 0 );
 
-    pSession->fetch( content_length, [ ]( const shared_ptr< Session > session, const Bytes & body )
+    pSession->fetch( myContentLen, [ ]( const shared_ptr< Session > pSessionPtr, const Bytes & body )
     {
-        string myArg{body.begin(), body.end()};
+        const string myArg{body.begin(), body.end()};
         if (myArg=="exit") {
-            exit(666);
+            pSessionPtr->close( OK, "Bye, World!", { { "Content-Length", "13" } } );
+            exit(0);
         }
         cout << "Got: " << myArg << endl;
-        session->close( OK, "Hello, World!", { { "Content-Length", "13" } } );
+        pSessionPtr->close( OK, "Hello, World!", { { "Content-Length", "13" } } );
     } );
 }
 
