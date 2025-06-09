@@ -1,0 +1,21 @@
+# This file is managed by Conan, contents will be overwritten.
+# To keep your changes, remove these comment lines, but the plugin won't be able to modify your requirements
+
+requirements:
+  - "taocpp-pegtl/3.2.6"
+  - "catch2/3.4.0"
+  - "restbed/4.8"
+  - "spdlog/1.12.0"
+  - "nlohmann_json/3.11.3"
+  - "fmt/10.2.1"
+  - "cpp-httplib/0.18.3"
+  - "nextsilicon-cpp-subprocess/2.0.2"
+  - "openssl/3.5.0"
+
+tool_requirements:
+  - "cmake/3.22.6"
+  - "ninja/1.12.1"
+
+generators:
+  - "CMakeDeps"
+  - "CMakeToolchain"

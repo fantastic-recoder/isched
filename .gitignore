@@ -3,3 +3,5 @@
 /**/mydata.xls
 /src/docker/rest_hello_world
 /.idea/editor.xml
+/CMakeFiles/*
+/conan_provider.cmake

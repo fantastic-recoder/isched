@@ -4,7 +4,8 @@ add_test(NAME isched_grammar_tests COMMAND isched_grammar_tests)
 
 add_executable(isched_srv_test isched_srv_tests.cpp
         ../../../main/cpp/isched/isched_LogEnvLoader.hpp)
-target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog httplib::httplib nextsilicon-cpp-subprocess::nextsilicon-cpp-subprocess)
+target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog httplib::httplib
+        nextsilicon-cpp-subprocess::nextsilicon-cpp-subprocess openssl::openssl)
 add_test(NAME isched_srv_test COMMAND isched_grammar_tests)
 
 add_executable(rest_hello_world rest_hello_world.cpp

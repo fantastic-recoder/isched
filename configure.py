@@ -14,9 +14,10 @@ if __name__ == '__main__':
         myBuildDir.rmdir()
         exit(myRetVal)
     # CMake options after "cmake . -B ./cmake-build-debug "
-    print("OS name: ", os.name);
+    print("OS name: ", os.name)
     if os.name == "nt":
-        os.system("cmake . -B ./cmake-build-debug -DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Debug")
+        os.system(
+            "cmake . -B ./cmake-build-debug -DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/build/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Debug")
     else:
         os.system("cmake . -B ./cmake-build-debug -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Debug")
     os.system("cmake --build ./cmake-build-debug/")
