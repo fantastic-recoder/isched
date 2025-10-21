@@ -1,0 +1,6 @@
+node_modules
+/.idea/
+/src/*.map
+/src/*.js
+/src/schema.d.ts
+/src/index.d.ts
