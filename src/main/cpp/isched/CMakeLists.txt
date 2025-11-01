@@ -17,8 +17,12 @@ add_library(isched
         isched_EHttpMethods.hpp
         isched_ExceptionUnknownEnumValue.hpp
         isched_LogEnvLoader.hpp
+        # Universal Application Server Backend components
+        backend/isched_common.hpp
+        backend/isched_server.hpp
+        backend/isched_server.cpp
 )
-target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog)
+target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json jwt-cpp::jwt-cpp)
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS})
 
 add_executable(isched_srv isched_srv_main.cpp)

@@ -8,6 +8,10 @@ target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdl
         nextsilicon-cpp-subprocess::nextsilicon-cpp-subprocess openssl::openssl)
 add_test(NAME isched_srv_test COMMAND isched_grammar_tests)
 
+add_executable(basic_server_test ../../basic_server_test.cpp)
+target_link_libraries(basic_server_test PRIVATE isched spdlog::spdlog)
+add_test(NAME basic_server_test COMMAND basic_server_test)
+
 add_executable(rest_hello_world rest_hello_world.cpp
         ../../../main/cpp/isched/isched_LogEnvLoader.hpp)
 target_link_libraries(rest_hello_world restbed::restbed)

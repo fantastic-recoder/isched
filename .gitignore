@@ -1,7 +1,66 @@
+# Build directories
 /cmake-build-debug
 /build
+/bin/
+/obj/
+/out/
+/CMakeFiles/*
+
+# C++ compiled objects and libraries
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.dylib
+
+# IDE and editor files
+/.idea/
+/.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Conan and CMake generated files
+/conan_provider.cmake
+conandata.yml
+conanbuild.sh
+conanrun.sh
+conaninfo.txt
+graph_info.json
+
+# Logs and temporary files
+*.log
+*.tmp
+*.prof
+*.prof.raw
+
+# Environment files
+.env*
+*.env
+
+# Documentation build output
+/docs/api/
+/docs/build/
+/doxygen/
+
+# Test outputs
+/test-results/
+/coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# Platform-specific files
+.DS_Store
+Thumbs.db
+
+# Project-specific files
 /**/mydata.xls
 /src/docker/rest_hello_world
-/.idea/editor.xml
-/CMakeFiles/*
-/conan_provider.cmake
+
+# SQLite databases (for development)
+*.db
+*.sqlite
+*.sqlite3
