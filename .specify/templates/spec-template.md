@@ -95,6 +95,36 @@
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
 
+### Constitutional Requirements
+
+**Performance Requirements** (Constitution Principle I):
+
+- **FR-PERF-001**: Feature MUST maintain multi-tenant performance characteristics
+- **FR-PERF-002**: Implementation MUST support cloud-to-embedded deployment scenarios
+- **FR-PERF-003**: Performance impact MUST be measured and documented
+
+**GraphQL Compliance** (Constitution Principle II):
+
+- **FR-GQL-001**: All GraphQL features MUST conform to [GraphQL specification](https://spec.graphql.org/)
+- **FR-GQL-002**: Any non-standard extensions MUST be explicitly documented
+
+**Security Requirements** (Constitution Principle III):
+
+- **FR-SEC-001**: Authentication MUST use industry-standard protocols (OAuth, JWT)
+- **FR-SEC-002**: Default configuration MUST be secure-by-default
+- **FR-SEC-003**: Multi-tenant data isolation MUST be maintained
+
+**Testing Requirements** (Constitution Principle IV):
+
+- **FR-TEST-001**: Core functionality MUST follow TDD approach
+- **FR-TEST-002**: Integration tests required for GraphQL endpoints
+- **FR-TEST-003**: Performance regression tests MUST validate scalability
+
+**Portability Requirements** (Constitution Principle V):
+
+- **FR-PORT-001**: Code MUST compile on Linux with Conan dependencies
+- **FR-PORT-002**: Cross-platform documentation MUST be provided
+
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
