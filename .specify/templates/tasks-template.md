@@ -35,6 +35,7 @@ Each task implementation MUST verify:
 - ✅ **Security**: Industry-standard auth protocols, secure-by-default configuration  
 - ✅ **Testing**: TDD approach, integration tests for GraphQL endpoints, performance tests
 - ✅ **Portability**: Linux/Conan build compatibility, cross-platform documentation
+- ✅ **C++ Core Guidelines**: Adherence to [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines), justified deviations documented
 
 <!-- 
   ============================================================================

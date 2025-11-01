@@ -36,6 +36,7 @@
 ✅ **Security-First**: Authentication/authorization must use industry standards
 ✅ **Test-Driven Development**: TDD mandatory for core functionality
 ✅ **Cross-Platform Portability**: Must build with Conan on Linux, documented elsewhere
+✅ **C++ Core Guidelines**: All C++ code must adhere to ISO C++ Core Guidelines
 
 ## Project Structure
 

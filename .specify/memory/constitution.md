@@ -1,14 +1,14 @@
 <!--
 Sync Impact Report:
-- Version change: Initial → 1.0.0
-- New constitution for Isched project
-- Added principles: High Performance, GraphQL Specification Compliance, Security-First, Test-Driven Development, Cross-Platform Portability
-- Added sections: Technical Standards, Development Workflow
+- Version change: 1.0.0 → 1.1.0
+- Modified principles: None (structural additions only)
+- Added sections: C++ Core Guidelines compliance in Technical Standards
+- Removed sections: None
 - Templates requiring updates: 
   ✅ constitution.md (updated)
-  ✅ plan-template.md (updated with C++20/Conan context and constitution checks)
-  ✅ spec-template.md (updated with constitutional requirements sections)
-  ✅ tasks-template.md (updated with Isched path conventions and compliance checklist)
+  ✅ plan-template.md (updated with C++ Core Guidelines compliance check)
+  ✅ spec-template.md (updated with C++ Core Guidelines requirements)
+  ✅ tasks-template.md (updated with C++ Core Guidelines compliance checklist)
 - Follow-up TODOs: None - all placeholders filled with concrete values
 -->
 
@@ -50,6 +50,8 @@ Code MUST compile and run on Linux, with clear documentation for other platforms
 
 **Language**: C++20 standard compliance required. Modern C++ features encouraged when they improve performance or safety.
 
+**C++ Core Guidelines**: All C++ code MUST adhere to the [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines). Code reviews MUST verify guideline compliance. Deviations require explicit justification and documentation in code comments.
+
 **Dependencies**: All external dependencies MUST be managed via Conan. Direct system dependencies require justification and documentation.
 
 **Database**: Embedded database implementation MUST support ACID transactions. Multi-tenant data isolation is mandatory.
@@ -76,4 +78,4 @@ Amendments require: (1) Documentation of proposed changes, (2) Impact analysis o
 
 Constitution violations are critical issues requiring immediate resolution.
 
-**Version**: 1.0.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2025-11-01
+**Version**: 1.1.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2025-11-01

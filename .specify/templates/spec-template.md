@@ -125,6 +125,12 @@
 - **FR-PORT-001**: Code MUST compile on Linux with Conan dependencies
 - **FR-PORT-002**: Cross-platform documentation MUST be provided
 
+**C++ Core Guidelines Requirements** (Constitution Technical Standards):
+
+- **FR-CPP-001**: All C++ code MUST adhere to [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
+- **FR-CPP-002**: Code reviews MUST verify guideline compliance
+- **FR-CPP-003**: Any deviations MUST be explicitly justified and documented
+
 ### Key Entities *(include if feature involves data)*
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
