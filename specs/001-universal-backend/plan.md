@@ -7,36 +7,37 @@
 
 ## Summary
 
-Primary requirement: Create a universal application server backend that simplifies web application development by eliminating the need for external services. Frontend developers should only need Isched and a configuration script (Python or TypeScript) to run a complete backend. Technical approach: C++23 server with embedded SQLite database, PEGTL-based GraphQL parser, Restbed HTTP handling via CRTP pattern, comprehensive testing with TypeScript clients.
+Create a universal application server backend that eliminates external service dependencies for frontend developers. Technical approach: C++23 multi-tenant server with separated CLI runtimes (isched-cli-python, isched-cli-typescript), shared dynamic library, embedded SQLite databases, PEGTL GraphQL parser, binary plugin system for resolvers, shared memory IPC, mandatory smart pointer usage, and automated source code documentation generation as part of the build process.
 
 ## Technical Context
 
-**Language/Version**: C++23 (latest standard with advanced features)
-**Primary Dependencies**: Conan-managed dependencies (restbed, spdlog, catch2, pegtl, nlohmann_json, sqlite3)
-**Storage**: SQLite embedded database with ACID transaction support for searchable data
-**Testing**: Catch2 for C++ unit/integration tests + TypeScript clients for server testing
+**Language/Version**: C++23 (advanced features for multi-process server applications)
+**Primary Dependencies**: Conan-managed dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp)
+**Architecture**: Multi-process with separated CLI runtimes and shared dynamic library
+**Storage**: SQLite embedded database per-tenant with connection pooling
+**Memory Management**: Mandatory smart pointers (std::unique_ptr, std::shared_ptr) - no raw pointers
+**Testing**: Catch2 for unit/integration tests + performance regression testing (20ms target)
+**Documentation**: Automated source code documentation generation with code reference inclusion
 **Target Platform**: Linux primary, cross-platform compatibility required
-**Project Type**: High-performance C++ backend server with embedded database
-**Performance Goals**: Massive parallel operation, cloud-to-embedded scalability
-**Constraints**: Multi-tenant isolation, GraphQL spec compliance, security-first
-**Scale/Scope**: Enterprise-grade multi-tenant backend eliminating external service dependencies
-**GraphQL Parser**: PEGTL (Parsing Expression Grammar Template Library) for GraphQL parsing
-**HTTP Handling**: Restbed library abstracted via CRTP (Curiously Recurring Template Pattern)
-**JSON Processing**: nlohmann/json for JSON serialization/deserialization
-**Build System**: CMake with Conan package management
-**Logging**: spdlog for structured logging
-**Configuration Languages**: Python and TypeScript for procedural configuration scripts
+**Project Type**: High-performance C++ backend server with binary plugin system
+**Performance Goals**: 20ms response times, thousands of concurrent clients, cloud-to-embedded scalability
+**Constraints**: Multi-tenant isolation, GraphQL spec compliance, security-first, C++ Core Guidelines
+**Scale/Scope**: Enterprise-grade multi-tenant backend with resolver plugins and CLI script execution
+**IPC**: Shared memory segments with message queues for server-CLI coordination
+**Configuration**: JSON format with version control for rollback support
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-✅ **High Performance**: Implementation must consider performance impact on multi-tenant operation
-✅ **GraphQL Compliance**: All GraphQL features must conform to official specification
-✅ **Security-First**: Authentication/authorization must use industry standards
-✅ **Test-Driven Development**: TDD mandatory for core functionality
-✅ **Cross-Platform Portability**: Must build with Conan on Linux, documented elsewhere
-✅ **C++ Core Guidelines**: All C++ code must adhere to ISO C++ Core Guidelines
+✅ **High Performance**: Multi-process architecture with 20ms response targets and tenant isolation
+✅ **GraphQL Compliance**: PEGTL parser implementation ensures full GraphQL specification compliance
+✅ **Security-First**: JWT/OAuth authentication with process isolation and binary plugin sandboxing
+✅ **Test-Driven Development**: Comprehensive test strategy with unit, integration, and performance tests
+✅ **Cross-Platform Portability**: C++23 with Conan dependencies for Linux primary, cross-platform support
+✅ **C++ Core Guidelines**: Smart pointer usage (std::unique_ptr, std::shared_ptr) for all resource management, Doxygen documentation for all public APIs
+
+**Post-Phase 1 Validation**: ✅ All constitutional requirements satisfied with detailed design including mandatory smart pointer usage and comprehensive documentation generation.
 
 ## Project Structure
 
@@ -55,100 +56,55 @@ specs/[###-feature]/
 ### Source Code (repository root)
 
 ```text
-src/main/cpp/isched/
-├── core/                    # Core server functionality
-│   ├── server.hpp/cpp      # Main server class
-│   ├── configuration.hpp/cpp  # Configuration script handling
-│   └── lifecycle.hpp/cpp   # Server lifecycle management
-├── graphql/                # GraphQL implementation
-│   ├── parser.hpp/cpp      # PEGTL-based GraphQL parser
-│   ├── schema.hpp/cpp      # Schema generation and management
-│   ├── executor.hpp/cpp    # Query execution engine
-│   └── introspection.hpp/cpp # GraphQL introspection support
-├── database/               # SQLite database layer
-│   ├── connection.hpp/cpp  # Database connection management
-│   ├── schema_builder.hpp/cpp # Automatic schema generation
-│   ├── transaction.hpp/cpp # ACID transaction handling
-│   └── query_builder.hpp/cpp # SQL query generation
-├── http/                   # HTTP handling abstraction
-│   ├── request_handler.hpp # CRTP base for HTTP handling
-│   ├── restbed_adapter.hpp/cpp # Restbed implementation
-│   └── response_builder.hpp/cpp # HTTP response construction
-├── auth/                   # Authentication and authorization
-│   ├── oauth_provider.hpp/cpp # OAuth implementation
-│   ├── jwt_handler.hpp/cpp # JWT token management
-│   └── user_manager.hpp/cpp # User and organization management
-├── config/                 # Configuration script interfaces
-│   ├── python_interface.hpp/cpp # Python configuration support
-│   ├── typescript_interface.hpp/cpp # TypeScript configuration support
-│   └── script_executor.hpp/cpp # Configuration script execution
-└── utils/                  # Utility classes
-    ├── json_serializer.hpp/cpp # nlohmann/json utilities
-    ├── logger.hpp/cpp      # spdlog wrapper
-    └── validation.hpp/cpp  # Input validation utilities
+src/
+├── main/
+│   └── cpp/
+│       └── isched/
+│           ├── backend/                    # Universal backend implementation
+│           │   ├── isched_server.hpp/cpp  # Doxygen documented
+│           │   ├── isched_tenant_manager.hpp/cpp  
+│           │   ├── isched_database.hpp/cpp
+│           │   ├── isched_graphql_executor.hpp/cpp
+│           │   ├── isched_resolver_system.hpp/cpp
+│           │   └── isched_cli_coordinator.hpp/cpp
+│           ├── cli/                        # Enhanced CLI with backend commands
+│           │   └── isched_backend_commands.hpp/cpp
+│           ├── runtime/                    # Shared dynamic library
+│           │   ├── isched_runtime.hpp/cpp
+│           │   ├── isched_ipc.hpp/cpp
+│           │   └── isched_plugin_api.hpp/cpp
+│           └── [existing files...]         # Current isched implementation
+├── cli-python/                            # Python CLI executable
+│   ├── isched_cli_python.cpp
+│   └── python_script_executor.hpp/cpp
+└── cli-typescript/                        # TypeScript CLI executable
+    ├── isched_cli_typescript.cpp
+    └── typescript_script_executor.hpp/cpp
 
-src/test/cpp/isched/
-├── unit/                   # Unit tests (Catch2)
-│   ├── graphql/           # GraphQL parser and executor tests
-│   ├── database/          # Database layer tests
-│   ├── auth/              # Authentication tests
-│   └── config/            # Configuration handling tests
-├── integration/           # Integration tests
-│   ├── graphql_endpoint/  # End-to-end GraphQL tests
-│   ├── auth_flow/         # Authentication flow tests
-│   └── performance/       # Performance regression tests
-└── typescript_clients/    # TypeScript test clients
-    ├── basic_queries/     # Basic GraphQL query tests
-    ├── auth_scenarios/    # Authentication test scenarios
-    └── configuration/     # Configuration script examples
+docs/                                      # Generated documentation
+├── api/                                   # API reference (Doxygen)
+├── source/                                # Source code with examples
+├── guides/                                # Developer guides
+└── examples/                              # Complete working examples
+
+tests/
+├── backend/                               # Backend unit tests
+├── integration/                           # Cross-component tests
+├── performance/                           # 20ms response time validation
+└── plugins/                              # Plugin system tests
 ```
 
-**Structure Decision**: Single project structure selected as Isched is a unified C++ backend server. The existing `src/main/cpp/isched/` and `src/test/cpp/isched/` directories will be extended with the new universal backend functionality. TypeScript clients are included in the test suite to validate server behavior from a frontend developer perspective.
+**Structure Decision**: Extend existing Maven layout with backend, runtime library, separate CLI executables, and comprehensive documentation generation. Maintain isched::v0_0_1 namespace and smart pointer usage throughout.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
+> **No constitutional violations identified**
 
-No constitutional violations identified. All design decisions align with constitutional principles.
+All requirements align with constitutional principles:
 
-## Post-Design Constitution Re-Check
-
-*GATE: Final validation after Phase 1 design completion.*
-
-✅ **High Performance**: 
-- CRTP pattern eliminates virtual function overhead
-- SQLite provides excellent performance for embedded database scenarios
-- Multi-threaded design supports massive parallel operation
-- Memory-efficient design for cloud-to-embedded deployment
-
-✅ **GraphQL Compliance**: 
-- PEGTL parser ensures strict GraphQL specification compliance
-- Complete introspection support implemented
-- Standard error handling and response formatting
-- No custom extensions without explicit documentation
-
-✅ **Security-First**: 
-- JWT authentication with industry-standard libraries
-- OAuth 2.0 integration with major providers
-- Multi-tenant data isolation through separate databases
-- Secure-by-default configuration approach
-
-✅ **Test-Driven Development**: 
-- Comprehensive unit test coverage with Catch2
-- Integration tests for all GraphQL endpoints
-- TypeScript client tests for end-to-end validation
-- Performance regression testing framework
-
-✅ **Cross-Platform Portability**: 
-- All dependencies available through Conan
-- CMake build system ensures cross-platform compatibility
-- Linux primary target with documented cross-platform support
-- Embedded database eliminates external system dependencies
-
-✅ **C++ Core Guidelines**: 
-- RAII principles enforced throughout design
-- Smart pointers for memory management
-- Exception safety guaranteed
-- Modern C++23 features utilized appropriately
-
-**Final Assessment**: All constitutional requirements satisfied. Design ready for implementation.
+- High performance: 20ms response targets with multi-tenant architecture
+- GraphQL compliance: PEGTL parser ensures specification adherence  
+- Security-first: JWT/OAuth authentication with process isolation
+- TDD: Comprehensive test strategy with performance validation
+- Cross-platform: C++23 with Conan dependencies
+- C++ Core Guidelines: Smart pointer usage and Doxygen documentation generation

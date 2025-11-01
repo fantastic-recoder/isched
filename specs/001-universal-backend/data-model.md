@@ -2,7 +2,15 @@
 
 **Phase**: 1 (Design & Contracts)
 **Created**: 2025-11-01
+**Updated**: 2025-11-01 (Phase 1 Implementation Details)
 **Feature**: Universal Application Server Backend
+
+## Implementation Context
+
+**Namespace**: `isched::v0_0_1::backend`
+**File Prefix**: `isched_backend_`
+**Database**: SQLite per-tenant with file-per-tenant isolation
+**Schema Generation**: Automatic from configuration scripts
 
 ## Core Entities
 
@@ -268,3 +276,175 @@ data/
 **Validation Errors**: Detailed explanation of schema violations.
 
 **Execution Errors**: Field-level error reporting with partial results when possible.
+
+## C++ Implementation Classes
+
+### Core Backend Classes
+
+**Memory Management**: All classes follow C++ Core Guidelines with mandatory smart pointer usage - no raw pointers for ownership.
+
+**Documentation**: All public APIs documented with Doxygen comments, source code examples included in generated documentation.
+
+```cpp
+namespace isched::v0_0_1::backend {
+
+/// @brief Main server entry point for Universal Application Server Backend
+/// @details Manages tenant processes, HTTP server, and configuration lifecycle
+/// @example
+/// @code
+/// server_config config{.port = 8080, .host = "0.0.0.0"};
+/// isched_server server(config);
+/// server.start();
+/// @endcode
+class isched_server {
+public:
+    explicit isched_server(const server_config& config);
+    void start();
+    void stop();
+    void reload_config();
+    
+private:
+    std::unique_ptr<tenant_manager> m_tenant_manager;
+    std::unique_ptr<http_server> m_http_server;
+    server_config m_config;
+};
+
+// Multi-tenant process pool management
+class isched_tenant_manager {
+public:
+    void create_tenant(const tenant_id& id, const tenant_config& config);
+    void remove_tenant(const tenant_id& id);
+    tenant_process_pool& get_tenant_pool(const tenant_id& id);
+    
+private:
+    std::unordered_map<tenant_id, std::unique_ptr<tenant_process_pool>> m_pools;
+    std::shared_mutex m_pools_mutex;
+};
+
+// Per-tenant process pool with isolation
+class tenant_process_pool {
+public:
+    explicit tenant_process_pool(const tenant_config& config);
+    
+    // Execute GraphQL query in isolated process
+    future<graphql_result> execute_query(const graphql_query& query);
+    
+    // Execute configuration script
+    future<config_result> execute_config(const config_script& script);
+    
+private:
+    std::vector<std::unique_ptr<tenant_process>> m_processes;
+    thread_pool m_thread_pool;
+    database_pool m_db_pool;
+};
+
+// PEGTL-based GraphQL parser
+class isched_graphql_parser {
+public:
+    parse_result parse_query(const std::string& query);
+    validation_result validate_against_schema(const parsed_query& query, 
+                                             const graphql_schema& schema);
+    
+private:
+    using grammar = pegtl::seq<graphql_document>;
+    std::unique_ptr<compiled_grammar> m_grammar;
+};
+
+// SQLite per-tenant database management
+class isched_database {
+public:
+    explicit isched_database(const tenant_id& tenant, const database_config& config);
+    
+    void create_schema(const data_model_list& models);
+    query_result execute_sql(const std::string& sql, const parameter_list& params);
+    transaction begin_transaction();
+    
+private:
+    sqlite3* m_connection;
+    std::unordered_map<std::string, sqlite3_stmt*> m_prepared_statements;
+    mutable std::shared_mutex m_mutex;
+};
+
+// Configuration script executor with subprocess isolation
+class isched_config_executor {
+public:
+    execution_result execute_python(const python_script& script);
+    execution_result execute_typescript(const typescript_script& script);
+    
+private:
+    subprocess_pool m_python_pool;
+    subprocess_pool m_typescript_pool;
+    script_cache m_cache;
+};
+
+// REST and GraphQL-over-HTTP handler
+class isched_rest_handler {
+public:
+    void register_route(const http_method& method, const std::string& path,
+                       handler_function handler);
+    
+    void handle_graphql_request(const http_request& request, http_response& response);
+    void handle_auth_request(const http_request& request, http_response& response);
+    
+private:
+    route_table m_routes;
+    auth_manager m_auth;
+    graphql_executor m_graphql_executor;
+};
+
+} // namespace isched::v0_0_1::backend
+```
+
+### Data Model Mapping
+
+**SQLite Schema Generation**:
+```cpp
+class schema_generator {
+public:
+    static std::string generate_create_table(const data_model& model);
+    static std::string generate_indexes(const data_model& model);
+    static migration_script generate_migration(const data_model& from, 
+                                             const data_model& to);
+};
+```
+
+**GraphQL Schema Generation**:
+```cpp
+class graphql_schema_generator {
+public:
+    static graphql_schema generate_schema(const std::vector<data_model>& models);
+    static std::string generate_sdl(const graphql_schema& schema);
+    static resolver_map generate_resolvers(const graphql_schema& schema);
+};
+```
+
+### Multi-Tenant Isolation
+
+**Process Isolation Strategy**:
+```cpp
+class tenant_process {
+public:
+    explicit tenant_process(const tenant_id& tenant);
+    
+    // Execute in isolated process space
+    template<typename Result, typename Request>
+    future<Result> execute(const Request& request);
+    
+private:
+    process_handle m_process;
+    ipc_channel m_channel;
+    tenant_id m_tenant;
+};
+```
+
+**Database Isolation Strategy**:
+```cpp
+class database_pool {
+public:
+    database_connection acquire_connection(const tenant_id& tenant);
+    void release_connection(database_connection conn);
+    
+private:
+    std::unordered_map<tenant_id, connection_pool> m_tenant_pools;
+};
+```

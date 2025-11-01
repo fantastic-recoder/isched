@@ -429,6 +429,35 @@ export default {
 4. **Test with different user roles** to verify permissions
 5. **Monitor server logs** for performance and error insights
 
+## Documentation Generation
+
+### Building API Documentation
+
+The Isched build process automatically generates comprehensive documentation including:
+
+- API reference documentation
+- Source code examples  
+- Inline code snippets
+- Developer guides
+
+```bash
+# Generate documentation (included in build process)
+mkdir build && cd build
+cmake .. -DDOXYGEN_ENABLED=ON
+make docs
+
+# View generated documentation
+open docs/html/index.html  # macOS
+xdg-open docs/html/index.html  # Linux
+```
+
+### Accessing Documentation
+
+- **API Reference**: `/docs/api/` - Complete GraphQL API documentation
+- **Source Code**: `/docs/source/` - Annotated source code with examples
+- **Guides**: `/docs/guides/` - Step-by-step development guides
+- **Examples**: `/docs/examples/` - Complete working examples
+
 ## Next Steps
 
 - Explore the [Complete API Reference](contracts/graphql-schema.md)

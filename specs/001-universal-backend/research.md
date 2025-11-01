@@ -83,6 +83,28 @@
 
 **Implementation impact**: Need JWT library (consider jwt-cpp) for token generation and validation.
 
+### Decision: Smart Pointer Memory Management
+
+**Rationale**: C++ Core Guidelines mandate RAII and prohibit raw pointer ownership. Smart pointers (std::unique_ptr, std::shared_ptr) provide automatic memory management, exception safety, and clear ownership semantics essential for multi-tenant server applications.
+
+**Alternatives considered**:
+- Raw pointers: Violates C++ Core Guidelines, memory leak risks
+- Manual RAII wrappers: Reinventing existing standard library functionality
+- Garbage collection: Not available in C++, performance overhead
+
+**Implementation impact**: All resource management (SQLite connections, file handles, dynamic allocations) must use appropriate smart pointers.
+
+### Decision: Doxygen for Source Code Documentation Generation
+
+**Rationale**: Doxygen is the de facto standard for C++ documentation generation, supports inline comments, generates comprehensive API references, and can include source code snippets. Integration with CMake build system is well-established.
+
+**Alternatives considered**:
+- Sphinx with Breathe: More complex setup, Python dependency
+- GitBook/GitLab Pages: Manual documentation, no automatic API generation
+- Custom documentation system: Unnecessary complexity
+
+**Implementation impact**: Add Doxygen comments to all public APIs, configure CMake to generate documentation during build, include source code examples in generated docs.
+
 ## Configuration Script Integration Research
 
 ### Python Integration Approach
@@ -190,6 +212,12 @@
 - `pybind11/2.11.1`: Python-C++ bindings
 - `jwt-cpp/0.6.0`: JWT token handling
 - `v8/10.8.168`: JavaScript/TypeScript engine (optional, if TypeScript support needed)
+
+### Additional Build Dependencies Required
+
+- `doxygen/1.9.8`: Source code documentation generation
+- `graphviz`: Dependency graphs and diagrams for Doxygen
+- CMake FindDoxygen module: Integration with build system
 
 ### Dependency Compatibility
 
