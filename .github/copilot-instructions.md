@@ -27,7 +27,7 @@ C++23 (latest standard with advanced features): Follow standard conventions
 ## Recent Changes
 - 001-universal-backend: Added C++23 (advanced features for multi-process server applications) + Conan-managed dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp)
 - 001-universal-backend: Added C++23 (advanced features for multi-process server applications) + Conan-managed dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp)
-- 001-universal-backend: Added C++23 (advanced features for high-performance server applications) + Conan-managed dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp)
+- 001-universal-backend: Added C++23 (advanced features for multi-process server applications) + Conan-managed dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp)
 
 
 <!-- MANUAL ADDITIONS START -->
