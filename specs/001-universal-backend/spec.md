@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "The \"Isched\" universal application server backend should simplify web application development. The frontend developer should not need any other software to develop the frontend. A procedural configuration (for example in Python or Typescript) of the Isched is the only thing needed. Isched will adhere to the GraphQL specification to not \"reinvent the wheel\"."
 
+## Clarifications
+
+### Session 2025-11-01
+
+- Q: Error Response Format for GraphQL Specification Compliance → A: Enhanced format with Isched-specific extensions: Include additional error metadata like `{"extensions": {"code": "VALIDATION_ERROR", "timestamp": "...", "requestId": "..."}}`
+- Q: GraphQL Schema Bootstrapping for "Hello World" Test → A: Minimal built-in schema with basic queries including server health monitoring (client count, current configuration, uptime) similar to Spring Boot actuators
+- Q: Multi-Tenant Process Isolation Strategy → A: Pre-allocated tenant process pool: Fixed number of tenant processes (configurable) with tenant assignment based on load balancing
+- Q: Thread Pool Configuration Strategy → A: Adaptive thread pool sizing: Automatic thread pool adjustment based on tenant load patterns and response time metrics with configurable maximum threads
+- Q: Database Connection Pooling Strategy for Multi-Tenant Architecture → A: Per-tenant database connections with pooling: Each tenant process maintains its own connection pool to tenant-specific SQLite databases
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Frontend Developer Setup (Priority: P1)
@@ -17,7 +27,7 @@ A frontend developer can configure and run a complete backend server using only 
 
 **Acceptance Scenarios**:
 
-1. **Given** a frontend developer with only Isched installed, **When** they create a simple configuration script (Python or TypeScript), **Then** they can start a fully functional backend server
+1. **Given** a frontend developer with only Isched installed, **When** they start Isched without any configuration script, **Then** they can immediately access a GraphQL endpoint with built-in health monitoring queries (hello, version, clientCount, uptime)
 2. **Given** a running Isched server, **When** a frontend developer makes GraphQL queries, **Then** they receive properly formatted GraphQL responses according to the specification
 3. **Given** a basic configuration, **When** the server starts, **Then** it automatically provides user authentication and basic data storage without additional setup
 
@@ -72,6 +82,12 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 - **FR-005**: System MUST start and run a complete backend server from a single configuration script execution
 - **FR-006**: System MUST support both Python and TypeScript for configuration scripts
 - **FR-007**: System MUST provide basic user and organization management capabilities out of the box
+- **FR-008**: System MUST provide enhanced GraphQL error responses with extensions containing error codes, timestamps, and request IDs for debugging and monitoring
+- **FR-009**: System MUST provide a minimal built-in GraphQL schema for immediate testing with health monitoring queries (hello, version, clientCount, uptime, currentConfiguration) similar to Spring Boot actuators
+- **FR-010**: System MUST serve thousands of clients using a pre-allocated tenant process pool with configurable thread pools per process
+- **FR-011**: System MUST complete requests within 20 milliseconds on Ryzen 7/Intel i5 hardware under normal load conditions
+- **FR-012**: System MUST provide adaptive thread pool sizing with automatic adjustment based on tenant load patterns and response time metrics, subject to configurable maximum thread limits
+- **FR-013**: System MUST maintain per-tenant database connections with pooling, where each tenant process maintains its own connection pool to tenant-specific SQLite databases
 
 ### Constitutional Requirements
 
@@ -116,6 +132,8 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 - **Authentication Context**: User session and permission information managed automatically by the server
 - **GraphQL Schema**: Automatically generated schema based on configuration script definitions
 - **Server Instance**: Running Isched server configured by the procedural script
+- **Tenant Process Pool**: Pre-allocated pool of tenant processes with load balancing and adaptive thread management
+- **Database Connection Pool**: Per-tenant connection pools managing access to tenant-specific SQLite databases
 
 ## Success Criteria *(mandatory)*
 
@@ -126,6 +144,7 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 - **SC-003**: All GraphQL responses pass 100% of official GraphQL specification compliance tests
 - **SC-004**: Configuration script changes take effect in under 5 seconds without server restart
 - **SC-005**: 95% of common web application backend requirements can be satisfied through configuration script alone
+- **SC-006**: System serves thousands of concurrent clients with 95th percentile response times under 20 milliseconds on Ryzen 7/Intel i5 hardware
 
 ## Assumptions
 
