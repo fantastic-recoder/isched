@@ -12,6 +12,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+# Clang-tidy integration for C++ Core Guidelines compliance
+find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
+if(CLANG_TIDY_EXE)
+    message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+else()
+    message(STATUS "clang-tidy not found - static analysis will be skipped")
+    message(STATUS "To install clang-tidy: sudo dnf install clang-tools-extra (Fedora/RHEL) or sudo apt install clang-tidy (Ubuntu/Debian)")
+endif()
+
 enable_testing()
 
 # Doxygen documentation generation

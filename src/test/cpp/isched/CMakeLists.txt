@@ -32,3 +32,16 @@ add_executable(database_test database_test.cpp)
 target_link_libraries(database_test PRIVATE isched Catch2::Catch2WithMain SQLite::SQLite3 nlohmann_json::nlohmann_json spdlog::spdlog)
 add_test(NAME database_test COMMAND database_test)
 
+# New foundational component tests for Universal Application Server Backend
+add_executable(isched_auth_tests isched_auth_tests.cpp)
+target_link_libraries(isched_auth_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
+add_test(NAME isched_auth_tests COMMAND isched_auth_tests)
+
+add_executable(isched_ipc_tests isched_ipc_tests.cpp)
+target_link_libraries(isched_ipc_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
+add_test(NAME isched_ipc_tests COMMAND isched_ipc_tests)
+
+add_executable(isched_config_tests isched_config_tests.cpp)
+target_link_libraries(isched_config_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
+add_test(NAME isched_config_tests COMMAND isched_config_tests)
+

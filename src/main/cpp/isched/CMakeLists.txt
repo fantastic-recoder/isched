@@ -27,6 +27,12 @@ add_library(isched
         backend/isched_database.cpp
         backend/isched_graphql_executor.hpp
         backend/isched_graphql_executor.cpp
+        backend/isched_auth.hpp
+        backend/isched_auth.cpp
+        shared/ipc/isched_ipc.hpp
+        shared/ipc/isched_ipc.cpp
+        shared/config/isched_config.hpp
+        shared/config/isched_config.cpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json jwt-cpp::jwt-cpp SQLite::SQLite3)
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS})
