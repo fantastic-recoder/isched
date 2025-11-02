@@ -5,6 +5,35 @@ parallel operation running from cloud server hardware down to embedded hardware.
 ## Dependencies
 ### Direct dependencies
 - [Restbed](https://github.com/Corvusoft/restbed)
+
+## Documentation
+
+### Doxygen Documentation Specification
+This project follows comprehensive Doxygen documentation standards to ensure high-quality, maintainable code. All public APIs, classes, and functions must include detailed Doxygen comments following these conventions:
+
+- **Class Documentation**: All classes must include `@brief` descriptions, detailed explanations, usage examples, and `@author` information
+- **Function Documentation**: All public functions require `@brief` descriptions, `@param` documentation for each parameter, `@return` descriptions for non-void functions, and `@throw` specifications for exception-throwing functions
+- **Code Examples**: Complex APIs should include `@code` blocks demonstrating proper usage patterns
+- **Cross-References**: Use `@see`, `@ref`, and `@link` tags to create comprehensive documentation cross-references
+- **Version Information**: Critical components should include `@since` and `@version` tags for API evolution tracking
+
+The documentation is generated using Doxygen and follows C++ Core Guidelines documentation practices. This ensures that all code is self-documenting and provides clear guidance for developers working with the isched Universal Application Server Backend.
+
+#### Generating Documentation
+To generate the complete Doxygen documentation, run the following command from the project root:
+
+```bash
+doxygen Doxyfile
+```
+
+This will create HTML documentation in the `docs/api/html/` directory. Open `docs/api/html/index.html` in your browser to view the complete API documentation.
+
+You can also build the documentation automatically as part of the build process:
+
+```bash
+cmake --build cmake-build-debug --target docs
+```
+
 ## Building
 - Get decent C++ compiler
 - Get python3

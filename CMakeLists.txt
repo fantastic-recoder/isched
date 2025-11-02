@@ -15,13 +15,52 @@ endif()
 enable_testing()
 
 # Doxygen documentation generation
-find_package(Doxygen)
+find_package(Doxygen OPTIONAL_COMPONENTS dot)
+
 if(DOXYGEN_FOUND)
-    add_custom_target(docs
-        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_SOURCE_DIR}/Doxyfile
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM)
+    message(STATUS "Doxygen found: ${DOXYGEN_EXECUTABLE} (version ${DOXYGEN_VERSION})")
+    
+    # Check for optional components
+    if(DOXYGEN_DOT_FOUND)
+        message(STATUS "GraphViz dot found: ${DOXYGEN_DOT_EXECUTABLE} - enabling call graphs and class diagrams")
+        set(DOXYGEN_HAVE_DOT YES)
+    else()
+        # Try to find dot manually if CMake didn't find it
+        find_program(DOT_EXECUTABLE dot)
+        if(DOT_EXECUTABLE)
+            message(STATUS "GraphViz dot found manually: ${DOT_EXECUTABLE} - enabling call graphs and class diagrams")
+            set(DOXYGEN_HAVE_DOT YES)
+            set(DOXYGEN_DOT_EXECUTABLE ${DOT_EXECUTABLE})
+        else()
+            message(STATUS "GraphViz dot not found - documentation will be generated without graphs")
+            set(DOXYGEN_HAVE_DOT NO)
+        endif()
+    endif()
+    
+    # Verify Doxyfile exists
+    if(EXISTS "${CMAKE_SOURCE_DIR}/Doxyfile")
+        message(STATUS "Doxyfile found at: ${CMAKE_SOURCE_DIR}/Doxyfile")
+        
+        add_custom_target(docs
+            COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_SOURCE_DIR}/Doxyfile
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            VERBATIM)
+        
+        # Build documentation automatically after isched library is built
+        add_dependencies(docs isched)
+        
+        # Optional: Add docs to the default build target
+        # Uncomment the following line to build documentation by default
+        # add_custom_target(build_all ALL DEPENDS isched docs)
+        
+        message(STATUS "Documentation target 'docs' configured - use 'cmake --build . --target docs' to generate")
+    else()
+        message(WARNING "Doxyfile not found at ${CMAKE_SOURCE_DIR}/Doxyfile - documentation target not available")
+    endif()
+else()
+    message(STATUS "Doxygen not found - documentation will not be generated")
+    message(STATUS "To install Doxygen: sudo dnf install doxygen graphviz (Fedora/RHEL) or sudo apt install doxygen graphviz (Ubuntu/Debian)")
 endif()
 
 
