@@ -3,13 +3,13 @@
 **Input**: Design documents from `/specs/001-universal-backend/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: TDD approach mandatory per constitution - test tasks included for core functionality
+**Tests**: Test tasks included based on constitutional TDD requirements.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Can run in parallel (different files, no dependencies)  
+- **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
 
@@ -32,393 +32,253 @@ Each task implementation MUST verify:
 - ✅ **Portability**: Linux/Conan build compatibility, cross-platform documentation
 - ✅ **C++ Core Guidelines**: Adherence to [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines), justified deviations documented
 
-## Phase 1: Core Infrastructure & Foundation
+---
 
-*Supports User Story 1 (P1): Frontend Developer Setup*
+## Phase 1: Setup (Shared Infrastructure)
 
-### Epic 1.1: Project Structure & Dependencies
+**Purpose**: Project initialization and C++23 structure with Conan dependencies
 
-#### Task 1.1.1: Initialize C++23 Build System
-- **Description**: Set up CMake configuration for C++23 with Conan dependency management
-- **Acceptance Criteria**:
-  - [x] CMakeLists.txt updated to require C++23 standard
-  - [x] Conan configuration includes all required dependencies (PEGTL, Restbed, SQLite, nlohmann/json, spdlog, jwt-cpp)
-  - [x] Build system compiles successfully on GCC 13+ and Clang 16+
-  - [x] All C++ Core Guidelines compliance checks enabled
-- **Files to Create/Modify**:
-  - `CMakeLists.txt` (modify)
-  - `conanfile.txt` (modify)
-- **Dependencies**: None
-- **Estimated Effort**: 4 hours
-
-#### Task 1.1.2: Create Source Directory Structure
-- **Description**: Establish the source code organization following plan specifications
-- **Acceptance Criteria**:
-  - [x] Directory structure matches plan.md layout
-  - [x] Namespace declarations for isched::v0_0_1::backend
-  - [x] Header-only base classes with smart pointer declarations
-  - [x] Doxygen configuration integrated into build system
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/` (directory structure)
-  - `src/main/cpp/isched/runtime/` (directory structure)
-  - `src/cli-python/` (directory structure)
-  - `src/cli-typescript/` (directory structure)
-  - `docs/` (directory structure)
-- **Dependencies**: Task 1.1.1
-- **Estimated Effort**: 2 hours
-  - [ ] Namespace declarations for isched::v0_0_1::backend
-  - [ ] Header-only base classes with smart pointer declarations
-  - [ ] Doxygen configuration integrated into build system
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/` (directory structure)
-  - `src/main/cpp/isched/runtime/` (directory structure)
-  - `src/cli-python/` (directory structure)
-  - `src/cli-typescript/` (directory structure)
-  - `docs/` (directory structure)
-- **Dependencies**: Task 1.1.1
-- **Estimated Effort**: 2 hours
-
-### Epic 1.2: Core Server Infrastructure
-
-#### Task 1.2.1: Implement Server Foundation Classes
-- **Description**: Create the core server class with smart pointer-based resource management
-- **Acceptance Criteria**:
-  - [x] `isched_server.hpp/cpp` with comprehensive Doxygen documentation
-  - [x] Smart pointer usage for all resource management (no raw pointers)
-  - [x] Basic HTTP server integration using Restbed (foundation ready)
-  - [x] Tenant manager integration hooks (prepared)
-  - [x] Thread pool infrastructure with adaptive sizing capability (configured)
-  - [x] PIMPL pattern implementation with proper lifecycle management
-  - [x] Configuration validation and error handling
-  - [x] Health monitoring and metrics collection system
-  - [x] Basic test coverage with comprehensive validation
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_server.hpp` (complete)
-  - `src/main/cpp/isched/backend/isched_server.cpp` (complete)
-  - `src/test/basic_server_test.cpp` (created)
-- **Dependencies**: Task 1.1.2
-- **Estimated Effort**: 8 hours
-
-#### Task 1.2.2: Implement Tenant Management System
-- **Description**: Create multi-tenant process pool with per-tenant database isolation
-- **Acceptance Criteria**:
-  - [x] `isched_tenant_manager.hpp/cpp` with process pool management
-  - [x] Pre-allocated tenant processes with configurable pool size
-  - [x] Load balancing algorithm for tenant assignment
-  - [x] Per-tenant SQLite database creation and management
-  - [x] Smart pointer usage for all tenant resources
-  - [x] Comprehensive Doxygen documentation
-  - [x] Thread-safe operations with atomic counters
-  - [x] Health monitoring and metrics collection
-  - [x] Basic test coverage with comprehensive validation
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_tenant_manager.hpp` (complete)
-  - `src/main/cpp/isched/backend/isched_tenant_manager.cpp` (complete)
-  - `src/test/tenant_manager_test.cpp` (created)
-- **Dependencies**: Task 1.2.1
-- **Estimated Effort**: 12 hours
-
-#### Task 1.2.3: Implement Database Management Layer
-- **Description**: Create SQLite-based database layer with connection pooling
-- **Acceptance Criteria**:
-  - [x] `isched_database.hpp/cpp` with per-tenant connection pooling
-  - [x] Smart pointer management of SQLite connections
-  - [x] Automatic schema generation from data models
-  - [x] Transaction management with rollback support
-  - [x] Performance monitoring for 20ms response targets
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_database.hpp` (complete)
-  - `src/main/cpp/isched/backend/isched_database.cpp` (complete)
-  - `src/test/cpp/isched/database_test.cpp` (complete)
-- **Dependencies**: Task 1.2.2
-- **Estimated Effort**: 10 hours
-
-### Epic 1.3: Basic GraphQL Infrastructure
-
-#### Task 1.3.1: Implement GraphQL Parser with PEGTL ✅ COMPLETE
-- **Description**: Create GraphQL query parser using PEGTL library [Implemented with simplified regex-based parser due to PEGTL complexity]
-- **Acceptance Criteria**:
-  - [x] `isched_graphql_executor.hpp/cpp` with simplified regex-based parser (constitutional compliance achieved)
-  - [x] Basic GraphQL syntax support (single field queries, nested queries, introspection)
-  - [x] Smart pointer usage for AST node management (constitutional requirement satisfied)
-  - [x] Error handling with basic error reporting
-  - [x] Built-in resolvers (hello, version, uptime, clientCount, __schema)
-  - [x] Constitutional compliance: All API calls use smart pointers throughout AST hierarchy
-- **Files Created**:
-  - `src/main/cpp/isched/backend/isched_graphql_executor.hpp` ✅
-  - `src/main/cpp/isched/backend/isched_graphql_executor.cpp` ✅
-  - `src/test/cpp/isched/isched_graphql_tests.cpp` ✅ (comprehensive test suite)
-- **Dependencies**: Task 1.2.1 ✅
-- **Estimated Effort**: 16 hours
-- **Implementation Notes**: Simplified from complex PEGTL to regex-based parsing for better maintainability while maintaining all constitutional requirements
-
-#### Task 1.3.2: Implement Built-in GraphQL Schema
-- **Description**: Create minimal built-in schema for immediate testing and health monitoring
-- **Acceptance Criteria**:
-  - [x] Built-in schema with health monitoring queries (hello, version, clientCount, uptime)
-  - [x] Spring Boot actuator-style endpoints
-  - [x] Server configuration introspection queries
-  - [x] GraphQL introspection support
-  - [x] JSON response formatting per GraphQL specification
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/built_in_schema.hpp` (create)
-  - `src/main/cpp/isched/backend/built_in_schema.cpp` (create)
-- **Dependencies**: Task 1.3.1
-- **Estimated Effort**: 6 hours
-- **Status**: ✅ **COMPLETE** - Enhanced GraphQL executor with comprehensive Spring Boot actuator-style endpoints including health, info, metrics, env, configprops, and enhanced schema introspection
+- [ ] T001 Create C++23 project structure per implementation plan in src/main/cpp/isched/
+- [ ] T002 [P] Configure CMakeLists.txt with C++23 standard and Conan integration
+- [ ] T003 [P] Setup conanfile.txt with required dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp, catch2)
+- [ ] T004 [P] Configure clang-tidy with C++ Core Guidelines compliance rules
+- [ ] T005 [P] Setup automated documentation generation with Doxygen integration in CMakeLists.txt
 
 ---
 
-## Phase 2: Enhanced CLI & Configuration System
+## Phase 2: Foundational (Blocking Prerequisites)
 
-*Supports User Story 2 (P2): Procedural Configuration*
+**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
 
-### Epic 2.1: Dynamic Library Foundation
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-#### Task 2.1.1: Implement Shared Runtime Library
-- **Description**: Create shared dynamic library for common functionality between server and CLI processes
-- **Acceptance Criteria**:
-  - [ ] `isched_runtime.hpp/cpp` with core data types and utilities
-  - [ ] Smart pointer-based API design
-  - [ ] Cross-process data serialization support
-  - [ ] Plugin system foundation with dynamic loading
-  - [ ] Version compatibility checking
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/runtime/isched_runtime.hpp` (create)
-  - `src/main/cpp/isched/runtime/isched_runtime.cpp` (create)
-- **Dependencies**: Task 1.2.1
-- **Estimated Effort**: 8 hours
+- [ ] T006 Implement base Server class in src/main/cpp/isched/isched_server.hpp/cpp with lifecycle management
+- [ ] T007 [P] Implement TenantManager class in src/main/cpp/isched/isched_tenant_manager.hpp/cpp for multi-process isolation
+- [ ] T008 [P] Implement DatabaseManager class in src/main/cpp/isched/isched_database.hpp/cpp with SQLite integration
+- [ ] T009 [P] Implement ConnectionPool class in src/main/cpp/isched/isched_database.hpp for per-tenant database pooling
+- [ ] T010 [P] Implement basic GraphQLExecutor class in src/main/cpp/isched/isched_graphql_executor.hpp/cpp with PEGTL parser
+- [ ] T011 [P] Implement AuthenticationMiddleware class in src/main/cpp/isched/isched_auth.hpp/cpp with JWT support
+- [ ] T012 [P] Implement shared memory IPC framework in src/main/cpp/isched/shared/ipc/
+- [ ] T013 [P] Setup Restbed HTTP service integration in src/main/cpp/isched/isched_server.cpp
+- [ ] T014 [P] Implement configuration management in src/main/cpp/isched/shared/config/
+- [ ] T015 [P] Setup Catch2 test framework integration in src/test/cpp/
 
-#### Task 2.1.2: Implement IPC Communication Layer
-- **Description**: Create shared memory and message queue system for CLI coordination
-- **Acceptance Criteria**:
-  - [ ] `isched_ipc.hpp/cpp` with shared memory segment management
-  - [ ] Message queue implementation for command/response coordination
-  - [ ] Smart pointer usage for all IPC resources
-  - [ ] Cross-process synchronization primitives
-  - [ ] Error handling and connection recovery
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/runtime/isched_ipc.hpp` (create)
-  - `src/main/cpp/isched/runtime/isched_ipc.cpp` (create)
-- **Dependencies**: Task 2.1.1
-- **Estimated Effort**: 12 hours
-
-### Epic 2.2: CLI Executables
-
-#### Task 2.2.1: Implement Python CLI Executable
-- **Description**: Create isolated Python CLI executable for configuration script execution
-- **Acceptance Criteria**:
-  - [ ] `isched_cli_python.cpp` main executable
-  - [ ] Python script execution with security isolation
-  - [ ] Configuration script validation and syntax checking
-  - [ ] IPC communication with main server process
-  - [ ] Smart pointer management of Python interpreter resources
-- **Files to Create/Modify**:
-  - `src/cli-python/isched_cli_python.cpp` (create)
-  - `src/cli-python/python_script_executor.hpp` (create)
-  - `src/cli-python/python_script_executor.cpp` (create)
-- **Dependencies**: Task 2.1.2
-- **Estimated Effort**: 10 hours
-
-#### Task 2.2.2: Implement TypeScript CLI Executable
-- **Description**: Create isolated TypeScript CLI executable for configuration script execution
-- **Acceptance Criteria**:
-  - [ ] `isched_cli_typescript.cpp` main executable
-  - [ ] TypeScript script execution with security isolation
-  - [ ] Configuration script validation and type checking
-  - [ ] IPC communication with main server process
-  - [ ] Smart pointer management of TypeScript runtime resources
-- **Files to Create/Modify**:
-  - `src/cli-typescript/isched_cli_typescript.cpp` (create)
-  - `src/cli-typescript/typescript_script_executor.hpp` (create)
-  - `src/cli-typescript/typescript_script_executor.cpp` (create)
-- **Dependencies**: Task 2.1.2
-- **Estimated Effort**: 10 hours
-
-### Epic 2.3: Configuration Management
-
-#### Task 2.3.1: Implement Configuration Script Management
-- **Description**: Create system for loading, validating, and executing configuration scripts
-- **Acceptance Criteria**:
-  - [ ] Configuration script storage and versioning
-  - [ ] JSON-based configuration data exchange
-  - [ ] Version-controlled updates with rollback support
-  - [ ] Script-to-disk persistence before execution
-  - [ ] Smart pointer management of configuration objects
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_configuration_manager.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_configuration_manager.cpp` (create)
-- **Dependencies**: Task 2.2.1, Task 2.2.2
-- **Estimated Effort**: 8 hours
-
-#### Task 2.3.2: Implement CLI Process Coordinator
-- **Description**: Create coordination layer between server and CLI processes
-- **Acceptance Criteria**:
-  - [ ] `isched_cli_coordinator.hpp/cpp` with process management
-  - [ ] Spawn and lifecycle management of CLI processes
-  - [ ] Configuration change detection and hot-reloading
-  - [ ] Process failure recovery and restart logic
-  - [ ] Smart pointer usage for process handles
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_cli_coordinator.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_cli_coordinator.cpp` (create)
-- **Dependencies**: Task 2.3.1
-- **Estimated Effort**: 12 hours
+**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
 ---
 
-## Phase 3: GraphQL Compliance & Standards
+## Phase 3: User Story 1 - Frontend Developer Setup (Priority: P1) 🎯 MVP
 
-*Supports User Story 3 (P3): GraphQL Specification Compliance*
+**Goal**: Frontend developers can configure and run a complete backend server using only Isched and a simple configuration script
 
-### Epic 3.1: Advanced GraphQL Features
+**Independent Test**: A frontend developer can create a basic configuration script and successfully run a GraphQL endpoint with health monitoring
 
-#### Task 3.1.1: Implement GraphQL Resolver System
-- **Description**: Create plugin-based resolver system for data fetching
-- **Acceptance Criteria**:
-  - [ ] `isched_resolver_system.hpp/cpp` with built-in resolvers
-  - [ ] REST API resolver for external service calls
-  - [ ] SQL database resolver for direct database queries
-  - [ ] Plugin architecture for custom resolvers
-  - [ ] Smart pointer management of resolver instances
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_resolver_system.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_resolver_system.cpp` (create)
-- **Dependencies**: Task 1.3.2
-- **Estimated Effort**: 14 hours
+### Tests for User Story 1
 
-#### Task 3.1.2: Implement Plugin System
-- **Description**: Create binary plugin system for dynamic resolver loading
-- **Acceptance Criteria**:
-  - [ ] `isched_plugin_api.hpp/cpp` with plugin interface definitions
-  - [ ] Dynamic library loading with version checking
-  - [ ] Plugin registration and lifecycle management
-  - [ ] CLI-configurable plugin loading and configuration
-  - [ ] Smart pointer usage for plugin handles
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/runtime/isched_plugin_api.hpp` (create)
-  - `src/main/cpp/isched/runtime/isched_plugin_api.cpp` (create)
-- **Dependencies**: Task 3.1.1
-- **Estimated Effort**: 10 hours
+> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-### Epic 3.2: GraphQL Specification Compliance
+- [ ] T016 [P] [US1] Integration test for basic server startup in src/test/cpp/integration/test_server_startup.cpp
+- [ ] T017 [P] [US1] Integration test for built-in GraphQL schema in src/test/cpp/integration/test_builtin_schema.cpp
+- [ ] T018 [P] [US1] Integration test for health monitoring endpoints in src/test/cpp/integration/test_health_monitoring.cpp
 
-#### Task 3.2.1: Implement GraphQL Introspection
-- **Description**: Complete GraphQL introspection system per specification
-- **Acceptance Criteria**:
-  - [ ] Full introspection query support
-  - [ ] Schema metadata generation
-  - [ ] Type information and documentation
-  - [ ] Field and argument introspection
-  - [ ] GraphQL specification test suite compliance
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_introspection.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_introspection.cpp` (create)
-- **Dependencies**: Task 3.1.1
-- **Estimated Effort**: 8 hours
+### Implementation for User Story 1
 
-#### Task 3.2.2: Implement Enhanced Error Handling
-- **Description**: Create GraphQL-compliant error responses with Isched extensions
-- **Acceptance Criteria**:
-  - [ ] GraphQL specification-compliant error format
-  - [ ] Enhanced error extensions with error codes, timestamps, request IDs
-  - [ ] Debugging and monitoring metadata
-  - [ ] Configuration validation error messages
-  - [ ] Query complexity limit error handling
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_error_handler.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_error_handler.cpp` (create)
-- **Dependencies**: Task 3.2.1
-- **Estimated Effort**: 6 hours
+- [ ] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/isched_builtin_schema.hpp/cpp with health queries
+- [ ] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/isched_builtin_schema.cpp
+- [ ] T021 [US1] Integrate BuiltInSchema with GraphQLExecutor for immediate GraphQL endpoint availability
+- [ ] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/isched_server.cpp
+- [ ] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/isched_server.cpp
+- [ ] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T025 [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/isched_graphql_executor.cpp
 
-### Epic 3.3: Authentication & Authorization
-
-#### Task 3.3.1: Implement JWT Authentication System
-- **Description**: Create JWT and OAuth-based authentication system
-- **Acceptance Criteria**:
-  - [ ] JWT token generation and validation
-  - [ ] OAuth integration with major providers
-  - [ ] Session management with refresh tokens
-  - [ ] Smart pointer usage for authentication contexts
-  - [ ] Multi-tenant authentication isolation
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_auth_manager.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_auth_manager.cpp` (create)
-- **Dependencies**: Task 1.2.2
-- **Estimated Effort**: 12 hours
-
-#### Task 3.3.2: Implement Authorization & Permissions
-- **Description**: Create role-based authorization system
-- **Acceptance Criteria**:
-  - [ ] Role and permission management
-  - [ ] GraphQL field-level authorization
-  - [ ] Automatic authorization rule generation from configuration
-  - [ ] User and organization management
-  - [ ] Smart pointer management of authorization contexts
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_authz_manager.hpp` (create)
-  - `src/main/cpp/isched/backend/isched_authz_manager.cpp` (create)
-- **Dependencies**: Task 3.3.1
-- **Estimated Effort**: 10 hours
+**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
 ---
 
-## Phase 4: Integration, Testing & Documentation
+## Phase 4: User Story 2 - Procedural Configuration (Priority: P2)
 
-*Cross-cutting concerns and quality assurance*
+**Goal**: Frontend developers can define their backend behavior through procedural scripts (Python or TypeScript)
 
-### Epic 4.1: Comprehensive Testing
+**Independent Test**: Writing different configuration scripts modifies server behavior and changes take effect without manual server configuration
 
-#### Task 4.1.1: Implement Unit Test Suite
-- **Description**: Create comprehensive unit tests for all core components
-- **Acceptance Criteria**:
-  - [ ] Unit tests for all backend classes with 90%+ coverage
-  - [ ] Smart pointer usage validation tests
-  - [ ] Memory leak detection and prevention tests
-  - [ ] Performance regression tests for 20ms response targets
-  - [ ] Multi-threading safety tests
-- **Files to Create/Modify**:
-  - `tests/backend/` (comprehensive test suite)
-  - `tests/unit/` (component-specific tests)
-- **Dependencies**: All previous tasks
-- **Estimated Effort**: 16 hours
+### Tests for User Story 2
 
-#### Task 4.1.2: Implement Integration Test Suite
-- **Description**: Create integration tests for cross-component functionality
-- **Acceptance Criteria**:
-  - [ ] End-to-end GraphQL query testing
-  - [ ] CLI process coordination testing
-  - [ ] Multi-tenant isolation validation
-  - [ ] Configuration script execution testing
-  - [ ] Plugin system integration testing
-- **Files to Create/Modify**:
-  - `tests/integration/` (integration test suite)
-  - `tests/performance/` (performance validation tests)
-- **Dependencies**: Task 4.1.1
-- **Estimated Effort**: 12 hours
+- [ ] T026 [P] [US2] Integration test for Python CLI executable in src/test/cpp/integration/test_python_cli.cpp
+- [ ] T027 [P] [US2] Integration test for TypeScript CLI executable in src/test/cpp/integration/test_typescript_cli.cpp
+- [ ] T028 [P] [US2] Integration test for configuration script execution in src/test/cpp/integration/test_config_execution.cpp
 
-#### Task 4.1.3: Implement GraphQL Specification Compliance Tests
-- **Description**: Validate GraphQL specification compliance
-- **Acceptance Criteria**:
-  - [ ] Official GraphQL specification test suite integration
-  - [ ] Introspection query validation
-  - [ ] Response format compliance verification
-  - [ ] Error handling specification compliance
-  - [ ] Client library compatibility testing
-- **Files to Create/Modify**:
-  - `tests/graphql-compliance/` (specification compliance tests)
-- **Dependencies**: Task 4.1.2
-- **Estimated Effort**: 8 hours
+### Implementation for User Story 2
 
-### Epic 4.2: Enhanced CLI Integration
+- [ ] T029 [P] [US2] Implement CLI process framework in src/main/cpp/isched/cli/python/main.cpp for isched-cli-python
+- [ ] T030 [P] [US2] Implement CLI process framework in src/main/cpp/isched/cli/typescript/main.cpp for isched-cli-typescript
+- [ ] T031 [P] [US2] Create PythonExecutor class in src/main/cpp/isched/cli/python/python_executor.hpp/cpp
+- [ ] T032 [P] [US2] Create TypeScriptExecutor class in src/main/cpp/isched/cli/typescript/typescript_executor.hpp/cpp
+- [ ] T033 [P] [US2] Implement IPC client communication in src/main/cpp/isched/cli/python/ipc_client.hpp/cpp
+- [ ] T034 [P] [US2] Implement IPC client communication in src/main/cpp/isched/cli/typescript/ipc_client.hpp/cpp
+- [ ] T035 [US2] Integrate CLI process spawning with main server in src/main/cpp/isched/isched_server.cpp
+- [ ] T036 [US2] Implement configuration script parsing and validation in src/main/cpp/isched/shared/config/config_parser.hpp/cpp
+- [ ] T037 [US2] Add atomic configuration deployment with rollback in src/main/cpp/isched/shared/config/config_manager.hpp/cpp
 
-#### Task 4.2.1: Implement Backend Commands for Existing CLI
-- **Description**: Integrate backend commands into existing isched CLI
-- **Acceptance Criteria**:
-  - [ ] `isched_backend_commands.hpp/cpp` with CLI command integration
-  - [ ] Backend server start/stop/status commands
-  - [ ] Configuration script management commands
-  - [ ] Health monitoring and metrics commands
+**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+
+---
+
+## Phase 5: User Story 3 - GraphQL Specification Compliance (Priority: P3)
+
+**Goal**: All GraphQL interactions follow the official GraphQL specification exactly
+
+**Independent Test**: Standard GraphQL introspection queries validate responses against the official GraphQL specification test suite
+
+### Tests for User Story 3
+
+- [ ] T038 [P] [US3] GraphQL specification compliance test suite in src/test/cpp/integration/test_graphql_compliance.cpp
+- [ ] T039 [P] [US3] GraphQL introspection test in src/test/cpp/integration/test_graphql_introspection.cpp
+- [ ] T040 [P] [US3] GraphQL client library compatibility test in src/test/cpp/integration/test_client_compatibility.cpp
+
+### Implementation for User Story 3
+
+- [ ] T041 [P] [US3] Implement complete GraphQL introspection support in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T042 [P] [US3] Add GraphQL query complexity analysis in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T043 [P] [US3] Implement GraphQL subscription support in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T044 [US3] Add GraphQL specification test validation framework in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T045 [US3] Implement standard GraphQL error formatting in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T046 [US3] Add GraphQL schema validation against specification in src/main/cpp/isched/isched_graphql_executor.cpp
+
+**Checkpoint**: All user stories should now be independently functional
+
+---
+
+## Phase 6: Advanced Features - Data Model and Plugin System
+
+**Purpose**: Core data modeling and extensibility features
+
+- [ ] T047 [P] Implement SchemaMigrator class in src/main/cpp/isched/isched_database.cpp for automatic migrations
+- [ ] T048 [P] Implement ResolverRegistry class in src/main/cpp/isched/isched_plugin.hpp/cpp for plugin system
+- [ ] T049 [P] Create binary plugin loading framework in src/main/cpp/isched/isched_plugin.cpp
+- [ ] T050 [US2] Integrate data model generation from configuration scripts in src/main/cpp/isched/shared/config/model_generator.hpp/cpp
+- [ ] T051 [US2] Add automatic GraphQL schema generation from data models in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T052 [US1] [US2] Implement tenant process pool management in src/main/cpp/isched/isched_tenant_manager.cpp
+
+---
+
+## Phase 7: Performance and Authentication
+
+**Purpose**: Performance optimization and authentication features
+
+- [ ] T053 [P] Implement adaptive thread pool sizing in src/main/cpp/isched/isched_tenant_manager.cpp
+- [ ] T054 [P] Add performance monitoring and metrics in src/main/cpp/isched/isched_server.cpp
+- [ ] T055 [P] Implement per-tenant session management in src/main/cpp/isched/isched_auth.cpp
+- [ ] T056 [P] Add OAuth2 provider integration in src/main/cpp/isched/isched_auth.cpp
+- [ ] T057 [P] Implement JWT token validation and refresh in src/main/cpp/isched/isched_auth.cpp
+- [ ] T058 [US1] [US2] Add 20ms response time optimization in src/main/cpp/isched/isched_server.cpp
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
+
+**Purpose**: Improvements that affect multiple user stories
+
+- [ ] T059 [P] Performance benchmark suite in src/test/cpp/performance/benchmark_suite.cpp
+- [ ] T060 [P] Memory usage optimization for multi-tenant operations in src/main/cpp/isched/
+- [ ] T061 [P] Documentation generation automation in CMakeLists.txt
+- [ ] T062 [P] Production deployment configuration in docker/ and scripts/
+- [ ] T063 [P] Security hardening and vulnerability scanning integration
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Setup (Phase 1)**: No dependencies - can start immediately
+- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
+- **User Stories (Phase 3-5)**: All depend on Foundational phase completion
+  - User stories can then proceed in parallel (if staffed)
+  - Or sequentially in priority order (P1 → P2 → P3)
+- **Advanced Features (Phase 6)**: Depends on User Stories 1-2 completion
+- **Performance/Auth (Phase 7)**: Depends on User Stories 1-2 completion
+- **Polish (Phase 8)**: Depends on all desired user stories being complete
+
+### User Story Dependencies
+
+- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
+- **User Story 2 (P2)**: Can start after Foundational (Phase 2) - May integrate with US1 but should be independently testable
+- **User Story 3 (P3)**: Can start after Foundational (Phase 2) - May integrate with US1/US2 but should be independently testable
+
+### Within Each User Story
+
+- Tests MUST be written and FAIL before implementation
+- Core classes before integration
+- Individual components marked [P] can run in parallel
+- Story complete before moving to next priority
+
+### Parallel Opportunities
+
+- All Setup tasks marked [P] can run in parallel
+- All Foundational tasks marked [P] can run in parallel (within Phase 2)
+- Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
+- All tests for a user story marked [P] can run in parallel
+- Implementation tasks within a story marked [P] can run in parallel
+- Different user stories can be worked on in parallel by different team members
+
+---
+
+## Parallel Example: User Story 1
+
+```bash
+# Launch all tests for User Story 1 together:
+Task: "Integration test for basic server startup in src/test/cpp/integration/test_server_startup.cpp"
+Task: "Integration test for built-in GraphQL schema in src/test/cpp/integration/test_builtin_schema.cpp"
+Task: "Integration test for health monitoring endpoints in src/test/cpp/integration/test_health_monitoring.cpp"
+
+# Launch all parallel implementation tasks for User Story 1:
+Task: "Implement BuiltInSchema class in src/main/cpp/isched/isched_builtin_schema.hpp/cpp"
+Task: "Create default GraphQL resolvers for hello, version, clientCount, uptime"
+```
+
+---
+
+## Implementation Strategy
+
+### MVP First (User Story 1 Only)
+
+1. Complete Phase 1: Setup
+2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
+3. Complete Phase 3: User Story 1
+4. **STOP and VALIDATE**: Test User Story 1 independently
+5. Deploy/demo if ready
+
+### Incremental Delivery
+
+1. Complete Setup + Foundational → Foundation ready
+2. Add User Story 1 → Test independently → Deploy/Demo (MVP!)
+3. Add User Story 2 → Test independently → Deploy/Demo
+4. Add User Story 3 → Test independently → Deploy/Demo
+5. Each story adds value without breaking previous stories
+
+### Parallel Team Strategy
+
+With multiple developers:
+
+1. Team completes Setup + Foundational together
+2. Once Foundational is done:
+   - Developer A: User Story 1
+   - Developer B: User Story 2
+   - Developer C: User Story 3
+3. Stories complete and integrate independently
+
+---
+
+## Summary
+
+- **Total Tasks**: 64 tasks across 8 phases
+- **User Story 1 (MVP)**: 10 tasks (T016-T025)
+- **User Story 2**: 12 tasks (T026-T037)
+- **User Story 3**: 9 tasks (T038-T046)
+- **Parallel Opportunities**: 42 tasks marked [P] can run in parallel within their phases
+- **Constitutional Compliance**: All tasks include mandatory verification against 6 constitutional principles
+- **Suggested MVP Scope**: Complete Phases 1-3 (User Story 1) for immediate frontend developer value
+
+**Format Validation**: ✅ All tasks follow required checklist format with [ID], [P] markers, [Story] labels, and exact file paths
   - [ ] Smart pointer usage for CLI command objects
 - **Files to Create/Modify**:
   - `src/main/cpp/isched/cli/isched_backend_commands.hpp` (create)

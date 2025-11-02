@@ -8,7 +8,7 @@
 ## Implementation Context
 
 **Namespace**: `isched::v0_0_1::backend`
-**File Prefix**: `isched_backend_`
+**File Prefix**: `isched_`
 **Database**: SQLite per-tenant with file-per-tenant isolation
 **Schema Generation**: Automatic from configuration scripts
 
@@ -292,104 +292,123 @@ namespace isched::v0_0_1::backend {
 /// @details Manages tenant processes, HTTP server, and configuration lifecycle
 /// @example
 /// @code
-/// server_config config{.port = 8080, .host = "0.0.0.0"};
-/// isched_server server(config);
+/// Server::Configuration config{.port = 8080, .host = "0.0.0.0"};
+/// Server server(config);
 /// server.start();
 /// @endcode
-class isched_server {
+class Server {
 public:
-    explicit isched_server(const server_config& config);
+    explicit Server(const Configuration& config);
     void start();
     void stop();
     void reload_config();
     
 private:
-    std::unique_ptr<tenant_manager> m_tenant_manager;
-    std::unique_ptr<http_server> m_http_server;
-    server_config m_config;
+    std::unique_ptr<TenantManager> tenant_manager_;
+    std::unique_ptr<RestbedService> http_server_;
+    Configuration config_;
 };
 
 // Multi-tenant process pool management
-class isched_tenant_manager {
+class TenantManager {
 public:
-    void create_tenant(const tenant_id& id, const tenant_config& config);
-    void remove_tenant(const tenant_id& id);
-    tenant_process_pool& get_tenant_pool(const tenant_id& id);
+    void create_tenant(const TenantId& id, const TenantConfiguration& config);
+    void remove_tenant(const TenantId& id);
+    TenantSession& get_tenant_session(const TenantId& id);
     
 private:
-    std::unordered_map<tenant_id, std::unique_ptr<tenant_process_pool>> m_pools;
-    std::shared_mutex m_pools_mutex;
+    std::unordered_map<TenantId, std::unique_ptr<TenantSession>> tenant_sessions_;
+    std::shared_mutex sessions_mutex_;
 };
 
-// Per-tenant process pool with isolation
-class tenant_process_pool {
+// GraphQL execution engine with built-in schema support
+class GraphQLExecutor {
 public:
-    explicit tenant_process_pool(const tenant_config& config);
+    explicit GraphQLExecutor(std::shared_ptr<DatabaseManager> database);
     
-    // Execute GraphQL query in isolated process
-    future<graphql_result> execute_query(const graphql_query& query);
+    // Execute GraphQL query with result handling
+    ExecutionResult execute(const std::string& query);
     
-    // Execute configuration script
-    future<config_result> execute_config(const config_script& script);
+    // Parse GraphQL query into AST
+    DocumentPtr parse(const std::string& query);
     
 private:
-    std::vector<std::unique_ptr<tenant_process>> m_processes;
-    thread_pool m_thread_pool;
-    database_pool m_db_pool;
-};
-
-// PEGTL-based GraphQL parser
-class isched_graphql_parser {
-public:
-    parse_result parse_query(const std::string& query);
-    validation_result validate_against_schema(const parsed_query& query, 
-                                             const graphql_schema& schema);
-    
-private:
-    using grammar = pegtl::seq<graphql_document>;
-    std::unique_ptr<compiled_grammar> m_grammar;
+    std::shared_ptr<DatabaseManager> database_;
+    ResolverRegistry resolver_registry_;
 };
 
 // SQLite per-tenant database management
-class isched_database {
+class DatabaseManager {
 public:
-    explicit isched_database(const tenant_id& tenant, const database_config& config);
+    explicit DatabaseManager(const Config& config);
     
-    void create_schema(const data_model_list& models);
-    query_result execute_sql(const std::string& sql, const parameter_list& params);
-    transaction begin_transaction();
+    void initialize_tenant(const std::string& tenant_id);
+    DatabaseResult<QueryResult> execute_query(const std::string& tenant_id, 
+                                             const std::string& sql);
+    DatabaseTransaction begin_transaction(const std::string& tenant_id);
     
 private:
-    sqlite3* m_connection;
-    std::unordered_map<std::string, sqlite3_stmt*> m_prepared_statements;
-    mutable std::shared_mutex m_mutex;
+    std::unordered_map<std::string, std::unique_ptr<ConnectionPool>> tenant_pools_;
+    Config config_;
 };
 
-// Configuration script executor with subprocess isolation
-class isched_config_executor {
+// Connection pooling for database access
+class ConnectionPool {
 public:
-    execution_result execute_python(const python_script& script);
-    execution_result execute_typescript(const typescript_script& script);
+    explicit ConnectionPool(const std::string& database_path, size_t pool_size);
+    
+    PooledConnection acquire();
+    void release(std::unique_ptr<sqlite3, SqliteDeleter> connection);
     
 private:
-    subprocess_pool m_python_pool;
-    subprocess_pool m_typescript_pool;
-    script_cache m_cache;
+    std::queue<std::unique_ptr<sqlite3, SqliteDeleter>> available_connections_;
+    std::mutex pool_mutex_;
 };
 
-// REST and GraphQL-over-HTTP handler
-class isched_rest_handler {
+} // namespace isched::v0_0_1::backend
+};
+
+// SQLite per-tenant database management
+class DatabaseManager {
 public:
-    void register_route(const http_method& method, const std::string& path,
-                       handler_function handler);
+    explicit DatabaseManager(const Config& config);
     
-    void handle_graphql_request(const http_request& request, http_response& response);
-    void handle_auth_request(const http_request& request, http_response& response);
+    void initialize_tenant(const std::string& tenant_id);
+    DatabaseResult<QueryResult> execute_query(const std::string& tenant_id, 
+                                             const std::string& sql);
+    DatabaseTransaction begin_transaction(const std::string& tenant_id);
     
 private:
-    route_table m_routes;
-    auth_manager m_auth;
-    graphql_executor m_graphql_executor;
+    std::unordered_map<std::string, std::unique_ptr<ConnectionPool>> tenant_pools_;
+    Config config_;
+};
+
+// Built-in GraphQL schema for health monitoring and introspection
+class BuiltInSchema {
+public:
+    BuiltInSchema(std::shared_ptr<GraphQLExecutor> executor,
+                  std::shared_ptr<DatabaseManager> database);
+    
+    void register_resolvers(ResolverRegistry& registry);
+    nlohmann::json get_health_status() const;
+    nlohmann::json get_server_metrics() const;
+    
+private:
+    std::shared_ptr<GraphQLExecutor> executor_;
+    std::shared_ptr<DatabaseManager> database_;
+};
+
+// RESTful API handler using Restbed
+class RestbedService {
+public:
+    void start(const Server::Configuration& config);
+    void stop();
+    void register_graphql_endpoint();
+    void register_health_endpoint();
+    
+private:
+    std::shared_ptr<restbed::Service> service_;
+    std::shared_ptr<GraphQLExecutor> graphql_executor_;
 };
 
 } // namespace isched::v0_0_1::backend
@@ -399,52 +418,76 @@ private:
 
 **SQLite Schema Generation**:
 ```cpp
-class schema_generator {
+class SchemaMigrator {
 public:
-    static std::string generate_create_table(const data_model& model);
-    static std::string generate_indexes(const data_model& model);
-    static migration_script generate_migration(const data_model& from, 
-                                             const data_model& to);
+    static DatabaseResult<void> migrate_to_version(DatabaseManager& db_manager,
+                                                   const std::string& tenant_id,
+                                                   int target_version);
+    static int get_current_version(const DatabaseManager& db_manager,
+                                  const std::string& tenant_id);
+    
+private:
+    struct Migration {
+        int version;
+        std::string description;
+        std::string up_sql;
+        std::string down_sql;
+    };
+    static std::vector<Migration> migrations_;
 };
 ```
 
 **GraphQL Schema Generation**:
 ```cpp
-class graphql_schema_generator {
+class ResolverRegistry {
 public:
-    static graphql_schema generate_schema(const std::vector<data_model>& models);
-    static std::string generate_sdl(const graphql_schema& schema);
-    static resolver_map generate_resolvers(const graphql_schema& schema);
+    using ResolverFunction = std::function<nlohmann::json(const nlohmann::json&, 
+                                                        const nlohmann::json&)>;
+    
+    void register_resolver(const std::string& field_name, ResolverFunction resolver);
+    ResolverFunction get_resolver(const std::string& field_name) const;
+    
+private:
+    std::unordered_map<std::string, ResolverFunction> resolvers_;
 };
 ```
 
 ### Multi-Tenant Isolation
 
-**Process Isolation Strategy**:
+**Tenant Session Management**:
 ```cpp
-class tenant_process {
+class TenantManager::TenantSession {
 public:
-    explicit tenant_process(const tenant_id& tenant);
+    explicit TenantSession(const TenantId& id, ProcessId pid);
     
-    // Execute in isolated process space
+    // Execute operations within tenant context
     template<typename Result, typename Request>
-    future<Result> execute(const Request& request);
+    std::future<Result> execute(const Request& request);
+    
+    ProcessStatus get_status() const;
+    TimePoint get_last_activity() const;
     
 private:
-    process_handle m_process;
-    ipc_channel m_channel;
-    tenant_id m_tenant;
+    TenantId tenant_id_;
+    ProcessId process_id_;
+    ProcessStatus status_;
+    TimePoint last_activity_;
 };
 ```
 
-**Database Isolation Strategy**:
+**Database Connection Pooling**:
 ```cpp
-class database_pool {
+class ConnectionPool {
 public:
-    database_connection acquire_connection(const tenant_id& tenant);
-    void release_connection(database_connection conn);
+    explicit ConnectionPool(const std::string& database_path, size_t pool_size);
+    
+    PooledConnection acquire();
+    void release(std::unique_ptr<sqlite3, SqliteDeleter> connection);
     
 private:
-    std::unordered_map<tenant_id, connection_pool> m_tenant_pools;
+    std::queue<std::unique_ptr<sqlite3, SqliteDeleter>> available_connections_;
+    std::mutex pool_mutex_;
+    std::condition_variable pool_condition_;
+    size_t max_connections_;
 };
 ```
