@@ -21,6 +21,24 @@
 - Q: Memory Management Strategy for C++ Core Guidelines Compliance → A: Smart pointers mandatory: All resource management MUST use std::unique_ptr or std::shared_ptr instead of raw pointers (e.g., SQLite connections, file handles, dynamic allocations)
 - Q: Documentation Generation Strategy for Build Process → A: Automated source code documentation with reference inclusion: Build process MUST generate comprehensive documentation from source code including API references, code examples, and inline source code snippets for complete developer reference
 
+### Session 2025-11-02
+
+- Q: Authentication token storage and session management strategy for multi-tenant architecture → A: Per-tenant in-memory with shared session store backup
+- Q: Configuration script error handling and validation strategy during runtime updates → A: Atomic deployment with automatic rollback to previous working configuration
+- Q: Database schema migration strategy for data model changes → A: Automatic schema migration with backup for safe changes only
+
+- Q: Error Response Format for GraphQL Specification Compliance → A: Enhanced format with Isched-specific extensions: Include additional error metadata like `{"extensions": {"code": "VALIDATION_ERROR", "timestamp": "...", "requestId": "..."}}`
+- Q: GraphQL Schema Bootstrapping for "Hello World" Test → A: Minimal built-in schema with basic queries including server health monitoring (client count, current configuration, uptime) similar to Spring Boot actuators
+- Q: Multi-Tenant Process Isolation Strategy → A: Pre-allocated tenant process pool: Fixed number of tenant processes (configurable) with tenant assignment based on load balancing
+- Q: Thread Pool Configuration Strategy → A: Adaptive thread pool sizing: Automatic thread pool adjustment based on tenant load patterns and response time metrics with configurable maximum threads
+- Q: Database Connection Pooling Strategy for Multi-Tenant Architecture → A: Per-tenant database connections with pooling: Each tenant process maintains its own connection pool to tenant-specific SQLite databases
+- Q: Python/TypeScript Runtime Architecture → A: Separated dynamic library with CLI executables: Python and TypeScript runtimes implemented as isched-cli-python and isched-cli-typescript CLI executables, loaded via dynamic library by main Isched server. Configuration scripts saved to disk and executed via spawn processes with shared memory for isolation and reduced attack surface.
+- Q: IPC Communication Mechanism for CLI Process Coordination → A: IPC via shared memory segments with message queues for command/response coordination
+- Q: Configuration Data Exchange Format → A: JSON configuration with version-controlled updates for rollback support
+- Q: Dynamic Library Core Functionality → A: GraphQL resolver system with plugin support: Core data types, IPC utilities, built-in resolvers (REST API, SQL database), and binary plugin system for custom resolvers configurable via CLI
+- Q: Memory Management Strategy for C++ Core Guidelines Compliance → A: Smart pointers mandatory: All resource management MUST use std::unique_ptr or std::shared_ptr instead of raw pointers (e.g., SQLite connections, file handles, dynamic allocations)
+- Q: Documentation Generation Strategy for Build Process → A: Automated source code documentation with reference inclusion: Build process MUST generate comprehensive documentation from source code including API references, code examples, and inline source code snippets for complete developer reference
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Frontend Developer Setup (Priority: P1)
@@ -73,9 +91,10 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 
 ### Edge Cases
 
-- Configuration errors cause immediate abort of Isched server boot-up. In case the configuration is changed on runtime a new instance of the Isched server process will be forked and the new instance checks the new configuration. In case the new instance boots up successfully, current connections in the old server will be severred after a retention period and sending an explanation message to the client applications. After the old connections are severed the old server terminates, the new server instance starts serving.
+- Configuration errors cause atomic validation and automatic rollback. When configuration is changed at runtime, a new instance of the Isched server process validates the new configuration in isolation. If validation passes completely, the system switches atomically to the new configuration. If validation fails, the system automatically rolls back to the previous working configuration and provides detailed error messages to the developer. Current connections remain unaffected during the validation process.
 - When GraphQL queries exceed reasonable complexity limits the query should abort with a good description of the problem returned in the error message. The complexity metric should be configurable.
-- When configuration scripts try to define conflicting authentication methods, the server will abort the boot-up, look on the first edge case.
+- When configuration scripts try to define conflicting authentication methods, the atomic validation process will detect the conflict and reject the entire configuration update, maintaining the previous working state.
+- When data model changes require destructive schema migrations (remove columns, change types), the system will reject the automatic migration and require manual intervention to prevent data loss. Safe changes (add columns, rename fields) are automatically migrated with database backup.
 
 ## Requirements *(mandatory)*
 
@@ -83,6 +102,7 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 
 - **FR-001**: System MUST allow frontend developers to configure the entire backend using only procedural scripts (Python or TypeScript)
 - **FR-002**: System MUST automatically provide user authentication and authorization without requiring external services
+- **FR-002-A**: System MUST implement per-tenant in-memory session caching with shared session store backup for performance and consistency across tenant processes
 - **FR-003**: System MUST generate GraphQL schemas automatically based on configuration script definitions
 - **FR-004**: System MUST provide embedded data storage that doesn't require separate database installation
 - **FR-005**: System MUST start and run a complete backend server from a single configuration script execution
@@ -94,10 +114,12 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 - **FR-011**: System MUST complete requests within 20 milliseconds on Ryzen 7/Intel i5 hardware under normal load conditions
 - **FR-012**: System MUST provide adaptive thread pool sizing with automatic adjustment based on tenant load patterns and response time metrics, subject to configurable maximum thread limits
 - **FR-013**: System MUST maintain per-tenant database connections with pooling, where each tenant process maintains its own connection pool to tenant-specific SQLite databases
+- **FR-013-A**: System MUST implement automatic schema migration with database backup for safe changes (add columns, rename fields), while requiring manual intervention for destructive changes (remove columns, change types) to prevent data loss
 - **FR-014**: System MUST execute configuration scripts in isolated processes using isched-cli-python and isched-cli-typescript executables with shared memory communication for security and performance
 - **FR-015**: System MUST save GraphQL mutation-based configuration to script files on server work directory before execution by spawned CLI processes
 - **FR-016**: System MUST use shared memory segments with message queues for IPC coordination between server and CLI processes to ensure efficient command/response handling
 - **FR-017**: System MUST exchange configuration data and schema definitions using JSON format with version-controlled updates to support rollback and human-readable debugging
+- **FR-017-A**: System MUST implement atomic configuration deployment with automatic rollback to previous working configuration when validation fails, ensuring zero downtime during configuration updates
 - **FR-018**: System MUST provide a GraphQL resolver system with built-in resolvers for REST API calls and SQL database operations
 - **FR-019**: System MUST support binary plugin system for custom resolvers that can be loaded dynamically and configured via CLI executables
 - **FR-020**: System MUST allow CLI processes to define, configure, and manage GraphQL resolvers in the server runtime
@@ -143,8 +165,8 @@ All GraphQL interactions follow the official GraphQL specification exactly, ensu
 ### Key Entities
 
 - **Configuration Script**: Python or TypeScript file that defines backend behavior, data models, and authentication rules, executed via isched-cli-python or isched-cli-typescript in isolated processes
-- **Data Model**: User-defined data structures that automatically generate GraphQL types and database schemas
-- **Authentication Context**: User session and permission information managed automatically by the server
+- **Data Model**: User-defined data structures that automatically generate GraphQL types and database schemas with automatic migration support for safe changes and backup protection
+- **Authentication Context**: User session and permission information managed automatically by the server using per-tenant in-memory caching with shared session store backup
 - **GraphQL Schema**: Automatically generated schema based on configuration script definitions
 - **Server Instance**: Running Isched server configured by the procedural script
 - **Tenant Process Pool**: Pre-allocated pool of tenant processes with load balancing and adaptive thread management

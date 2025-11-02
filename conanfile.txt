@@ -9,6 +9,7 @@ cpp-httplib/0.18.3
 nextsilicon-cpp-subprocess/2.0.2
 openssl/3.5.0
 jwt-cpp/0.7.0
+sqlite3/3.44.0
 
 [tool_requires]
 cmake/3.22.6

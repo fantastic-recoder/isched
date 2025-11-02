@@ -121,51 +121,46 @@ Each task implementation MUST verify:
 #### Task 1.2.3: Implement Database Management Layer
 - **Description**: Create SQLite-based database layer with connection pooling
 - **Acceptance Criteria**:
-  - [x] `isched_database.hpp/cpp` with per-tenant connection pooling
-  - [x] Smart pointer management of SQLite connections
-  - [x] Automatic schema generation from data models
-  - [x] Transaction management with rollback support
-  - [x] Performance monitoring for 20ms response targets
+  - [ ] `isched_database.hpp/cpp` with per-tenant connection pooling
+  - [ ] Smart pointer management of SQLite connections
+  - [ ] Automatic schema generation from data models
+  - [ ] Transaction management with rollback support
+  - [ ] Performance monitoring for 20ms response targets
 - **Files to Create/Modify**:
-  - `src/main/cpp/isched/backend/isched_database.hpp` (complete)
-  - `src/main/cpp/isched/backend/isched_database.cpp` (complete)
-  - `src/test/cpp/isched/database_test.cpp` (complete)
+  - `src/main/cpp/isched/backend/isched_database.hpp` (create)
+  - `src/main/cpp/isched/backend/isched_database.cpp` (create)
 - **Dependencies**: Task 1.2.2
 - **Estimated Effort**: 10 hours
 
 ### Epic 1.3: Basic GraphQL Infrastructure
 
-#### Task 1.3.1: Implement GraphQL Parser with PEGTL ✅ COMPLETE
-- **Description**: Create GraphQL query parser using PEGTL library [Implemented with simplified regex-based parser due to PEGTL complexity]
+#### Task 1.3.1: Implement GraphQL Parser with PEGTL
+- **Description**: Create GraphQL query parser using PEGTL library
 - **Acceptance Criteria**:
-  - [x] `isched_graphql_executor.hpp/cpp` with simplified regex-based parser (constitutional compliance achieved)
-  - [x] Basic GraphQL syntax support (single field queries, nested queries, introspection)
-  - [x] Smart pointer usage for AST node management (constitutional requirement satisfied)
-  - [x] Error handling with basic error reporting
-  - [x] Built-in resolvers (hello, version, uptime, clientCount, __schema)
-  - [x] Constitutional compliance: All API calls use smart pointers throughout AST hierarchy
-- **Files Created**:
-  - `src/main/cpp/isched/backend/isched_graphql_executor.hpp` ✅
-  - `src/main/cpp/isched/backend/isched_graphql_executor.cpp` ✅
-  - `src/test/cpp/isched/isched_graphql_tests.cpp` ✅ (comprehensive test suite)
-- **Dependencies**: Task 1.2.1 ✅
+  - [ ] `isched_graphql_executor.hpp/cpp` with PEGTL-based parser
+  - [ ] Full GraphQL syntax support per specification
+  - [ ] Smart pointer usage for AST node management
+  - [ ] Error handling with enhanced error extensions
+  - [ ] Query complexity analysis and limits
+- **Files to Create/Modify**:
+  - `src/main/cpp/isched/backend/isched_graphql_executor.hpp` (create)
+  - `src/main/cpp/isched/backend/isched_graphql_executor.cpp` (create)
+- **Dependencies**: Task 1.2.1
 - **Estimated Effort**: 16 hours
-- **Implementation Notes**: Simplified from complex PEGTL to regex-based parsing for better maintainability while maintaining all constitutional requirements
 
 #### Task 1.3.2: Implement Built-in GraphQL Schema
 - **Description**: Create minimal built-in schema for immediate testing and health monitoring
 - **Acceptance Criteria**:
-  - [x] Built-in schema with health monitoring queries (hello, version, clientCount, uptime)
-  - [x] Spring Boot actuator-style endpoints
-  - [x] Server configuration introspection queries
-  - [x] GraphQL introspection support
-  - [x] JSON response formatting per GraphQL specification
+  - [ ] Built-in schema with health monitoring queries (hello, version, clientCount, uptime)
+  - [ ] Spring Boot actuator-style endpoints
+  - [ ] Server configuration introspection queries
+  - [ ] GraphQL introspection support
+  - [ ] JSON response formatting per GraphQL specification
 - **Files to Create/Modify**:
   - `src/main/cpp/isched/backend/built_in_schema.hpp` (create)
   - `src/main/cpp/isched/backend/built_in_schema.cpp` (create)
 - **Dependencies**: Task 1.3.1
 - **Estimated Effort**: 6 hours
-- **Status**: ✅ **COMPLETE** - Enhanced GraphQL executor with comprehensive Spring Boot actuator-style endpoints including health, info, metrics, env, configprops, and enhanced schema introspection
 
 ---
 
