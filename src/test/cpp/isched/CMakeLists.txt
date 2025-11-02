@@ -7,7 +7,7 @@ target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
 add_executable(isched_srv_test isched_srv_tests.cpp
-        ../../../main/cpp/isched/isched_LogEnvLoader.hpp)
+        ../../../main/cpp/isched/isched_log_env_loader.hpp)
 target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog httplib::httplib
         nextsilicon-cpp-subprocess::nextsilicon-cpp-subprocess openssl::openssl)
 add_test(NAME isched_srv_test COMMAND isched_grammar_tests)

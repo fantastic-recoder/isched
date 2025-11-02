@@ -4,10 +4,10 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
 
-#include "isched_DocRootResolver.hpp"
-#include "isched_EHttpMethods.hpp"
-#include "isched_MainSvc.hpp"
-#include "isched_SingleActionResolver.hpp"
+#include "isched_doc_root_resolver.hpp"
+#include "isched_e_http_methods.hpp"
+#include "isched_main_svc.hpp"
+#include "isched_single_action_resolver.hpp"
 
 
 int main(const int, const char **) {

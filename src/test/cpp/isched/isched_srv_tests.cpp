@@ -1,7 +1,7 @@
 #include <future>
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>
-#include "isched/isched_GqlParser.hpp"
+#include "isched/isched_gql_parser.hpp"
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.h"
@@ -9,7 +9,7 @@
 #include "spdlog/cfg/env.h"
 #include "cpp-subprocess/subprocess.hpp"
 
-#include "isched/isched_LogEnvLoader.hpp"
+#include "isched/isched_log_env_loader.hpp"
 
 using namespace subprocess;
 using slaunch = std::launch;

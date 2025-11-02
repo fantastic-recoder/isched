@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>
 
-#include "isched/isched_GqlParser.hpp"
+#include "isched/isched_gql_parser.hpp"
 
 unsigned int factorial( unsigned int number ) {
     return number <= 1 ? number : factorial(number-1)*number;

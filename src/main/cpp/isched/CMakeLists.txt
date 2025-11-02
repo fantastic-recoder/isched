@@ -1,22 +1,22 @@
 add_library(isched
         isched.hpp
-        isched_GqlParser.cpp
-        isched_GqlParser.hpp
-        isched_DocRootResolver.cpp
-        isched_DocRootResolver.hpp
-        isched_MainSvc.cpp
-        isched_MainSvc.hpp
-        isched_ExceptionBase.cpp
-        isched_ExceptionBase.hpp
-        isched_ExceptionDocPathNotFound.cpp
-        isched_ExceptionDocPathNotFound.hpp
-        isched_SingleActionResolver.cpp
-        isched_SingleActionResolver.hpp
-        isched_BaseResolver.cpp
-        isched_BaseResolver.hpp
-        isched_EHttpMethods.hpp
-        isched_ExceptionUnknownEnumValue.hpp
-        isched_LogEnvLoader.hpp
+        isched_gql_parser.cpp
+        isched_gql_parser.hpp
+        isched_doc_root_resolver.cpp
+        isched_doc_root_resolver.hpp
+        isched_main_svc.cpp
+        isched_main_svc.hpp
+        isched_exception_base.cpp
+        isched_exception_base.hpp
+        isched_exception_doc_path_not_found.cpp
+        isched_exception_doc_path_not_found.hpp
+        isched_single_action_resolver.cpp
+        isched_single_action_resolver.hpp
+        isched_base_resolver.cpp
+        isched_base_resolver.hpp
+        isched_e_http_methods.hpp
+        isched_exception_unknown_enum_value.hpp
+        isched_log_env_loader.hpp
         # Universal Application Server Backend components
         backend/isched_common.hpp
         backend/isched_server.hpp

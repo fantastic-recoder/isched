@@ -83,13 +83,13 @@ Each task implementation MUST verify:
 
 ### Implementation for User Story 1
 
-- [x] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/isched_builtin_schema.hpp/cpp with health queries
-- [x] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/isched_builtin_schema.cpp
+- [x] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/backend/built_in_schema.hpp/cpp with health queries
+- [x] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/backend/isched_graphql_executor.cpp
 - [x] T021 [US1] Integrate BuiltInSchema with GraphQLExecutor for immediate GraphQL endpoint availability
-- [x] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/isched_server.cpp
-- [x] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/isched_server.cpp
-- [x] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/isched_graphql_executor.cpp
-- [x] T025 [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/isched_graphql_executor.cpp
+- [x] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/backend/isched_server.cpp
+- [x] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/backend/isched_server.cpp
+- [x] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/backend/isched_graphql_executor.cpp
+- [x] T025 [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/backend/isched_graphql_executor.cpp
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 

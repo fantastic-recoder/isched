@@ -1,0 +1,2 @@
+# Empty dependencies file for isched_srv_test.
+# This may be replaced when dependencies are built.

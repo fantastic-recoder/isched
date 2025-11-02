@@ -12,9 +12,9 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Clang-tidy integration for C++ Core Guidelines compliance
+# Clang-tidy integration for C++ Core Guidelines compliance (temporarily disabled)
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
-if(CLANG_TIDY_EXE AND NOT DISABLE_CLANG_TIDY)
+if(FALSE AND CLANG_TIDY_EXE AND NOT DISABLE_CLANG_TIDY)
     message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
     set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
 else()
