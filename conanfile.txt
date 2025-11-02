@@ -10,6 +10,7 @@ nextsilicon-cpp-subprocess/2.0.2
 openssl/3.5.0
 jwt-cpp/0.7.0
 sqlite3/3.44.0
+boost/1.84.0
 
 [tool_requires]
 cmake/3.22.6
@@ -18,3 +19,6 @@ ninja/1.12.1
 [generators]
 CMakeDeps
 CMakeToolchain
+
+[options]
+boost/boost:header_only=False

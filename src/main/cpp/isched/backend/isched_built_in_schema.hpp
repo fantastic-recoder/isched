@@ -1,5 +1,5 @@
 /**
- * @file built_in_schema.hpp
+ * @file isched_built_in_schema.hpp
  * @brief Built-in GraphQL schema for health monitoring and server introspection
  * @author Isched Development Team
  * @date 2025-11-02
@@ -93,6 +93,12 @@ public:
      */
     ~BuiltInSchema() noexcept = default;
 
+    bool is_valid() {
+        return false;
+    }
+
+    static std::unique_ptr<BuiltInSchema> create(std::shared_ptr<DatabaseManager> database);
+
     // Non-copyable, movable
     BuiltInSchema(const BuiltInSchema&) = delete;
     BuiltInSchema& operator=(const BuiltInSchema&) = delete;
@@ -109,13 +115,13 @@ public:
      * @brief Get complete schema definition as JSON
      * @return GraphQL schema definition in JSON format
      */
-    [[nodiscard]] nlohmann::json get_schema_definition() const;
+    [[nodiscard]] nlohmann::json get_schema_definition() const ;
 
     /**
      * @brief Get server health status
      * @return Current health status with detailed information
      */
-    [[nodiscard]] nlohmann::json get_health_status() const;
+    [[nodiscard]] nlohmann::json get_health_status() const ;
 
     /**
      * @brief Get comprehensive server metrics

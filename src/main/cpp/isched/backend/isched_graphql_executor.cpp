@@ -26,6 +26,10 @@ GraphQLExecutor::GraphQLExecutor(std::shared_ptr<DatabaseManager> database)
     setup_builtin_resolvers();
 }
 
+std::unique_ptr<GraphQLExecutor> GraphQLExecutor::create(std::shared_ptr<DatabaseManager> database) {
+    return std::make_unique<GraphQLExecutor>(std::move(database));
+}
+
 std::pair<DocumentPtr, std::vector<std::string>> GraphQLExecutor::parse(const std::string& query) const {
     if (query.length() > 100000) { // Max query length
         return {nullptr, {"Query length exceeds maximum allowed"}};

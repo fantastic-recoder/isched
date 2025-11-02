@@ -312,7 +312,9 @@ public:
      * @brief Destructor
      */
     ~GraphQLExecutor() noexcept = default;
-    
+
+    static std::unique_ptr<GraphQLExecutor> create(std::shared_ptr<DatabaseManager> database);
+
     // Non-copyable, movable
     GraphQLExecutor(const GraphQLExecutor&) = delete;
     GraphQLExecutor& operator=(const GraphQLExecutor&) = delete;

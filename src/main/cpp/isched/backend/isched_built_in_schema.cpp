@@ -1,12 +1,12 @@
 /**
- * @file built_in_schema.cpp
+ * @file isched_built_in_schema.cpp
  * @brief Built-in GraphQL schema implementation for health monitoring and server introspection
  * @author Isched Development Team
  * @date 2025-11-02
  * @version 1.0.0
  */
 
-#include "built_in_schema.hpp"
+#include "isched_built_in_schema.hpp"
 #include "isched_graphql_executor.hpp"
 #include "isched_database.hpp"
 #include <nlohmann/json.hpp>
@@ -23,6 +23,10 @@
 #endif
 
 namespace isched::v0_0_1::backend {
+
+std::unique_ptr<BuiltInSchema> BuiltInSchema::create(std::shared_ptr<DatabaseManager> database) {
+    return std::make_unique<BuiltInSchema>(std::move(database));
+}
 
 BuiltInSchema::BuiltInSchema(std::shared_ptr<DatabaseManager> database) 
     : database_(std::move(database))

@@ -15,7 +15,7 @@
 #include <chrono>
 #include <thread>
 
-#include "isched/backend/built_in_schema.hpp"
+#include "isched/backend/isched_built_in_schema.hpp"
 #include "isched/backend/isched_server.hpp"
 #include "isched/backend/isched_graphql_executor.hpp"
 #include "isched/backend/isched_tenant_manager.hpp"
@@ -38,13 +38,23 @@ public:
         config.response_timeout = 20ms;
         config.enable_introspection = true;
         server->set_configuration(config);
-        
+
         tenant_manager = TenantManager::create();
-        executor = GraphQLExecutor::create();
-        built_in_schema = BuiltInSchema::create();
+
+        // Use temporary directory for testing
+        std::string test_db_path = "/tmp/isched_test_" + std::to_string(std::time(nullptr));
+
+        DatabaseManager::Config db_config;
+        db_config.base_path = test_db_path;
+        db_config.connection_pool_size = 5;
+        db_config.query_timeout = std::chrono::milliseconds{1000ms};
+
+        std::shared_ptr<DatabaseManager> const db_manager=std::make_shared<DatabaseManager>(db_config);
+        executor = GraphQLExecutor::create(db_manager);
+        built_in_schema = BuiltInSchema::create(db_manager);
         
         // Set up built-in resolvers
-        executor->setup_builtin_resolvers();
+        //executor->setup_builtin_resolvers();
         
         // Start server
         server->start();
@@ -72,13 +82,13 @@ TEST_CASE("Built-in schema registration and validation", "[builtin_schema][integ
         REQUIRE(!schema_definition.empty());
         
         // Check for key schema elements
-        REQUIRE(schema_definition.find("health") != std::string::npos);
-        REQUIRE(schema_definition.find("Query") != std::string::npos);
-        REQUIRE(schema_definition.find("HealthStatus") != std::string::npos);
+        REQUIRE(schema_definition.find("health") != schema_definition.end());
+        REQUIRE(schema_definition.find("Query") != schema_definition.end());
+        REQUIRE(schema_definition.find("HealthStatus") != schema_definition.end());
     }
     
     SECTION("Server started successfully") {
-        REQUIRE(fixture.server->get_status() == Server::Status::Running);
+        REQUIRE(fixture.server->get_status() == Server::Status::RUNNING);
     }
 }
 
@@ -217,7 +227,7 @@ TEST_CASE("Complete User Story 1 validation", "[builtin_schema][user_story_1][in
     
     SECTION("Frontend developer can immediately use GraphQL") {
         // Verify server is running
-        REQUIRE(fixture.server->get_status() == Server::Status::Running);
+        REQUIRE(fixture.server->get_status() == Server::Status::RUNNING);
         
         // Verify GraphQL endpoint responds to queries
         std::string test_query = R"(

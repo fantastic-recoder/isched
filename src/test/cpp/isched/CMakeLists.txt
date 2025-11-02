@@ -13,7 +13,7 @@ target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdl
 add_test(NAME isched_srv_test COMMAND isched_grammar_tests)
 
 add_executable(basic_server_test ../../basic_server_test.cpp)
-target_link_libraries(basic_server_test PRIVATE isched spdlog::spdlog)
+target_link_libraries(basic_server_test PRIVATE isched spdlog::spdlog  Boost::url)
 add_test(NAME basic_server_test COMMAND basic_server_test)
 
 add_executable(tenant_manager_test ../../tenant_manager_test.cpp)
@@ -21,7 +21,7 @@ target_link_libraries(tenant_manager_test PRIVATE isched spdlog::spdlog)
 add_test(NAME tenant_manager_test COMMAND tenant_manager_test)
 
 add_executable(rest_hello_world rest_hello_world.cpp
-        ../../../main/cpp/isched/isched_LogEnvLoader.hpp)
+        ../../../main/cpp/isched/isched_log_env_loader.hpp)
 target_link_libraries(rest_hello_world restbed::restbed)
 
 add_executable(isched_resolver_tests isched_resolver_tests.cpp)
@@ -47,18 +47,18 @@ add_test(NAME isched_config_tests COMMAND isched_config_tests)
 
 # Integration tests for User Story 1 - Frontend Developer Setup
 add_executable(test_server_startup ../integration/test_server_startup.cpp)
-target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3)
+target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_server_startup COMMAND test_server_startup)
 
 add_executable(test_builtin_schema ../integration/test_builtin_schema.cpp)
-target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3)
+target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_builtin_schema COMMAND test_builtin_schema)
 
 add_executable(test_builtin_schema_simple ../integration/test_builtin_schema_simple.cpp)
-target_link_libraries(test_builtin_schema_simple PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3)
+target_link_libraries(test_builtin_schema_simple PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_builtin_schema_simple COMMAND test_builtin_schema_simple)
 
 add_executable(test_health_monitoring ../integration/test_health_monitoring.cpp)
-target_link_libraries(test_health_monitoring PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3)
+target_link_libraries(test_health_monitoring PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_health_monitoring COMMAND test_health_monitoring)
 

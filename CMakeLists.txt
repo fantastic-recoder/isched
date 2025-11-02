@@ -83,6 +83,8 @@ find_package(httplib)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(SQLite3 REQUIRED)
+# Find Boost package
+find_package(Boost REQUIRED COMPONENTS url)
 
 include_directories("src/main/cpp")
 add_subdirectory("src/main/cpp/isched")

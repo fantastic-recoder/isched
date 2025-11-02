@@ -28,6 +28,7 @@
 #include "isched_common.hpp"
 #include <atomic>
 #include <mutex>
+#include <boost/url.hpp>
 
 // Forward declarations for external dependencies
 namespace restbed {
@@ -157,6 +158,24 @@ public:
      * - IPC resource cleanup
      */
     virtual ~Server();
+
+    void set_configuration(const Configuration & config);
+
+    bool is_running() const {
+        return get_status() == Server::Status::RUNNING;
+    }
+
+    boost::urls::url get_playground_url() const {
+        return boost::urls::url();
+    }
+
+    bool has_playground_endpoint() const {
+        return !get_playground_url().empty();
+    }
+
+    bool has_graphql_endpoint() const {
+        return false; // TODO
+    }
 
     // Prevent copying and moving (RAII resource management)
     Server(const Server&) = delete;

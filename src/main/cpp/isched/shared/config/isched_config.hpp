@@ -72,6 +72,8 @@ struct ServerConfig {
     std::string graphql_endpoint = "/graphql";
     int max_query_depth = 10;
     std::chrono::seconds query_timeout{5};
+    bool enable_health_endpoint = true;
+    int health_check_interval = 0;
 };
 
 /**

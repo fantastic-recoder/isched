@@ -41,7 +41,7 @@
 #include <optional>
 
 namespace isched::v0_0_1::backend {
-
+    using namespace std::chrono_literals;
 /**
  * @brief IPC message types for command/response coordination
  */
@@ -65,7 +65,7 @@ struct IPCMessage {
     std::chrono::system_clock::time_point timestamp;
     
     /// @brief Check if message is still valid (not expired)
-    bool is_valid(std::chrono::seconds timeout = std::chrono::seconds(30)) const noexcept {
+    bool is_valid(std::chrono::seconds timeout = std::chrono::seconds(30s)) const noexcept {
         auto now = std::chrono::system_clock::now();
         return (now - timestamp) < timeout;
     }
@@ -96,7 +96,9 @@ struct IPCConfig {
     std::string message_queue_name;
     size_t max_message_size = 64 * 1024; // 64KB default
     int max_clients = 10;
-    std::chrono::seconds timeout = std::chrono::seconds(30);
+    std::chrono::seconds timeout = std::chrono::seconds(30s);
+    int max_messages = 1000;
+    std::chrono::milliseconds default_timeout = 100ms;
 };
 
 /**

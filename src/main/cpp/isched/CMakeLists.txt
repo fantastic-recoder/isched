@@ -29,12 +29,14 @@ add_library(isched
         backend/isched_graphql_executor.cpp
         backend/isched_auth.hpp
         backend/isched_auth.cpp
+        backend/isched_built_in_schema.hpp
+        backend/isched_built_in_schema.cpp
         shared/ipc/isched_ipc.hpp
         shared/ipc/isched_ipc.cpp
         shared/config/isched_config.hpp
         shared/config/isched_config.cpp
 )
-target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json jwt-cpp::jwt-cpp SQLite::SQLite3)
+target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url)
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS})
 
 add_executable(isched_srv isched_srv_main.cpp)
