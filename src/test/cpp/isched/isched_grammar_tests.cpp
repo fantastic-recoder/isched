@@ -94,6 +94,9 @@ TEST_CASE("Book grammar test","grammar0") {
             author: String
     }
 
+    type Author {
+      name: String
+    }
 
     # The "Query" type is special: it lists all of the available queries that
     # clients can execute, along with the return type for each. In this
