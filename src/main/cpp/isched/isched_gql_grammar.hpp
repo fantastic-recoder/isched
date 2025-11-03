@@ -146,10 +146,11 @@ namespace isched::v0_0_1 {
             > {
     };
 
-    struct GqlGrammar : sor<
-                plus<GqlQuery>,
-                plus<GqlType>
-            > {
+    struct GqlGrammar : plus<
+        sor<
+                GqlQuery,
+                GqlType
+        >> {
     };
 
     template<typename TRule>
