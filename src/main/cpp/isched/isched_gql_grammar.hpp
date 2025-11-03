@@ -138,6 +138,7 @@ namespace isched::v0_0_1 {
     >{};
 
     struct GqlType : seq<
+                TSeps,
                 pegtl::string<'t', 'y', 'p', 'e'>,
                 plus<TSeparator>,
                 GqlTypeName,
@@ -146,8 +147,8 @@ namespace isched::v0_0_1 {
     };
 
     struct GqlGrammar : sor<
-                GqlQuery,
-                GqlType
+                plus<GqlQuery>,
+                plus<GqlType>
             > {
     };
 
