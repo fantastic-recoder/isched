@@ -35,6 +35,7 @@ add_library(isched
         shared/ipc/isched_ipc.cpp
         shared/config/isched_config.hpp
         shared/config/isched_config.cpp
+        isched_gql_grammar.hpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url)
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS})

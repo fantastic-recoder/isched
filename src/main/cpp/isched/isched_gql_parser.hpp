@@ -8,21 +8,25 @@
 #include <string>
 #include <memory>
 
-namespace isched {
-    namespace v0_0_1 {
 
-        struct IGdlParserTree {
-            [[nodiscard]] virtual bool isParsingOk() const = 0;
-            virtual ~IGdlParserTree() = default;
-        };
+namespace isched::v0_0_1 {
 
-        class GqlParser {
-        public:
-            std::unique_ptr<IGdlParserTree> parse(std::string&& pQuery, const std::string& pName );
-            ~GqlParser() = default;
-        private:
-        };
-    }
+    struct IGdlParserTree {
+        [[nodiscard]] virtual bool isParsingOk() const = 0;
+
+        virtual ~IGdlParserTree() = default;
+    };
+
+    class GqlParser {
+    public:
+        std::unique_ptr<IGdlParserTree> parse(std::string &&pQuery, const std::string &pName);
+
+        ~GqlParser() = default;
+
+    private:
+
+    };
+
 }
 
 
