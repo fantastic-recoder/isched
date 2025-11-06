@@ -24,9 +24,11 @@ int main(const int, const char **) {
     mySvc.addResolver
     (make_shared<SingleActionResolver>
         (EHttpMethods::GET, "/test", "Resolver ansver"));
+    /*
     mySvc.addResolver
     (make_shared<DocRootResolver>
         (string("/path"), path{"/home/grobap/Documents/100_Projects/isched/isched/client"}));
+    */
     spdlog::debug("run ->");
     mySvc.run();
     return EXIT_SUCCESS;
