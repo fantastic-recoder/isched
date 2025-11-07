@@ -9,6 +9,16 @@
 #include "isched_main_svc.hpp"
 #include "isched_single_action_resolver.hpp"
 
+template<typename T>
+void add_safely_resolver(isched::v0_0_1::MainSvc mySvc) {
+    try {
+        auto doc_root_resolver = make_shared<isched::v0_0_1::DocRootResolver>
+                (std::string("/path"), std::filesystem::path{"../../../../../docs"});
+        mySvc.addResolver(doc_root_resolver);
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to add resolver: {}", e.what());
+    }
+}
 
 int main(const int, const char **) {
     using isched::v0_0_1::MainSvc;
@@ -24,10 +34,7 @@ int main(const int, const char **) {
     mySvc.addResolver
     (make_shared<SingleActionResolver>
         (EHttpMethods::GET, "/test", "Resolver ansver"));
-    mySvc.addResolver
-    (make_shared<DocRootResolver>
-        (string("/path"), path{"../../../../docs"}));
-
+    add_safely_resolver(mySvc);
     spdlog::debug("run ->");
     mySvc.run();
     return EXIT_SUCCESS;

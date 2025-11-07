@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <filesystem>
+#include <utility>
 
 #include "isched_doc_root_resolver.hpp"
 
@@ -43,13 +44,13 @@ namespace isched::v0_0_1 {
         return content;
     }
 
-    DocRootResolver::DocRootResolver(const std::string &pPath, const path &pDocRoot)
-        : mDocRoot(pDocRoot)
-          , mDocRootStr(pDocRoot.string())
-          , mPath(pPath)
+    DocRootResolver::DocRootResolver(std::string pPath, const path &pDocRoot)
+        : mDocRoot(std::filesystem::canonical(pDocRoot))
+          , mPath(std::move(pPath))
+          , mDocRootStr(mDocRoot.string())
           , mMethod(toString(EHttpMethods::GET)) {
         if (!exists(mDocRoot)) {
-            throw ExceptionDocPathNotFound(pDocRoot);
+            throw ExceptionDocPathNotFound(mDocRoot);
         }
     }
 } // isched::v0_0_1

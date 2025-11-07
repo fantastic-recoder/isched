@@ -27,7 +27,7 @@ namespace isched::v0_0_1 {
         std::string mMethod;
         std::string readFileToString(const std::string& pFilePath);
     public:
-        DocRootResolver(const std::string& pPath, const std::filesystem::path& pDocRoot);
+        DocRootResolver(std::string  pPath, const std::filesystem::path& pDocRoot);
     };
 
 } // isched::v0_0_1
