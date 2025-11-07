@@ -9,8 +9,7 @@
 #include "isched_main_svc.hpp"
 #include "isched_single_action_resolver.hpp"
 
-template<typename T>
-void add_safely_resolver(isched::v0_0_1::MainSvc mySvc) {
+void add_safely_resolver(isched::v0_0_1::MainSvc& mySvc) {
     try {
         auto doc_root_resolver = make_shared<isched::v0_0_1::DocRootResolver>
                 (std::string("/path"), std::filesystem::path{"../../../../../docs"});
