@@ -1,1 +1,0 @@
-. "/home/groby/dev/isched/deactivate_conanrunenv-debug-x86_64.sh"

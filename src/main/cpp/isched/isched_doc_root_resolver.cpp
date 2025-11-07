@@ -44,8 +44,8 @@ namespace isched::v0_0_1 {
     }
 
     DocRootResolver::DocRootResolver(const std::string &pPath, const path &pDocRoot)
-        : mDocRootStr(mDocRoot.string())
-          , mDocRoot(pDocRoot)
+        : mDocRoot(pDocRoot)
+          , mDocRootStr(pDocRoot.string())
           , mPath(pPath)
           , mMethod(toString(EHttpMethods::GET)) {
         if (!exists(mDocRoot)) {

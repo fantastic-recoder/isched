@@ -20,7 +20,8 @@ namespace isched::v0_0_1 {
 
     public:
         explicit ExceptionDocPathNotFound(const std::filesystem::path &pPath, int error_code = 0)
-            : std::runtime_error(fmt::format("Path \"{}\" does not exists!", pPath.string()))
+            : std::runtime_error(fmt::format("Path \"{}\" does not exists! Current directory is: \"{}\".",
+                pPath.string(),std::filesystem::current_path().string()))
               , path_(pPath)
               , message_(std::runtime_error::what())
               , error_code_(error_code) {

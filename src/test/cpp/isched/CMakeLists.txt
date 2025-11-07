@@ -59,6 +59,10 @@ target_link_libraries(test_builtin_schema_simple PRIVATE isched Catch2::Catch2Wi
 add_test(NAME test_builtin_schema_simple COMMAND test_builtin_schema_simple)
 
 add_executable(test_health_monitoring ../integration/test_health_monitoring.cpp)
-target_link_libraries(test_health_monitoring PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
+        target_link_libraries(test_health_monitoring PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_health_monitoring COMMAND test_health_monitoring)
+
+add_executable(isched_glob_tests isched_glob_tests.cpp)
+target_link_libraries(isched_glob_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
+add_test(NAME isched_glob_tests COMMAND isched_glob_tests)
 

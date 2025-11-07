@@ -1,2 +1,0 @@
-echo Restoring environment
-unset OPENSSL_MODULES
