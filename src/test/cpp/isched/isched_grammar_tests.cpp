@@ -110,8 +110,60 @@ TEST_CASE("Book grammar test","grammar0") {
 )Qry";
     GqlParser myParser;
     REQUIRE(true == myParser.parse(myBookQuery,"book")->isParsingOk());
+}
 
-    /*
-     *
-     */
+TEST_CASE("Parse integer array","grammar0") {
+    string_input in(std::move(std::string("my_int_array: [Int]!")), "Query");
+    auto myRoot = generate_ast_and_log<GqlTypeField>("Parsing int array",in,true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse type reference","grammar0") {
+    string_input in(std::move(std::string("appearsIn: [Episode!]!")), "Query");
+    auto myRoot = generate_ast_and_log<GqlTypeField>("Parsing type reference",in,true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Character type grammar test","grammar0") {
+    static const char* myCharacterQry=R"Qry(#graphql
+    type Character {
+        name: String!
+        appearsIn: [Episode!]!
+    }
+)Qry";
+    GqlParser myParser;
+    auto myTree = myParser.parse(myCharacterQry,"Charecter");
+    REQUIRE(true == myTree->isParsingOk());
+}
+
+
+TEST_CASE("Parse float field","grammar0") {
+    string_input in(std::move(std::string("rating: Float")), "Query");
+    auto myRoot = generate_ast_and_log<GqlTypeField>("Parsing float field",in,true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse boolean field","grammar0") {
+    string_input in(std::move(std::string("isPublished: Boolean!")), "Query");
+    auto myRoot = generate_ast_and_log<GqlTypeField>("Parsing boolean field",in,true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse ID field","grammar0") {
+    string_input in(std::move(std::string("nodeId: ID")), "Query");
+    auto myRoot = generate_ast_and_log<GqlTypeField>("Parsing ID field",in,true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Misc type with built-ins","grammar0") {
+    static const char* myMiscType=R"Qry(#graphql
+    type Misc {
+        rating: Float
+        isPublished: Boolean!
+        nodeId: ID!
+    }
+)Qry";
+    GqlParser myParser;
+    auto myTree = myParser.parse(myMiscType,"Misc");
+    REQUIRE(true == myTree->isParsingOk());
 }

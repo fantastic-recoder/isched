@@ -13,11 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <sstream>
 #include <regex>
-#include <vector>
-#include <map>
-#include <set>
 #include <algorithm>
 
 namespace isched::v0_0_1 {
@@ -106,11 +102,11 @@ namespace isched::v0_0_1 {
 
     struct GqlTypeName : SeqWithComments<
                 TSeps,
-                pegtl::plus< pegtl::alpha >,
+                pegtl::identifier,
                 TSeps
     >{};
 
-    struct GqlTypeString : SeqWithComments<
+    struct GqlStringType : SeqWithComments<
                 TSeps,
                 pegtl::string<'S','t','r','i','n','g'>,
                 TSeps
@@ -122,12 +118,61 @@ namespace isched::v0_0_1 {
                 TSeps
     >{};
 
+    struct GqlTypeFloat : SeqWithComments<
+                TSeps,
+                pegtl::string<'F','l','o','a','t'>,
+                TSeps
+    >{};
+
+    struct GqlTypeBoolean : SeqWithComments<
+                TSeps,
+                pegtl::string<'B','o','o','l','e','a','n'>,
+                TSeps
+    >{};
+
+    struct GqlTypeID : SeqWithComments<
+                TSeps,
+                pegtl::string<'I','D'>,
+                TSeps
+    >{};
+
+    struct GqlNonNullType : opt<one<'!'>>{};
+
+    struct GqlBuiltInType;
+    struct GqlType;
+
+    struct GqlArray : SeqWithComments<
+                TSeps,
+                one<'['>,
+                GqlType,
+                one<']'>
+    >{};
+
+    struct GqlTypeRef: pegtl::identifier{};
+
+    struct GqlType:seq<
+              sor<
+                    GqlArray,
+                    GqlBuiltInType,
+                    GqlTypeRef
+              >,
+              GqlNonNullType
+    >{};
+
+    struct GqlBuiltInType:sor<
+                    GqlStringType,
+                    GqlTypeInt,
+                    GqlTypeFloat,
+                    GqlTypeBoolean,
+                    GqlTypeID,
+                    GqlArray
+                >{};
 
     struct GqlTypeField : SeqWithComments<
                 TSeps,
                 GqlTypeName,
                 pegtl::string<':'>,
-                sor<GqlTypeString,GqlTypeInt>
+                GqlType
     >{};
 
     struct GqlTypeFields : SeqWithComments<
@@ -137,7 +182,7 @@ namespace isched::v0_0_1 {
         End
     >{};
 
-    struct GqlType : seq<
+    struct GqlTypeDef : seq<
                 TSeps,
                 pegtl::string<'t', 'y', 'p', 'e'>,
                 plus<TSeparator>,
@@ -149,7 +194,7 @@ namespace isched::v0_0_1 {
     struct GqlGrammar : plus<
         sor<
                 GqlQuery,
-                GqlType
+                GqlTypeDef
         >> {
     };
 
@@ -157,7 +202,8 @@ namespace isched::v0_0_1 {
     using GqlSelector = pegtl::parse_tree::selector<
         TRule,
         pegtl::parse_tree::store_content::on<
-            GqlQuery, GqlName, GqlType, GqlTypeField,GqlTypeName,GqlTypeString,GqlTypeInt
+            GqlQuery, GqlName, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
+            GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType
         >
     >;
 

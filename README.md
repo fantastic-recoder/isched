@@ -80,3 +80,15 @@ start fill-in in the [CMake options dialogue](doc/clion_cmake_options.png)
 the CMake options used in the [configure.py script](configure.py). The line
 is marked with commentary ```# CMake options after "cmake```. 
 
+## Usefull links
+- [Doxygen](https://www.doxygen.nl/index.html)
+- [Conan](https://conan.io/)
+- [Ninja](https://ninja-build.org/)
+- [Restbed](https://github.com/Corvusoft/restbed)
+- [CppCoreGuidelines](https://github.com/isocpp/CppCoreGuidelines)
+- [CMake](https://cmake.org/)
+- [Docker](https://www.docker.com/)
+- [Git](https://git-scm.com/)
+- [Python](https://www.python.org/)
+- [CLion](https://www.jetbrains.com/clion/)
+- [Dot Viewer](https://dreampuf.github.io/GraphvizOnline/?engine=dot)
