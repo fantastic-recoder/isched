@@ -310,7 +310,8 @@ namespace isched::v0_0_1 {
     // Description: GraphQL allows an optional description preceding many definitions.
     // It is defined lexically as a StringValue (either a quoted string or a block string).
     struct Description : StringValue {};
-    struct FragmentDefinition : seq<> {};
+    // Placeholder disabled to prevent empty matches that could cause non-consuming loops in Document
+    struct FragmentDefinition : failure {};
 
     // OperationDefinition: (Description? OperationType Name? VariablesDefinition? Directives? SelectionSet) | SelectionSet
     struct OperationDefinition : sor<
@@ -334,8 +335,8 @@ namespace isched::v0_0_1 {
     // Map TypeDefinition to our existing GqlTypeDef
     struct TypeDefinition : GqlTypeDef {};
 
-    // Placeholder: not implemented yet
-    struct DirectiveDefinition : seq<> {};
+    // Placeholder: not implemented yet — set to failure to avoid empty matches breaking Document
+    struct DirectiveDefinition : failure {};
     struct TypeSystemExtension : failure {};
 
     // SchemaDefinition: Description? 'schema' Directives? '{' RootOperationTypeDefinition+ '}'
@@ -367,8 +368,17 @@ namespace isched::v0_0_1 {
     // ExecutableDocument (for completeness): ExecutableDefinition+
     struct ExecutableDocument : plus< ExecutableDefinition > {};
 
-    // Document: Definition+
-    struct Document : plus< Definition > {};
+    // Helper: zero or more Ignored tokens
+    struct IgnoredMany : star< Ignored > {};
+
+    // Document: Ignored* Definition (Ignored* Definition)* Ignored* EOF
+    // This matches one or more Definition nodes with arbitrary Ignored between/around them,
+    // and requires full consumption to EOF per the GraphQL spec.
+    struct Document : seq<
+            IgnoredMany,
+            plus< seq< Definition, IgnoredMany > >,
+            eof
+    > {};
 
     template<typename TRule>
     using GqlSelector = pegtl::parse_tree::selector<
@@ -377,7 +387,7 @@ namespace isched::v0_0_1 {
             GqlQuery, Name, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
             GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType,
             // New grammar nodes for Document/Schema
-            Definition, ExecutableDefinition, OperationDefinition, OperationType,
+            Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
             // Description
             Description,

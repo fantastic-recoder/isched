@@ -470,9 +470,8 @@ TEST_CASE("Ignored negative: double quote", "[graphql][ignored][negative]") {
     REQUIRE(std::get<0>(res) == false);
 }
 
-// Helper rule for testing sequences of Ignored
+// Helper rule for testing sequences of Ignored (IgnoredMany is now in the grammar header)
 namespace isched { namespace v0_0_1 {
-    struct IgnoredMany : tao::pegtl::star<Ignored> {};
     struct IgnoredAroundToken : tao::pegtl::seq< IgnoredMany, Token, IgnoredMany > {};
 } }
 
@@ -760,4 +759,71 @@ schema { query: Query })";
         auto res = generate_ast_and_log<SchemaDefinition>("Schema without description", in, false);
         REQUIRE(std::get<0>(res) == true);
     }
+}
+
+// ===== Tests for GraphQL Document =====
+
+TEST_CASE("Document positive: single SelectionSet", "[graphql][document][positive]") {
+    using isched::v0_0_1::Document;
+    // Simplest executable document: just a selection set
+    std::string s = R"({ hero })";
+    string_input in(s, "DocSelectionSet");
+    auto res = generate_ast_and_log<Document>("Document selection set", in, false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Document positive: schema definition with description", "[graphql][document][positive]") {
+    using isched::v0_0_1::Document;
+    std::string s = R"(
+        """My awesome schema"""
+        schema { query: Query }
+    )";
+    string_input in(s, "DocSchema");
+    auto res = generate_ast_and_log<Document>("Document schema", in, false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Document positive: multiple type definitions with Ignored", "[graphql][document][positive]") {
+    using isched::v0_0_1::Document;
+    std::string s;
+    s.append("\xEF\xBB\xBF", 3); // BOM
+    s += R"(  # lead comment
+        type A{ a: Int }
+        ,  # comma is Ignored
+        type B { b: String }
+    )";
+    string_input in(s, "DocTypes");
+    auto res = generate_ast_and_log<Document>("Document types", in, false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Document negative: empty input", "[graphql][document][negative]") {
+    using isched::v0_0_1::Document;
+    string_input in(std::string(""), "DocEmpty");
+    auto res = generate_ast_and_log<Document>("Document empty", in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Document negative: only Ignored", "[graphql][document][negative]") {
+    using isched::v0_0_1::Document;
+    std::string s = std::string("\xEF\xBB\xBF", 3) + " ,  \n# just a comment\n\r\t  ";
+    string_input in(s, "DocOnlyIgnored");
+    auto res = generate_ast_and_log<Document>("Document only ignored", in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Document negative: trailing garbage", "[graphql][document][negative]") {
+    using isched::v0_0_1::Document;
+    std::string s = R"(type A{ a: Int } ???)";
+    string_input in(s, "DocTrailing");
+    auto res = generate_ast_and_log<Document>("Document trailing garbage", in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Document negative: stray name", "[graphql][document][negative]") {
+    using isched::v0_0_1::Document;
+    std::string s = R"(name)";
+    string_input in(s, "DocStrayName");
+    auto res = generate_ast_and_log<Document>("Document stray name", in, false);
+    REQUIRE(std::get<0>(res) == false);
 }
