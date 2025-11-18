@@ -307,7 +307,9 @@ namespace isched::v0_0_1 {
     // Placeholders for future expansion (optional in places used)
     struct VariablesDefinition : seq<> {};
     struct Directives : seq<> {};
-    struct Description : seq<> {};
+    // Description: GraphQL allows an optional description preceding many definitions.
+    // It is defined lexically as a StringValue (either a quoted string or a block string).
+    struct Description : StringValue {};
     struct FragmentDefinition : seq<> {};
 
     // OperationDefinition: (Description? OperationType Name? VariablesDefinition? Directives? SelectionSet) | SelectionSet
@@ -377,6 +379,8 @@ namespace isched::v0_0_1 {
             // New grammar nodes for Document/Schema
             Definition, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
+            // Description
+            Description,
             // Numeric terminals
             IntValue, FloatValue,
             // String terminal

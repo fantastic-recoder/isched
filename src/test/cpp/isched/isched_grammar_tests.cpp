@@ -707,3 +707,57 @@ TEST_CASE("Punctuator negative: question-mark", "[graphql][punctuator][negative]
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: ?"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
+
+// ===== Tests for GraphQL Description (alias of StringValue) =====
+
+namespace isched { namespace v0_0_1 {
+    struct JustDescription : tao::pegtl::seq< Description, tao::pegtl::eof > {};
+} }
+
+TEST_CASE("Description positive cases", "[graphql][description][positive]") {
+    using isched::v0_0_1::JustDescription;
+    auto expect_ok = [](const std::string& s){
+        string_input in(std::string(s), "DescriptionGood");
+        auto res = generate_ast_and_log<JustDescription>(std::string("Description good: ")+s, in, false);
+        REQUIRE(std::get<0>(res) == true);
+    };
+    // Quoted string description
+    expect_ok("\"A description\"");
+    // Block string description
+    expect_ok("\"\"\"Multi\nline\nDescription\"\"\"");
+}
+
+TEST_CASE("Description negative cases", "[graphql][description][negative]") {
+    using isched::v0_0_1::JustDescription;
+    auto expect_fail = [](const std::string& s){
+        string_input in(std::string(s), "DescriptionBad");
+        auto res = generate_ast_and_log<JustDescription>(std::string("Description bad: ")+s, in, false);
+        REQUIRE(std::get<0>(res) == false);
+    };
+    // Empty input
+    expect_fail("");
+    // Not a string
+    expect_fail("name");
+    expect_fail("123");
+    // Unterminated quoted string
+    expect_fail("\"unterminated");
+}
+
+TEST_CASE("SchemaDefinition accepts optional Description", "[graphql][description][integration]") {
+    using isched::v0_0_1::SchemaDefinition;
+    {
+        // With description (block string)
+        std::string s = R"("""My schema"""
+schema { query: Query })";
+        string_input in(s, "SchemaWithDescription");
+        auto res = generate_ast_and_log<SchemaDefinition>("Schema with description", in, false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+    {
+        // Without description
+        std::string s = R"(schema{query:Query})";
+        string_input in(s, "SchemaWithoutDescription");
+        auto res = generate_ast_and_log<SchemaDefinition>("Schema without description", in, false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+}
