@@ -64,3 +64,4 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+/.output.txt

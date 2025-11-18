@@ -52,11 +52,70 @@ namespace isched::v0_0_1 {
 
     struct Digit : ranges<'0', '9'> {};
 
+    // NonZeroDigit helper for numeric grammars
+    struct NonZeroDigit : ranges<'1','9'> {};
+
+    // ===== GraphQL Value Literals: IntValue (per GraphQL.html) =====
+    // IntValue := '-'? ( '0' | NonZeroDigit Digit* ) not followed by '.' or exponent marker
+    struct IntValueCore : sor<
+        one<'0'>,
+        seq< NonZeroDigit, star<Digit>>
+    > {};
+
+    struct IntValue : seq< opt< one<'-'> >, IntValueCore, not_at< sor< one<'.'>, one<'e','E'>, Letter, Digit > > > {};
+
+    // ===== GraphQL Value Literals: FloatValue (per GraphQL.html) =====
+    // FloatValue := '-'? IntegerPart ( FractionalPart ExponentPart? | ExponentPart )
+    // IntegerPart := '0' | NonZeroDigit Digit*
+    // FractionalPart := '.' Digit+
+    // ExponentPart := ('e' | 'E') ('+' | '-')? Digit+
+    // Additionally: the token must not be immediately followed by Letter or Digit
+    struct FractionalPart : seq< one<'.'>, plus<Digit> > {};
+    struct ExponentPart   : seq< one<'e','E'>, opt< one<'+','-'> >, plus<Digit> > {};
+
+    struct FloatValueCore : sor<
+        // IntegerPart '.' Digits [Exponent]?
+        seq< IntValueCore, FractionalPart, opt<ExponentPart> >,
+        // IntegerPart Exponent
+        seq< IntValueCore, ExponentPart >
+    > {};
+
+    struct FloatValue : seq< opt< one<'-'> >, FloatValueCore, not_at< sor< Letter, Digit, one<'.'> > > > {};
+
+    // ===== GraphQL Value Literals: StringValue (quoted and block strings per GraphQL spec) =====
+    // Quoted (standard) string:
+    //   '"' ( StringCharacter | EscapeSequence )* '"'
+    // EscapeSequence: '\\' ( '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u' HexDigit HexDigit HexDigit HexDigit )
+    // StringCharacter: any code point except '"', '\\', or line terminators
+    // Block string (triple-quoted):
+    //   '"""' ( BlockStringChunk | EscapedTripleQuotes )* '"""'
+    // Where BlockStringChunk is any single code unit that does not begin an unescaped closing delimiter (""")
+    // and EscapedTripleQuotes is '\"""' to allow a literal sequence of three quotes inside.
+    // Note: We intentionally do not normalize indentation/whitespace here; that is a semantic step.
+    struct HexDigit : sor< ranges<'0','9'>, ranges<'A','F'>, ranges<'a','f'> > {};
+    struct UnicodeEscape : seq< one<'u'>, HexDigit, HexDigit, HexDigit, HexDigit > {};
+    struct SimpleEscapeChar : one<'"','\\','/','b','f','n','r','t'> {};
+    struct EscapeSequence : seq< one<'\\'>, sor< SimpleEscapeChar, UnicodeEscape > > {};
+    struct StringCharacter : seq< not_at< sor< one<'"','\\'>, LineTerminator > >, pegtl::any > {};
+    struct QuotedString : seq< one<'"'>, star< sor< StringCharacter, EscapeSequence > >, one<'"'> > {};
+
+    // Block string support
+    struct TripleQuote : pegtl::string<'"','"','"'> {};
+    // Allow escaping of the triple quote sequence inside a block string
+    struct EscapedTripleQuotes : seq< one<'\\'>, TripleQuote > {};
+    // Any single char that does not start an unescaped triple quote
+    struct BlockStringChar : seq< not_at< TripleQuote >, pegtl::any > {};
+    struct BlockString : seq< TripleQuote, star< sor< EscapedTripleQuotes, BlockStringChar > >, TripleQuote > {};
+
+    // Prevent fallback to QuotedString when the input starts with a triple quote
+    struct StringValue : sor< BlockString, seq< not_at< TripleQuote >, QuotedString > > {};
+
     struct NameStart : sor<Letter,one<'_'>>{};
 
     struct NameContinues : sor<Letter,Digit,one<'_'>>{};
 
     struct Name: seq<  NameStart, star<NameContinues>  >{};
+
 
     struct Beg : one<'{'> {
     };
@@ -192,19 +251,112 @@ namespace isched::v0_0_1 {
             > {
     };
 
-    struct Document : plus<
-        sor<
-                GqlQuery,
-                GqlTypeDef
-        >> {
-    };
+    // ===== GraphQL Core Grammar: Document and Schema (per GraphQL.html) =====
+    // Forward declarations for grammar non-terminals we reference
+    struct Definition;
+    struct ExecutableDefinition;
+    struct OperationDefinition;
+    struct FragmentDefinition;
+    struct TypeSystemDefinitionOrExtension;
+    struct TypeSystemDefinition;
+    struct TypeSystemExtension;
+    struct TypeDefinition; // map to GqlTypeDef
+    struct DirectiveDefinition; // placeholder
+    struct SchemaDefinition;
+    struct RootOperationTypeDefinition;
+    struct OperationType;
+    struct VariablesDefinition; // placeholder for now
+    struct Directives; // placeholder for now
+    struct SelectionSet; // alias to our subquery structure
+    struct Description; // placeholder (StringValue) – optional where used
+
+    // OperationType: query | mutation | subscription
+    struct OperationType : sor<
+            string<'q','u','e','r','y'>,
+            string<'m','u','t','a','t','i','o','n'>,
+            string<'s','u','b','s','c','r','i','p','t','i','o','n'>
+    >{};
+
+    // For now, SelectionSet is equivalent to our GqlSubQuery
+    struct SelectionSet : GqlSubQuery {};
+
+    // Placeholders for future expansion (optional in places used)
+    struct VariablesDefinition : seq<> {};
+    struct Directives : seq<> {};
+    struct Description : seq<> {};
+    struct FragmentDefinition : seq<> {};
+
+    // OperationDefinition: (Description? OperationType Name? VariablesDefinition? Directives? SelectionSet) | SelectionSet
+    struct OperationDefinition : sor<
+            SeqWithComments< TSeps,
+                opt<Description>,
+                OperationType,
+                opt<Name>,
+                opt<VariablesDefinition>,
+                opt<Directives>,
+                SelectionSet
+            >,
+            SelectionSet
+    >{};
+
+    // ExecutableDefinition: OperationDefinition | FragmentDefinition
+    struct ExecutableDefinition : sor< OperationDefinition, FragmentDefinition > {};
+
+    // TypeSystemDefinitionOrExtension: TypeSystemDefinition | TypeSystemExtension
+    struct TypeSystemDefinitionOrExtension : sor< struct TypeSystemDefinition, struct TypeSystemExtension > {};
+
+    // Map TypeDefinition to our existing GqlTypeDef
+    struct TypeDefinition : GqlTypeDef {};
+
+    // Placeholder: not implemented yet
+    struct DirectiveDefinition : seq<> {};
+    struct TypeSystemExtension : failure {};
+
+    // SchemaDefinition: Description? 'schema' Directives? '{' RootOperationTypeDefinition+ '}'
+    struct SchemaDefinition : SeqWithComments<
+            TSeps,
+            opt<Description>,
+            string<'s','c','h','e','m','a'>,
+            opt<Directives>,
+            Beg,
+            plus<RootOperationTypeDefinition>,
+            End
+    > {};
+
+    // RootOperationTypeDefinition: OperationType ':' NamedType
+    // Use GqlTypeName as our NamedType
+    struct RootOperationTypeDefinition : SeqWithComments<
+            TSeps,
+            OperationType,
+            one<':'>,
+            GqlTypeName
+    > {};
+
+    // TypeSystemDefinition: SchemaDefinition | TypeDefinition | DirectiveDefinition
+    struct TypeSystemDefinition : sor< SchemaDefinition, TypeDefinition, DirectiveDefinition > {};
+
+    // Definition: ExecutableDefinition | TypeSystemDefinitionOrExtension
+    struct Definition : sor< ExecutableDefinition, TypeSystemDefinitionOrExtension > {};
+
+    // ExecutableDocument (for completeness): ExecutableDefinition+
+    struct ExecutableDocument : plus< ExecutableDefinition > {};
+
+    // Document: Definition+
+    struct Document : plus< Definition > {};
 
     template<typename TRule>
     using GqlSelector = pegtl::parse_tree::selector<
         TRule,
         pegtl::parse_tree::store_content::on<
             GqlQuery, Name, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
-            GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType
+            GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType,
+            // New grammar nodes for Document/Schema
+            Definition, ExecutableDefinition, OperationDefinition, OperationType,
+            SchemaDefinition, RootOperationTypeDefinition,
+            // Numeric terminals
+            IntValue, FloatValue,
+            // String terminal
+            StringValue
         >
     >;
 
