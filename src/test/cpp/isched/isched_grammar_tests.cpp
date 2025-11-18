@@ -351,3 +351,61 @@ TEST_CASE("BlockString negative cases", "[graphql][blockstring][negative]") {
     // Unterminated block string
     expect_fail("\"\"\"unterminated");
 }
+
+TEST_CASE("Token positive cases", "[graphql][token][positive]") {
+    using isched::v0_0_1::Token;
+    auto expect_ok = [](const std::string& s){
+        string_input in(std::string(s), "TokenGood");
+        auto res = generate_ast_and_log<Token>(std::string("Token good: ")+s, in, false);
+        REQUIRE(std::get<0>(res) == true);
+    };
+    // Name
+    expect_ok("foo");
+    expect_ok("_bar9");
+    // IntValue
+    expect_ok("0");
+    expect_ok("-12");
+    // FloatValue
+    expect_ok("3.14");
+    expect_ok("1e10");
+    // StringValue (quoted)
+    expect_ok("\"hi\"");
+    // StringValue (block string)
+    expect_ok("\"\"\"block\nstring\"\"\"");
+    // Punctuators
+    expect_ok("!");
+    expect_ok("$");
+    expect_ok("(");
+    expect_ok(")");
+    expect_ok(":");
+    expect_ok("=");
+    expect_ok("@");
+    expect_ok("[");
+    expect_ok("]");
+    expect_ok("{");
+    expect_ok("}");
+    expect_ok("|");
+    // Ellipsis
+    expect_ok("...");
+}
+
+TEST_CASE("Token negative cases", "[graphql][token][negative]") {
+    using isched::v0_0_1::Token;
+    auto expect_fail = [](const std::string& s){
+        string_input in(std::string(s), "TokenBad");
+        auto res = generate_ast_and_log<Token>(std::string("Token bad: ")+s, in, false);
+        REQUIRE(std::get<0>(res) == false);
+    };
+    // Empty / whitespace only
+    expect_fail("");
+    expect_fail("   ");
+    // Comments are not tokens alone
+    expect_fail("# just a comment");
+    // Invalid numbers or symbols
+    expect_fail("+1");
+    expect_fail("01");
+    expect_fail(".");
+    expect_fail("..");
+    // Unterminated string
+    expect_fail("\"unterminated");
+}

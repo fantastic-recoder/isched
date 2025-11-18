@@ -116,6 +116,18 @@ namespace isched::v0_0_1 {
 
     struct Name: seq<  NameStart, star<NameContinues>  >{};
 
+    // ===== GraphQL Token (per GraphQL spec) =====
+    // Punctuator tokens in GraphQL are exactly:
+    //   !  $  (  )  ...  :  =  @  [  ]  {  |  }
+    // Define Ellipsis explicitly and then the set of single-character punctuators.
+    struct Ellipsis : pegtl::string<'.','.','.'> {};
+    struct SinglePunctuator : one<'!','$','(',')',':','=', '@','[',']','{','}','|'> {};
+    struct TokenPunctuator : sor< Ellipsis, SinglePunctuator > {};
+
+    // Token is a single lexical token: Name, IntValue, FloatValue, StringValue, or Punctuator.
+    // Order matters: try longer/more specific tokens first to avoid ambiguity.
+    struct Token : sor< StringValue, FloatValue, IntValue, Name, TokenPunctuator > {};
+
 
     struct Beg : one<'{'> {
     };
@@ -356,7 +368,9 @@ namespace isched::v0_0_1 {
             // Numeric terminals
             IntValue, FloatValue,
             // String terminal
-            StringValue
+            StringValue,
+            // Token
+            Token
         >
     >;
 
