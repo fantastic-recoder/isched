@@ -22,15 +22,14 @@ REQUIRE( factorial(10) == 3628800 );
 
 using isched::v0_0_1::GqlParser;
 using isched::v0_0_1::IGdlParserTree;
-/*
+
 TEST_CASE("Empty query", "grammar0" ) {
     static const auto myQuery001="{}";
     GqlParser myParser;
     auto myTree = myParser.parse(myQuery001,"myQuery001");
     REQUIRE(true == myTree->isParsingOk());
-}*/
+}
 
-/*
 TEST_CASE("Empty query with whitespace", "grammar0" ) {
     static const auto myQuery002=" {} ";
     GqlParser myParser;
@@ -77,14 +76,14 @@ TEST_CASE( "Comments in query", "grammar0" ) {
     )Qry";
     REQUIRE(true == myParser.parse(myQueryWithComments002, "myQueryWithComments002")->isParsingOk());
 }
-*/
+
 TEST_CASE("Parse type fields","grammar0") {
     string_input in(std::move(std::string("title: String")), "Query");
     auto myRoot = generate_ast_and_log<GqlTypeField>("Parsing field",in,true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
-/*
+
 TEST_CASE("Book grammar test","grammar0") {
     static const char* myBookQuery=R"Qry(#graphql
 
@@ -113,7 +112,7 @@ TEST_CASE("Book grammar test","grammar0") {
     GqlParser myParser;
     REQUIRE(true == myParser.parse(myBookQuery,"book")->isParsingOk());
 }
-#1#
+
 
 TEST_CASE("Parse integer array","grammar0") {
     string_input in(std::move(std::string("my_int_array: [Int]!")), "Query");
@@ -138,7 +137,7 @@ TEST_CASE("Character type grammar test","grammar0") {
     auto myTree = myParser.parse(myCharacterQry,"Charecter");
     REQUIRE(true == myTree->isParsingOk());
 }
-#1#
+
 
 
 TEST_CASE("Parse float field","grammar0") {
@@ -171,7 +170,6 @@ TEST_CASE("Misc type with built-ins","grammar0") {
     auto myTree = myParser.parse(myMiscType,"Misc");
     REQUIRE(true == myTree->isParsingOk());
 }
-*/
 
 TEST_CASE("IntValue positive cases", "[graphql][intvalue][positive]") {
     using isched::v0_0_1::IntValue;
