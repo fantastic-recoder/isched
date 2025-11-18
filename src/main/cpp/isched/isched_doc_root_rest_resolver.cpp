@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <utility>
 
-#include "isched_doc_root_resolver.hpp"
+#include "isched_doc_root_rest_resolver.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -19,13 +19,13 @@ namespace isched::v0_0_1 {
     using std::filesystem::exists;
     using std::filesystem::is_directory;
 
-    std::string DocRootResolver::handle(std::string&& pString) {
+    std::string DocRootRestResolver::handle(std::string&& pString) {
         spdlog::debug("Resolving \"{}\".",pString);
         return "DocRootResolver of "+pString;
     }
 
     std::string
-    DocRootResolver::readFileToString(const std::string &pFilePath) {
+    DocRootRestResolver::readFileToString(const std::string &pFilePath) {
         // Check file existence and size
         path const myPath(pFilePath);
         if (!exists(myPath)) {
@@ -44,7 +44,7 @@ namespace isched::v0_0_1 {
         return content;
     }
 
-    DocRootResolver::DocRootResolver(std::string pPath, const path &pDocRoot)
+    DocRootRestResolver::DocRootRestResolver(std::string pPath, const path &pDocRoot)
         : mDocRoot(std::filesystem::canonical(pDocRoot))
           , mPath(std::move(pPath))
           , mDocRootStr(mDocRoot.string())

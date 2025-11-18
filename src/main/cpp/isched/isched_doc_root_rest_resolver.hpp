@@ -12,7 +12,7 @@
 
 namespace isched::v0_0_1 {
 
-    class DocRootResolver : public BaseResolver {
+    class DocRootRestResolver : public BaseResolver {
     public:
         std::string & getPath() override { return mPath; }
 
@@ -27,7 +27,7 @@ namespace isched::v0_0_1 {
         std::string mMethod;
         std::string readFileToString(const std::string& pFilePath);
     public:
-        DocRootResolver(std::string  pPath, const std::filesystem::path& pDocRoot);
+        DocRootRestResolver(std::string  pPath, const std::filesystem::path& pDocRoot);
     };
 
 } // isched::v0_0_1

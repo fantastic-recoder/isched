@@ -2,8 +2,8 @@ add_library(isched
         isched.hpp
         isched_gql_parser.cpp
         isched_gql_parser.hpp
-        isched_doc_root_resolver.cpp
-        isched_doc_root_resolver.hpp
+        isched_doc_root_rest_resolver.cpp
+        isched_doc_root_rest_resolver.hpp
         isched_main_svc.cpp
         isched_main_svc.hpp
         isched_exception_base.cpp
