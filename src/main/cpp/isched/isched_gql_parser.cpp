@@ -50,7 +50,7 @@ namespace isched::v0_0_1 {
         pegtl::string_input in(std::move(pQuery), "Query");
 
         try {
-            auto myRetVal=generate_ast_and_log<GqlGrammar>(pName, in);
+            auto myRetVal=generate_ast_and_log<Document>(pName, in);
             mRoot = std::move(std::get<1>(myRetVal));
             mParsingOk = std::get<0>(myRetVal);
         } catch (const pegtl::parse_error &e) {

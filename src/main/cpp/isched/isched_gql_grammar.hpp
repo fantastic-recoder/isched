@@ -18,6 +18,7 @@
 
 namespace isched::v0_0_1 {
     namespace pegtl = tao::pegtl;
+    using namespace pegtl;
     using pegtl::one;
     using pegtl::seq;
     using pegtl::star;
@@ -27,21 +28,35 @@ namespace isched::v0_0_1 {
     using pegtl::opt;
     using pegtl::at;
     using pegtl::plus;
-    using pegtl::parse_tree::node;
+    using parse_tree::node;
 
     using std::endl;
     using std::cout;
     using std::cerr;
     using std::unique_ptr;
 
-    struct Ws : one<' ', '\t', '\n', '\r'> {
-    };
+    struct Whitespace : one<' ', '\t'> {};
 
-    struct HashComment : seq<
-                one<'#'>,
-                tao::pegtl::until<tao::pegtl::eolf>
-            > {
-    };
+    struct LineTerminator : one<'\n', '\r'> {};
+
+    struct Ws : sor<LineTerminator,Whitespace> {};
+
+    struct Comment : seq< one<'#'>, until<eolf>> {};
+
+    struct Comma : one<','> {};
+
+    //!	$	&	(	)	...	:	=	@	[	]	{	|	}
+    struct Punctuator : one<'!', '$', '&', '(', ')', '*', '+', ',', '-', '.', '/', ';', '<', '=', '>', '?', '@', '[', ']', ':', '.'> {};
+
+    struct Letter : ranges<'A', 'Z', 'a', 'z'> {};
+
+    struct Digit : ranges<'0', '9'> {};
+
+    struct NameStart : sor<Letter,one<'_'>>{};
+
+    struct NameContinues : sor<Letter,Digit,one<'_'>>{};
+
+    struct Name: seq<  NameStart, star<NameContinues>  >{};
 
     struct Beg : one<'{'> {
     };
@@ -49,21 +64,7 @@ namespace isched::v0_0_1 {
     struct End : one<'}'> {
     };
 
-    struct GqlName : seq<
-                sor<
-                    one<'_'>,
-                    ranges<'A', 'Z', 'a', 'z'>
-                >,
-                star<
-                    sor<
-                        one<'_'>,
-                        ranges<'0', '9', 'A', 'Z', 'a', 'z'>
-                    >
-                >
-            > {
-    };
-
-    struct TSeparator : sor<Ws, HashComment> {
+    struct TSeparator : sor<Ws, Comment> {
     }; // either/or
 
     struct TSeps : star<TSeparator> {
@@ -87,7 +88,7 @@ namespace isched::v0_0_1 {
     struct GqlSubQuery : SeqWithComments<
                 TSeps,
                 Beg,
-                opt<GqlName>,
+                opt<Name>,
                 opt<GqlSubQuery>,
                 End
             > {
@@ -95,7 +96,7 @@ namespace isched::v0_0_1 {
 
     struct GqlQuery : SeqWithComments<
                 TSeps,
-                opt<pegtl::string<'q', 'u', 'e', 'r', 'y'> >,
+                opt<string<'q', 'u', 'e', 'r', 'y'> >,
                 GqlSubQuery
             > {
     };
@@ -191,7 +192,7 @@ namespace isched::v0_0_1 {
             > {
     };
 
-    struct GqlGrammar : plus<
+    struct Document : plus<
         sor<
                 GqlQuery,
                 GqlTypeDef
@@ -202,7 +203,7 @@ namespace isched::v0_0_1 {
     using GqlSelector = pegtl::parse_tree::selector<
         TRule,
         pegtl::parse_tree::store_content::on<
-            GqlQuery, GqlName, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
+            GqlQuery, Name, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
             GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType
         >
     >;
