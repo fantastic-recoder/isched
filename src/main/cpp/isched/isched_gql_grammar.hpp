@@ -1,6 +1,29 @@
-//
-// Created by groby on 2025-11-03.
-//
+/**
+ * @file isched_gql_grammar.hpp
+ * @brief PEGTL-based GraphQL grammar used by the isched backend.
+ *
+ * This header defines the lexical and syntactic grammar for a GraphQL subset/superset
+ * as used by the isched server. It follows the structure and wording of the GraphQL
+ * specification ("GraphQL.html" referenced in this project) and is thoroughly
+ * verified via unit tests in `src/test/cpp/isched/isched_grammar_tests.cpp`.
+ *
+ * The grammar is implemented with tao::PEGTL primitives. Each grammar rule has a
+ * Doxygen comment that maps it to the corresponding GraphQL spec rule where applicable,
+ * explains constraints, and provides examples derived from the unit tests.
+ *
+ * High-level overview of groups:
+ * - @ref gql_lexical Lexical elements (Whitespace, Comments, Name, Punctuators, Token)
+ * - @ref gql_numbers Numeric value literals (IntValue, FloatValue)
+ * - @ref gql_strings String value literals (quoted and block strings)
+ * - @ref gql_util Utility separators and sequence helpers (TSeps, SeqWithComments)
+ * - @ref gql_types Type system pieces mapped to existing demo rules (GqlType*, fields)
+ * - @ref gql_exec Executable definitions (OperationType, SelectionSet)
+ * - @ref gql_directives Directives and const values for schema/type-system
+ * - @ref gql_schema SchemaDefinition and related non-terminals
+ * - @ref gql_document Top-level Document rule and helpers
+ *
+ * See also: `generate_ast_and_log()` for debug tracing and AST emission used in tests.
+ */
 
 #ifndef ISCHED_ISCHED_GQL_GRAMMAR_HPP
 #define ISCHED_ISCHED_GQL_GRAMMAR_HPP
@@ -16,7 +39,7 @@
 #include <regex>
 #include <algorithm>
 
-namespace isched::v0_0_1 {
+namespace isched::v0_0_1::gql {
     namespace pegtl = tao::pegtl;
     using namespace pegtl;
     using pegtl::one;
@@ -35,44 +58,66 @@ namespace isched::v0_0_1 {
     using std::cerr;
     using std::unique_ptr;
 
+    /** @defgroup gql_lexical GraphQL lexical elements
+     *  @brief Low-level tokens: whitespace, comments, punctuators, names, and generic Token.
+     *  @{ */
+
+    /// GraphQL WhiteSpace — space or horizontal tab. Used by @ref Ignored and @ref TSeparator.
+    /// @see GraphQL Spec: "WhiteSpace"
     struct Whitespace : one<' ', '\t'> {};
 
+    /// GraphQL LineTerminator — LF or CR. Used by @ref Ignored and string handling.
     struct LineTerminator : one<'\n', '\r'> {};
 
+    /// Internal convenience: any whitespace (space, tab, or line terminators).
     struct Ws : sor<LineTerminator,Whitespace> {};
 
+    /** GraphQL Comment — starts with '#', runs to end-of-line or EOF.
+     *  Example (positive): `# just a comment\n`, `# at EOF`
+     */
     struct Comment : seq< one<'#'>, until<eolf>> {};
 
+    /// GraphQL allows commas as Ignored between tokens (commas act as separators).
     struct Comma : one<','> {};
 
-    //!	$	&	(	)	...	:	=	@	[	]	{	|	}
+    /** Legacy/unused Punctuator set retained for backward-compatibility in older parts
+     *  of the demo grammar. The canonical GraphQL punctuators used by @ref Token are
+     *  provided by @ref TokenPunctuator. */
     struct Punctuator : one<'!', '$', '&', '(', ')', '*', '+', ',', '-', '.', '/', ';', '<', '=', '>', '?', '@', '[', ']', ':', '.'> {};
 
+    /// ASCII Letter helper (A-Z, a-z) for Name.
     struct Letter : ranges<'A', 'Z', 'a', 'z'> {};
 
+    /// ASCII Digit helper (0-9) for Name and numeric rules.
     struct Digit : ranges<'0', '9'> {};
 
-    // NonZeroDigit helper for numeric grammars
+    /// Non-zero digit helper for numeric grammars (1-9).
     struct NonZeroDigit : ranges<'1','9'> {};
 
-    // ===== GraphQL Value Literals: IntValue (per GraphQL.html) =====
-    // IntValue := '-'? ( '0' | NonZeroDigit Digit* ) not followed by '.' or exponent marker
+    /** @defgroup gql_numbers Numeric value literals
+     *  @brief GraphQL `IntValue` and `FloatValue` with spec-compliant constraints.
+     *  @{ */
+
+    /// IntValueCore := '0' | NonZeroDigit Digit*
     struct IntValueCore : sor<
         one<'0'>,
         seq< NonZeroDigit, star<Digit>>
     > {};
 
+    /** IntValue := '-'? IntValueCore, not followed by '.', exponent, letter, or digit.
+     *  - No leading zeros (except the literal `0`).
+     *  - Not a prefix of a Float or Name token due to `not_at` lookahead.
+     *  Examples (ok): `0`, `7`, `42`, `-1`
+     *  Examples (reject): `01`, `+1`, `1.0`, `1e10`
+     */
     struct IntValue : seq< opt< one<'-'> >, IntValueCore, not_at< sor< one<'.'>, one<'e','E'>, Letter, Digit > > > {};
 
-    // ===== GraphQL Value Literals: FloatValue (per GraphQL.html) =====
-    // FloatValue := '-'? IntegerPart ( FractionalPart ExponentPart? | ExponentPart )
-    // IntegerPart := '0' | NonZeroDigit Digit*
-    // FractionalPart := '.' Digit+
-    // ExponentPart := ('e' | 'E') ('+' | '-')? Digit+
-    // Additionally: the token must not be immediately followed by Letter or Digit
+    /// FractionalPart := '.' Digit+
     struct FractionalPart : seq< one<'.'>, plus<Digit> > {};
+    /// ExponentPart := ('e'|'E') ('+'|'-')? Digit+
     struct ExponentPart   : seq< one<'e','E'>, opt< one<'+','-'> >, plus<Digit> > {};
 
+    /// FloatValueCore := IntegerPart '.' Digits [Exponent]? | IntegerPart Exponent
     struct FloatValueCore : sor<
         // IntegerPart '.' Digits [Exponent]?
         seq< IntValueCore, FractionalPart, opt<ExponentPart> >,
@@ -80,18 +125,20 @@ namespace isched::v0_0_1 {
         seq< IntValueCore, ExponentPart >
     > {};
 
+    /** FloatValue := '-'? FloatValueCore with `not_at` to avoid trailing alnum or '.'
+     *  Examples (ok): `0.0`, `1.0`, `123.456`, `-0.123`, `1e10`, `10e+3`, `-3E5`, `10.0e-3`
+     *  Examples (reject): `.5`, `1.`, `1e`, `+1.0`, `01.0`, `1.0a`, `1..0`
+     */
     struct FloatValue : seq< opt< one<'-'> >, FloatValueCore, not_at< sor< Letter, Digit, one<'.'> > > > {};
 
-    // ===== GraphQL Value Literals: StringValue (quoted and block strings per GraphQL spec) =====
-    // Quoted (standard) string:
-    //   '"' ( StringCharacter | EscapeSequence )* '"'
-    // EscapeSequence: '\\' ( '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u' HexDigit HexDigit HexDigit HexDigit )
-    // StringCharacter: any code point except '"', '\\', or line terminators
-    // Block string (triple-quoted):
-    //   '"""' ( BlockStringChunk | EscapedTripleQuotes )* '"""'
-    // Where BlockStringChunk is any single code unit that does not begin an unescaped closing delimiter (""")
-    // and EscapedTripleQuotes is '\"""' to allow a literal sequence of three quotes inside.
-    // Note: We intentionally do not normalize indentation/whitespace here; that is a semantic step.
+    /** @} */
+
+    /** @defgroup gql_strings GraphQL String value literals
+     *  @brief Quoted strings and block strings with escapes per GraphQL spec.
+     *  Quoted: '"' (StringCharacter | EscapeSequence)* '"'
+     *  Block:  '"""' (BlockStringChar | EscapedTripleQuotes)* '"""'
+     *  Newlines are allowed only in block strings. No indentation normalization is done here.
+     *  @{ */
     struct HexDigit : sor< ranges<'0','9'>, ranges<'A','F'>, ranges<'a','f'> > {};
     struct UnicodeEscape : seq< one<'u'>, HexDigit, HexDigit, HexDigit, HexDigit > {};
     struct SimpleEscapeChar : one<'"','\\','/','b','f','n','r','t'> {};
@@ -107,54 +154,64 @@ namespace isched::v0_0_1 {
     struct BlockStringChar : seq< not_at< TripleQuote >, pegtl::any > {};
     struct BlockString : seq< TripleQuote, star< sor< EscapedTripleQuotes, BlockStringChar > >, TripleQuote > {};
 
-    // Prevent fallback to QuotedString when the input starts with a triple quote
+    /** StringValue accepts block strings first to avoid backtracking into quoted strings
+     *  when input begins with '"""'.
+     *  Examples (ok): "" (empty), "hello", "\"quote\"\\\\", """multi\nline"""
+     *  Examples (reject): unclosed quotes, raw newline in quoted, bad escapes like \x, bad \uXXXX
+     */
     struct StringValue : sor< BlockString, seq< not_at< TripleQuote >, QuotedString > > {};
 
+    /// NameStart: letter or underscore
     struct NameStart : sor<Letter,one<'_'>>{};
 
+    /// NameContinues: letter, digit, or underscore
     struct NameContinues : sor<Letter,Digit,one<'_'>>{};
 
+    /** GraphQL Name := [_A-Za-z] [_A-Za-z0-9]*
+     *  Examples (ok): a, A, _, a1, _9, some_name, CamelCase, __typename, foo_bar_123
+     *  Examples (reject): 1a, -a, a-b, a b, a$, a.b, ' (quote)
+     */
     struct Name: seq<  NameStart, star<NameContinues>  >{};
 
-    // ===== GraphQL Token (per GraphQL spec) =====
-    // Punctuator tokens in GraphQL are exactly:
-    //   !  $  (  )  ...  :  =  @  [  ]  {  |  }
-    // Define Ellipsis explicitly and then the set of single-character punctuators.
+    // Canonical GraphQL punctuators used by Token
     struct Ellipsis : pegtl::string<'.','.','.'> {};
     struct SinglePunctuator : one<'!','$','(',')',':','=', '@','[',']','{','}','|'> {};
     struct TokenPunctuator : sor< Ellipsis, SinglePunctuator > {};
 
-    // Token is a single lexical token: Name, IntValue, FloatValue, StringValue, or Punctuator.
-    // Order matters: try longer/more specific tokens first to avoid ambiguity.
+    /** Token is a single lexical token per spec: StringValue | FloatValue | IntValue | Name | Punctuator.
+     *  Ordering ensures longest/more specific matches first to avoid ambiguity.
+     */
     struct Token : sor< StringValue, FloatValue, IntValue, Name, TokenPunctuator > {};
 
-    // ===== GraphQL Ignored (per GraphQL spec) =====
-    // Ignored tokens are skipped by the lexer between significant tokens and include:
-    //   - UnicodeBOM (U+FEFF)
-    //   - WhiteSpace (space, tab)
-    //   - LineTerminator (LF, CR)
-    //   - Comma ','
-    //   - Comment ('#' to end-of-line)
-    // Note: In UTF-8, Unicode BOM is the byte sequence 0xEF 0xBB 0xBF.
-    // Use PEGTL's UTF-8 BOM rule.
+    /** Ignored tokens per GraphQL spec — skipped between significant tokens.
+     *  Includes: UnicodeBOM, WhiteSpace, LineTerminator, Comma, Comment.
+     *  Comments may end at newline or EOF. */
     struct UnicodeBOM : pegtl::utf8::bom {};
     struct Ignored : sor< UnicodeBOM, Whitespace, LineTerminator, Comma, Comment > {};
+    /** @} */
 
 
-    struct Beg : one<'{'> {
-    };
+    /** @defgroup gql_util Utility separators and helpers
+     *  @brief Braces, separators, and template to weave separators between rules.
+     *  @{ */
+    /// Left brace '{' used by selection sets and schema blocks.
+    struct Beg : one<'{'> { };
 
-    struct End : one<'}'> {
-    };
+    /// Right brace '}' used by selection sets and schema blocks.
+    struct End : one<'}'> { };
 
-    struct TSeparator : sor<Ws, Comment> {
-    }; // either/or
+    /// A single separator unit: whitespace or comment.
+    struct TSeparator : sor<Ws, Comment> { };
 
-    struct TSeps : star<TSeparator> {
-    }; // any separators, whitespace or comments
+    /// Zero or more separators; used widely between grammar items.
+    struct TSeps : star<TSeparator> { };
 
-    // template to generate rule
-    // tao::pegtl::seq<rule0, separator, rule1, separator, rule2, ... , separator, rulen>
+    /**
+     * @tparam TSeparator A separator rule (e.g., @ref TSeps)
+     * @tparam TRules     A sequence of rules to be interleaved with separators
+     * @brief Utility template to generate `seq<rule0, sep, rule1, sep, ..., rulen, sep>`.
+     * Used to keep grammar readable while allowing comments/whitespace between items.
+     */
     template<typename TSeparator, typename... TRules>
     struct SeqWithComments;
 
@@ -167,7 +224,14 @@ namespace isched::v0_0_1 {
     struct SeqWithComments<TSeparator, TRule0>
             : seq<TRule0, TSeparator> {
     };
+    /** @} */
 
+    /** @defgroup gql_exec Executable definitions
+     *  @brief Minimal executable constructs used in tests (SelectionSet proxy, OperationType).
+     *  @{ */
+
+    /** GqlSubQuery ~ minimal SelectionSet used in tests:
+     *  `{` Name? GqlSubQuery? `}` allowing nested selections. */
     struct GqlSubQuery : SeqWithComments<
                 TSeps,
                 Beg,
@@ -177,6 +241,7 @@ namespace isched::v0_0_1 {
             > {
     };
 
+    /// Optional "query" keyword followed by a @ref GqlSubQuery selection set.
     struct GqlQuery : SeqWithComments<
                 TSeps,
                 opt<string<'q', 'u', 'e', 'r', 'y'> >,
@@ -184,47 +249,59 @@ namespace isched::v0_0_1 {
             > {
     };
 
+    /** @defgroup gql_types Type grammar building blocks (demo)
+     *  @brief Basic type system constructs for tests and examples.
+     *  @{ */
+
+    /// NamedType (identifier) in our demo grammar.
     struct GqlTypeName : SeqWithComments<
                 TSeps,
                 pegtl::identifier,
                 TSeps
     >{};
 
+    /// Built-in scalar: String
     struct GqlStringType : SeqWithComments<
                 TSeps,
                 pegtl::string<'S','t','r','i','n','g'>,
                 TSeps
     >{};
 
+    /// Built-in scalar: Int
     struct GqlTypeInt : SeqWithComments<
                 TSeps,
                 pegtl::string<'I','n','t'>,
                 TSeps
     >{};
 
+    /// Built-in scalar: Float
     struct GqlTypeFloat : SeqWithComments<
                 TSeps,
                 pegtl::string<'F','l','o','a','t'>,
                 TSeps
     >{};
 
+    /// Built-in scalar: Boolean
     struct GqlTypeBoolean : SeqWithComments<
                 TSeps,
                 pegtl::string<'B','o','o','l','e','a','n'>,
                 TSeps
     >{};
 
+    /// Built-in scalar: ID
     struct GqlTypeID : SeqWithComments<
                 TSeps,
                 pegtl::string<'I','D'>,
                 TSeps
     >{};
 
+    /// Optional non-null marker '!'
     struct GqlNonNullType : opt<one<'!'>>{};
 
     struct GqlBuiltInType;
     struct GqlType;
 
+    /// List type: '[' Type ']'
     struct GqlArray : SeqWithComments<
                 TSeps,
                 one<'['>,
@@ -232,8 +309,10 @@ namespace isched::v0_0_1 {
                 one<']'>
     >{};
 
+    /// Reference to a named type (identifier).
     struct GqlTypeRef: pegtl::identifier{};
 
+    /// Type := (Array | BuiltIn | TypeRef) NonNull?
     struct GqlType:seq<
               sor<
                     GqlArray,
@@ -243,6 +322,7 @@ namespace isched::v0_0_1 {
               GqlNonNullType
     >{};
 
+    /// Any built-in scalar or nested array
     struct GqlBuiltInType:sor<
                     GqlStringType,
                     GqlTypeInt,
@@ -252,6 +332,7 @@ namespace isched::v0_0_1 {
                     GqlArray
                 >{};
 
+    /// Field definition: Name ':' Type
     struct GqlTypeField : SeqWithComments<
                 TSeps,
                 GqlTypeName,
@@ -259,6 +340,7 @@ namespace isched::v0_0_1 {
                 GqlType
     >{};
 
+    /// Field list: '{' Field+ '}'
     struct GqlTypeFields : SeqWithComments<
         TSeps,
         Beg,
@@ -266,6 +348,7 @@ namespace isched::v0_0_1 {
         End
     >{};
 
+    /// TypeDefinition (demo): 'type' Name '{' Field+ '}' with separators.
     struct GqlTypeDef : seq<
                 TSeps,
                 pegtl::string<'t', 'y', 'p', 'e'>,
@@ -274,6 +357,7 @@ namespace isched::v0_0_1 {
                 GqlTypeFields
             > {
     };
+    /** @} */
 
     // ===== GraphQL Core Grammar: Document and Schema (per GraphQL.html) =====
     // Forward declarations for grammar non-terminals we reference
@@ -294,21 +378,22 @@ namespace isched::v0_0_1 {
     struct SelectionSet; // alias to our subquery structure
     struct Description; // placeholder (StringValue) – optional where used
 
-    // OperationType: query | mutation | subscription
+    /// OperationType: 'query' | 'mutation' | 'subscription'
     struct OperationType : sor<
             string<'q','u','e','r','y'>,
             string<'m','u','t','a','t','i','o','n'>,
             string<'s','u','b','s','c','r','i','p','t','i','o','n'>
     >{};
 
-    // For now, SelectionSet is equivalent to our GqlSubQuery
+    /// SelectionSet proxy used in tests (maps to @ref GqlSubQuery).
     struct SelectionSet : GqlSubQuery {};
 
     // Placeholders for future expansion (optional in places used)
     struct VariablesDefinition : seq<> {};
 
-    // ===== GraphQL Directives (Const) and Values for use in schema =====
-    // Minimal ValueConst to support directive arguments in type/system positions.
+    /** @defgroup gql_directives GraphQL directives (const) and values
+     *  @brief Directive syntax used in schema/type-system positions and const values.
+     *  @{ */
     struct TrueKeyword  : pegtl::string<'t','r','u','e'> {};
     struct FalseKeyword : pegtl::string<'f','a','l','s','e'> {};
     struct NullKeyword  : pegtl::string<'n','u','l','l'> {};
@@ -316,10 +401,10 @@ namespace isched::v0_0_1 {
     struct BooleanValueConst : sor< TrueKeyword, FalseKeyword > {};
     struct NullValueConst : NullKeyword {};
 
-    // For simplicity, allow enum values via Name (including names other than true/false/null).
-    // Numbers and strings reuse existing terminals.
+    // Allow enum-like values via Name in const positions; numbers/strings reuse terminals.
     struct ValueConst : sor< StringValue, FloatValue, IntValue, BooleanValueConst, NullValueConst, Name > {};
 
+    /// ArgumentConst := Name ':' ValueConst
     struct ArgumentConst : SeqWithComments<
             TSeps,
             Name,
@@ -327,8 +412,9 @@ namespace isched::v0_0_1 {
             ValueConst
     > {};
 
-    // Arguments are enclosed in parentheses. Elements are separated by TSeps (whitespace/comments).
-    // Use Ignored inside argument lists to allow commas as per spec.
+    /** ArgumentsConst := '(' [Ignored*] ArgumentConst ( [Ignored*] ArgumentConst )* [Ignored*] ')'
+     *  Commas are permitted within Ignored per spec; TSeps tolerated between elements.
+     */
     struct ArgumentsConst : seq<
             one<'('>,
             star<Ignored>,
@@ -338,19 +424,24 @@ namespace isched::v0_0_1 {
             one<')'>
     > {};
 
+    /// DirectiveConst := '@' Name ArgumentsConst?
     struct DirectiveConst : seq<
             one<'@'>,
             Name,
             opt< ArgumentsConst >
     > {};
 
+    /// DirectivesConst := DirectiveConst (TSeps DirectiveConst)* (one or more)
     struct DirectivesConst : seq< DirectiveConst, star< TSeps, DirectiveConst > > {};
+    /** @} */
     // Description: GraphQL allows an optional description preceding many definitions.
-    // It is defined lexically as a StringValue (either a quoted string or a block string).
     struct Description : StringValue {};
     // Placeholder disabled to prevent empty matches that could cause non-consuming loops in Document
     struct FragmentDefinition : failure {};
 
+    /** @defgroup gql_schema GraphQL schema/type-system and operation definitions
+     *  @brief SchemaDefinition and related rules (plus OperationDefinition used in tests).
+     *  @{ */
     // OperationDefinition: (Description? OperationType Name? VariablesDefinition? Directives? SelectionSet) | SelectionSet
     struct OperationDefinition : sor<
             SeqWithComments< TSeps,
@@ -364,20 +455,24 @@ namespace isched::v0_0_1 {
             SelectionSet
     >{};
 
-    // ExecutableDefinition: OperationDefinition | FragmentDefinition
+    /// ExecutableDefinition := OperationDefinition | FragmentDefinition (disabled)
     struct ExecutableDefinition : sor< OperationDefinition, FragmentDefinition > {};
 
-    // TypeSystemDefinitionOrExtension: TypeSystemDefinition | TypeSystemExtension
+    /// TypeSystemDefinitionOrExtension := TypeSystemDefinition | TypeSystemExtension (disabled)
     struct TypeSystemDefinitionOrExtension : sor< struct TypeSystemDefinition, struct TypeSystemExtension > {};
 
-    // Map TypeDefinition to our existing GqlTypeDef
+    /// TypeDefinition maps to our demo @ref GqlTypeDef
     struct TypeDefinition : GqlTypeDef {};
 
-    // Placeholder: not implemented yet — set to failure to avoid empty matches breaking Document
+    // Placeholders: not implemented — set to failure to avoid empty matches in loops
     struct DirectiveDefinition : failure {};
     struct TypeSystemExtension : failure {};
 
-    // SchemaDefinition: Description? 'schema' Directives? '{' RootOperationTypeDefinition+ '}'
+    /** SchemaDefinition := Description? 'schema' DirectivesConst? '{' RootOperationTypeDefinition+ '}'
+     *  Examples (ok):
+     *  - `schema { query: Query }`
+     *  - `"""desc""" schema @a(flag: true) { query: Q mutation: M }`
+     */
     struct SchemaDefinition : seq<
             TSeps,
             opt<Description>,
@@ -393,8 +488,7 @@ namespace isched::v0_0_1 {
             TSeps
     > {};
 
-    // RootOperationTypeDefinition: OperationType ':' NamedType
-    // Use GqlTypeName as our NamedType
+    /// RootOperationTypeDefinition := OperationType ':' NamedType (uses @ref GqlTypeName)
     struct RootOperationTypeDefinition : SeqWithComments<
             TSeps,
             OperationType,
@@ -402,27 +496,36 @@ namespace isched::v0_0_1 {
             GqlTypeName
     > {};
 
-    // TypeSystemDefinition: SchemaDefinition | TypeDefinition | DirectiveDefinition
+    /// TypeSystemDefinition := SchemaDefinition | TypeDefinition | DirectiveDefinition (disabled)
     struct TypeSystemDefinition : sor< SchemaDefinition, TypeDefinition, DirectiveDefinition > {};
 
-    // Definition: ExecutableDefinition | TypeSystemDefinitionOrExtension
+    /// Definition := ExecutableDefinition | TypeSystemDefinitionOrExtension
     struct Definition : sor< ExecutableDefinition, TypeSystemDefinitionOrExtension > {};
 
-    // ExecutableDocument (for completeness): ExecutableDefinition+
+    /// ExecutableDocument (not used directly in tests): ExecutableDefinition+
     struct ExecutableDocument : plus< ExecutableDefinition > {};
 
-    // Helper: zero or more Ignored tokens
+    /** @defgroup gql_document Top-level Document rule and helpers
+     *  @brief `Document` requires full input consumption and permits Ignored between/around definitions.
+     *  @{ */
+    /// Helper: zero or more Ignored tokens
     struct IgnoredMany : star< Ignored > {};
 
-    // Document: Ignored* Definition (Ignored* Definition)* Ignored* EOF
-    // This matches one or more Definition nodes with arbitrary Ignored between/around them,
-    // and requires full consumption to EOF per the GraphQL spec.
+    /** Document := Ignored* (Definition Ignored*)+ EOF
+     *  Requires at least one Definition and consumption to EOF.
+     *  Guarded against empty-matching definitions by setting placeholders to `failure`.
+     */
     struct Document : seq<
             IgnoredMany,
             plus< seq< Definition, IgnoredMany > >,
             eof
     > {};
+    /** @} */
 
+    /**
+     * @brief Parse-tree selector used by tests to choose which nodes store their content.
+     * Extend this list if downstream tooling needs additional nodes in the AST output.
+     */
     template<typename TRule>
     using GqlSelector = pegtl::parse_tree::selector<
         TRule,
@@ -459,9 +562,18 @@ namespace isched::v0_0_1 {
     //template<typename Rule>
     //using control = must_if<GqlError>::control<Rule>;
 
+    /// Separator used in test output for pretty-printing the AST with Graphviz DOT.
     constexpr static const char *const K_OUTPUT_SEP =
 "************************************************************************";
 
+    /**
+     * @brief Parse the input with the given grammar, emit a Graphviz DOT tree to stdout, and optionally trace.
+     * @tparam TGrammar Top-level PEGTL rule to parse.
+     * @param pName Label used in logs.
+     * @param in PEGTL string_input (will be restarted to print trace on failure or when requested).
+     * @param p_trace_on_success If true, run a PEGTL trace after successful parse as well.
+     * @return (ok, root) where ok indicates parse success, and root is the parse tree (non-null on success).
+     */
     template<typename TGrammar>
     std::tuple<bool,std::unique_ptr<node>>
     generate_ast_and_log(const std::string &pName, pegtl::string_input<>& in, bool p_trace_on_success=false) {

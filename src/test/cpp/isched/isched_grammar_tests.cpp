@@ -11,6 +11,7 @@ namespace {
 }
 
 using namespace isched::v0_0_1;
+using namespace isched::v0_0_1::gql;
 using namespace tao::pegtl;
 
 TEST_CASE( "Dummy factorials are computed", "[factorial]" ) {
@@ -172,7 +173,7 @@ TEST_CASE("Misc type with built-ins","grammar0") {
 }
 
 TEST_CASE("IntValue positive cases", "[graphql][intvalue][positive]") {
-    using isched::v0_0_1::IntValue;
+    using isched::v0_0_1::gql::IntValue;
     {
         string_input in(std::string("0"), "IntValue0");
         auto res = generate_ast_and_log<IntValue>("IntValue 0", in, false);
@@ -206,7 +207,7 @@ TEST_CASE("IntValue positive cases", "[graphql][intvalue][positive]") {
 }
 
 TEST_CASE("IntValue negative cases", "[graphql][intvalue][negative]") {
-    using isched::v0_0_1::IntValue;
+    using isched::v0_0_1::gql::IntValue;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "IntValueBad");
         auto res = generate_ast_and_log<IntValue>
@@ -232,7 +233,7 @@ TEST_CASE("IntValue negative cases", "[graphql][intvalue][negative]") {
 }
 
 TEST_CASE("FloatValue positive cases", "[graphql][floatvalue][positive]") {
-    using isched::v0_0_1::FloatValue;
+    using isched::v0_0_1::gql::FloatValue;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "FloatValueGood");
         auto res = generate_ast_and_log<FloatValue>(std::string("FloatValue good: ")+s, in, false);
@@ -255,7 +256,7 @@ TEST_CASE("FloatValue positive cases", "[graphql][floatvalue][positive]") {
 }
 
 TEST_CASE("FloatValue negative cases", "[graphql][floatvalue][negative]") {
-    using isched::v0_0_1::FloatValue;
+    using isched::v0_0_1::gql::FloatValue;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "FloatValueBad");
         auto res = generate_ast_and_log<FloatValue>(std::string("FloatValue bad: ")+s, in, false);
@@ -283,7 +284,7 @@ TEST_CASE("FloatValue negative cases", "[graphql][floatvalue][negative]") {
 }
 
 TEST_CASE("StringValue positive cases", "[graphql][stringvalue][positive]") {
-    using isched::v0_0_1::StringValue;
+    using isched::v0_0_1::gql::StringValue;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "StringValueGood");
         auto res = generate_ast_and_log<StringValue>(std::string("StringValue good: ")+s, in, false);
@@ -302,7 +303,7 @@ TEST_CASE("StringValue positive cases", "[graphql][stringvalue][positive]") {
 }
 
 TEST_CASE("StringValue negative cases", "[graphql][stringvalue][negative]") {
-    using isched::v0_0_1::StringValue;
+    using isched::v0_0_1::gql::StringValue;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "StringValueBad");
         auto res = generate_ast_and_log<StringValue>(std::string("StringValue bad: ")+s, in, false);
@@ -321,7 +322,7 @@ TEST_CASE("StringValue negative cases", "[graphql][stringvalue][negative]") {
 }
 
 TEST_CASE("BlockString positive cases", "[graphql][blockstring][positive]") {
-    using isched::v0_0_1::StringValue;
+    using isched::v0_0_1::gql::StringValue;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "BlockStringGood");
         auto res = generate_ast_and_log<StringValue>(std::string("BlockString good: ")+s, in, false);
@@ -340,7 +341,7 @@ TEST_CASE("BlockString positive cases", "[graphql][blockstring][positive]") {
 }
 
 TEST_CASE("BlockString negative cases", "[graphql][blockstring][negative]") {
-    using isched::v0_0_1::StringValue;
+    using isched::v0_0_1::gql::StringValue;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "BlockStringBad");
         auto res = generate_ast_and_log<StringValue>(std::string("BlockString bad: ")+s, in, false);
@@ -351,7 +352,7 @@ TEST_CASE("BlockString negative cases", "[graphql][blockstring][negative]") {
 }
 
 TEST_CASE("Token positive cases", "[graphql][token][positive]") {
-    using isched::v0_0_1::Token;
+    using isched::v0_0_1::gql::Token;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "TokenGood");
         auto res = generate_ast_and_log<Token>(std::string("Token good: ")+s, in, false);
@@ -388,7 +389,7 @@ TEST_CASE("Token positive cases", "[graphql][token][positive]") {
 }
 
 TEST_CASE("Token negative cases", "[graphql][token][negative]") {
-    using isched::v0_0_1::Token;
+    using isched::v0_0_1::gql::Token;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "TokenBad");
         auto res = generate_ast_and_log<Token>(std::string("Token bad: ")+s, in, false);
@@ -411,7 +412,7 @@ TEST_CASE("Token negative cases", "[graphql][token][negative]") {
 // ===== Tests for GraphQL Ignored tokens =====
 
 TEST_CASE("Ignored positive cases", "[graphql][ignored][positive]") {
-    using isched::v0_0_1::Ignored;
+    using isched::v0_0_1::gql::Ignored;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "IgnoredGood");
         auto res = generate_ast_and_log<Ignored>(std::string("Ignored good: ")+s, in, false);
@@ -434,49 +435,49 @@ TEST_CASE("Ignored positive cases", "[graphql][ignored][positive]") {
 }
 
 TEST_CASE("Ignored negative: empty", "[graphql][ignored][negative]") {
-    using isched::v0_0_1::Ignored;
+    using isched::v0_0_1::gql::Ignored;
     string_input in(std::string(""), "IgnoredBadEmpty");
     auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: <empty>"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Ignored negative: letter a", "[graphql][ignored][negative]") {
-    using isched::v0_0_1::Ignored;
+    using isched::v0_0_1::gql::Ignored;
     string_input in(std::string("a"), "IgnoredBadA");
     auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: a"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Ignored negative: digit 1", "[graphql][ignored][negative]") {
-    using isched::v0_0_1::Ignored;
+    using isched::v0_0_1::gql::Ignored;
     string_input in(std::string("1"), "IgnoredBad1");
     auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: 1"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Ignored negative: ellipsis ...", "[graphql][ignored][negative]") {
-    using isched::v0_0_1::Ignored;
+    using isched::v0_0_1::gql::Ignored;
     string_input in(std::string("..."), "IgnoredBadEllipsis");
     auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: ..."), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Ignored negative: double quote", "[graphql][ignored][negative]") {
-    using isched::v0_0_1::Ignored;
+    using isched::v0_0_1::gql::Ignored;
     string_input in(std::string("\""), "IgnoredBadQuote");
     auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: \""), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 // Helper rule for testing sequences of Ignored (IgnoredMany is now in the grammar header)
-namespace isched { namespace v0_0_1 {
+namespace isched { namespace v0_0_1 { namespace gql {
     struct IgnoredAroundToken : tao::pegtl::seq< IgnoredMany, Token, IgnoredMany > {};
-} }
+} } }
 
 TEST_CASE("IgnoredMany sequences and around Token", "[graphql][ignored][integration]") {
-    using isched::v0_0_1::IgnoredMany;
-    using isched::v0_0_1::IgnoredAroundToken;
-    using isched::v0_0_1::Token;
+    using isched::v0_0_1::gql::IgnoredMany;
+    using isched::v0_0_1::gql::IgnoredAroundToken;
+    using isched::v0_0_1::gql::Token;
 
     // A mix of different ignored pieces should be consumed by IgnoredMany
     {
@@ -499,12 +500,12 @@ TEST_CASE("IgnoredMany sequences and around Token", "[graphql][ignored][integrat
 
 // ===== Tests for GraphQL Name =====
 
-namespace isched { namespace v0_0_1 {
+namespace isched { namespace v0_0_1 { namespace gql {
     struct JustName : tao::pegtl::seq< Name, tao::pegtl::eof > {};
-} }
+} } }
 
 TEST_CASE("Name positive cases", "[graphql][name][positive]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "NameGood");
         auto res = generate_ast_and_log<JustName>(std::string("Name good: ")+s, in, false);
@@ -522,56 +523,56 @@ TEST_CASE("Name positive cases", "[graphql][name][positive]") {
 }
 
 TEST_CASE("Name negative: empty", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string(""), "NameBadEmpty");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: <empty>"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: starts with digit", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("1a"), "NameBadDigit");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: 1a"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: starts with dash", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("-a"), "NameBadDash");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: -a"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: contains dash", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("a-b"), "NameBadInnerDash");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: a-b"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: contains space", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("a b"), "NameBadSpace");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: a b"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: contains dollar", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("a$"), "NameBaddollar");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: a$"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: contains dot", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("a.b"), "NameBadDot");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: a.b"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Name negative: single quote", "[graphql][name][negative]") {
-    using isched::v0_0_1::JustName;
+    using isched::v0_0_1::gql::JustName;
     string_input in(std::string("'"), "NameBadQuote");
     auto res = generate_ast_and_log<JustName>(std::string("Name bad: '"), in, false);
     REQUIRE(std::get<0>(res) == false);
@@ -579,12 +580,12 @@ TEST_CASE("Name negative: single quote", "[graphql][name][negative]") {
 
 // ===== Tests for GraphQL Punctuator (per spec) =====
 
-namespace isched { namespace v0_0_1 {
+namespace isched { namespace v0_0_1 { namespace gql {
     struct JustTokenPunctuator : tao::pegtl::seq< TokenPunctuator, tao::pegtl::eof > {};
-} }
+} } }
 
 TEST_CASE("Punctuator positive cases", "[graphql][punctuator][positive]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "PunctuatorGood");
         auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator good: ")+s, in, false);
@@ -608,98 +609,98 @@ TEST_CASE("Punctuator positive cases", "[graphql][punctuator][positive]") {
 }
 
 TEST_CASE("Punctuator negative: empty", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string(""), "PunctuatorBadEmpty");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: <empty>"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: dot", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("."), "PunctuatorBadDot");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: ."), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: two dots", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string(".."), "PunctuatorBadTwoDots");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: .."), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: four dots", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("...."), "PunctuatorBadFourDots");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: ...."), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: ampersand", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("&"), "PunctuatorBadAmp");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: &"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: comma", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string(","), "PunctuatorBadComma");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: ,"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: semicolon", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string(";"), "PunctuatorBadSemicolon");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: ;"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: asterisk", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("*"), "PunctuatorBadAsterisk");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: *"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: plus", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("+"), "PunctuatorBadPlus");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: +"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: minus", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("-"), "PunctuatorBadMinus");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: -"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: slash", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("/"), "PunctuatorBadSlash");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: /"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: less-than", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("<"), "PunctuatorBadLT");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: <"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: greater-than", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string(">"), "PunctuatorBadGT");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: >"), in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Punctuator negative: question-mark", "[graphql][punctuator][negative]") {
-    using isched::v0_0_1::JustTokenPunctuator;
+    using isched::v0_0_1::gql::JustTokenPunctuator;
     string_input in(std::string("?"), "PunctuatorBadQM");
     auto res = generate_ast_and_log<JustTokenPunctuator>(std::string("Punctuator bad: ?"), in, false);
     REQUIRE(std::get<0>(res) == false);
@@ -707,12 +708,12 @@ TEST_CASE("Punctuator negative: question-mark", "[graphql][punctuator][negative]
 
 // ===== Tests for GraphQL Description (alias of StringValue) =====
 
-namespace isched { namespace v0_0_1 {
+namespace isched { namespace v0_0_1 { namespace gql {
     struct JustDescription : tao::pegtl::seq< Description, tao::pegtl::eof > {};
-} }
+} } }
 
 TEST_CASE("Description positive cases", "[graphql][description][positive]") {
-    using isched::v0_0_1::JustDescription;
+    using isched::v0_0_1::gql::JustDescription;
     auto expect_ok = [](const std::string& s){
         string_input in(std::string(s), "DescriptionGood");
         auto res = generate_ast_and_log<JustDescription>(std::string("Description good: ")+s, in, false);
@@ -725,7 +726,7 @@ TEST_CASE("Description positive cases", "[graphql][description][positive]") {
 }
 
 TEST_CASE("Description negative cases", "[graphql][description][negative]") {
-    using isched::v0_0_1::JustDescription;
+    using isched::v0_0_1::gql::JustDescription;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "DescriptionBad");
         auto res = generate_ast_and_log<JustDescription>(std::string("Description bad: ")+s, in, false);
@@ -741,7 +742,7 @@ TEST_CASE("Description negative cases", "[graphql][description][negative]") {
 }
 
 TEST_CASE("SchemaDefinition accepts optional Description", "[graphql][description][integration]") {
-    using isched::v0_0_1::SchemaDefinition;
+    using isched::v0_0_1::gql::SchemaDefinition;
     {
         // With description (block string)
         std::string s = R"("""My schema"""
@@ -760,12 +761,12 @@ schema { query: Query })";
 }
 
 // ===== Tests for SchemaDefinition with Directives =====
-namespace isched { namespace v0_0_1 {
+namespace isched { namespace v0_0_1 { namespace gql {
     struct JustSchemaDefinition : tao::pegtl::seq< SchemaDefinition, tao::pegtl::eof > {};
-} }
+} } }
 
 TEST_CASE("SchemaDefinition with directives (no args)", "[graphql][schema][directives][positive]") {
-    using isched::v0_0_1::JustSchemaDefinition;
+    using isched::v0_0_1::gql::JustSchemaDefinition;
     std::string s = R"(schema @a @b { query: Query })";
     string_input in(s, "SchemaDirectivesNoArgs");
     auto res = generate_ast_and_log<JustSchemaDefinition>("Schema directives no args", in, false);
@@ -773,7 +774,7 @@ TEST_CASE("SchemaDefinition with directives (no args)", "[graphql][schema][direc
 }
 
 TEST_CASE("SchemaDefinition with directives and arguments", "[graphql][schema][directives][positive]") {
-    using isched::v0_0_1::JustSchemaDefinition;
+    using isched::v0_0_1::gql::JustSchemaDefinition;
     std::string s = R"(schema @feature(flag: true, name: "X", n: null, count: 3, rate: 1.5, mode: FAST) { query: Query mutation: Mut })";
     string_input in(s, "SchemaDirectivesArgs");
     auto res = generate_ast_and_log<JustSchemaDefinition>("Schema directives with args", in, false);
@@ -781,7 +782,7 @@ TEST_CASE("SchemaDefinition with directives and arguments", "[graphql][schema][d
 }
 
 TEST_CASE("SchemaDefinition multiple root ops and whitespace/comments", "[graphql][schema][positive]") {
-    using isched::v0_0_1::JustSchemaDefinition;
+    using isched::v0_0_1::gql::JustSchemaDefinition;
     std::string s = R"(
         schema  # lead comment
         {
@@ -797,7 +798,7 @@ TEST_CASE("SchemaDefinition multiple root ops and whitespace/comments", "[graphq
 }
 
 TEST_CASE("SchemaDefinition negative cases", "[graphql][schema][negative]") {
-    using isched::v0_0_1::JustSchemaDefinition;
+    using isched::v0_0_1::gql::JustSchemaDefinition;
     auto expect_fail = [](const std::string& s, const char* name){
         string_input in(std::string(s), name);
         auto res = generate_ast_and_log<JustSchemaDefinition>(std::string("Schema bad: ")+s, in, false);
@@ -818,7 +819,7 @@ TEST_CASE("SchemaDefinition negative cases", "[graphql][schema][negative]") {
 // ===== Tests for GraphQL Document =====
 
 TEST_CASE("Document positive: single SelectionSet", "[graphql][document][positive]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     // Simplest executable document: just a selection set
     std::string s = R"({ hero })";
     string_input in(s, "DocSelectionSet");
@@ -827,7 +828,7 @@ TEST_CASE("Document positive: single SelectionSet", "[graphql][document][positiv
 }
 
 TEST_CASE("Document positive: schema definition with description", "[graphql][document][positive]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     std::string s = R"(
         """My awesome schema"""
         schema { query: Query }
@@ -838,7 +839,7 @@ TEST_CASE("Document positive: schema definition with description", "[graphql][do
 }
 
 TEST_CASE("Document positive: multiple type definitions with Ignored", "[graphql][document][positive]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     std::string s;
     s.append("\xEF\xBB\xBF", 3); // BOM
     s += R"(  # lead comment
@@ -852,14 +853,14 @@ TEST_CASE("Document positive: multiple type definitions with Ignored", "[graphql
 }
 
 TEST_CASE("Document negative: empty input", "[graphql][document][negative]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     string_input in(std::string(""), "DocEmpty");
     auto res = generate_ast_and_log<Document>("Document empty", in, false);
     REQUIRE(std::get<0>(res) == false);
 }
 
 TEST_CASE("Document negative: only Ignored", "[graphql][document][negative]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     std::string s = std::string("\xEF\xBB\xBF", 3) + " ,  \n# just a comment\n\r\t  ";
     string_input in(s, "DocOnlyIgnored");
     auto res = generate_ast_and_log<Document>("Document only ignored", in, false);
@@ -867,7 +868,7 @@ TEST_CASE("Document negative: only Ignored", "[graphql][document][negative]") {
 }
 
 TEST_CASE("Document negative: trailing garbage", "[graphql][document][negative]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     std::string s = R"(type A{ a: Int } ???)";
     string_input in(s, "DocTrailing");
     auto res = generate_ast_and_log<Document>("Document trailing garbage", in, false);
@@ -875,7 +876,7 @@ TEST_CASE("Document negative: trailing garbage", "[graphql][document][negative]"
 }
 
 TEST_CASE("Document negative: stray name", "[graphql][document][negative]") {
-    using isched::v0_0_1::Document;
+    using isched::v0_0_1::gql::Document;
     std::string s = R"(name)";
     string_input in(s, "DocStrayName");
     auto res = generate_ast_and_log<Document>("Document stray name", in, false);

@@ -1,6 +1,7 @@
-//
-// Created by grobap on 29.08.23.
-//
+/**
+ * @file isched_gql_parser.cpp
+ * @brief Implementation of the GraphQL PEGTL parser facade.
+ */
 
 #include <iostream>
 #include <utility>
@@ -12,10 +13,19 @@
 
 namespace isched::v0_0_1 {
 
-    using ParseTreePtr = std::unique_ptr<node>;
+    using ParseTreePtr = std::unique_ptr<tao::pegtl::parse_tree::node>;
 
+    /**
+     * @brief Concrete parse result holding the PEGTL parse tree.
+     * The object answers `isParsingOk()` and keeps the root `node` alive as needed.
+     */
     class GdlParserTree : public IGdlParserTree {
     public:
+        /**
+         * @brief Construct a parse-result by parsing the provided input against @ref Document.
+         * @param pQuery GraphQL input string (moved into an internal PEGTL input).
+         * @param pName  A label used in debug/trace output (e.g., file name).
+         */
         explicit GdlParserTree(std::string &&pQuery, const std::string &pName);
 
         ~GdlParserTree() = default;
@@ -24,20 +34,14 @@ namespace isched::v0_0_1 {
 
 
     private:
-        ParseTreePtr mRoot;
-        bool mParsingOk;
+        ParseTreePtr mRoot;   ///< Root of the parse tree (non-null on success)
+        bool mParsingOk;      ///< `true` if parsing succeeded
     };
 
 
-    /**
-     *
-     * @param pQuery GraphQL query to be parsed
-     * @param pName An identifier, used as additional (debug/output) information,
-     *       can be for example a filename.
-     * @return true on success.
-     */
+    /// Parse a single GraphQL input with the grammar entry point @ref Document.
     std::unique_ptr<IGdlParserTree> GqlParser::parse(std::string &&pQuery, const std::string &pName) {
-        unique_ptr<IGdlParserTree> myGdlParserTree
+        std::unique_ptr<IGdlParserTree> myGdlParserTree
                 = std::make_unique<GdlParserTree>(std::move(pQuery), pName);
         return myGdlParserTree;
     }
@@ -47,13 +51,13 @@ namespace isched::v0_0_1 {
         spdlog::debug("Parsing query named \"{}\".", pName);
         // Set up the states, here a single std::string as that is
         // what our action requires as additional function argument.
-        pegtl::string_input in(std::move(pQuery), "Query");
+        tao::pegtl::string_input in(std::move(pQuery), "Query");
 
         try {
-            auto myRetVal=generate_ast_and_log<Document>(pName, in);
+            auto myRetVal = gql::generate_ast_and_log<gql::Document>(pName, in);
             mRoot = std::move(std::get<1>(myRetVal));
             mParsingOk = std::get<0>(myRetVal);
-        } catch (const pegtl::parse_error &e) {
+        } catch (const tao::pegtl::parse_error &e) {
             const auto p = e.positions().front();
             std::cerr << e.what() << std::endl
                     << in.line_at(p) << std::endl
