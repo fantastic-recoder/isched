@@ -128,6 +128,18 @@ namespace isched::v0_0_1 {
     // Order matters: try longer/more specific tokens first to avoid ambiguity.
     struct Token : sor< StringValue, FloatValue, IntValue, Name, TokenPunctuator > {};
 
+    // ===== GraphQL Ignored (per GraphQL spec) =====
+    // Ignored tokens are skipped by the lexer between significant tokens and include:
+    //   - UnicodeBOM (U+FEFF)
+    //   - WhiteSpace (space, tab)
+    //   - LineTerminator (LF, CR)
+    //   - Comma ','
+    //   - Comment ('#' to end-of-line)
+    // Note: In UTF-8, Unicode BOM is the byte sequence 0xEF 0xBB 0xBF.
+    // Use PEGTL's UTF-8 BOM rule.
+    struct UnicodeBOM : pegtl::utf8::bom {};
+    struct Ignored : sor< UnicodeBOM, Whitespace, LineTerminator, Comma, Comment > {};
+
 
     struct Beg : one<'{'> {
     };

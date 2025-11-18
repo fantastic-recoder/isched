@@ -409,3 +409,93 @@ TEST_CASE("Token negative cases", "[graphql][token][negative]") {
     // Unterminated string
     expect_fail("\"unterminated");
 }
+
+// ===== Tests for GraphQL Ignored tokens =====
+
+TEST_CASE("Ignored positive cases", "[graphql][ignored][positive]") {
+    using isched::v0_0_1::Ignored;
+    auto expect_ok = [](const std::string& s){
+        string_input in(std::string(s), "IgnoredGood");
+        auto res = generate_ast_and_log<Ignored>(std::string("Ignored good: ")+s, in, false);
+        REQUIRE(std::get<0>(res) == true);
+    };
+    // Space and tab
+    expect_ok(" ");
+    expect_ok("\t");
+    // Line terminators
+    expect_ok("\n");
+    expect_ok("\r");
+    // Comma
+    expect_ok(",");
+    // Comment (must end with a newline per our Comment rule)
+    expect_ok("# just a comment\n");
+    // Comment may also end at end-of-file (no trailing newline) per GraphQL spec
+    expect_ok("# just a comment at EOF");
+    // Unicode BOM (UTF-8: EF BB BF)
+    expect_ok(std::string("\xEF\xBB\xBF", 3));
+}
+
+TEST_CASE("Ignored negative: empty", "[graphql][ignored][negative]") {
+    using isched::v0_0_1::Ignored;
+    string_input in(std::string(""), "IgnoredBadEmpty");
+    auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: <empty>"), in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Ignored negative: letter a", "[graphql][ignored][negative]") {
+    using isched::v0_0_1::Ignored;
+    string_input in(std::string("a"), "IgnoredBadA");
+    auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: a"), in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Ignored negative: digit 1", "[graphql][ignored][negative]") {
+    using isched::v0_0_1::Ignored;
+    string_input in(std::string("1"), "IgnoredBad1");
+    auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: 1"), in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Ignored negative: ellipsis ...", "[graphql][ignored][negative]") {
+    using isched::v0_0_1::Ignored;
+    string_input in(std::string("..."), "IgnoredBadEllipsis");
+    auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: ..."), in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Ignored negative: double quote", "[graphql][ignored][negative]") {
+    using isched::v0_0_1::Ignored;
+    string_input in(std::string("\""), "IgnoredBadQuote");
+    auto res = generate_ast_and_log<Ignored>(std::string("Ignored bad: \""), in, false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+// Helper rule for testing sequences of Ignored
+namespace isched { namespace v0_0_1 {
+    struct IgnoredMany : tao::pegtl::star<Ignored> {};
+    struct IgnoredAroundToken : tao::pegtl::seq< IgnoredMany, Token, IgnoredMany > {};
+} }
+
+TEST_CASE("IgnoredMany sequences and around Token", "[graphql][ignored][integration]") {
+    using isched::v0_0_1::IgnoredMany;
+    using isched::v0_0_1::IgnoredAroundToken;
+    using isched::v0_0_1::Token;
+
+    // A mix of different ignored pieces should be consumed by IgnoredMany
+    {
+        std::string s;
+        s.append("\xEF\xBB\xBF", 3); // BOM
+        s += " \t,  # c\n\r";       // space, tab, comma, comment, CR
+        string_input in(s, "IgnoredManyGood");
+        auto res = generate_ast_and_log<IgnoredMany>("IgnoredMany good", in, false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+
+    // Token with ignored around it should parse
+    {
+        std::string s = std::string("# lead\n   ,\t") + "foo" + std::string(",  # trail\n");
+        string_input in(s, "IgnoredAroundTokenGood");
+        auto res = generate_ast_and_log<IgnoredAroundToken>("IgnoredAroundToken good", in, false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+}
