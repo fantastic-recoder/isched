@@ -306,7 +306,45 @@ namespace isched::v0_0_1 {
 
     // Placeholders for future expansion (optional in places used)
     struct VariablesDefinition : seq<> {};
-    struct Directives : seq<> {};
+
+    // ===== GraphQL Directives (Const) and Values for use in schema =====
+    // Minimal ValueConst to support directive arguments in type/system positions.
+    struct TrueKeyword  : pegtl::string<'t','r','u','e'> {};
+    struct FalseKeyword : pegtl::string<'f','a','l','s','e'> {};
+    struct NullKeyword  : pegtl::string<'n','u','l','l'> {};
+
+    struct BooleanValueConst : sor< TrueKeyword, FalseKeyword > {};
+    struct NullValueConst : NullKeyword {};
+
+    // For simplicity, allow enum values via Name (including names other than true/false/null).
+    // Numbers and strings reuse existing terminals.
+    struct ValueConst : sor< StringValue, FloatValue, IntValue, BooleanValueConst, NullValueConst, Name > {};
+
+    struct ArgumentConst : SeqWithComments<
+            TSeps,
+            Name,
+            one<':'>,
+            ValueConst
+    > {};
+
+    // Arguments are enclosed in parentheses. Elements are separated by TSeps (whitespace/comments).
+    // Use Ignored inside argument lists to allow commas as per spec.
+    struct ArgumentsConst : seq<
+            one<'('>,
+            star<Ignored>,
+            ArgumentConst,
+            star< star<Ignored>, ArgumentConst >,
+            star<Ignored>,
+            one<')'>
+    > {};
+
+    struct DirectiveConst : seq<
+            one<'@'>,
+            Name,
+            opt< ArgumentsConst >
+    > {};
+
+    struct DirectivesConst : seq< DirectiveConst, star< TSeps, DirectiveConst > > {};
     // Description: GraphQL allows an optional description preceding many definitions.
     // It is defined lexically as a StringValue (either a quoted string or a block string).
     struct Description : StringValue {};
@@ -320,7 +358,7 @@ namespace isched::v0_0_1 {
                 OperationType,
                 opt<Name>,
                 opt<VariablesDefinition>,
-                opt<Directives>,
+                opt<DirectivesConst>,
                 SelectionSet
             >,
             SelectionSet
@@ -340,14 +378,19 @@ namespace isched::v0_0_1 {
     struct TypeSystemExtension : failure {};
 
     // SchemaDefinition: Description? 'schema' Directives? '{' RootOperationTypeDefinition+ '}'
-    struct SchemaDefinition : SeqWithComments<
+    struct SchemaDefinition : seq<
             TSeps,
             opt<Description>,
+            TSeps,
             string<'s','c','h','e','m','a'>,
-            opt<Directives>,
+            TSeps,
+            opt<DirectivesConst>,
+            TSeps,
             Beg,
-            plus<RootOperationTypeDefinition>,
-            End
+            TSeps,
+            plus< seq< RootOperationTypeDefinition, TSeps > >,
+            End,
+            TSeps
     > {};
 
     // RootOperationTypeDefinition: OperationType ':' NamedType
@@ -391,6 +434,9 @@ namespace isched::v0_0_1 {
             SchemaDefinition, RootOperationTypeDefinition,
             // Description
             Description,
+            // Directives/Values
+            DirectiveConst, DirectivesConst, ArgumentsConst, ArgumentConst, ValueConst,
+            TrueKeyword, FalseKeyword, NullKeyword,
             // Numeric terminals
             IntValue, FloatValue,
             // String terminal

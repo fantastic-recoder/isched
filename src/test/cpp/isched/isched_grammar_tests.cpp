@@ -761,6 +761,62 @@ schema { query: Query })";
     }
 }
 
+// ===== Tests for SchemaDefinition with Directives =====
+namespace isched { namespace v0_0_1 {
+    struct JustSchemaDefinition : tao::pegtl::seq< SchemaDefinition, tao::pegtl::eof > {};
+} }
+
+TEST_CASE("SchemaDefinition with directives (no args)", "[graphql][schema][directives][positive]") {
+    using isched::v0_0_1::JustSchemaDefinition;
+    std::string s = R"(schema @a @b { query: Query })";
+    string_input in(s, "SchemaDirectivesNoArgs");
+    auto res = generate_ast_and_log<JustSchemaDefinition>("Schema directives no args", in, false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("SchemaDefinition with directives and arguments", "[graphql][schema][directives][positive]") {
+    using isched::v0_0_1::JustSchemaDefinition;
+    std::string s = R"(schema @feature(flag: true, name: "X", n: null, count: 3, rate: 1.5, mode: FAST) { query: Query mutation: Mut })";
+    string_input in(s, "SchemaDirectivesArgs");
+    auto res = generate_ast_and_log<JustSchemaDefinition>("Schema directives with args", in, false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("SchemaDefinition multiple root ops and whitespace/comments", "[graphql][schema][positive]") {
+    using isched::v0_0_1::JustSchemaDefinition;
+    std::string s = R"(
+        schema  # lead comment
+        {
+          query: Query  # q
+          
+          mutation: Mutation  # m
+          subscription: Sub  # s
+        }
+    )";
+    string_input in(s, "SchemaMultiOps");
+    auto res = generate_ast_and_log<JustSchemaDefinition>("Schema multiple ops", in, false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("SchemaDefinition negative cases", "[graphql][schema][negative]") {
+    using isched::v0_0_1::JustSchemaDefinition;
+    auto expect_fail = [](const std::string& s, const char* name){
+        string_input in(std::string(s), name);
+        auto res = generate_ast_and_log<JustSchemaDefinition>(std::string("Schema bad: ")+s, in, false);
+        REQUIRE(std::get<0>(res) == false);
+    };
+    // Missing braces
+    expect_fail("schema query: Query", "SchemaNoBraces");
+    // Empty root operation list
+    expect_fail("schema { }", "SchemaEmptyOps");
+    // Missing colon
+    expect_fail("schema { query Query }", "SchemaMissingColon");
+    // Missing type name
+    expect_fail("schema { query: }", "SchemaMissingType");
+    // Unterminated description
+    expect_fail("\"unterminated schema { query: Q }", "SchemaBadDesc");
+}
+
 // ===== Tests for GraphQL Document =====
 
 TEST_CASE("Document positive: single SelectionSet", "[graphql][document][positive]") {
