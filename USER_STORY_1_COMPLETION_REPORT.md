@@ -37,13 +37,13 @@ All tests passed (31 assertions in 4 test cases)
 
 All User Story 1 tasks have been marked as completed in `specs/001-universal-backend/tasks.md`:
 
-- ✅ **T019** [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/isched_builtin_schema.hpp/cpp with health queries
-- ✅ **T020** [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/isched_builtin_schema.cpp  
+- ✅ **T019** [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/isched_built_in_schema.hpp/cpp with health queries
+- ✅ **T020** [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/isched_built_in_schema.cpp  
 - ✅ **T021** [US1] Integrate BuiltInSchema with GraphQLExecutor for immediate GraphQL endpoint availability
-- ✅ **T022** [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/isched_server.cpp
-- ✅ **T023** [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/isched_server.cpp
-- ✅ **T024** [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/isched_graphql_executor.cpp
-- ✅ **T025** [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/isched_graphql_executor.cpp
+- ✅ **T022** [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/isched_Server.cpp
+- ✅ **T023** [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/isched_Server.cpp
+- ✅ **T024** [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- ✅ **T025** [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/isched_GraphQLExecutor.cpp
 
 ---
 
@@ -59,7 +59,7 @@ All User Story 1 tasks have been marked as completed in `specs/001-universal-bac
 - **Health status enumeration**: HEALTHY, DEGRADED, UNHEALTHY states
 - **Resolver functions**: hello, info, metrics, environment, tenants, configuration
 
-#### 2. GraphQL Execution Engine (`isched_graphql_executor.cpp`)  
+#### 2. GraphQL Execution Engine (`isched_GraphQLExecutor.cpp`)  
 - **setup_builtin_resolvers()**: Complete resolver registration
 - **Built-in resolvers implemented**:
   - `hello`: Simple connectivity test
@@ -73,7 +73,7 @@ All User Story 1 tasks have been marked as completed in `specs/001-universal-bac
   - `configprops`: Configuration properties
   - `__schema`: GraphQL introspection support
 
-#### 3. Server Infrastructure (`isched_server.cpp`)
+#### 3. Server Infrastructure (`isched_Server.cpp`)
 - **Complete server lifecycle**: Creation, start, stop, destruction
 - **Multi-threaded architecture**: Configurable thread pool (min/max)
 - **GraphQL endpoint**: Automatic `/graphql` endpoint setup

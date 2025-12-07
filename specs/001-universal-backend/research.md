@@ -235,13 +235,13 @@ All proposed dependencies are compatible with:
 
 ### ✅ VALIDATED: Core Architecture Decisions
 
-**Server Foundation (isched_server.hpp/cpp)**:
+**Server Foundation (isched_Server.hpp/cpp)**:
 - C++23 PIMPL pattern with smart pointers **IMPLEMENTED & TESTED**
 - Restbed HTTP service integration **WORKING**
 - Lifecycle management with health monitoring **VALIDATED**
 - Constitution compliance (C++ Core Guidelines) **CONFIRMED**
 
-**Tenant Management (isched_tenant_manager.hpp/cpp)**:
+**Tenant Management (isched_TenantManager.hpp/cpp)**:
 - Multi-process tenant isolation **IMPLEMENTED & TESTED**
 - Process pool management with load balancing **WORKING**
 - Per-tenant database isolation strategy **VALIDATED**

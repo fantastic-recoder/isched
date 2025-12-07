@@ -62,12 +62,12 @@ The project follows standard C++ layout with separated CLI processes and shared 
 src/
 ├── main/cpp/isched/
 │   ├── backend/          # Core server implementation
-│   │   ├── isched_server.hpp/cpp          # HTTP service foundation
-│   │   ├── isched_tenant_manager.hpp/cpp  # Multi-tenant process management
-│   │   ├── isched_database.hpp/cpp        # SQLite database layer
-│   │   ├── isched_graphql.hpp/cpp         # GraphQL query engine
-│   │   ├── isched_plugin.hpp/cpp          # Binary plugin system
-│   │   └── isched_auth.hpp/cpp            # Authentication middleware
+│   │   ├── isched_Server.hpp/cpp              # HTTP service foundation
+│   │   ├── isched_TenantManager.hpp/cpp       # Multi-tenant process management
+│   │   ├── isched_DatabaseManager.hpp/cpp     # SQLite database layer
+│   │   ├── isched_GraphQLExecutor.hpp/cpp     # GraphQL query engine
+│   │   ├── isched_plugin.hpp/cpp              # Binary plugin system (planned)
+│   │   └── isched_AuthenticationMiddleware.hpp/cpp  # Authentication middleware
 │   ├── cli/              # Separated CLI processes
 │   │   ├── python/       # isched-cli-python runtime
 │   │   └── typescript/   # isched-cli-typescript runtime
@@ -117,8 +117,8 @@ CMakeLists.txt           # Build system configuration
 **Next Action**: Proceed to `/speckit.tasks` command for detailed implementation task breakdown.
 
 #### Implementation Foundation Completed
-- ✅ **Server Foundation** (`isched_server.hpp/cpp`): Core HTTP service with lifecycle management
-- ✅ **Tenant Management** (`isched_tenant_manager.hpp/cpp`): Multi-process tenant isolation  
+- ✅ **Server Foundation** (`isched_Server.hpp/cpp`): Core HTTP service with lifecycle management
+- ✅ **Tenant Management** (`isched_TenantManager.hpp/cpp`): Multi-process tenant isolation
 - ✅ **Build System**: CMake + Conan integration with all dependencies resolved
 - ✅ **Test Framework**: Comprehensive test coverage with Catch2 integration
 

@@ -52,14 +52,14 @@ Each task implementation MUST verify:
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [x] T006 Implement base Server class in src/main/cpp/isched/isched_server.hpp/cpp with lifecycle management
-- [x] T007 [P] Implement TenantManager class in src/main/cpp/isched/isched_tenant_manager.hpp/cpp for multi-process isolation
-- [x] T008 [P] Implement DatabaseManager class in src/main/cpp/isched/isched_database.hpp/cpp with SQLite integration
-- [x] T009 [P] Implement ConnectionPool class in src/main/cpp/isched/isched_database.hpp for per-tenant database pooling
-- [x] T010 [P] Implement basic GraphQLExecutor class in src/main/cpp/isched/isched_graphql_executor.hpp/cpp with PEGTL parser
-- [x] T011 [P] Implement AuthenticationMiddleware class in src/main/cpp/isched/isched_auth.hpp/cpp with JWT support
+- [x] T006 Implement base Server class in src/main/cpp/isched/isched_Server.hpp/cpp with lifecycle management
+- [x] T007 [P] Implement TenantManager class in src/main/cpp/isched/isched_TenantManager.hpp/cpp for multi-process isolation
+- [x] T008 [P] Implement DatabaseManager class in src/main/cpp/isched/isched_DatabaseManager.hpp/cpp with SQLite integration
+- [x] T009 [P] Implement ConnectionPool class in src/main/cpp/isched/isched_DatabaseManager.hpp for per-tenant database pooling
+- [x] T010 [P] Implement basic GraphQLExecutor class in src/main/cpp/isched/isched_GraphQLExecutor.hpp/cpp with PEGTL parser
+- [x] T011 [P] Implement AuthenticationMiddleware class in src/main/cpp/isched/isched_AuthenticationMiddleware.hpp/cpp with JWT support
 - [x] T012 [P] Implement shared memory IPC framework in src/main/cpp/isched/shared/ipc/
-- [x] T013 [P] Setup Restbed HTTP service integration in src/main/cpp/isched/isched_server.cpp
+- [x] T013 [P] Setup Restbed HTTP service integration in src/main/cpp/isched/isched_Server.cpp
 - [x] T014 [P] Implement configuration management in src/main/cpp/isched/shared/config/
 - [x] T015 [P] Setup Catch2 test framework integration in src/test/cpp/
 
@@ -83,13 +83,13 @@ Each task implementation MUST verify:
 
 ### Implementation for User Story 1
 
-- [x] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/backend/built_in_schema.hpp/cpp with health queries
-- [x] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/backend/isched_graphql_executor.cpp
+- [x] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/backend/isched_built_in_schema.hpp/cpp with health queries
+- [x] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
 - [x] T021 [US1] Integrate BuiltInSchema with GraphQLExecutor for immediate GraphQL endpoint availability
-- [x] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/backend/isched_server.cpp
-- [x] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/backend/isched_server.cpp
-- [x] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/backend/isched_graphql_executor.cpp
-- [x] T025 [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/backend/isched_graphql_executor.cpp
+- [x] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/backend/isched_Server.cpp
+- [x] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/backend/isched_Server.cpp
+- [x] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
+- [x] T025 [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -115,7 +115,7 @@ Each task implementation MUST verify:
 - [ ] T032 [P] [US2] Create TypeScriptExecutor class in src/main/cpp/isched/cli/typescript/typescript_executor.hpp/cpp
 - [ ] T033 [P] [US2] Implement IPC client communication in src/main/cpp/isched/cli/python/ipc_client.hpp/cpp
 - [ ] T034 [P] [US2] Implement IPC client communication in src/main/cpp/isched/cli/typescript/ipc_client.hpp/cpp
-- [ ] T035 [US2] Integrate CLI process spawning with main server in src/main/cpp/isched/isched_server.cpp
+- [ ] T035 [US2] Integrate CLI process spawning with main server in src/main/cpp/isched/isched_Server.cpp
 - [ ] T036 [US2] Implement configuration script parsing and validation in src/main/cpp/isched/shared/config/config_parser.hpp/cpp
 - [ ] T037 [US2] Add atomic configuration deployment with rollback in src/main/cpp/isched/shared/config/config_manager.hpp/cpp
 
@@ -137,12 +137,12 @@ Each task implementation MUST verify:
 
 ### Implementation for User Story 3
 
-- [ ] T041 [P] [US3] Implement complete GraphQL introspection support in src/main/cpp/isched/isched_graphql_executor.cpp
-- [ ] T042 [P] [US3] Add GraphQL query complexity analysis in src/main/cpp/isched/isched_graphql_executor.cpp
-- [ ] T043 [P] [US3] Implement GraphQL subscription support in src/main/cpp/isched/isched_graphql_executor.cpp
-- [ ] T044 [US3] Add GraphQL specification test validation framework in src/main/cpp/isched/isched_graphql_executor.cpp
-- [ ] T045 [US3] Implement standard GraphQL error formatting in src/main/cpp/isched/isched_graphql_executor.cpp
-- [ ] T046 [US3] Add GraphQL schema validation against specification in src/main/cpp/isched/isched_graphql_executor.cpp
+- [ ] T041 [P] [US3] Implement complete GraphQL introspection support in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T042 [P] [US3] Add GraphQL query complexity analysis in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T043 [P] [US3] Implement GraphQL subscription support in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T044 [US3] Add GraphQL specification test validation framework in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T045 [US3] Implement standard GraphQL error formatting in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T046 [US3] Add GraphQL schema validation against specification in src/main/cpp/isched/isched_GraphQLExecutor.cpp
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -152,12 +152,12 @@ Each task implementation MUST verify:
 
 **Purpose**: Core data modeling and extensibility features
 
-- [ ] T047 [P] Implement SchemaMigrator class in src/main/cpp/isched/isched_database.cpp for automatic migrations
+- [ ] T047 [P] Implement SchemaMigrator class in src/main/cpp/isched/isched_DatabaseManager.cpp for automatic migrations
 - [ ] T048 [P] Implement ResolverRegistry class in src/main/cpp/isched/isched_plugin.hpp/cpp for plugin system
 - [ ] T049 [P] Create binary plugin loading framework in src/main/cpp/isched/isched_plugin.cpp
 - [ ] T050 [US2] Integrate data model generation from configuration scripts in src/main/cpp/isched/shared/config/model_generator.hpp/cpp
-- [ ] T051 [US2] Add automatic GraphQL schema generation from data models in src/main/cpp/isched/isched_graphql_executor.cpp
-- [ ] T052 [US1] [US2] Implement tenant process pool management in src/main/cpp/isched/isched_tenant_manager.cpp
+- [ ] T051 [US2] Add automatic GraphQL schema generation from data models in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T052 [US1] [US2] Implement tenant process pool management in src/main/cpp/isched/isched_TenantManager.cpp
 
 ---
 
@@ -165,12 +165,12 @@ Each task implementation MUST verify:
 
 **Purpose**: Performance optimization and authentication features
 
-- [ ] T053 [P] Implement adaptive thread pool sizing in src/main/cpp/isched/isched_tenant_manager.cpp
-- [ ] T054 [P] Add performance monitoring and metrics in src/main/cpp/isched/isched_server.cpp
-- [ ] T055 [P] Implement per-tenant session management in src/main/cpp/isched/isched_auth.cpp
-- [ ] T056 [P] Add OAuth2 provider integration in src/main/cpp/isched/isched_auth.cpp
-- [ ] T057 [P] Implement JWT token validation and refresh in src/main/cpp/isched/isched_auth.cpp
-- [ ] T058 [US1] [US2] Add 20ms response time optimization in src/main/cpp/isched/isched_server.cpp
+- [ ] T053 [P] Implement adaptive thread pool sizing in src/main/cpp/isched/isched_TenantManager.cpp
+- [ ] T054 [P] Add performance monitoring and metrics in src/main/cpp/isched/isched_Server.cpp
+- [ ] T055 [P] Implement per-tenant session management in src/main/cpp/isched/isched_AuthenticationMiddleware.cpp
+- [ ] T056 [P] Add OAuth2 provider integration in src/main/cpp/isched/isched_AuthenticationMiddleware.cpp
+- [ ] T057 [P] Implement JWT token validation and refresh in src/main/cpp/isched/isched_AuthenticationMiddleware.cpp
+- [ ] T058 [US1] [US2] Add 20ms response time optimization in src/main/cpp/isched/isched_Server.cpp
 
 ---
 
@@ -231,7 +231,7 @@ Task: "Integration test for built-in GraphQL schema in src/test/cpp/integration/
 Task: "Integration test for health monitoring endpoints in src/test/cpp/integration/test_health_monitoring.cpp"
 
 # Launch all parallel implementation tasks for User Story 1:
-Task: "Implement BuiltInSchema class in src/main/cpp/isched/isched_builtin_schema.hpp/cpp"
+Task: "Implement BuiltInSchema class in src/main/cpp/isched/isched_built_in_schema.hpp/cpp"
 Task: "Create default GraphQL resolvers for hello, version, clientCount, uptime"
 ```
 
