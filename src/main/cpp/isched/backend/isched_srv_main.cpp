@@ -1,13 +1,14 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
 
-#include "isched_doc_root_rest_resolver.hpp"
-#include "isched_e_http_methods.hpp"
-#include "isched_main_svc.hpp"
-#include "isched_single_action_resolver.hpp"
+#include "isched_DocRootRestResolver.hpp"
+#include "isched_EHttpMethods.hpp"
+#include "isched_MainSvc.hpp"
+#include "isched_SingleActionRestResolver.hpp"
 
 void add_safely_resolver(isched::v0_0_1::MainSvc& mySvc) {
     try {
@@ -22,7 +23,7 @@ void add_safely_resolver(isched::v0_0_1::MainSvc& mySvc) {
 int main(const int, const char **) {
     using isched::v0_0_1::MainSvc;
     using isched::v0_0_1::DocRootRestResolver;
-    using isched::v0_0_1::SingleActionResolver;
+    using isched::v0_0_1::SingleActionRestResolver;
     using isched::v0_0_1::EHttpMethods;
     using std::filesystem::path;
     using std::string;
@@ -31,7 +32,7 @@ int main(const int, const char **) {
     spdlog::cfg::load_env_levels();
     MainSvc mySvc;
     mySvc.addResolver
-    (make_shared<SingleActionResolver>
+    (make_shared<SingleActionRestResolver>
         (EHttpMethods::GET, "/test", "Resolver ansver"));
     add_safely_resolver(mySvc);
     spdlog::debug("run ->");

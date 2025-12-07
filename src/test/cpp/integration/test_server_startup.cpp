@@ -24,7 +24,7 @@
 #include <nlohmann/json.hpp>
 
 #include <isched/backend/isched_common.hpp>
-#include <isched/backend/isched_server.hpp>
+#include <isched/backend/isched_Server.hpp>
 
 using namespace isched::v0_0_1::backend;
 

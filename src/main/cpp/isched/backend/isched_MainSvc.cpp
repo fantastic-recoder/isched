@@ -1,11 +1,12 @@
-//
-// Created by grobap on 3.2.2024.
-//
+/**
+ * @file isched_MainSvc.cpp
+ * @brief Implementation of the main REST service wrapper.
+ */
 #include <memory>
 #include <restbed>
 #include <spdlog/spdlog.h>
 
-#include "isched_main_svc.hpp"
+#include "isched_MainSvc.hpp"
 
 namespace isc = isched::v0_0_1;
 

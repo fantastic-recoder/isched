@@ -1,5 +1,5 @@
 /**
- * @file isched_graphql_executor.hpp
+ * @file isched_GraphQLExecutor.hpp
  * @brief Simple GraphQL query executor with smart pointer-based AST
  * @author Isched Development Team
  * @date 2024-12-20
@@ -9,7 +9,7 @@
 #pragma once
 
 #include "isched_common.hpp"
-#include "isched_database.hpp"
+#include "isched_DatabaseManager.hpp"
 #include <nlohmann/json.hpp>
 #include <memory>
 #include <string>

@@ -1,12 +1,12 @@
 /**
- * @file isched_auth.cpp
+ * @file isched_AuthenticationMiddleware.cpp
  * @brief Implementation of authentication middleware for JWT and OAuth support
  * @author isched Development Team
  * @version 1.0.0
  * @date 2025-11-02
  */
 
-#include "isched_auth.hpp"
+#include "isched_AuthenticationMiddleware.hpp"
 #include <random>
 #include <sstream>
 #include <stdexcept>

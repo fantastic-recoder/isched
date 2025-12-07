@@ -1,5 +1,5 @@
 /**
- * @file isched_server.cpp
+ * @file isched_Server.cpp
  * @brief Implementation of the Server class for isched Universal Application Server Backend
  * @author isched Development Team
  * @version 1.0.0
@@ -12,7 +12,7 @@
  * @note All implementations follow C++ Core Guidelines with smart pointer usage.
  */
 
-#include "isched_server.hpp"
+#include "isched_Server.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <chrono>

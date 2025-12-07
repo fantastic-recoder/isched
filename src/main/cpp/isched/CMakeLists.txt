@@ -5,30 +5,30 @@ add_library(isched
         shared/isched_exception_doc_path_not_found.cpp
         shared/isched_exception_doc_path_not_found.hpp
         shared/isched_exception_unknown_enum_value.hpp
-        backend/isched_gql_parser.cpp
-        backend/isched_gql_parser.hpp
-        backend/isched_doc_root_rest_resolver.cpp
-        backend/isched_doc_root_rest_resolver.hpp
-        backend/isched_main_svc.cpp
-        backend/isched_main_svc.hpp
-        backend/isched_single_action_resolver.cpp
-        backend/isched_single_action_resolver.hpp
+        backend/isched_GqlParser.cpp
+        backend/isched_GqlParser.hpp
+        backend/isched_DocRootRestResolver.cpp
+        backend/isched_DocRootRestResolver.hpp
+        backend/isched_MainSvc.cpp
+        backend/isched_MainSvc.hpp
+        backend/isched_SingleActionRestResolver.cpp
+        backend/isched_SingleActionRestResolver.hpp
         backend/isched_BaseRestResolver.cpp
         backend/isched_BaseRestResolver.hpp
-        backend/isched_e_http_methods.hpp
-        backend/isched_log_env_loader.hpp
+        backend/isched_EHttpMethods.hpp
+        backend/isched_LogEnvLoader.hpp
         # Universal Application Server Backend components
         backend/isched_common.hpp
-        backend/isched_server.hpp
-        backend/isched_server.cpp
-        backend/isched_tenant_manager.hpp
-        backend/isched_tenant_manager.cpp
-        backend/isched_database.hpp
-        backend/isched_database.cpp
-        backend/isched_graphql_executor.hpp
-        backend/isched_graphql_executor.cpp
-        backend/isched_auth.hpp
-        backend/isched_auth.cpp
+        backend/isched_Server.hpp
+        backend/isched_Server.cpp
+        backend/isched_TenantManager.hpp
+        backend/isched_TenantManager.cpp
+        backend/isched_DatabaseManager.hpp
+        backend/isched_DatabaseManager.cpp
+        backend/isched_GraphQLExecutor.hpp
+        backend/isched_GraphQLExecutor.cpp
+        backend/isched_AuthenticationMiddleware.hpp
+        backend/isched_AuthenticationMiddleware.cpp
         backend/isched_built_in_schema.hpp
         backend/isched_built_in_schema.cpp
         shared/ipc/isched_ipc.hpp

@@ -15,7 +15,7 @@
 #include <string>
 #include <chrono>
 
-#include "isched/backend/isched_auth.hpp"
+#include "isched/backend/isched_AuthenticationMiddleware.hpp"
 
 using namespace isched::v0_0_1::backend;
 

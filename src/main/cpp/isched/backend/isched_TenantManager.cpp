@@ -1,5 +1,5 @@
 /**
- * @file isched_tenant_manager.cpp
+ * @file isched_TenantManager.cpp
  * @brief Implementation of the TenantManager class for multi-tenant process pool management
  * @author isched Development Team
  * @version 1.0.0
@@ -12,7 +12,7 @@
  * @note All implementations follow C++ Core Guidelines with smart pointer usage.
  */
 
-#include "isched_tenant_manager.hpp"
+#include "isched_TenantManager.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <chrono>

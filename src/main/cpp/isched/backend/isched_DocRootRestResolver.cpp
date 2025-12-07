@@ -1,12 +1,13 @@
-//
-// Created by grobap on 3.2.2024.
-//
+/**
+ * @file isched_DocRootRestResolver.cpp
+ * @brief Implementation of resolver serving static documentation from a configured doc root.
+ */
 
 #include <fstream>
 #include <filesystem>
 #include <utility>
 
-#include "isched/backend/isched_doc_root_rest_resolver.hpp"
+#include "isched_DocRootRestResolver.hpp"
 
 #include <spdlog/spdlog.h>
 

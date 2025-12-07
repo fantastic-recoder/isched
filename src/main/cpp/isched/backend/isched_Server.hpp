@@ -1,5 +1,5 @@
 /**
- * @file isched_server.hpp
+ * @file isched_Server.hpp
  * @brief Core server class for isched Universal Application Server Backend
  * @author isched Development Team
  * @version 1.0.0
@@ -11,7 +11,7 @@
  * 
  * @example Basic server usage:
  * @code{cpp}
- * #include "isched_server.hpp"
+ * #include "isched_Server.hpp"
  * 
  * auto server = isched::v0_0_1::backend::Server::create();
  * server->configure_port(8080);

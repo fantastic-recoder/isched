@@ -1,5 +1,5 @@
 /**
- * @file isched_auth.hpp
+ * @file isched_AuthenticationMiddleware.hpp
  * @brief Authentication middleware for JWT and OAuth support
  * @author isched Development Team
  * @version 1.0.0

@@ -1,12 +1,12 @@
 /**
- * @file isched_graphql_executor_simple.cpp
+ * @file isched_GraphQLExecutor.cpp
  * @brief Implementation of simple GraphQL query executor with smart pointer-based AST
  * @author Isched Development Team
  * @date 2024-12-20
  * @version 1.0.0
  */
 
-#include "isched_graphql_executor.hpp"
+#include "isched_GraphQLExecutor.hpp"
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
 #include <regex>

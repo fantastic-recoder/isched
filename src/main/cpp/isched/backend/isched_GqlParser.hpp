@@ -1,5 +1,5 @@
 /**
- * @file isched_gql_parser.hpp
+ * @file isched_GqlParser.hpp
  * @brief Public parser interface for the GraphQL PEGTL grammar.
  *
  * This header declares a minimal facade (`GqlParser`) that parses a GraphQL input

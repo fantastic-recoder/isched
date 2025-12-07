@@ -1,5 +1,5 @@
 /**
- * @file isched_gql_parser.cpp
+ * @file isched_GqlParser.cpp
  * @brief Implementation of the GraphQL PEGTL parser facade.
  */
 
@@ -7,8 +7,8 @@
 #include <utility>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
-#include "isched/backend/isched_gql_parser.hpp"
-#include "isched/backend/isched_log_env_loader.hpp"
+#include "isched/backend/isched_GqlParser.hpp"
+#include "isched/backend/isched_LogEnvLoader.hpp"
 #include "isched_gql_grammar.hpp"
 
 namespace isched::v0_0_1 {

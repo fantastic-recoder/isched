@@ -1,5 +1,5 @@
 /**
- * @file isched_database.hpp
+ * @file isched_DatabaseManager.hpp
  * @brief SQLite-based database management layer with connection pooling and tenant isolation
  * @author Isched Development Team
  * @date 2024-12-20

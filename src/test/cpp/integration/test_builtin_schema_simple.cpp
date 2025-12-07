@@ -16,9 +16,9 @@
 #include <thread>
 
 #include "isched/backend/isched_built_in_schema.hpp"
-#include "isched/backend/isched_server.hpp"
-#include "isched/backend/isched_graphql_executor.hpp"
-#include "isched/backend/isched_tenant_manager.hpp"
+#include "isched/backend/isched_Server.hpp"
+#include "isched/backend/isched_GraphQLExecutor.hpp"
+#include "isched/backend/isched_TenantManager.hpp"
 
 using namespace isched::v0_0_1::backend;
 using namespace std::chrono_literals;

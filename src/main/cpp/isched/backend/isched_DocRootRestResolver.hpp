@@ -1,6 +1,7 @@
-//
-// Created by grobap on 3.2.2024.
-//
+/**
+ * @file isched_DocRootRestResolver.hpp
+ * @brief Resolver serving static documentation from a configured doc root.
+ */
 
 #ifndef ISCHED_DOCROOTSVC_HPP
 #define ISCHED_DOCROOTSVC_HPP
@@ -8,7 +9,7 @@
 #include <filesystem>
 
 #include "isched_BaseRestResolver.hpp"
-#include "isched/backend/isched_e_http_methods.hpp"
+#include "isched/backend/isched_EHttpMethods.hpp"
 
 namespace isched::v0_0_1 {
 

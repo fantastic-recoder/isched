@@ -17,9 +17,9 @@
 #include <chrono>
 #include <thread>
 
-#include "isched/backend/isched_server.hpp"
+#include "isched/backend/isched_Server.hpp"
 #include "isched/backend/isched_built_in_schema.hpp"
-#include "isched/backend/isched_graphql_executor.hpp"
+#include "isched/backend/isched_GraphQLExecutor.hpp"
 #include "isched/shared/config/isched_config.hpp"
 
 using namespace isched::v0_0_1::backend;

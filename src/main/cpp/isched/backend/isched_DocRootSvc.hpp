@@ -1,6 +1,7 @@
-//
-// Created by grobap on 3.2.2024.
-//
+/**
+ * @file isched_DocRootSvc.hpp
+ * @brief Service integration of DocRoot handler with MainSvc.
+ */
 
 #ifndef ISCHED_DOCROOTSVC_HPP
 #define ISCHED_DOCROOTSVC_HPP
@@ -8,7 +9,7 @@
 #include <filesystem>
 
 
-#include "isched_main_svc.hpp"
+#include "isched_MainSvc.hpp"
 
 
 namespace isched::v0_0_1 {

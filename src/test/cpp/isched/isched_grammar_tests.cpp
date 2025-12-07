@@ -2,7 +2,7 @@
 #include <isched/isched.hpp>
 
 #include "../../../main/cpp/isched/backend/isched_gql_grammar.hpp"
-#include "../../../main/cpp/isched/backend/isched_gql_parser.hpp"
+#include "../../../main/cpp/isched/backend/isched_GqlParser.hpp"
 
 namespace {
     unsigned int factorial( unsigned int number ) {

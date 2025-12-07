@@ -1,12 +1,12 @@
 /**
- * @file isched_database.cpp
+ * @file isched_DatabaseManager.cpp
  * @brief Implementation of SQLite-based database management layer
  * @author Isched Development Team
  * @date 2024-12-20
  * @version 1.0.0
  */
 
-#include "isched_database.hpp"
+#include "isched_DatabaseManager.hpp"
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <fstream>

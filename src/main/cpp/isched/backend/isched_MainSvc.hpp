@@ -1,6 +1,10 @@
-//
-// Created by grobap on 3.2.2024.
-//
+/**
+ * @file isched_MainSvc.hpp
+ * @brief Public interface for the main REST service wrapper.
+ *
+ * Exposes the `MainSvc` class that manages the underlying REST service,
+ * accepts resolvers and runs the server.
+ */
 
 #ifndef ISCHED_MAINSVC_HPP
 #define ISCHED_MAINSVC_HPP

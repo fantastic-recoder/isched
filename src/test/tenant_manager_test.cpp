@@ -10,7 +10,7 @@
 #include <memory>
 #include <thread>
 #include <chrono>
-#include "../main/cpp/isched/backend/isched_tenant_manager.hpp"
+#include "isched/backend/isched_TenantManager.hpp"
 
 using namespace isched::v0_0_1::backend;
 

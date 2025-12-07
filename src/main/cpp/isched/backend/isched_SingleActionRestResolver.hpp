@@ -1,26 +1,27 @@
-//
-// Created by grobap on 4.2.2024.
-//
+/**
+ * @file isched_SingleActionRestResolver.hpp
+ * @brief Resolver that responds to a single REST action with a fixed answer.
+ */
 
 #ifndef ISCHED_SINGLEACTIONRESOLVER_HPP
 #define ISCHED_SINGLEACTIONRESOLVER_HPP
 
 #include "isched_BaseRestResolver.hpp"
-#include "isched_e_http_methods.hpp"
+#include "isched_EHttpMethods.hpp"
 
 
 namespace isched::v0_0_1 {
 
-class SingleActionResolver: public BaseRestResolver {
+class SingleActionRestResolver: public BaseRestResolver {
     EHttpMethods mMethod = EHttpMethods::GET;
     std::string mMethodStr ="GET";
     std::string mPath = "/";
     std::string mAnsver = "Hello world from resolver!";
 
 public:
-    SingleActionResolver() = delete;
-    SingleActionResolver(EHttpMethods pMethod, const std::string& pPath, std::string&&  pAnsver);
-    ~SingleActionResolver() override;
+    SingleActionRestResolver() = delete;
+    SingleActionRestResolver(EHttpMethods pMethod, const std::string& pPath, std::string&&  pAnsver);
+    ~SingleActionRestResolver() override;
 
     std::string & getPath() override { return mPath; }
 

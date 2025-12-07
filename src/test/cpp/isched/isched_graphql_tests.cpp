@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
-#include <isched/backend/isched_graphql_executor.hpp>
-#include <isched/backend/isched_database.hpp>
+#include <isched/backend/isched_GraphQLExecutor.hpp>
+#include <isched/backend/isched_DatabaseManager.hpp>
 #include <nlohmann/json.hpp>
 #include <memory>
 

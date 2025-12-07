@@ -527,9 +527,9 @@ namespace isched::v0_0_1::gql {
      * Extend this list if downstream tooling needs additional nodes in the AST output.
      */
     template<typename TRule>
-    using GqlSelector = pegtl::parse_tree::selector<
+    using GqlSelector = parse_tree::selector<
         TRule,
-        pegtl::parse_tree::store_content::on<
+        parse_tree::store_content::on<
             GqlQuery, Name, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
             GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType,
             // New grammar nodes for Document/Schema

@@ -1,5 +1,5 @@
 /**
- * @file isched_tenant_manager.hpp
+ * @file isched_TenantManager.hpp
  * @brief Tenant management system for multi-tenant process pool with database isolation
  * @author isched Development Team
  * @version 1.0.0

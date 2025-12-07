@@ -7,7 +7,7 @@
  */
 
 #include "catch2/catch_test_macros.hpp"
-#include "../../../main/cpp/isched/backend/isched_database.hpp"
+#include "../../../main/cpp/isched/backend/isched_DatabaseManager.hpp"
 #include <filesystem>
 #include <chrono>
 #include <thread>

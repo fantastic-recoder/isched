@@ -7,8 +7,8 @@
  */
 
 #include "isched_built_in_schema.hpp"
-#include "isched_graphql_executor.hpp"
-#include "isched_database.hpp"
+#include "isched_GraphQLExecutor.hpp"
+#include "isched_DatabaseManager.hpp"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
