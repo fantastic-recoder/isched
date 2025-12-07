@@ -341,6 +341,11 @@ public:
                                          const std::string& operation_name = "",
                                          const nlohmann::json& context = {}) const;
 
+    /**
+     * @brief Setup built-in resolvers
+     */
+    void setup_builtin_resolvers();
+
 private:
     std::shared_ptr<DatabaseManager> database_;       ///< Database manager
     ResolverRegistry resolver_registry_;              ///< Field resolver registry
@@ -385,10 +390,6 @@ private:
         const nlohmann::json& variables,
         const nlohmann::json& context) const;
     
-    /**
-     * @brief Setup built-in resolvers
-     */
-    void setup_builtin_resolvers();
 };
 
 } // namespace isched::v0_0_1::backend

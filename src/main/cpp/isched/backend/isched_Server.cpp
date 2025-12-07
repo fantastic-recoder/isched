@@ -99,8 +99,8 @@ Server::~Server() {
     std::cout << "Server instance destroyed" << std::endl;
 }
 
-void Server::set_configuration(const Configuration &config) {
-    throw std::runtime_error("Server configuration set not yet implemented");
+void Server::set_configuration(const Configuration &p_config) {
+    this->m_config = p_config;
 }
 
 // Start server implementation

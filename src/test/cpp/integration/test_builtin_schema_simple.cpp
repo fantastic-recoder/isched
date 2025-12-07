@@ -54,7 +54,7 @@ public:
         built_in_schema = BuiltInSchema::create(db_manager);
         
         // Set up built-in resolvers
-        //executor->setup_builtin_resolvers();
+        executor->setup_builtin_resolvers();
         
         // Start server
         server->start();

@@ -159,7 +159,7 @@ public:
      */
     virtual ~Server();
 
-    void set_configuration(const Configuration & config);
+    void set_configuration(const Configuration & p_config);
 
     bool is_running() const {
         return get_status() == Server::Status::RUNNING;
