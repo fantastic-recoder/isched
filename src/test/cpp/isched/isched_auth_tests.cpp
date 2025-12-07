@@ -19,3 +19,7 @@
 
 using namespace isched::v0_0_1::backend;
 
+TEST_CASE("Authentication Middleware Basic Functionality", "[auth]") {
+
+}
+

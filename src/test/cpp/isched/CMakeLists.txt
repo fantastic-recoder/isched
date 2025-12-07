@@ -20,7 +20,7 @@ add_executable(tenant_manager_test ../../tenant_manager_test.cpp)
 target_link_libraries(tenant_manager_test PRIVATE isched spdlog::spdlog)
 add_test(NAME tenant_manager_test COMMAND tenant_manager_test)
 
-add_executable(rest_hello_world rest_hello_world.cpp
+add_executable(rest_hello_world isched_rest_hello_world.cpp
         ../../../main/cpp/isched/backend/isched_LogEnvLoader.hpp)
 target_link_libraries(rest_hello_world restbed::restbed)
 
@@ -28,7 +28,7 @@ add_executable(isched_resolver_tests isched_resolver_tests.cpp)
 target_link_libraries(isched_resolver_tests isched Catch2::Catch2WithMain)
 add_test(NAME isched_resolver_tests COMMAND isched_resolver_tests)
 
-add_executable(database_test database_test.cpp)
+add_executable(database_test isched_database_test.cpp)
 target_link_libraries(database_test PRIVATE isched Catch2::Catch2WithMain SQLite::SQLite3 nlohmann_json::nlohmann_json spdlog::spdlog)
 add_test(NAME database_test COMMAND database_test)
 
