@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>
 
-#include "isched/isched_gql_grammar.hpp"
-#include "isched/isched_gql_parser.hpp"
+#include "../../../main/cpp/isched/backend/isched_gql_grammar.hpp"
+#include "../../../main/cpp/isched/backend/isched_gql_parser.hpp"
 
 namespace {
     unsigned int factorial( unsigned int number ) {

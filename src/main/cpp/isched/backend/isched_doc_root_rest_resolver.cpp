@@ -6,12 +6,11 @@
 #include <filesystem>
 #include <utility>
 
-#include "isched_doc_root_rest_resolver.hpp"
+#include "isched/backend/isched_doc_root_rest_resolver.hpp"
 
-#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
-#include "isched_exception_doc_path_not_found.hpp"
+#include "../shared/isched_exception_doc_path_not_found.hpp"
 
 
 namespace isched::v0_0_1 {

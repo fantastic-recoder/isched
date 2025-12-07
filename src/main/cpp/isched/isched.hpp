@@ -5,6 +5,6 @@
 #ifndef ISCHED_ISCHED_HPP
 #define ISCHED_ISCHED_HPP
 
-#include "isched_main_svc.hpp"
+#include "backend/isched_main_svc.hpp"
 
 #endif //ISCHED_ISCHED_HPP

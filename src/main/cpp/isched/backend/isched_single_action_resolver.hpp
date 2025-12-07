@@ -5,13 +5,13 @@
 #ifndef ISCHED_SINGLEACTIONRESOLVER_HPP
 #define ISCHED_SINGLEACTIONRESOLVER_HPP
 
-#include "isched_base_resolver.hpp"
+#include "isched_BaseRestResolver.hpp"
 #include "isched_e_http_methods.hpp"
 
 
 namespace isched::v0_0_1 {
 
-class SingleActionResolver: public BaseResolver {
+class SingleActionResolver: public BaseRestResolver {
     EHttpMethods mMethod = EHttpMethods::GET;
     std::string mMethodStr ="GET";
     std::string mPath = "/";

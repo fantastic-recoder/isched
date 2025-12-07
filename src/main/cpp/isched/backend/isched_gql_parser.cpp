@@ -7,8 +7,8 @@
 #include <utility>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
-#include "isched_gql_parser.hpp"
-#include "isched_log_env_loader.hpp"
+#include "isched/backend/isched_gql_parser.hpp"
+#include "isched/backend/isched_log_env_loader.hpp"
 #include "isched_gql_grammar.hpp"
 
 namespace isched::v0_0_1 {

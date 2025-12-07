@@ -24,7 +24,7 @@ namespace isched::v0_0_1 {
     MainSvc::~MainSvc() {
     }
 
-    void MainSvc::addResolver(std::shared_ptr<BaseResolver> pResolver) {
+    void MainSvc::addResolver(std::shared_ptr<BaseRestResolver> pResolver) {
         auto resource = make_shared< Resource >( );
         resource->set_path( pResolver->getPath() );
         resource->set_method_handler( pResolver->getMethod(), [pResolver]( const shared_ptr< Session > pSession ) {

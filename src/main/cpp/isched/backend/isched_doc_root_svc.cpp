@@ -5,9 +5,9 @@
 #include <fstream>
 #include <filesystem>
 
-#include "isched_doc_root_svc.hpp"
+#include "../isched_doc_root_svc.hpp"
 
-#include "isched_exception_doc_path_not_found.hpp"
+#include "../shared/isched_exception_doc_path_not_found.hpp"
 
 
 namespace isched::v0_0_1 {

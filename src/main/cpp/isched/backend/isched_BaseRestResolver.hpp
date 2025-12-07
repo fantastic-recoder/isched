@@ -11,9 +11,9 @@ namespace isched::v0_0_1 {
     /**
      * \brief base class for all resolvers.
     */
-    class BaseResolver {
+    class BaseRestResolver {
     public:
-        virtual ~BaseResolver() = default;
+        virtual ~BaseRestResolver() = default;
 
         virtual std::string &getPath() = 0;
 

@@ -7,12 +7,12 @@
 
 #include <filesystem>
 
-#include "isched_base_resolver.hpp"
-#include "isched_e_http_methods.hpp"
+#include "isched_BaseRestResolver.hpp"
+#include "isched/backend/isched_e_http_methods.hpp"
 
 namespace isched::v0_0_1 {
 
-    class DocRootRestResolver : public BaseResolver {
+    class DocRootRestResolver : public BaseRestResolver {
     public:
         std::string & getPath() override { return mPath; }
 

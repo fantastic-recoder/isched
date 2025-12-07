@@ -7,7 +7,7 @@
 
 #include <memory>
 
-#include "isched_base_resolver.hpp"
+#include "isched_BaseRestResolver.hpp"
 
 namespace restbed {
 class Service;
@@ -26,7 +26,7 @@ public:
     MainSvc(int pPort=1984);
 
     ~MainSvc();
-    void addResolver(std::shared_ptr<BaseResolver> presolver);
+    void addResolver(std::shared_ptr<BaseRestResolver> presolver);
     void run();
 };
 

@@ -7,7 +7,7 @@ target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
 add_executable(isched_srv_test isched_srv_tests.cpp
-        ../../../main/cpp/isched/isched_log_env_loader.hpp)
+        ../../../main/cpp/isched/backend/isched_log_env_loader.hpp)
 target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog httplib::httplib
         nextsilicon-cpp-subprocess::nextsilicon-cpp-subprocess openssl::openssl)
 add_test(NAME isched_srv_test COMMAND isched_grammar_tests)
@@ -21,7 +21,7 @@ target_link_libraries(tenant_manager_test PRIVATE isched spdlog::spdlog)
 add_test(NAME tenant_manager_test COMMAND tenant_manager_test)
 
 add_executable(rest_hello_world rest_hello_world.cpp
-        ../../../main/cpp/isched/isched_log_env_loader.hpp)
+        ../../../main/cpp/isched/backend/isched_log_env_loader.hpp)
 target_link_libraries(rest_hello_world restbed::restbed)
 
 add_executable(isched_resolver_tests isched_resolver_tests.cpp)

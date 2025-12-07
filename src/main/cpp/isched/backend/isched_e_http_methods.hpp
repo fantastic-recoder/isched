@@ -7,7 +7,7 @@
 
 #include <string>
 
-#include "isched_exception_unknown_enum_value.hpp"
+#include "../shared/isched_exception_unknown_enum_value.hpp"
 
 namespace isched::v0_0_1 {
     enum class EHttpMethods {
