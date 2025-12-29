@@ -42,6 +42,8 @@
 #include <unordered_map>
 #include <atomic>
 
+#include "isched/shared/config/isched_config.hpp"
+
 namespace isched::v0_0_1::backend {
 
 /**
@@ -447,12 +449,13 @@ private:
  * connection pooling, and performance monitoring.
  */
 class DatabaseManager {
+
 public:
     /**
      * @brief Database configuration
      */
     struct Config {
-        std::string base_path{"/var/lib/isched/tenants"};  ///< Base directory for tenant databases
+        std::string base_path{getDataHome()+"/isched/tenants"};  ///< Base directory for tenant databases
         std::size_t connection_pool_size{10};              ///< Connections per tenant pool
         std::chrono::milliseconds query_timeout{20};       ///< Query timeout for 20ms target
         bool enable_wal_mode{true};                        ///< Enable WAL mode for concurrency
@@ -475,6 +478,9 @@ public:
      * @param config Database configuration
      */
     explicit DatabaseManager(Config config);
+
+    // Convenience default constructor delegating to default-config
+    DatabaseManager() : DatabaseManager(Config{}) {}
     
     /**
      * @brief Destructor - cleanup all resources

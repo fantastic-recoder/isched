@@ -483,4 +483,5 @@ T merge_config(const T& base, const T& override_config);
 
 } // namespace config_utils
 
+    std::string getDataHome();
 } // namespace isched::v0_0_1::backend

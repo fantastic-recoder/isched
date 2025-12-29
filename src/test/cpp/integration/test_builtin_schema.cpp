@@ -19,7 +19,7 @@
 
 #include "isched/backend/isched_Server.hpp"
 #include "isched/backend/isched_built_in_schema.hpp"
-#include "isched/backend/isched_GraphQLExecutor.hpp"
+#include "isched/backend/isched_GqlExecutor.hpp"
 #include "isched/shared/config/isched_config.hpp"
 
 using namespace isched::v0_0_1::backend;
@@ -39,7 +39,7 @@ public:
         /*
         server = Server::create(config);
         schema = BuiltInSchema::create();
-        executor = GraphQLExecutor::create(TODO);
+        executor = GqlExecutor::create(TODO);
     */
     }
     
@@ -52,7 +52,7 @@ public:
 protected:
     std::unique_ptr<Server> server;
     std::unique_ptr<BuiltInSchema> schema;
-    std::unique_ptr<GraphQLExecutor> executor;
+    std::unique_ptr<GqlExecutor> executor;
 };
 
 TEST_CASE_METHOD(BuiltInSchemaTestFixture, "Built-in schema creation and structure", "[integration][graphql][schema][us1]") {

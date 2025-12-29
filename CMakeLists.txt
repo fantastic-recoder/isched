@@ -83,6 +83,7 @@ find_package(httplib)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(SQLite3 REQUIRED)
+find_package(platform_folders REQUIRED)
 # Find Boost package
 find_package(Boost REQUIRED COMPONENTS url)
 

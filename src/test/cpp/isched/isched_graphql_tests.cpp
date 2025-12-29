@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <isched/backend/isched_GraphQLExecutor.hpp>
+#include <isched/backend/isched_GqlExecutor.hpp>
 #include <isched/backend/isched_DatabaseManager.hpp>
 #include <nlohmann/json.hpp>
 #include <memory>
@@ -11,7 +11,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     DatabaseManager::Config config;
     config.base_path = "/tmp/isched_test_db"; // Use a test directory
     auto database = std::make_shared<DatabaseManager>(config);
-    GraphQLExecutor executor(database);
+    GqlExecutor executor(database);
     
     SECTION("Execute hello resolver") {
         std::string query = "{ hello }";
@@ -116,7 +116,7 @@ TEST_CASE("GraphQL Introspection", "[graphql][introspection]") {
     DatabaseManager::Config config;
     config.base_path = "/tmp/isched_test_db";
     auto database = std::make_shared<DatabaseManager>(config);
-    GraphQLExecutor executor(database);
+    GqlExecutor executor(database);
     
     SECTION("Execute schema introspection - basic implementation") {
         std::string query = "{ __schema }";
@@ -154,7 +154,7 @@ TEST_CASE("GraphQL Error Handling", "[graphql][errors]") {
     DatabaseManager::Config config;
     config.base_path = "/tmp/isched_test_db";
     auto database = std::make_shared<DatabaseManager>(config);
-    GraphQLExecutor executor(database);
+    GqlExecutor executor(database);
     
     SECTION("Graceful handling of empty query") {
         std::string query = "";
@@ -188,7 +188,7 @@ TEST_CASE("GraphQL Performance", "[graphql][performance]") {
     DatabaseManager::Config config;
     config.base_path = "/tmp/isched_test_db";
     auto database = std::make_shared<DatabaseManager>(config);
-    GraphQLExecutor executor(database);
+    GqlExecutor executor(database);
     
     SECTION("Multiple query executions") {
         std::string query = "{ hello }";

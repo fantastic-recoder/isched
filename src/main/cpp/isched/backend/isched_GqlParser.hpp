@@ -11,8 +11,8 @@
  *  - Implementation: `isched_gql_parser.cpp`
  */
 
-#ifndef ISCHED_GQLPARSER_HPP
-#define ISCHED_GQLPARSER_HPP
+#ifndef ISCHED_GQL_PARSER_HPP
+#define ISCHED_GQL_PARSER_HPP
 
 #include <string>
 #include <memory>
@@ -61,4 +61,4 @@ namespace isched::v0_0_1 {
 }
 
 
-#endif //ISCHED_GQLPARSER_HPP
+#endif //ISCHED_GQL_PARSER_HPP

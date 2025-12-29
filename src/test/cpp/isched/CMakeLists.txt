@@ -6,6 +6,10 @@ add_executable(isched_graphql_tests isched_graphql_tests.cpp)
 target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3)
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
+add_executable(isched_gql_executor_tests isched_gql_executor_tests.cpp)
+target_link_libraries(isched_gql_executor_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_tests COMMAND isched_gql_executor_tests)
+
 add_executable(isched_srv_test isched_srv_tests.cpp
         ../../../main/cpp/isched/backend/isched_LogEnvLoader.hpp)
 target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog httplib::httplib
@@ -62,7 +66,7 @@ add_executable(test_health_monitoring ../integration/test_health_monitoring.cpp)
         target_link_libraries(test_health_monitoring PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_health_monitoring COMMAND test_health_monitoring)
 
-add_executable(isched_glob_tests isched_glob_tests.cpp)
-target_link_libraries(isched_glob_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
-add_test(NAME isched_glob_tests COMMAND isched_glob_tests)
+add_executable(isched_fs_utils_tests isched_fs_utils_tests.cpp)
+target_link_libraries(isched_fs_utils_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
+add_test(NAME isched_fs_utils_tests COMMAND isched_fs_utils_tests)
 

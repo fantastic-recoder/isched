@@ -25,8 +25,6 @@ add_library(isched
         backend/isched_TenantManager.cpp
         backend/isched_DatabaseManager.hpp
         backend/isched_DatabaseManager.cpp
-        backend/isched_GraphQLExecutor.hpp
-        backend/isched_GraphQLExecutor.cpp
         backend/isched_AuthenticationMiddleware.hpp
         backend/isched_AuthenticationMiddleware.cpp
         backend/isched_built_in_schema.hpp
@@ -35,12 +33,16 @@ add_library(isched
         shared/ipc/isched_ipc.cpp
         shared/config/isched_config.hpp
         shared/config/isched_config.cpp
-        shared/fs/isched_glob.hpp
-        shared/fs/isched_glob.cpp
+        shared/fs/isched_fs_utils.hpp
+        shared/fs/isched_fs_utils.cpp
         backend/isched_gql_grammar.hpp
+        backend/isched_GqlExecutor.cpp
+        backend/isched_GqlExecutor.hpp
+        backend/isched_ExecutionResult.hpp
 )
-target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url)
-target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS})
+target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json
+        jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url sago::platform_folders)
+target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} )
 
 add_executable(isched_srv backend/isched_srv_main.cpp)
 target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog openssl::openssl)

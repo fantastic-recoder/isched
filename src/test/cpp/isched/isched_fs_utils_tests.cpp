@@ -6,10 +6,11 @@
 #include <chrono>
 #include <unistd.h>
 
-#include "../../../main/cpp/isched/shared/fs/isched_glob.hpp"
+#include "isched/shared/fs/isched_fs_utils.hpp"
 
 namespace fs = std::filesystem;
 using isched::v0_0_1::fsutils::glob;
+using isched::v0_0_1::fsutils::read_file;
 
 static void touch(const fs::path &p) {
     fs::create_directories(p.parent_path());
@@ -75,6 +76,53 @@ TEST_CASE("glob: basic patterns and recursive **", "[glob]") {
         auto res = glob(tmp_root / "**" / "sub" / "*.txt");
         REQUIRE(res.size() == 1);
         REQUIRE(res[0].filename() == fs::path("c.txt"));
+    }
+
+    // Cleanup
+    REQUIRE_NOTHROW(fs::remove_all(tmp_root));
+}
+
+TEST_CASE("read_file: basic functionality", "[fsutils]") {
+    auto tdir = fs::temp_directory_path();
+    auto pid = static_cast<unsigned long>(::getpid());
+    auto now = static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count());
+    fs::path tmp_root = tdir / (std::string("isched_read_file_test_") + std::to_string(pid) + "_" + std::to_string(now));
+    REQUIRE_NOTHROW(fs::create_directories(tmp_root));
+
+    SECTION("read normal text file") {
+        fs::path p = tmp_root / "test.txt";
+        std::string content = "Hello, World!\nLine 2";
+        {
+            std::ofstream ofs(p);
+            ofs << content;
+        }
+        REQUIRE(read_file(p) == content);
+    }
+
+    SECTION("read empty file") {
+        fs::path p = tmp_root / "empty.txt";
+        {
+            std::ofstream ofs(p);
+        }
+        REQUIRE(read_file(p).empty());
+    }
+
+    SECTION("read binary-like data") {
+        fs::path p = tmp_root / "binary.dat";
+        std::string content = "A\0B\n\r\tC";
+        content[1] = '\0'; // ensure null byte
+        {
+            std::ofstream ofs(p, std::ios::binary);
+            ofs.write(content.data(), content.size());
+        }
+        std::string read = read_file(p);
+        REQUIRE(read.size() == content.size());
+        REQUIRE(read == content);
+    }
+
+    SECTION("throw on non-existent file") {
+        fs::path p = tmp_root / "does_not_exist.txt";
+        REQUIRE_THROWS_AS(read_file(p), std::runtime_error);
     }
 
     // Cleanup

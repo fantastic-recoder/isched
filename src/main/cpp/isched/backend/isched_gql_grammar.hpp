@@ -569,18 +569,18 @@ namespace isched::v0_0_1::gql {
     /**
      * @brief Parse the input with the given grammar, emit a Graphviz DOT tree to stdout, and optionally trace.
      * @tparam TGrammar Top-level PEGTL rule to parse.
-     * @param pName Label used in logs.
-     * @param in PEGTL string_input (will be restarted to print trace on failure or when requested).
+     * @param p_in PEGTL string_input (will be restarted to print trace on failure or when requested).
+     * @param p_query_name Label used in logs.
      * @param p_trace_on_success If true, run a PEGTL trace after successful parse as well.
      * @return (ok, root) where ok indicates parse success, and root is the parse tree (non-null on success).
      */
     template<typename TGrammar>
     std::tuple<bool,std::unique_ptr<node>>
-    generate_ast_and_log(const std::string &pName, pegtl::string_input<>& in, bool p_trace_on_success=false) {
+    generate_ast_and_log(pegtl::string_input<>& p_in, const std::string &p_query_name, const bool p_trace_on_success=false) {
         std::unique_ptr<node> myRoot = pegtl::parse_tree::parse<
             TGrammar, GqlSelector /*, ns_pegtl::nothing, control*/
-        >(in);
-        spdlog::debug("\n\nAST of \"{}\":\n{}", pName, K_OUTPUT_SEP);
+        >(p_in);
+        spdlog::debug("\n\nAST of \"{}\":\n{}", p_query_name, K_OUTPUT_SEP);
         bool myParsingOk;
         if (myRoot) {
             pegtl::parse_tree::print_dot(std::cout, *myRoot);
@@ -589,14 +589,14 @@ namespace isched::v0_0_1::gql {
                     << endl;
             myParsingOk = true;
             if (p_trace_on_success) {
-                in.restart();
-                tao::pegtl::complete_trace<TGrammar>(in);
+                p_in.restart();
+                tao::pegtl::complete_trace<TGrammar>(p_in);
             }
         } else {
-            spdlog::error(R"("{}" error / no AST generated!? Input rest:"{}".)", pName,
-                          std::string(in.begin(), in.size()));
-            in.restart();
-            tao::pegtl::complete_trace<TGrammar>(in);
+            spdlog::error(R"("{}" error / no AST generated!? Input rest:"{}".)", p_query_name,
+                          std::string(p_in.begin(), p_in.size()));
+            p_in.restart();
+            tao::pegtl::complete_trace<TGrammar>(p_in);
             myParsingOk = false;
         }
         return {myParsingOk,std::move(myRoot)};

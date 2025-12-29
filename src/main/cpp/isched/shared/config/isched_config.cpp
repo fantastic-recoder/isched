@@ -12,7 +12,7 @@
 #include <sstream>
 #include <algorithm>
 #include <regex>
-#include <cstdlib>
+#include <sago/platform_folders.h>
 
 extern char **environ;
 
@@ -543,6 +543,10 @@ std::string EnvironmentConfigProvider::config_key_to_env_key(const std::string& 
     std::transform(key.begin(), key.end(), key.begin(), ::toupper);
     std::replace(key.begin(), key.end(), '.', '_');
     return prefix_ + key;
+}
+
+std::string getDataHome() {
+    return sago::getDataHome();
 }
 
 // Configuration utility functions

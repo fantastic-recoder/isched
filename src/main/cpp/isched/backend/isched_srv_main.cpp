@@ -14,7 +14,7 @@ void add_safely_resolver(isched::v0_0_1::MainSvc& mySvc) {
     try {
         auto doc_root_resolver = make_shared<isched::v0_0_1::DocRootRestResolver>
                 (std::string("/path"), std::filesystem::path{"../../../../../docs"});
-        mySvc.addResolver(doc_root_resolver);
+        mySvc.addRestResolver(doc_root_resolver);
     } catch (const std::exception& e) {
         spdlog::error("Failed to add resolver: {}", e.what());
     }
@@ -31,7 +31,7 @@ int main(const int, const char **) {
 
     spdlog::cfg::load_env_levels();
     MainSvc mySvc;
-    mySvc.addResolver
+    mySvc.addRestResolver
     (make_shared<SingleActionRestResolver>
         (EHttpMethods::GET, "/test", "Resolver ansver"));
     add_safely_resolver(mySvc);

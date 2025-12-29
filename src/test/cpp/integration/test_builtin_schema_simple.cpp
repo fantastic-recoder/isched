@@ -14,10 +14,11 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <isched/backend/isched_DatabaseManager.hpp>
 
 #include "isched/backend/isched_built_in_schema.hpp"
 #include "isched/backend/isched_Server.hpp"
-#include "isched/backend/isched_GraphQLExecutor.hpp"
+#include "isched/backend/isched_GqlExecutor.hpp"
 #include "isched/backend/isched_TenantManager.hpp"
 
 using namespace isched::v0_0_1::backend;
@@ -50,7 +51,7 @@ public:
         db_config.query_timeout = std::chrono::milliseconds{1000ms};
 
         std::shared_ptr<DatabaseManager> const db_manager=std::make_shared<DatabaseManager>(db_config);
-        executor = GraphQLExecutor::create(db_manager);
+        executor = GqlExecutor::create(db_manager);
         built_in_schema = BuiltInSchema::create(db_manager);
         
         // Set up built-in resolvers
@@ -70,7 +71,7 @@ public:
     
     std::shared_ptr<Server> server;
     std::shared_ptr<TenantManager> tenant_manager;
-    std::shared_ptr<GraphQLExecutor> executor;
+    std::shared_ptr<GqlExecutor> executor;
     std::shared_ptr<BuiltInSchema> built_in_schema;
 };
 

@@ -21,4 +21,6 @@ namespace isched::v0_0_1::fsutils {
  */
 [[nodiscard]] std::vector<std::filesystem::path> glob(const std::filesystem::path &pattern);
 
+[[nodiscard]] std::string read_file(const std::filesystem::path &path);
+
 } // namespace isched::v0_0_1::fsutils

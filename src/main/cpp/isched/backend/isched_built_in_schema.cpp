@@ -7,7 +7,7 @@
  */
 
 #include "isched_built_in_schema.hpp"
-#include "isched_GraphQLExecutor.hpp"
+#include "isched_GqlExecutor.hpp"
 #include "isched_DatabaseManager.hpp"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -36,7 +36,7 @@ BuiltInSchema::BuiltInSchema(std::shared_ptr<DatabaseManager> database)
     , active_connections_(0) {
 }
 
-void BuiltInSchema::register_resolvers(GraphQLExecutor& executor) {
+void BuiltInSchema::register_resolvers(GqlExecutor& executor) {
     // This method will be used differently - we'll enhance the GraphQL executor's
     // setup_builtin_resolvers() method instead of trying to register externally
     // For now, this is a placeholder that demonstrates the structure

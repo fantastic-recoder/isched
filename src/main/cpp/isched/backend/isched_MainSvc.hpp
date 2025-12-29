@@ -27,10 +27,10 @@ class MainSvc {
 
 public:
 
-    MainSvc(int pPort=1984);
+    explicit MainSvc(int pPort=1984);
 
     ~MainSvc();
-    void addResolver(std::shared_ptr<BaseRestResolver> presolver);
+    void addRestResolver(std::shared_ptr<BaseRestResolver> pResolver);
     void run();
 };
 

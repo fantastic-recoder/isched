@@ -25,7 +25,7 @@ namespace isched::v0_0_1 {
     MainSvc::~MainSvc() {
     }
 
-    void MainSvc::addResolver(std::shared_ptr<BaseRestResolver> pResolver) {
+    void MainSvc::addRestResolver(std::shared_ptr<BaseRestResolver> pResolver) {
         auto resource = make_shared< Resource >( );
         resource->set_path( pResolver->getPath() );
         resource->set_method_handler( pResolver->getMethod(), [pResolver]( const shared_ptr< Session > pSession ) {
@@ -33,7 +33,8 @@ namespace isched::v0_0_1 {
 
             int content_length = request->get_header( "Content-Length", 0 );
 
-            pSession->fetch( content_length, [pSession, pResolver](const shared_ptr< Session > pSessionPtr, const Bytes & pBodyRef )
+            pSession->fetch( content_length, [pSession, pResolver]
+                (const shared_ptr< Session >& pSessionPtr, const Bytes & pBodyRef )
             {
                 fprintf(stdout, "%.*s\n", ( int ) pBodyRef.size( ), pBodyRef.data( ) );
                 auto myResponse= pResolver->handle(pSession->get_request()->get_path());
@@ -46,7 +47,7 @@ namespace isched::v0_0_1 {
     }
 
     void MainSvc::run() {
-        spdlog::info("Isched server starting, serving GraphQL API on 'http://localhost:1984/graphql'.");
+        spdlog::info("Isched server starting, serving GraphQL API on 'http://localhost:{}/graphql'.",mPort_);
         mService_->start( mSettings_ );
         spdlog::info("Isched server stopping...");
 

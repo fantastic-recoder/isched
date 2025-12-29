@@ -1,23 +1,15 @@
-#include "isched_glob.hpp"
+#include "isched_fs_utils.hpp"
 
 #include <algorithm>
-#include <cctype>
-#include <stack>
+#include <fstream>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
 namespace isched::v0_0_1::fsutils {
 
-static bool is_path_sep(char c) {
-#ifdef _WIN32
-    return c == '/' || c == '\\';
-#else
-    return c == '/';
-#endif
-}
-
 static std::vector<std::string> split_segments(const fs::path &p) {
-    std::string s = p.generic_string(); // use '/' as separator
+    std::string const s = p.generic_string(); // use '/' as separator
     std::vector<std::string> segs;
     std::string cur;
     for (char ch : s) {
@@ -73,7 +65,6 @@ static bool wildcard_match_segment(const std::string &pattern, const std::string
         } else if (pi < pattern.size() && pattern[pi] == '?') {
             ++pi; ++ni;
         } else if (pi < pattern.size() && pattern[pi] == '[') {
-            size_t cls_i = pi;
             if (match_char_class(pattern, pi, name[ni])) { ++ni; ++pi; }
             else if (star != std::string::npos) { pi = star; ++match; ni = match; }
             else return false;
@@ -158,5 +149,15 @@ std::vector<fs::path> glob(const fs::path &pattern) {
     out.erase(std::unique(out.begin(), out.end()), out.end());
     return out;
 }
+
+    std::string read_file(const fs::path &path) {
+        const std::ifstream file(path, std::ios::in | std::ios::binary);
+        if (!file) {
+            throw std::runtime_error("Failed to open file: " + path.string());
+        }
+        std::ostringstream ss;
+        ss << file.rdbuf();
+        return ss.str();
+    }
 
 } // namespace isched::v0_0_1::fsutils
