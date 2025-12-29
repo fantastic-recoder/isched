@@ -39,6 +39,7 @@ add_library(isched
         backend/isched_GqlExecutor.cpp
         backend/isched_GqlExecutor.hpp
         backend/isched_ExecutionResult.hpp
+        backend/isched_EErrorCodes.hpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url sago::platform_folders)
@@ -47,4 +48,5 @@ target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog
 add_executable(isched_srv backend/isched_srv_main.cpp)
 target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog openssl::openssl)
 target_include_directories(isched_srv PRIVATE ${openssl_INCLUDE_DIRS})
+
 

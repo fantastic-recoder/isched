@@ -7,7 +7,7 @@ import { GraphQLScalarType, Kind } from "graphql";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const typeDefs = readFileSync(join(__dirname, 'schema.graphql'), 'utf-8');
+const typeDefs = readFileSync(join(__dirname, 'hello_world_schema.graphql'), 'utf-8');
 
 // Static demo data
 const authors = [

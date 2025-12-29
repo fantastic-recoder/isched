@@ -23,6 +23,63 @@ namespace isched::v0_0_1::backend {
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
 
     /**
+     * @brief GraphQL resolver registry for field resolution
+     */
+    class ResolverRegistry {
+    public:
+        using ResolverFunction = std::function<nlohmann::json(
+            const nlohmann::json& parent,
+            const nlohmann::json& context
+        )>;
+
+        /**
+         * @brief Register field resolver
+         * @param field_name Name of field to resolve
+         * @param resolver Function to handle field resolution
+         */
+        void register_resolver(const std::string& field_name, ResolverFunction resolver) {
+            resolvers_[field_name] = std::move(resolver);
+        }
+
+        /**
+         * @brief Resolve field value
+         * @param field_name Name of field to resolve
+         * @param parent Parent object context
+         * @param context Execution context
+         * @return Resolved field value
+         */
+        [[nodiscard]] nlohmann::json resolve_field(
+            const std::string& field_name,
+            const nlohmann::json& parent,
+            const nlohmann::json& context) const {
+
+            auto it = resolvers_.find(field_name);
+            if (it != resolvers_.end()) {
+                return it->second(parent, context);
+            }
+
+            // Default resolver - try to extract field from parent object
+            if (parent.is_object() && parent.contains(field_name)) {
+                return parent[field_name];
+            }
+
+            return nlohmann::json();
+        }
+
+        /**
+         * @brief Check if resolver exists for field
+         * @param field_name Name of field to check
+         * @return true if resolver is registered
+         */
+        [[nodiscard]] bool has_resolver(const std::string& field_name) const noexcept {
+            return resolvers_.find(field_name) != resolvers_.end();
+        }
+
+    private:
+        std::unordered_map<std::string, ResolverFunction> resolvers_;
+    };
+
+    /**
      * @brief Main GraphQL executor class
      */
     class GqlExecutor {
@@ -59,6 +116,8 @@ namespace isched::v0_0_1::backend {
         GqlExecutor& operator=(const GqlExecutor&) = delete;
 
         void setup_builtin_resolvers();
+
+        ExecutionResult load_schema(const std::string && string);
 
         GqlExecutor(GqlExecutor&&) = default;
         GqlExecutor& operator=(GqlExecutor&&) = default;

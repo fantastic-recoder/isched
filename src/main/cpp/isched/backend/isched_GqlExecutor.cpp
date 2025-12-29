@@ -21,6 +21,11 @@ namespace isched::v0_0_1::backend {
     void GqlExecutor::setup_builtin_resolvers() {
     }
 
+    ExecutionResult GqlExecutor::load_schema(const std::string &&string) {
+        ExecutionResult result;
+        return result;
+    }
+
     std::pair<DocumentPtr, std::vector<std::string> > GqlExecutor::parse(std::string &&pQuery) const {
         if (pQuery.length() > 100000) {
             // Max pQuery length

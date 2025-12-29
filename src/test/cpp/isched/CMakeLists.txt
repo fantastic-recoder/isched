@@ -10,6 +10,8 @@ add_executable(isched_gql_executor_tests isched_gql_executor_tests.cpp)
 target_link_libraries(isched_gql_executor_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
 add_test(NAME isched_gql_executor_tests COMMAND isched_gql_executor_tests)
 
+configure_file(hello_world_schema.graphql hello_world_schema.graphql COPYONLY)
+
 add_executable(isched_srv_test isched_srv_tests.cpp
         ../../../main/cpp/isched/backend/isched_LogEnvLoader.hpp)
 target_link_libraries(isched_srv_test PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog httplib::httplib
