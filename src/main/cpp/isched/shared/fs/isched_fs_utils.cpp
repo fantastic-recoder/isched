@@ -99,6 +99,16 @@ static void collect(const fs::path &dir,
 
     const std::string &seg = segs[idx];
 
+    if (seg == ".") {
+        collect(dir, segs, idx + 1, out);
+        return;
+    }
+
+    if (seg == "..") {
+        collect(dir.parent_path(), segs, idx + 1, out);
+        return;
+    }
+
     if (seg == "**") {
         // Option 1: match zero segment
         collect(dir, segs, idx + 1, out);

@@ -78,6 +78,29 @@ TEST_CASE("glob: basic patterns and recursive **", "[glob]") {
         REQUIRE(res[0].filename() == fs::path("c.txt"));
     }
 
+    SECTION("parent directory .. in pattern") {
+        // pattern: tmp_root/dir1/../dir2/*.txt -> should match tmp_root/dir2/x.txt
+        auto res = glob(tmp_root / "dir1" / ".." / "dir2" / "*.txt");
+        REQUIRE(res.size() == 1);
+        REQUIRE(res[0].filename() == fs::path("x.txt"));
+    }
+
+    SECTION("current directory . in pattern") {
+        // pattern: tmp_root/dir1/./a.cpp -> should match tmp_root/dir1/a.cpp
+        auto res = glob(tmp_root / "dir1" / "." / "a.cpp");
+        REQUIRE(res.size() == 1);
+        REQUIRE(res[0].filename() == fs::path("a.cpp"));
+    }
+
+    SECTION("relative path with ..") {
+        auto old_pwd = fs::current_path();
+        fs::current_path(tmp_root / "dir1");
+        auto res = glob(fs::path("..") / "dir2" / "*.txt");
+        fs::current_path(old_pwd);
+        REQUIRE(res.size() == 1);
+        REQUIRE(res[0].filename() == fs::path("x.txt"));
+    }
+
     // Cleanup
     REQUIRE_NOTHROW(fs::remove_all(tmp_root));
 }
