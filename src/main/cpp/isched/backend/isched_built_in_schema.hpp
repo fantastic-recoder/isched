@@ -19,7 +19,7 @@
 
 // Forward declarations to avoid circular dependencies
 namespace isched::v0_0_1::backend {
-    class GraphQLExecutor;
+    class GqlExecutor;
     class DatabaseManager;
 }
 
@@ -109,7 +109,7 @@ public:
      * @brief Register all built-in resolvers with the GraphQL executor
      * @param executor GraphQL executor to register resolvers with
      */
-    void register_resolvers(GraphQLExecutor& executor);
+    void register_resolvers(GqlExecutor& executor);
 
     /**
      * @brief Get complete schema definition as JSON

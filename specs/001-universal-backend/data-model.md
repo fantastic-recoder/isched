@@ -322,9 +322,9 @@ private:
 };
 
 // GraphQL execution engine with built-in schema support
-class GraphQLExecutor {
+class GqlExecutor {
 public:
-    explicit GraphQLExecutor(std::shared_ptr<DatabaseManager> database);
+    explicit GqlExecutor(std::shared_ptr<DatabaseManager> database);
     
     // Execute GraphQL query with result handling
     ExecutionResult execute(const std::string& query);
@@ -386,7 +386,7 @@ private:
 // Built-in GraphQL schema for health monitoring and introspection
 class BuiltInSchema {
 public:
-    BuiltInSchema(std::shared_ptr<GraphQLExecutor> executor,
+    BuiltInSchema(std::shared_ptr<GqlExecutor> executor,
                   std::shared_ptr<DatabaseManager> database);
     
     void register_resolvers(ResolverRegistry& registry);
@@ -394,7 +394,7 @@ public:
     nlohmann::json get_server_metrics() const;
     
 private:
-    std::shared_ptr<GraphQLExecutor> executor_;
+    std::shared_ptr<GqlExecutor> executor_;
     std::shared_ptr<DatabaseManager> database_;
 };
 
@@ -408,7 +408,7 @@ public:
     
 private:
     std::shared_ptr<restbed::Service> service_;
-    std::shared_ptr<GraphQLExecutor> graphql_executor_;
+    std::shared_ptr<GqlExecutor> graphql_executor_;
 };
 
 } // namespace isched::v0_0_1::backend

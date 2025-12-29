@@ -39,7 +39,7 @@ All User Story 1 tasks have been marked as completed in `specs/001-universal-bac
 
 - ✅ **T019** [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/isched_built_in_schema.hpp/cpp with health queries
 - ✅ **T020** [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/isched_built_in_schema.cpp  
-- ✅ **T021** [US1] Integrate BuiltInSchema with GraphQLExecutor for immediate GraphQL endpoint availability
+- ✅ **T021** [US1] Integrate BuiltInSchema with GqlExecutor for immediate GraphQL endpoint availability
 - ✅ **T022** [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/isched_Server.cpp
 - ✅ **T023** [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/isched_Server.cpp
 - ✅ **T024** [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/isched_GraphQLExecutor.cpp

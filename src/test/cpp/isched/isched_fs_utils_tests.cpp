@@ -86,11 +86,11 @@ TEST_CASE("read_file: basic functionality", "[fsutils]") {
     auto tdir = fs::temp_directory_path();
     auto pid = static_cast<unsigned long>(::getpid());
     auto now = static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count());
-    fs::path tmp_root = tdir / (std::string("isched_read_file_test_") + std::to_string(pid) + "_" + std::to_string(now));
+    fs::path const tmp_root = tdir / (std::string("isched_read_file_test_") + std::to_string(pid) + "_" + std::to_string(now));
     REQUIRE_NOTHROW(fs::create_directories(tmp_root));
 
     SECTION("read normal text file") {
-        fs::path p = tmp_root / "test.txt";
+        fs::path const p = tmp_root / "test.txt";
         std::string content = "Hello, World!\nLine 2";
         {
             std::ofstream ofs(p);
@@ -100,15 +100,15 @@ TEST_CASE("read_file: basic functionality", "[fsutils]") {
     }
 
     SECTION("read empty file") {
-        fs::path p = tmp_root / "empty.txt";
+        fs::path const p = tmp_root / "empty.txt";
         {
-            std::ofstream ofs(p);
+            std::ofstream const ofs(p);
         }
         REQUIRE(read_file(p).empty());
     }
 
     SECTION("read binary-like data") {
-        fs::path p = tmp_root / "binary.dat";
+        fs::path const p = tmp_root / "binary.dat";
         std::string content = "A\0B\n\r\tC";
         content[1] = '\0'; // ensure null byte
         {
@@ -121,7 +121,7 @@ TEST_CASE("read_file: basic functionality", "[fsutils]") {
     }
 
     SECTION("throw on non-existent file") {
-        fs::path p = tmp_root / "does_not_exist.txt";
+        fs::path const p = tmp_root / "does_not_exist.txt";
         REQUIRE_THROWS_AS(read_file(p), std::runtime_error);
     }
 

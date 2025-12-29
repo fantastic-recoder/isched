@@ -54,7 +54,7 @@ namespace isched::v0_0_1 {
         tao::pegtl::string_input in(std::move(pQuery), "Query");
 
         try {
-            auto myRetVal = gql::generate_ast_and_log<gql::Document>(pName, in);
+            auto myRetVal = gql::generate_ast_and_log<gql::Document>(in, pName);
             mRoot = std::move(std::get<1>(myRetVal));
             mParsingOk = std::get<0>(myRetVal);
         } catch (const tao::pegtl::parse_error &e) {

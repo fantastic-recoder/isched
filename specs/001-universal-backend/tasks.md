@@ -56,7 +56,7 @@ Each task implementation MUST verify:
 - [x] T007 [P] Implement TenantManager class in src/main/cpp/isched/isched_TenantManager.hpp/cpp for multi-process isolation
 - [x] T008 [P] Implement DatabaseManager class in src/main/cpp/isched/isched_DatabaseManager.hpp/cpp with SQLite integration
 - [x] T009 [P] Implement ConnectionPool class in src/main/cpp/isched/isched_DatabaseManager.hpp for per-tenant database pooling
-- [x] T010 [P] Implement basic GraphQLExecutor class in src/main/cpp/isched/isched_GraphQLExecutor.hpp/cpp with PEGTL parser
+- [x] T010 [P] Implement basic GqlExecutor class in src/main/cpp/isched/isched_GraphQLExecutor.hpp/cpp with PEGTL parser
 - [x] T011 [P] Implement AuthenticationMiddleware class in src/main/cpp/isched/isched_AuthenticationMiddleware.hpp/cpp with JWT support
 - [x] T012 [P] Implement shared memory IPC framework in src/main/cpp/isched/shared/ipc/
 - [x] T013 [P] Setup Restbed HTTP service integration in src/main/cpp/isched/isched_Server.cpp
@@ -85,7 +85,7 @@ Each task implementation MUST verify:
 
 - [x] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/backend/isched_built_in_schema.hpp/cpp with health queries
 - [x] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
-- [x] T021 [US1] Integrate BuiltInSchema with GraphQLExecutor for immediate GraphQL endpoint availability
+- [x] T021 [US1] Integrate BuiltInSchema with GqlExecutor for immediate GraphQL endpoint availability
 - [x] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/backend/isched_Server.cpp
 - [x] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/backend/isched_Server.cpp
 - [x] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp

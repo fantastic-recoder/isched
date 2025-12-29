@@ -139,7 +139,7 @@ TEST_CASE_METHOD(HealthMonitoringTestFixture, "Health monitoring GraphQL queries
         
         // Execute health query through GraphQL
         /*
-        auto executor = GraphQLExecutor::create();
+        auto executor = GqlExecutor::create();
         auto result = executor->execute_query(health_query, "system");
         
         REQUIRE(result.success);
@@ -167,7 +167,7 @@ TEST_CASE_METHOD(HealthMonitoringTestFixture, "Health monitoring GraphQL queries
         )";
         
         /*
-        auto executor = GraphQLExecutor::create();
+        auto executor = GqlExecutor::create();
         auto result = executor->execute_query(component_health_query, "system");
         
         REQUIRE(result.success);
@@ -330,7 +330,7 @@ TEST_CASE_METHOD(HealthMonitoringTestFixture, "Frontend developer user story val
             }
         )";
         
-        auto executor = GraphQLExecutor::create();
+        auto executor = GqlExecutor::create();
         auto graphql_result = executor->execute_query(health_graphql_query, "system");
         REQUIRE(graphql_result.success);
         */

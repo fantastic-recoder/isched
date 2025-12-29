@@ -22,7 +22,7 @@
 namespace isched::v0_0_1::backend {
 
 // Forward declarations
-class GraphQLExecutor;
+class GqlExecutor;
 class ASTNode;
 class Field;
 class Selection;
@@ -251,7 +251,7 @@ private:
 /**
  * @brief Main GraphQL executor class
  */
-class GraphQLExecutor {
+class GqlExecutor {
 public:
     /**
      * @brief Execution configuration
@@ -267,20 +267,20 @@ public:
      * @param database Database manager for data access
      * @param config Execution configuration
      */
-    explicit GraphQLExecutor(std::shared_ptr<DatabaseManager> database);
+    explicit GqlExecutor(std::shared_ptr<DatabaseManager> database);
     
     /**
      * @brief Destructor
      */
-    ~GraphQLExecutor() noexcept = default;
+    ~GqlExecutor() noexcept = default;
 
-    static std::unique_ptr<GraphQLExecutor> create(std::shared_ptr<DatabaseManager> database);
+    static std::unique_ptr<GqlExecutor> create(std::shared_ptr<DatabaseManager> database);
 
     // Non-copyable, movable
-    GraphQLExecutor(const GraphQLExecutor&) = delete;
-    GraphQLExecutor& operator=(const GraphQLExecutor&) = delete;
-    GraphQLExecutor(GraphQLExecutor&&) = default;
-    GraphQLExecutor& operator=(GraphQLExecutor&&) = default;
+    GqlExecutor(const GqlExecutor&) = delete;
+    GqlExecutor& operator=(const GqlExecutor&) = delete;
+    GqlExecutor(GqlExecutor&&) = default;
+    GqlExecutor& operator=(GqlExecutor&&) = default;
     
     /**
      * @brief Parse GraphQL query string

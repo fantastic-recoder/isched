@@ -46,7 +46,7 @@ namespace backend {
 class Server;
 class TenantManager;
 class Database;
-class GraphQLExecutor;
+class GqlExecutor;
 class ResolverSystem;
 class CLICoordinator;
 class AuthManager;

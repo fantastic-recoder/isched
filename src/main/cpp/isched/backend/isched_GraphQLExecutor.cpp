@@ -18,19 +18,19 @@
 namespace isched::v0_0_1::backend {
 
 // ============================================================================
-// GraphQLExecutor implementation
+// GqlExecutor implementation
 // ============================================================================
 
-GraphQLExecutor::GraphQLExecutor(std::shared_ptr<DatabaseManager> database)
+GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> database)
     : database_(std::move(database)) {
     setup_builtin_resolvers();
 }
 
-std::unique_ptr<GraphQLExecutor> GraphQLExecutor::create(std::shared_ptr<DatabaseManager> database) {
-    return std::make_unique<GraphQLExecutor>(std::move(database));
+std::unique_ptr<GqlExecutor> GqlExecutor::create(std::shared_ptr<DatabaseManager> database) {
+    return std::make_unique<GqlExecutor>(std::move(database));
 }
 
-std::pair<DocumentPtr, std::vector<std::string>> GraphQLExecutor::parse(const std::string& query) const {
+std::pair<DocumentPtr, std::vector<std::string>> GqlExecutor::parse(const std::string& query) const {
     if (query.length() > 100000) { // Max query length
         return {nullptr, {"Query length exceeds maximum allowed"}};
     }
@@ -78,7 +78,7 @@ std::pair<DocumentPtr, std::vector<std::string>> GraphQLExecutor::parse(const st
     return {document, errors};
 }
 
-ExecutionResult GraphQLExecutor::execute(const std::string& query,
+ExecutionResult GqlExecutor::execute(const std::string& query,
                                        const nlohmann::json& variables,
                                        const std::string& operation_name,
                                        const nlohmann::json& context) const {
@@ -118,7 +118,7 @@ ExecutionResult GraphQLExecutor::execute(const std::string& query,
     return result;
 }
 
-nlohmann::json GraphQLExecutor::execute_operation(const OperationPtr& operation,
+nlohmann::json GqlExecutor::execute_operation(const OperationPtr& operation,
                                                  const nlohmann::json& variables,
                                                  const nlohmann::json& context) const {
     if (!operation) {
@@ -131,7 +131,7 @@ nlohmann::json GraphQLExecutor::execute_operation(const OperationPtr& operation,
     return execute_selections(operation->selection_set, root_object, variables, context);
 }
 
-nlohmann::json GraphQLExecutor::execute_selections(const std::vector<SelectionPtr>& selections,
+nlohmann::json GqlExecutor::execute_selections(const std::vector<SelectionPtr>& selections,
                                                   const nlohmann::json& parent,
                                                   const nlohmann::json& variables,
                                                   const nlohmann::json& context) const {
@@ -151,7 +151,7 @@ nlohmann::json GraphQLExecutor::execute_selections(const std::vector<SelectionPt
     return result;
 }
 
-nlohmann::json GraphQLExecutor::execute_field(const FieldPtr& field,
+nlohmann::json GqlExecutor::execute_field(const FieldPtr& field,
                                              const nlohmann::json& parent,
                                              const nlohmann::json& variables,
                                              const nlohmann::json& context) const {
@@ -182,7 +182,7 @@ nlohmann::json GraphQLExecutor::execute_field(const FieldPtr& field,
     return field_value;
 }
 
-void GraphQLExecutor::setup_builtin_resolvers() {
+void GqlExecutor::setup_builtin_resolvers() {
     // Static variables for tracking metrics
     static auto start_time = std::chrono::system_clock::now();
     static std::atomic<std::size_t> request_counter{0};
