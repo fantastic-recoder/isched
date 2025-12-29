@@ -27,8 +27,8 @@ namespace isched::v0_0_1::backend {
 
         json result = proc.execute(doc).data;
         // For a skeleton test, just assert it's a JSON value (object/array/etc.).
-        // Current implementation returns default-constructed json which is null; accept that but ensure it is a json type.
+        // The current implementation returns default-constructed json which is null; accept that but ensure it is a json type.
         // Adjust expectations in future when execute() gains behavior.
-        //REQUIRE(result.is_null());
+        REQUIRE(result.is_null());
     }
 }
