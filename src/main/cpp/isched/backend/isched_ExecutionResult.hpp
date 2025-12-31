@@ -13,8 +13,8 @@
 namespace isched::v0_0_1::backend {
 
     struct ExecutionError {
-        std::string message;
         EErrorCodes code;
+        std::string message;
     };
 
     inline nlohmann::json ec_to_json(const std::vector<ExecutionError>& pErrors) {

@@ -1,6 +1,8 @@
 // Skeleton unit tests for GqlExecutor
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
+#include <catch2/matchers/catch_matchers_vector.hpp>
 #include <nlohmann/json.hpp>
 
 #include <isched/backend/isched_GqlExecutor.hpp>
@@ -38,7 +40,10 @@ namespace isched::v0_0_1::backend {
         std::string schema_str = fsutils::read_file("hello_world_schema.graphql");
         REQUIRE(!schema_str.empty());
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
-        proc.load_schema(std::move(schema_str));
-
+        const auto myResult=proc.load_schema(std::move(schema_str));
+        REQUIRE(!myResult.is_success());
+        REQUIRE(myResult.errors.size()==2);
+        REQUIRE(myResult.errors[0].code==EErrorCodes::MISSING_GQL_RESOLVER);
+        REQUIRE(myResult.errors[1].code==EErrorCodes::MISSING_GQL_RESOLVER);
     }
 }

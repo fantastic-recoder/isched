@@ -78,14 +78,173 @@ TEST_CASE( "Comments in query", "grammar0" ) {
     REQUIRE(true == myParser.parse(myQueryWithComments002, "myQueryWithComments002")->isParsingOk());
 }
 
-TEST_CASE("Parse type fields","grammar0") {
-    string_input in(std::move(std::string("title: String")), "Query");
-    auto myRoot = generate_ast_and_log<GqlTypeField>(in,"Parsing field",true);
+TEST_CASE("Test WS and comments","[graphql grammar][positive]") {
+    {
+        string_input in0(std::move(std::string("#graphql ")),"single line comment");
+        auto myRoot = generate_ast_and_log<TSeps>(
+            in0,"Parsing field",true);
+        REQUIRE(std::get<0>(myRoot) == true );
+    }
+    {
+        string_input in0(std::move(std::string(R"(#graphql
+
+
+    # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
+    # This "Book" type defines the queryable fields for every book in our data source.
+
+
+)")),"multiple lines comment");
+        auto myRoot = generate_ast_and_log<TSeps>(
+            in0,"Parsing field",true);
+        REQUIRE(std::get<0>(myRoot) == true );
+    }
+}
+
+TEST_CASE("Test field with arguments","[graphql grammar][positive]") {
+    string_input in(std::move(std::string("hello_who(p_name: String): String")), "field with arguments");
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,
+        "field with arguments",true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
+TEST_CASE("Parse simple type field","[graphql grammar][positive]")
+{
+    string_input in(std::move(std::string("title: String")), "simple string field");
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,
+        "simple string field",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
 
-TEST_CASE("Book grammar test","grammar0") {
+TEST_CASE("Parse simple non null type field","[graphql grammar][positive]")
+{
+    string_input in(std::move(std::string("title: String!")), "simple non null string field");
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,
+        "simple non null string field",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse non null type","[graphql grammar][positive]") {
+    string_input in1{std::move(std::string(R"(String!)")), "parse non null type"};
+    auto myRoot = generate_ast_and_log<Type>(in1,
+        "parse non null type",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse type fields with sigle non null field","grammar0") {
+    string_input in1{std::move(std::string(R"(
+{
+    description: String!
+}
+)")), "type fields with sigle non null field"};
+    auto myRoot = generate_ast_and_log<FieldsDefinition>(in1,
+        "type fields with sigle non null field",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse type fields","grammar0") {
+        string_input in1{std::move(std::string(R"(
+{
+    title: String
+    author: String
+    description: String!
+}
+)")), "multiple fields"};
+        auto myRoot = generate_ast_and_log<FieldsDefinition>(in1,"Parsing multiple fields",true);
+        REQUIRE(std::get<0>(myRoot) == true );
+        const auto& fields = std::get<1>(myRoot);
+        REQUIRE(fields->children.size() == 3);
+        const auto& field00 = fields->children[0]->children[0];
+        REQUIRE(field00->string_view() == "title");
+        const auto& field01 = fields->children[0]->children[1];
+        REQUIRE(field01->string_view() == "String");
+        const auto& field10 = fields->children[1]->children[0];
+        REQUIRE(field10->string_view() == "author");
+        const auto& field11 = fields->children[1]->children[1];
+        REQUIRE(field11->string_view() == "String");
+    }
+
+
+TEST_CASE("Parse type fields with comments","[graphql grammar][positive]")
+{
+    static const char* myFieldsWithComments=R"Qry(#graphql
+
+    # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
+    # This "Book" type defines the queryable fields for every book in our data source.
+
+    {
+            title: String
+            author: String
+    }
+)Qry";
+    string_input in2{std::move(myFieldsWithComments), "multiple fields with comments"};
+    auto myRoot = generate_ast_and_log<FieldsDefinition>(in2,"Parsing multiple fields with comments",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parsing array field") {
+    //[Episode!]!
+    string_input in(std::move(std::string("appearsIn: [Episode!]!")), "array field");
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,"array field",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse simple type","[graphql][grammar][positive]") {
+    static const char* myBookQuery=R"Qry(#graphql
+    type Book {
+            title: String
+            author: String
+    }
+)Qry";
+    string_input in(myBookQuery, "simple type I");
+    auto myRoot = generate_ast_and_log<ObjectTypeDefinition>(in,"Parsing simple type",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse simple type system definition","[graphql][grammar][positive]") {
+    static const char* myBookQuery=R"Qry(#graphql
+    type Book {
+            title: String
+            author: String
+    }
+)Qry";
+    string_input in(myBookQuery, "simple type system definition");
+    auto myRoot = generate_ast_and_log<TypeSystemDefinition>(in,
+        "Parsing simple type system definition",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Parse simple query","[graphql][grammar][positive]") {
+    static const char* myBookQuery=R"Qry(#graphql
+    type Query {
+            books: [Book]
+    }
+)Qry";
+    string_input in(myBookQuery, "simple query");
+    auto myRoot = generate_ast_and_log<ObjectTypeDefinition>(in,
+        "Parsing simple query",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Book grammar test - no comments","[graphql][grammar][positive]") {
+    static const char* myBookQuery=R"Qry(
+    type Book {
+            title: String
+            author: String
+    }
+    type Author {
+      name: String
+    }
+    type Query {
+            books: [Book]
+    }
+)Qry";
+    string_input in(myBookQuery, "simple Book type-system no comments");
+    auto myRoot = generate_ast_and_log<TypeSystemDocument>(in,
+        "simple Book type-system no comments",true);
+    REQUIRE(std::get<0>(myRoot) == true );
+}
+
+TEST_CASE("Book grammar test","[graphql][grammar][positive]") {
     static const char* myBookQuery=R"Qry(#graphql
 
     # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
@@ -108,12 +267,12 @@ TEST_CASE("Book grammar test","grammar0") {
             books: [Book]
     }
 
-
 )Qry";
-    GqlParser myParser;
-    REQUIRE(true == myParser.parse(myBookQuery,"book")->isParsingOk());
+    string_input in(myBookQuery, "simple Book type-system");
+    auto myRoot = generate_ast_and_log<TypeSystemDocument>(in,
+        "simple Book type-system",true);
+    REQUIRE(std::get<0>(myRoot) == true );
 }
-
 
 TEST_CASE("Parse integer array","grammar0") {
     string_input in(std::move(std::string("my_int_array: [Int]!")), "Query");
@@ -134,9 +293,10 @@ TEST_CASE("Character type grammar test","grammar0") {
         appearsIn: [Episode!]!
     }
 )Qry";
-    GqlParser myParser;
-    auto myTree = myParser.parse(myCharacterQry,"Charecter");
-    REQUIRE(true == myTree->isParsingOk());
+    string_input in(myCharacterQry, "Character type grammar");
+    auto myRoot = generate_ast_and_log<TypeSystemDocument>(in,
+        "Character type grammar",true);
+    REQUIRE(std::get<0>(myRoot) == true );
 }
 
 
@@ -781,6 +941,30 @@ TEST_CASE("SchemaDefinition with directives and arguments", "[graphql][schema][d
     REQUIRE(std::get<0>(res) == true);
 }
 
+TEST_CASE("Test RootOperationTypeDefinition","[graphql][RootOperationTypeDefinition][positive]") {
+    {
+        using isched::v0_0_1::gql::RootOperationTypeDefinition;
+        std::string s = R"(query: Query  # q)";
+        string_input in(s, "RootOperationTypeDefinition query");
+        auto res = generate_ast_and_log<RootOperationTypeDefinition>(in,
+            "RootOperationTypeDefinition query", false);
+    }
+    {
+        using isched::v0_0_1::gql::RootOperationTypeDefinition;
+        std::string s = R"(mutation: Mutation  # m)";
+        string_input in(s, "RootOperationTypeDefinition mutation");
+        auto res = generate_ast_and_log<RootOperationTypeDefinition>(in,
+            "RootOperationTypeDefinition mutation", false);
+    }
+    {
+        using isched::v0_0_1::gql::RootOperationTypeDefinition;
+        std::string s = R"(subscription: Sub  # s)";
+        string_input in(s, "RootOperationTypeDefinition sub");
+        auto res = generate_ast_and_log<RootOperationTypeDefinition>(in,
+            "RootOperationTypeDefinition sub", false);
+    }
+}
+
 TEST_CASE("SchemaDefinition multiple root ops and whitespace/comments", "[graphql][schema][positive]") {
     using isched::v0_0_1::gql::JustSchemaDefinition;
     std::string s = R"(
@@ -881,4 +1065,36 @@ TEST_CASE("Document negative: stray name", "[graphql][document][negative]") {
     string_input in(s, "DocStrayName");
     auto res = generate_ast_and_log<Document>(in, "Document stray name", false);
     REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Test scalar","[graphql][query][positive]") {
+    std::string s = R"(scalar UUID @specifiedBy(url: "https://tools.ietf.org/html/rfc4122"))";
+    string_input in(s, "Scalar UUID");
+    auto res = generate_ast_and_log<ScalarTypeDefinition>(in, "Scalar UUID", false);
+    REQUIRE(std::get<0>(res) == true);
+    const auto& ast = std::get<1>(res);
+    REQUIRE(ast->children.size() == 1);
+    REQUIRE(ast->children[0]->type == "isched::v0_0_1::gql::ScalarTypeDefinition");
+    const auto& scalar = ast->children[0];
+    REQUIRE(scalar->children.size() == 2);
+    REQUIRE(scalar->children[0]->type == "isched::v0_0_1::gql::Name");
+    REQUIRE(scalar->children[0]->source == "Scalar UUID");
+}
+
+/*
+#hello: String
+   hello: String
+   name: String
+ *
+ */
+TEST_CASE("Test hello world Query", "[graphql][query][positive]") {
+    std::string s = R"(
+
+type Query {
+   hello_who(p_name: String): String
+}
+)";
+    string_input in1(s, "HelloWorldQuery");
+    auto res1 = generate_ast_and_log<Document>(in1, "Hello world query", false);
+    REQUIRE(std::get<0>(res1) == true);
 }

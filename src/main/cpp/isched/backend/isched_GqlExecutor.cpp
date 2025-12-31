@@ -21,9 +21,26 @@ namespace isched::v0_0_1::backend {
     void GqlExecutor::setup_builtin_resolvers() {
     }
 
-    ExecutionResult GqlExecutor::load_schema(const std::string &&string) {
-        ExecutionResult result;
-        return result;
+    ExecutionResult GqlExecutor::load_schema(const std::string &&pSchemaDocument) {
+        static const std::string aName = "SchemaDocument";
+        // Set up the states, here a single std::string as that is
+        // what our action requires as an additional function argument.
+        tao::pegtl::string_input in(std::move(pSchemaDocument), aName);
+        bool aParsingOk = false;
+        ExecutionResult myResult;
+        try {
+            auto myRetVal = gql::generate_ast_and_log<gql::Document>(in, aName);
+            auto aRoot = std::move(std::get<1>(myRetVal));
+            aParsingOk = std::get<0>(myRetVal);
+        } catch (const tao::pegtl::parse_error &e) {
+            const auto p = e.positions().front();
+            myResult.errors.push_back({
+                EErrorCodes::PARSE_ERROR,
+                std::format("Error parsing schema: message={}, line={} column={}.",
+                    e.what(), in.line_at(p), p.column)
+            });
+        }
+        return myResult;
     }
 
     std::pair<DocumentPtr, std::vector<std::string> > GqlExecutor::parse(std::string &&pQuery) const {

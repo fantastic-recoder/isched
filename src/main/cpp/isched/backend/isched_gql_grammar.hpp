@@ -40,6 +40,12 @@
 #include <algorithm>
 
 namespace isched::v0_0_1::gql {
+    struct Value;
+    struct DefaultValue;
+    struct NonNullType;
+    struct ListType;
+    struct DirectivesConst;
+    struct Description;
     namespace pegtl = tao::pegtl;
     using namespace pegtl;
     using pegtl::one;
@@ -217,12 +223,12 @@ namespace isched::v0_0_1::gql {
 
     template<typename TSeparator, typename TRule0, typename... TRulesRest>
     struct SeqWithComments<TSeparator, TRule0, TRulesRest...>
-            : seq<TRule0, TSeparator, SeqWithComments<TSeparator, TRulesRest...> > {
+            : seq<TSeparator, TRule0, SeqWithComments<TSeparator, TRulesRest...> > {
     };
 
     template<typename TSeparator, typename TRule0>
     struct SeqWithComments<TSeparator, TRule0>
-            : seq<TRule0, TSeparator> {
+            : seq<TSeparator, TRule0 > {
     };
     /** @} */
 
@@ -254,7 +260,7 @@ namespace isched::v0_0_1::gql {
      *  @{ */
 
     /// NamedType (identifier) in our demo grammar.
-    struct GqlTypeName : SeqWithComments<
+    struct TypeName : SeqWithComments<
                 TSeps,
                 pegtl::identifier,
                 TSeps
@@ -335,7 +341,7 @@ namespace isched::v0_0_1::gql {
     /// Field definition: Name ':' Type
     struct GqlTypeField : SeqWithComments<
                 TSeps,
-                GqlTypeName,
+                TypeName,
                 pegtl::string<':'>,
                 GqlType
     >{};
@@ -348,15 +354,180 @@ namespace isched::v0_0_1::gql {
         End
     >{};
 
+    struct ScalarTypeDefinition : seq<
+        TSeps,
+        opt<Description>,
+        TSeps,
+        string<'s','c','a','l','a','r'>,
+        TSeps,
+        Name,
+        TSeps,
+        opt<DirectivesConst>
+    >{};
+
+    struct ImplementsInterfaces;
+
+    struct InterfaceStart: seq<
+        TSeps,
+        ImplementsInterfaces,
+        TSeps,
+        string<'&'>
+    >{};
+
+    struct NamedType : Name {};
+
+    struct ImplementsInterfaces :
+    //sor<
+        SeqWithComments<
+            //InterfaceStart,
+            TSeps,
+            NamedType
+        >
+        // ,
+        // seq<
+        //     InterfaceStart,
+        //     TSeps,
+        //     not_at<one<'{'>>
+        // >
+    //>
+    {};
+
+    struct Type: sor<NonNullType, ListType, NamedType>{};
+
+    struct ListType : sor<
+        seq< one<'['>, NonNullType, one<']'>>,
+        seq< one<'['>, Type, one<']'> >
+    >{};
+
+    struct NonNullType : sor<
+        seq<ListType, one<'!'>>,
+        seq<NamedType, one<'!'>>
+    >{};
+
+    struct Variable : seq<one<'$'>, Name> {};
+
+    struct VariableDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        TSeps,
+        Variable,
+        one<':'>,
+        TSeps,
+        Type,
+        TSeps,
+        opt<DefaultValue>,
+        TSeps,
+        opt<DirectivesConst>
+    >
+    {};
+
+    struct VariableDefinitions : SeqWithComments<
+        TSeps,
+        one<'('>,
+        TSeps,
+        star<VariableDefinition>,
+        one<')'>
+    >
+    {};
+
+    struct BooleanValue : sor<string<'t','r','u','e'>, string<'f','a','l','s','e'>> {};
+
+    struct NullValue : string<'n','u','l','l'> {};
+
+    /// not true or false or null
+    struct EnumValue : Name {};
+
+    struct ListValue: sor<
+        SeqWithComments<TSeps,one<'['>,TSeps,star<Value>,one<']'>>
+            >{};
+
+    struct ObjectField :
+            SeqWithComments<TSeps,Name,TSeps,one<':'>,TSeps,Value>{};
+
+    struct ObjectValue : SeqWithComments<
+        TSeps,
+        one<'{'>,
+        TSeps,
+        star<ObjectField>,
+        one<'}'>
+    >
+    {};
+
+    struct Value: sor
+    <
+        Variable,
+        IntValue,
+        FloatValue,
+        StringValue,
+        BooleanValue,
+        NullValue,
+        EnumValue,
+        ListValue,
+        ObjectValue
+    >{};
+
+    struct DefaultValue: Value {};
+
+    struct InputValueDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        TSeps,
+        Name,
+        one<':'>,
+        TSeps,
+        Type,
+        TSeps,
+        opt<DefaultValue>,
+        TSeps,
+        opt<DirectivesConst>
+    >{};
+
+    struct Argument : SeqWithComments<
+        TSeps,
+        Name,
+        one<':'>,
+        Value
+        >{};
+
+    struct Arguments : SeqWithComments<
+        TSeps,
+        one<'('>,
+        star<Argument>,
+        one<')'>
+    >{};
+
+    struct FieldDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        Name,
+        opt<Arguments>,
+        one<':'>,
+        Type,
+        opt<DirectivesConst>
+    >{};
+
+    struct FieldsDefinition : SeqWithComments<
+        TSeps,
+        one<'{'>,
+        star<FieldDefinition>,
+        one<'}'>
+    >{};
+
+    struct ObjectTypeDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        string<'t', 'y', 'p', 'e'>,
+        Name,
+        opt<ImplementsInterfaces>,
+        opt<DirectivesConst>,
+        FieldsDefinition
+    > {};
+
     /// TypeDefinition (demo): 'type' Name '{' Field+ '}' with separators.
-    struct GqlTypeDef : seq<
-                TSeps,
-                pegtl::string<'t', 'y', 'p', 'e'>,
-                plus<TSeparator>,
-                GqlTypeName,
-                GqlTypeFields
-            > {
-    };
+    struct TypeDefinition : sor<
+        ScalarTypeDefinition,
+        ObjectTypeDefinition
+    >{};
     /** @} */
 
     // ===== GraphQL Core Grammar: Document and Schema (per GraphQL.html) =====
@@ -368,7 +539,6 @@ namespace isched::v0_0_1::gql {
     struct TypeSystemDefinitionOrExtension;
     struct TypeSystemDefinition;
     struct TypeSystemExtension;
-    struct TypeDefinition; // map to GqlTypeDef
     struct DirectiveDefinition; // placeholder
     struct SchemaDefinition;
     struct RootOperationTypeDefinition;
@@ -376,7 +546,6 @@ namespace isched::v0_0_1::gql {
     struct VariablesDefinition; // placeholder for now
     struct Directives; // placeholder for now
     struct SelectionSet; // alias to our subquery structure
-    struct Description; // placeholder (StringValue) – optional where used
 
     /// OperationType: 'query' | 'mutation' | 'subscription'
     struct OperationType : sor<
@@ -459,10 +628,9 @@ namespace isched::v0_0_1::gql {
     struct ExecutableDefinition : sor< OperationDefinition, FragmentDefinition > {};
 
     /// TypeSystemDefinitionOrExtension := TypeSystemDefinition | TypeSystemExtension (disabled)
-    struct TypeSystemDefinitionOrExtension : sor< struct TypeSystemDefinition, struct TypeSystemExtension > {};
+    struct TypeSystemDefinitionOrExtension : sor<TypeSystemDefinition, TypeSystemExtension > {};
 
-    /// TypeDefinition maps to our demo @ref GqlTypeDef
-    struct TypeDefinition : GqlTypeDef {};
+    struct TypeSystemDocument: plus< TypeSystemDefinition > {};
 
     // Placeholders: not implemented — set to failure to avoid empty matches in loops
     struct DirectiveDefinition : failure {};
@@ -473,31 +641,31 @@ namespace isched::v0_0_1::gql {
      *  - `schema { query: Query }`
      *  - `"""desc""" schema @a(flag: true) { query: Q mutation: M }`
      */
-    struct SchemaDefinition : seq<
+    struct SchemaDefinition : SeqWithComments<
             TSeps,
             opt<Description>,
-            TSeps,
             string<'s','c','h','e','m','a'>,
-            TSeps,
             opt<DirectivesConst>,
-            TSeps,
             Beg,
-            TSeps,
             plus< seq< RootOperationTypeDefinition, TSeps > >,
             End,
             TSeps
     > {};
 
-    /// RootOperationTypeDefinition := OperationType ':' NamedType (uses @ref GqlTypeName)
+    /// RootOperationTypeDefinition := OperationType ':' NamedType (uses @ref TypeName)
     struct RootOperationTypeDefinition : SeqWithComments<
             TSeps,
             OperationType,
             one<':'>,
-            GqlTypeName
+            TypeName
     > {};
 
     /// TypeSystemDefinition := SchemaDefinition | TypeDefinition | DirectiveDefinition (disabled)
-    struct TypeSystemDefinition : sor< SchemaDefinition, TypeDefinition, DirectiveDefinition > {};
+    struct TypeSystemDefinition : sor<
+        SchemaDefinition,
+        TypeDefinition,
+        DirectiveDefinition
+        > {};
 
     /// Definition := ExecutableDefinition | TypeSystemDefinitionOrExtension
     struct Definition : sor< ExecutableDefinition, TypeSystemDefinitionOrExtension > {};
@@ -530,11 +698,13 @@ namespace isched::v0_0_1::gql {
     using GqlSelector = parse_tree::selector<
         TRule,
         parse_tree::store_content::on<
-            GqlQuery, Name, GqlTypeDef, GqlTypeField,GqlTypeName,GqlType,GqlTypeRef,
+            GqlQuery, Name, TypeDefinition, GqlTypeField,TypeName,GqlType,GqlTypeRef,
             GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType,
             // New grammar nodes for Document/Schema
             Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
+            // Types
+            ScalarTypeDefinition,FieldDefinition,Arguments, ListType, NonNullType,Type,
             // Description
             Description,
             // Directives/Values

@@ -9,7 +9,7 @@ namespace isched::v0_0_1::backend {
     enum class EErrorCodes {
         OK = 0,
         UNKNOWN_ERROR = 1,
-        MISSING_GQL_RESOLVER = 2
+        MISSING_GQL_RESOLVER = 2, PARSE_ERROR = 3
     };
 }
 
