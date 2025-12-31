@@ -108,7 +108,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
         REQUIRE(!result.is_success());
         REQUIRE(result.data.empty());
         REQUIRE(!result.errors.empty());
-        REQUIRE(result.errors[0].find("Failed to parse query") != std::string::npos);
+        REQUIRE(result.errors[0].message.find("Failed to parse query") != std::string::npos);
     }
 }
 
