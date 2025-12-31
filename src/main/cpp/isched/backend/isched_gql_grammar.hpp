@@ -245,7 +245,7 @@ namespace isched::v0_0_1::gql {
     >{};
 
     /// Built-in scalar: String
-    struct GqlStringType : SeqWithComments<
+    struct StringType : SeqWithComments<
                 TSeps,
                 pegtl::string<'S','t','r','i','n','g'>,
                 TSeps
@@ -282,38 +282,20 @@ namespace isched::v0_0_1::gql {
     /// Optional non-null marker '!'
     struct GqlNonNullType : opt<one<'!'>>{};
 
-    struct GqlBuiltInType;
-    struct GqlType;
-
-    /// List type: '[' Type ']'
-    struct GqlArray : SeqWithComments<
-                TSeps,
-                one<'['>,
-                GqlType,
-                one<']'>
-    >{};
+    struct BuiltInType;
+    struct Type;
 
     /// Reference to a named type (identifier).
-    struct GqlTypeRef: pegtl::identifier{};
-
-    /// Type := (Array | BuiltIn | TypeRef) NonNull?
-    struct GqlType:seq<
-              sor<
-                    GqlArray,
-                    GqlBuiltInType,
-                    GqlTypeRef
-              >,
-              GqlNonNullType
-    >{};
+    struct NamedType : Name {};
 
     /// Any built-in scalar or nested array
-    struct GqlBuiltInType:sor<
-                    GqlStringType,
+    struct BuiltInType:sor<
+                    StringType,
                     GqlTypeInt,
                     GqlTypeFloat,
                     GqlTypeBoolean,
                     GqlTypeID,
-                    GqlArray
+                    ListType
                 >{};
 
     /// Field definition: Name ':' Type
@@ -321,7 +303,7 @@ namespace isched::v0_0_1::gql {
                 TSeps,
                 TypeName,
                 pegtl::string<':'>,
-                GqlType
+                Type
     >{};
 
     /// Field list: '{' Field+ '}'
@@ -352,22 +334,11 @@ namespace isched::v0_0_1::gql {
         string<'&'>
     >{};
 
-    struct NamedType : Name {};
-
     struct ImplementsInterfaces :
-    //sor<
         SeqWithComments<
-            //InterfaceStart,
             TSeps,
             NamedType
         >
-        // ,
-        // seq<
-        //     InterfaceStart,
-        //     TSeps,
-        //     not_at<one<'{'>>
-        // >
-    //>
     {};
 
     struct Type: sor<NonNullType, ListType, NamedType>{};
@@ -478,39 +449,39 @@ namespace isched::v0_0_1::gql {
      *  @brief Minimal executable constructs used in tests (SelectionSet proxy, OperationType).
      *  @{ */
 
-    struct GqlField;
-    struct GqlSelectionSet;
+    struct Field;
+    struct SelectionSet;
 
     /// Alias := Name ':'
     struct Alias : seq< Name, one<':'>, TSeps > {};
 
     /// Selection := Field | FragmentSpread (failure) | InlineFragment (failure)
-    struct GqlSelection : sor< GqlField > {};
+    struct Selection : sor< Field > {};
 
     /** SelectionSet := '{' Selection* '}'
      *  Commas are Ignored tokens, so we use TSeps between selections.
      *  Using star instead of plus to support empty selection sets used in some tests.
      */
-    struct GqlSelectionSet : seq<
+    struct SelectionSet : seq<
         Beg,
         TSeps,
-        star< seq< GqlSelection, TSeps > >,
+        star< seq< Selection, TSeps > >,
         End
     > {};
 
     /// Field := Alias? Name Arguments? Directives? SelectionSet?
-    struct GqlField : SeqWithComments<
+    struct Field : SeqWithComments<
         TSeps,
         opt<Alias>,
         Name,
         opt<Arguments>,
         opt<DirectivesConst>,
-        opt<GqlSelectionSet>
+        opt<SelectionSet>
     > {};
 
     /** GqlSubQuery ~ minimal SelectionSet used in tests:
-     *  Now pointing to more robust GqlSelectionSet. */
-    struct GqlSubQuery : GqlSelectionSet {};
+     *  Now pointing to more robust SelectionSet. */
+    struct GqlSubQuery : SelectionSet {};
 
     /// Optional "query" keyword followed by a @ref GqlSubQuery selection set.
     struct GqlQuery : SeqWithComments<
@@ -580,7 +551,8 @@ namespace isched::v0_0_1::gql {
     >{};
 
     /// SelectionSet proxy used in tests (maps to @ref GqlSubQuery).
-    struct SelectionSet : GqlSubQuery {};
+    // SelectionSet is already defined above at line 494
+    // struct SelectionSet : GqlSubQuery {};
 
     // Placeholders for future expansion (optional in places used)
     struct VariablesDefinition : seq<> {};
@@ -723,9 +695,9 @@ namespace isched::v0_0_1::gql {
     using GqlSelector = parse_tree::selector<
         TRule,
         parse_tree::store_content::on<
-            GqlQuery, Name, TypeDefinition, GqlTypeField,TypeName,GqlType,GqlTypeRef,
-            GqlField, GqlSelectionSet, Alias,
-            GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType,
+            GqlQuery, Name, TypeDefinition, GqlTypeField,TypeName,Type,NamedType,
+            Field, SelectionSet, Alias, Selection,
+            StringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,ListType,GqlNonNullType,
             // New grammar nodes for Document/Schema
             Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
