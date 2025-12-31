@@ -198,8 +198,8 @@ namespace isched::v0_0_1::gql {
     /// Right brace '}' used by selection sets and schema blocks.
     struct End : one<'}'> { };
 
-    /// A single separator unit: whitespace or comment.
-    struct TSeparator : sor<WhitespaceOnly, Comment> { };
+    /// A single separator unit: whitespace, comment, or insignificant comma.
+    struct TSeparator : sor<WhitespaceOnly, Comment, Comma> { };
 
     /// Zero or more separators; used widely between grammar items.
     struct TSeps : star<TSeparator> { };
@@ -407,6 +407,13 @@ namespace isched::v0_0_1::gql {
         opt<DirectivesConst>
     >{};
 
+    struct ArgumentsDefinition : SeqWithComments<
+        TSeps,
+        one<'('>,
+        plus<InputValueDefinition>,
+        one<')'>
+    >{};
+
     struct Argument : SeqWithComments<
         TSeps,
         Name,
@@ -472,7 +479,7 @@ namespace isched::v0_0_1::gql {
         TSeps,
         opt<Description>,
         Name,
-        opt<Arguments>,
+        opt<ArgumentsDefinition>,
         one<':'>,
         Type,
         opt<DirectivesConst>
@@ -671,7 +678,7 @@ namespace isched::v0_0_1::gql {
             Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
             // Types
-            ScalarTypeDefinition,FieldDefinition,Arguments, ListType, NonNullType,Type,
+            ScalarTypeDefinition,FieldDefinition,Arguments, ArgumentsDefinition, InputValueDefinition, ListType, NonNullType,Type,
             // Description
             Description,
             // Directives/Values

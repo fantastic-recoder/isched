@@ -1116,3 +1116,189 @@ TEST_CASE("Parse Example 9 from spec", "[graphql][grammar][positive]") {
 
     REQUIRE(std::get<0>(res) == true);
 }
+
+TEST_CASE("Parse Example 1 from spec", "[graphql][grammar][positive]") {
+    static const char* example1 = R"Qry(
+    {
+      user(id: 4) {
+        name
+      }
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example1, "Example 1");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 1", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 5 from spec", "[graphql][grammar][positive]") {
+    static const char* example5 = R"Qry(
+    {
+      field
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example5, "Example 5");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 5", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 10 from spec", "[graphql][grammar][positive]") {
+    static const char* example10 = R"Qry(
+    {
+      user(id: 4) {
+        id
+        name
+        profilePic(width: 100, height: 50)
+      }
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example10, "Example 10");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 10", true);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 17 from spec", "[graphql][grammar][positive]") {
+    static const char* example17 = R"Qry(
+    query noFragments {
+      user(id: 4) {
+        friends(first: 10) {
+          id
+          name
+          profilePic(size: 50)
+        }
+        mutualFriends(first: 10) {
+          id
+          name
+          profilePic(size: 50)
+        }
+      }
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example17, "Example 17");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 17", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 24 from spec", "[graphql][grammar][positive]") {
+    static const char* example24 = R"Qry(
+    mutation {
+      sendEmail(message: """
+        Hello,
+          World!
+
+        Yours,
+          GraphQL.
+      """)
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example24, "Example 24");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 24", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 26 from spec", "[graphql][grammar][positive]") {
+    static const char* example26 = R"Qry("""
+    This starts with and ends with an empty line,
+    which makes it easier to read.
+    """)Qry";
+
+    using isched::v0_0_1::gql::StringValue;
+    tao::pegtl::string_input in(example26, "Example 26");
+    auto res = generate_ast_and_log<StringValue>(in, "Parsing Example 26", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 35 from spec", "[graphql][grammar][positive]") {
+    static const char* example35 = R"Qry(
+    """
+    A simple GraphQL schema which is well described.
+    """
+    schema {
+      query: Query
+    }
+
+    """
+    Root type for all your query operations
+    """
+    type Query {
+      """
+      Translates a string from a given language into a different language.
+      """
+      translate(
+        "The original language that `text` is provided in."
+        fromLanguage: Language
+
+        "The translated language to be returned."
+        toLanguage: Language
+
+        "The text to be translated."
+        text: String
+      ): String
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example35, "Example 35");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 35", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 39 from spec", "[graphql][grammar][positive]") {
+    static const char* example39 = R"Qry(
+    schema {
+      query: MyQueryRootType
+      mutation: MyMutationRootType
+    }
+
+    type MyQueryRootType {
+      someField: String
+    }
+
+    type MyMutationRootType {
+      setSomeField(to: String): String
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example39, "Example 39");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 39", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Test multiple arguments", "[graphql][grammar][positive]") {
+    std::string s = "(a: 1, b: 2)";
+    using isched::v0_0_1::gql::Arguments;
+    tao::pegtl::string_input in(s, "MultipleArgs");
+    auto res = generate_ast_and_log<Arguments>(in, "Parsing multiple args", true);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Parse Example 43 from spec", "[graphql][grammar][positive]") {
+    static const char* example43 = R"Qry(
+    scalar UUID @specifiedBy(url: "https://tools.ietf.org/html/rfc4122")
+    scalar URL @specifiedBy(url: "https://tools.ietf.org/html/rfc3986")
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example43, "Example 43");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 43", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
