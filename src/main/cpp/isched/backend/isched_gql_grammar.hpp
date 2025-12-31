@@ -232,28 +232,6 @@ namespace isched::v0_0_1::gql {
     };
     /** @} */
 
-    /** @defgroup gql_exec Executable definitions
-     *  @brief Minimal executable constructs used in tests (SelectionSet proxy, OperationType).
-     *  @{ */
-
-    /** GqlSubQuery ~ minimal SelectionSet used in tests:
-     *  `{` Name? GqlSubQuery? `}` allowing nested selections. */
-    struct GqlSubQuery : SeqWithComments<
-                TSeps,
-                Beg,
-                opt<Name>,
-                opt<GqlSubQuery>,
-                End
-            > {
-    };
-
-    /// Optional "query" keyword followed by a @ref GqlSubQuery selection set.
-    struct GqlQuery : SeqWithComments<
-                TSeps,
-                opt<string<'q', 'u', 'e', 'r', 'y'> >,
-                GqlSubQuery
-            > {
-    };
 
     /** @defgroup gql_types Type grammar building blocks (demo)
      *  @brief Basic type system constructs for tests and examples.
@@ -496,6 +474,53 @@ namespace isched::v0_0_1::gql {
         one<')'>
     >{};
 
+    /** @defgroup gql_exec Executable definitions
+     *  @brief Minimal executable constructs used in tests (SelectionSet proxy, OperationType).
+     *  @{ */
+
+    struct GqlField;
+    struct GqlSelectionSet;
+
+    /// Alias := Name ':'
+    struct Alias : seq< Name, one<':'>, TSeps > {};
+
+    /// Selection := Field | FragmentSpread (failure) | InlineFragment (failure)
+    struct GqlSelection : sor< GqlField > {};
+
+    /** SelectionSet := '{' Selection* '}'
+     *  Commas are Ignored tokens, so we use TSeps between selections.
+     *  Using star instead of plus to support empty selection sets used in some tests.
+     */
+    struct GqlSelectionSet : seq<
+        Beg,
+        TSeps,
+        star< seq< GqlSelection, TSeps > >,
+        End
+    > {};
+
+    /// Field := Alias? Name Arguments? Directives? SelectionSet?
+    struct GqlField : SeqWithComments<
+        TSeps,
+        opt<Alias>,
+        Name,
+        opt<Arguments>,
+        opt<DirectivesConst>,
+        opt<GqlSelectionSet>
+    > {};
+
+    /** GqlSubQuery ~ minimal SelectionSet used in tests:
+     *  Now pointing to more robust GqlSelectionSet. */
+    struct GqlSubQuery : GqlSelectionSet {};
+
+    /// Optional "query" keyword followed by a @ref GqlSubQuery selection set.
+    struct GqlQuery : SeqWithComments<
+                TSeps,
+                opt<string<'q', 'u', 'e', 'r', 'y'> >,
+                GqlSubQuery
+            > {
+    };
+    /** @} */
+
     struct FieldDefinition : SeqWithComments<
         TSeps,
         opt<Description>,
@@ -699,6 +724,7 @@ namespace isched::v0_0_1::gql {
         TRule,
         parse_tree::store_content::on<
             GqlQuery, Name, TypeDefinition, GqlTypeField,TypeName,GqlType,GqlTypeRef,
+            GqlField, GqlSelectionSet, Alias,
             GqlStringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,GqlArray,GqlNonNullType,
             // New grammar nodes for Document/Schema
             Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,

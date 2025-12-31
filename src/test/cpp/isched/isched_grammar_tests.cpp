@@ -1098,3 +1098,21 @@ type Query {
     auto res1 = generate_ast_and_log<Document>(in1, "Hello world query", false);
     REQUIRE(std::get<0>(res1) == true);
 }
+
+TEST_CASE("Parse Example 9 from spec", "[graphql][grammar][positive]") {
+    static const char* example9 = R"Qry(
+    {
+      user(id: 4) {
+        id
+        name
+        profilePic(size: 100)
+      }
+    }
+    )Qry";
+
+    using isched::v0_0_1::gql::Document;
+    tao::pegtl::string_input in(example9, "Example 9");
+    auto res = generate_ast_and_log<Document>(in, "Parsing Example 9", false);
+
+    REQUIRE(std::get<0>(res) == true);
+}
