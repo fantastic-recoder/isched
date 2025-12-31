@@ -68,116 +68,108 @@ namespace isched::v0_0_1::gql {
      *  @brief Low-level tokens: whitespace, comments, punctuators, names, and generic Token.
      *  @{ */
 
-    /// GraphQL WhiteSpace — space or horizontal tab. Used by @ref Ignored and @ref TSeparator.
     /// @see GraphQL Spec: "WhiteSpace"
     struct Whitespace : one<' ', '\t'> {};
 
-    /// GraphQL LineTerminator — LF or CR. Used by @ref Ignored and string handling.
+    /// @see GraphQL Spec: "LineTerminator"
     struct LineTerminator : one<'\n', '\r'> {};
 
-    /// Internal convenience: any whitespace (space, tab, or line terminators).
-    struct Ws : sor<LineTerminator,Whitespace> {};
+    /// @see GraphQL Spec: "Ignored"
+    struct WhitespaceOnly : sor<LineTerminator,Whitespace> {};
 
-    /** GraphQL Comment — starts with '#', runs to end-of-line or EOF.
-     *  Example (positive): `# just a comment\n`, `# at EOF`
-     */
+    /// @see GraphQL Spec: "Comment"
     struct Comment : seq< one<'#'>, until<eolf>> {};
 
-    /// GraphQL allows commas as Ignored between tokens (commas act as separators).
+    /// @see GraphQL Spec: "Comma"
     struct Comma : one<','> {};
 
-    /** Legacy/unused Punctuator set retained for backward-compatibility in older parts
-     *  of the demo grammar. The canonical GraphQL punctuators used by @ref Token are
-     *  provided by @ref TokenPunctuator. */
+    /// @see GraphQL Spec: "Punctuator"
     struct Punctuator : one<'!', '$', '&', '(', ')', '*', '+', ',', '-', '.', '/', ';', '<', '=', '>', '?', '@', '[', ']', ':', '.'> {};
 
-    /// ASCII Letter helper (A-Z, a-z) for Name.
+    /// @see GraphQL Spec: "Letter"
     struct Letter : ranges<'A', 'Z', 'a', 'z'> {};
 
-    /// ASCII Digit helper (0-9) for Name and numeric rules.
+    /// @see GraphQL Spec: "Digit"
     struct Digit : ranges<'0', '9'> {};
 
-    /// Non-zero digit helper for numeric grammars (1-9).
+    /// @see GraphQL Spec: "NonZeroDigit"
     struct NonZeroDigit : ranges<'1','9'> {};
 
     /** @defgroup gql_numbers Numeric value literals
      *  @brief GraphQL `IntValue` and `FloatValue` with spec-compliant constraints.
      *  @{ */
 
-    /// IntValueCore := '0' | NonZeroDigit Digit*
-    struct IntValueCore : sor<
+    /// @see GraphQL Spec: "IntegerPart"
+    struct IntegerPart : seq< opt< one<'-'> >, sor<
         one<'0'>,
         seq< NonZeroDigit, star<Digit>>
-    > {};
+    > > {};
 
-    /** IntValue := '-'? IntValueCore, not followed by '.', exponent, letter, or digit.
-     *  - No leading zeros (except the literal `0`).
-     *  - Not a prefix of a Float or Name token due to `not_at` lookahead.
-     *  Examples (ok): `0`, `7`, `42`, `-1`
-     *  Examples (reject): `01`, `+1`, `1.0`, `1e10`
-     */
-    struct IntValue : seq< opt< one<'-'> >, IntValueCore, not_at< sor< one<'.'>, one<'e','E'>, Letter, Digit > > > {};
+    /// @see GraphQL Spec: "IntValue"
+    struct IntValue : seq< IntegerPart, not_at< sor< one<'.'>, one<'e','E'>, Letter, Digit > > > {};
 
-    /// FractionalPart := '.' Digit+
+    /// @see GraphQL Spec: "FractionalPart"
     struct FractionalPart : seq< one<'.'>, plus<Digit> > {};
-    /// ExponentPart := ('e'|'E') ('+'|'-')? Digit+
+
+    /// @see GraphQL Spec: "ExponentPart"
     struct ExponentPart   : seq< one<'e','E'>, opt< one<'+','-'> >, plus<Digit> > {};
 
-    /// FloatValueCore := IntegerPart '.' Digits [Exponent]? | IntegerPart Exponent
+    /// Internal helper for FloatValue
     struct FloatValueCore : sor<
-        // IntegerPart '.' Digits [Exponent]?
-        seq< IntValueCore, FractionalPart, opt<ExponentPart> >,
-        // IntegerPart Exponent
-        seq< IntValueCore, ExponentPart >
+        seq< IntegerPart, FractionalPart, opt<ExponentPart> >,
+        seq< IntegerPart, ExponentPart >
     > {};
 
-    /** FloatValue := '-'? FloatValueCore with `not_at` to avoid trailing alnum or '.'
-     *  Examples (ok): `0.0`, `1.0`, `123.456`, `-0.123`, `1e10`, `10e+3`, `-3E5`, `10.0e-3`
-     *  Examples (reject): `.5`, `1.`, `1e`, `+1.0`, `01.0`, `1.0a`, `1..0`
-     */
-    struct FloatValue : seq< opt< one<'-'> >, FloatValueCore, not_at< sor< Letter, Digit, one<'.'> > > > {};
+    /// @see GraphQL Spec: "FloatValue"
+    struct FloatValue : seq< FloatValueCore, not_at< sor< Letter, Digit, one<'.'> > > > {};
 
     /** @} */
 
     /** @defgroup gql_strings GraphQL String value literals
      *  @brief Quoted strings and block strings with escapes per GraphQL spec.
-     *  Quoted: '"' (StringCharacter | EscapeSequence)* '"'
-     *  Block:  '"""' (BlockStringChar | EscapedTripleQuotes)* '"""'
-     *  Newlines are allowed only in block strings. No indentation normalization is done here.
      *  @{ */
+
+    /// @see GraphQL Spec: "HexDigit"
     struct HexDigit : sor< ranges<'0','9'>, ranges<'A','F'>, ranges<'a','f'> > {};
+
+    /// @see GraphQL Spec: "UnicodeEscape"
     struct UnicodeEscape : seq< one<'u'>, HexDigit, HexDigit, HexDigit, HexDigit > {};
+
+    /// Internal helper for EscapeSequence
     struct SimpleEscapeChar : one<'"','\\','/','b','f','n','r','t'> {};
+
+    /// @see GraphQL Spec: "EscapeSequence"
     struct EscapeSequence : seq< one<'\\'>, sor< SimpleEscapeChar, UnicodeEscape > > {};
+
+    /// @see GraphQL Spec: "StringCharacter"
     struct StringCharacter : seq< not_at< sor< one<'"','\\'>, LineTerminator > >, pegtl::any > {};
+
+    /// Internal helper for StringValue
     struct QuotedString : seq< one<'"'>, star< sor< StringCharacter, EscapeSequence > >, one<'"'> > {};
 
-    // Block string support
+    /// @see GraphQL Spec: "TripleQuote"
     struct TripleQuote : pegtl::string<'"','"','"'> {};
-    // Allow escaping of the triple quote sequence inside a block string
+
+    /// @see GraphQL Spec: "EscapedTripleQuotes"
     struct EscapedTripleQuotes : seq< one<'\\'>, TripleQuote > {};
-    // Any single char that does not start an unescaped triple quote
+
+    /// @see GraphQL Spec: "BlockStringCharacter"
     struct BlockStringChar : seq< not_at< TripleQuote >, pegtl::any > {};
+
+    /// Internal helper for StringValue
     struct BlockString : seq< TripleQuote, star< sor< EscapedTripleQuotes, BlockStringChar > >, TripleQuote > {};
 
-    /** StringValue accepts block strings first to avoid backtracking into quoted strings
-     *  when input begins with '"""'.
-     *  Examples (ok): "" (empty), "hello", "\"quote\"\\\\", """multi\nline"""
-     *  Examples (reject): unclosed quotes, raw newline in quoted, bad escapes like \x, bad \uXXXX
-     */
+    /// @see GraphQL Spec: "StringValue"
     struct StringValue : sor< BlockString, seq< not_at< TripleQuote >, QuotedString > > {};
 
-    /// NameStart: letter or underscore
+    /// @see GraphQL Spec: "NameStart"
     struct NameStart : sor<Letter,one<'_'>>{};
 
-    /// NameContinues: letter, digit, or underscore
-    struct NameContinues : sor<Letter,Digit,one<'_'>>{};
+    /// @see GraphQL Spec: "NameContinue"
+    struct NameContinue : sor<Letter,Digit,one<'_'>>{};
 
-    /** GraphQL Name := [_A-Za-z] [_A-Za-z0-9]*
-     *  Examples (ok): a, A, _, a1, _9, some_name, CamelCase, __typename, foo_bar_123
-     *  Examples (reject): 1a, -a, a-b, a b, a$, a.b, ' (quote)
-     */
-    struct Name: seq<  NameStart, star<NameContinues>  >{};
+    /// @see GraphQL Spec: "Name"
+    struct Name: seq<  NameStart, star<NameContinue>  >{};
 
     // Canonical GraphQL punctuators used by Token
     struct Ellipsis : pegtl::string<'.','.','.'> {};
@@ -207,7 +199,7 @@ namespace isched::v0_0_1::gql {
     struct End : one<'}'> { };
 
     /// A single separator unit: whitespace or comment.
-    struct TSeparator : sor<Ws, Comment> { };
+    struct TSeparator : sor<WhitespaceOnly, Comment> { };
 
     /// Zero or more separators; used widely between grammar items.
     struct TSeps : star<TSeparator> { };
@@ -245,35 +237,35 @@ namespace isched::v0_0_1::gql {
     >{};
 
     /// Built-in scalar: String
-    struct StringType : SeqWithComments<
+    struct String : SeqWithComments<
                 TSeps,
                 pegtl::string<'S','t','r','i','n','g'>,
                 TSeps
     >{};
 
     /// Built-in scalar: Int
-    struct GqlTypeInt : SeqWithComments<
+    struct Int : SeqWithComments<
                 TSeps,
                 pegtl::string<'I','n','t'>,
                 TSeps
     >{};
 
     /// Built-in scalar: Float
-    struct GqlTypeFloat : SeqWithComments<
+    struct Float : SeqWithComments<
                 TSeps,
                 pegtl::string<'F','l','o','a','t'>,
                 TSeps
     >{};
 
     /// Built-in scalar: Boolean
-    struct GqlTypeBoolean : SeqWithComments<
+    struct Boolean : SeqWithComments<
                 TSeps,
                 pegtl::string<'B','o','o','l','e','a','n'>,
                 TSeps
     >{};
 
     /// Built-in scalar: ID
-    struct GqlTypeID : SeqWithComments<
+    struct ID : SeqWithComments<
                 TSeps,
                 pegtl::string<'I','D'>,
                 TSeps
@@ -290,29 +282,13 @@ namespace isched::v0_0_1::gql {
 
     /// Any built-in scalar or nested array
     struct BuiltInType:sor<
-                    StringType,
-                    GqlTypeInt,
-                    GqlTypeFloat,
-                    GqlTypeBoolean,
-                    GqlTypeID,
+                    String,
+                    Int,
+                    Float,
+                    Boolean,
+                    ID,
                     ListType
                 >{};
-
-    /// Field definition: Name ':' Type
-    struct GqlTypeField : SeqWithComments<
-                TSeps,
-                TypeName,
-                pegtl::string<':'>,
-                Type
-    >{};
-
-    /// Field list: '{' Field+ '}'
-    struct GqlTypeFields : SeqWithComments<
-        TSeps,
-        Beg,
-        plus<GqlTypeField>,
-        End
-    >{};
 
     struct ScalarTypeDefinition : seq<
         TSeps,
@@ -600,7 +576,7 @@ namespace isched::v0_0_1::gql {
     /// DirectivesConst := DirectiveConst (TSeps DirectiveConst)* (one or more)
     struct DirectivesConst : seq< DirectiveConst, star< TSeps, DirectiveConst > > {};
     /** @} */
-    // Description: GraphQL allows an optional description preceding many definitions.
+    // @see GraphQL Spec: "Description"
     struct Description : StringValue {};
     // Placeholder disabled to prevent empty matches that could cause non-consuming loops in Document
     struct FragmentDefinition : failure {};
@@ -608,7 +584,7 @@ namespace isched::v0_0_1::gql {
     /** @defgroup gql_schema GraphQL schema/type-system and operation definitions
      *  @brief SchemaDefinition and related rules (plus OperationDefinition used in tests).
      *  @{ */
-    // OperationDefinition: (Description? OperationType Name? VariablesDefinition? Directives? SelectionSet) | SelectionSet
+    /// @see GraphQL Spec: "OperationDefinition"
     struct OperationDefinition : sor<
             SeqWithComments< TSeps,
                 opt<Description>,
@@ -621,10 +597,10 @@ namespace isched::v0_0_1::gql {
             SelectionSet
     >{};
 
-    /// ExecutableDefinition := OperationDefinition | FragmentDefinition (disabled)
+    /// @see GraphQL Spec: "ExecutableDefinition"
     struct ExecutableDefinition : sor< OperationDefinition, FragmentDefinition > {};
 
-    /// TypeSystemDefinitionOrExtension := TypeSystemDefinition | TypeSystemExtension (disabled)
+    /// @see GraphQL Spec: "TypeSystemDefinitionOrExtension"
     struct TypeSystemDefinitionOrExtension : sor<TypeSystemDefinition, TypeSystemExtension > {};
 
     struct TypeSystemDocument: plus< TypeSystemDefinition > {};
@@ -633,11 +609,7 @@ namespace isched::v0_0_1::gql {
     struct DirectiveDefinition : failure {};
     struct TypeSystemExtension : failure {};
 
-    /** SchemaDefinition := Description? 'schema' DirectivesConst? '{' RootOperationTypeDefinition+ '}'
-     *  Examples (ok):
-     *  - `schema { query: Query }`
-     *  - `"""desc""" schema @a(flag: true) { query: Q mutation: M }`
-     */
+    /// @see GraphQL Spec: "SchemaDefinition"
     struct SchemaDefinition : SeqWithComments<
             TSeps,
             opt<Description>,
@@ -649,7 +621,7 @@ namespace isched::v0_0_1::gql {
             TSeps
     > {};
 
-    /// RootOperationTypeDefinition := OperationType ':' NamedType (uses @ref TypeName)
+    /// @see GraphQL Spec: "RootOperationTypeDefinition"
     struct RootOperationTypeDefinition : SeqWithComments<
             TSeps,
             OperationType,
@@ -657,17 +629,17 @@ namespace isched::v0_0_1::gql {
             TypeName
     > {};
 
-    /// TypeSystemDefinition := SchemaDefinition | TypeDefinition | DirectiveDefinition (disabled)
+    /// @see GraphQL Spec: "TypeSystemDefinition"
     struct TypeSystemDefinition : sor<
         SchemaDefinition,
         TypeDefinition,
         DirectiveDefinition
         > {};
 
-    /// Definition := ExecutableDefinition | TypeSystemDefinitionOrExtension
+    /// @see GraphQL Spec: "Definition"
     struct Definition : sor< ExecutableDefinition, TypeSystemDefinitionOrExtension > {};
 
-    /// ExecutableDocument (not used directly in tests): ExecutableDefinition+
+    /// @see GraphQL Spec: "ExecutableDocument"
     struct ExecutableDocument : plus< ExecutableDefinition > {};
 
     /** @defgroup gql_document Top-level Document rule and helpers
@@ -676,10 +648,7 @@ namespace isched::v0_0_1::gql {
     /// Helper: zero or more Ignored tokens
     struct IgnoredMany : star< Ignored > {};
 
-    /** Document := Ignored* (Definition Ignored*)+ EOF
-     *  Requires at least one Definition and consumption to EOF.
-     *  Guarded against empty-matching definitions by setting placeholders to `failure`.
-     */
+    /// @see GraphQL Spec: "Document"
     struct Document : seq<
             IgnoredMany,
             plus< seq< Definition, IgnoredMany > >,
@@ -695,9 +664,9 @@ namespace isched::v0_0_1::gql {
     using GqlSelector = parse_tree::selector<
         TRule,
         parse_tree::store_content::on<
-            GqlQuery, Name, TypeDefinition, GqlTypeField,TypeName,Type,NamedType,
+            GqlQuery, Name, TypeDefinition, FieldDefinition,TypeName,Type,NamedType,
             Field, SelectionSet, Alias, Selection,
-            StringType,GqlTypeInt,GqlTypeFloat,GqlTypeBoolean,GqlTypeID,ListType,GqlNonNullType,
+            String,Int,Float,Boolean,ID,ListType,GqlNonNullType,
             // New grammar nodes for Document/Schema
             Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,

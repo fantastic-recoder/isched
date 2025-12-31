@@ -276,13 +276,13 @@ TEST_CASE("Book grammar test","[graphql][grammar][positive]") {
 
 TEST_CASE("Parse integer array","grammar0") {
     string_input in(std::move(std::string("my_int_array: [Int]!")), "Query");
-    auto myRoot = generate_ast_and_log<GqlTypeField>(in,"Parsing int array",true);
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,"Parsing int array",true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
 TEST_CASE("Parse type reference","grammar0") {
     string_input in(std::move(std::string("appearsIn: [Episode!]!")), "Query");
-    auto myRoot = generate_ast_and_log<GqlTypeField>(in,"Parsing type reference",true);
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,"Parsing type reference",true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
@@ -303,19 +303,19 @@ TEST_CASE("Character type grammar test","grammar0") {
 
 TEST_CASE("Parse float field","grammar0") {
     string_input in(std::move(std::string("rating: Float")), "Query");
-    auto myRoot = generate_ast_and_log<GqlTypeField>(in,"Parsing float field",true);
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,"Parsing float field",true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
 TEST_CASE("Parse boolean field","grammar0") {
     string_input in(std::move(std::string("isPublished: Boolean!")), "Query");
-    auto myRoot = generate_ast_and_log<GqlTypeField>(in,"Parsing boolean field",true);
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,"Parsing boolean field",true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
 TEST_CASE("Parse ID field","grammar0") {
     string_input in(std::move(std::string("nodeId: ID")), "Query");
-    auto myRoot = generate_ast_and_log<GqlTypeField>(in,"Parsing ID field",true);
+    auto myRoot = generate_ast_and_log<FieldDefinition>(in,"Parsing ID field",true);
     REQUIRE(std::get<0>(myRoot) == true );
 }
 
