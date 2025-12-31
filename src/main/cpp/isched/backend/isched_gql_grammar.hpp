@@ -371,10 +371,10 @@ namespace isched::v0_0_1::gql {
 
     struct ObjectValue : SeqWithComments<
         TSeps,
-        one<'{'>,
+        Beg,
         TSeps,
         star<ObjectField>,
-        one<'}'>
+        End
     >
     {};
 
@@ -487,9 +487,9 @@ namespace isched::v0_0_1::gql {
 
     struct FieldsDefinition : SeqWithComments<
         TSeps,
-        one<'{'>,
+        Beg,
         star<FieldDefinition>,
-        one<'}'>
+        End
     >{};
 
     struct ObjectTypeDefinition : SeqWithComments<
