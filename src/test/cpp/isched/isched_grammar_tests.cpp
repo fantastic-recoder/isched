@@ -1081,16 +1081,11 @@ TEST_CASE("Test scalar","[grammar][type-system][positive]") {
     REQUIRE(scalar->children[0]->source == "Scalar UUID");
 }
 
-/*
-#hello: String
-   hello: String
-   name: String
- *
- */
 TEST_CASE("Test hello world Query", "[grammar][executable][positive]") {
     std::string s = R"(
 
 type Query {
+   hello: String
    hello_who(p_name: String): String
 }
 )";

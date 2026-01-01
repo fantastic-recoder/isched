@@ -65,6 +65,7 @@ namespace isched::v0_0_1::backend {
         [[nodiscard]] bool is_success() const noexcept {
             return errors.empty();
         }
+
     };
 }
 #endif //ISCHED_ISCHED_EXECUTION_RESULT_HPP

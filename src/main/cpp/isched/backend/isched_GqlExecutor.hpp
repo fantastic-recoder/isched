@@ -9,6 +9,9 @@
 #include <string>
 #include <memory>
 #include <nlohmann/json_fwd.hpp>
+#include <tao/pegtl/parse_error.hpp>
+#include <tao/pegtl/string_input.hpp>
+#include <tao/pegtl/contrib/parse_tree.hpp>
 
 #include "isched_ExecutionResult.hpp"
 
@@ -22,23 +25,24 @@ namespace isched::v0_0_1::backend {
 
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
 
+    using ResolverFunction = std::function<nlohmann::json(
+        const nlohmann::json& parent,
+        const nlohmann::json& context
+    )>;
+
     /**
      * @brief GraphQL resolver registry for field resolution
      */
     class ResolverRegistry {
     public:
-        using ResolverFunction = std::function<nlohmann::json(
-            const nlohmann::json& parent,
-            const nlohmann::json& context
-        )>;
 
         /**
          * @brief Register field resolver
          * @param field_name Name of field to resolve
          * @param resolver Function to handle field resolution
          */
-        void register_resolver(const std::string& field_name, ResolverFunction resolver) {
-            resolvers_[field_name] = std::move(resolver);
+        void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
+            m_resolvers_map[field_name] = std::move(resolver);
         }
 
         /**
@@ -53,8 +57,8 @@ namespace isched::v0_0_1::backend {
             const nlohmann::json& parent,
             const nlohmann::json& context) const {
 
-            auto it = resolvers_.find(field_name);
-            if (it != resolvers_.end()) {
+            auto it = m_resolvers_map.find(field_name);
+            if (it != m_resolvers_map.end()) {
                 return it->second(parent, context);
             }
 
@@ -70,13 +74,18 @@ namespace isched::v0_0_1::backend {
          * @brief Check if resolver exists for field
          * @param field_name Name of field to check
          * @return true if resolver is registered
+         *
          */
         [[nodiscard]] bool has_resolver(const std::string& field_name) const noexcept {
-            return resolvers_.find(field_name) != resolvers_.end();
+            return m_resolvers_map.find(field_name) != m_resolvers_map.end();
+        }
+
+        const ResolverFunction & get_resolver(const std::string & p_name) const {
+            return m_resolvers_map.find(p_name)->second;
         }
 
     private:
-        std::unordered_map<std::string, ResolverFunction> resolvers_;
+        std::unordered_map<std::string, ResolverFunction> m_resolvers_map;
     };
 
     /**
@@ -117,8 +126,6 @@ namespace isched::v0_0_1::backend {
 
         void setup_builtin_resolvers();
 
-        ExecutionResult load_schema(const std::string && string);
-
         GqlExecutor(GqlExecutor&&) = default;
         GqlExecutor& operator=(GqlExecutor&&) = default;
 
@@ -132,18 +139,33 @@ namespace isched::v0_0_1::backend {
         /**
          * @brief Execute GraphQL query
          * @param p_query Query string
-         * @param p_variables Query variables (optional)
-         * @param p_operation_name Operation name (optional)
-         * @param p_context Execution context
+         * @param p_print_dot
+         * @param p_print_dot
          * @return Execution result
          */
-        [[nodiscard]] ExecutionResult execute(const std::string& p_query,
-                                                      const nlohmann::json& p_variables = {},
-                                                      const std::string& p_operation_name = "",
-                                                      const nlohmann::json& p_context = {}) const;
+        [[nodiscard]] ExecutionResult execute(std::string_view p_query, bool p_print_dot=false) const;
 
         ExecutionResult execute(gql::Document p_doc);
+        ExecutionResult load_schema(const std::string &pSchemaDocument);
+
+        void log_parse_error_exception(const tao::pegtl::string_input<> &  in, ExecutionResult myResult,
+                                       const tao::pegtl::parse_error &e) const;
+
+        void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
+            m_resolvers.register_resolver(field_name, std::move(resolver));
+        }
+
     private:
+        ResolverRegistry m_resolvers;
+        using TNodePtr = std::vector<std::unique_ptr<tao::pegtl::parse_tree::node>>::value_type;
+
+        void process_field_definition(ExecutionResult &p_result,
+                                      const TNodePtr &p_typedef,
+                                      size_t p_idx);
+
+        nlohmann::json process_arguments(const TNodePtr & p_field_node, ExecutionResult & p_execution_result) const;
+
+        void process_field_selection(const TNodePtr &p_selection_set, ExecutionResult &p_result) const;
     };
 }
 // isched::v0_0_1

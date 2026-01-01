@@ -678,7 +678,7 @@ namespace isched::v0_0_1::gql {
             Document, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
             // Types
-            ScalarTypeDefinition,FieldDefinition,Arguments, ArgumentsDefinition, InputValueDefinition, ListType, NonNullType,Type,
+            ScalarTypeDefinition,FieldDefinition,Arguments, Argument, ArgumentsDefinition, InputValueDefinition, ListType, NonNullType,Type,
             // Description
             Description,
             // Directives/Values
