@@ -675,7 +675,7 @@ namespace isched::v0_0_1::gql {
             Field, SelectionSet, Alias, Selection,
             String,Int,Float,Boolean,ID,ListType,GqlNonNullType,
             // New grammar nodes for Document/Schema
-            Document, Definition, ExecutableDefinition, OperationDefinition, OperationType,
+            Document, ExecutableDefinition, OperationDefinition, OperationType,
             SchemaDefinition, RootOperationTypeDefinition,
             // Types
             ScalarTypeDefinition,FieldDefinition,Arguments, ArgumentsDefinition, InputValueDefinition, ListType, NonNullType,Type,
@@ -720,17 +720,20 @@ namespace isched::v0_0_1::gql {
      */
     template<typename TGrammar>
     std::tuple<bool,std::unique_ptr<node>>
-    generate_ast_and_log(pegtl::string_input<>& p_in, const std::string &p_query_name, const bool p_trace_on_success=false) {
+    generate_ast_and_log(pegtl::string_input<>& p_in, const std::string &p_query_name, const bool p_trace_on_success=false, bool p_print_dot=false) {
         std::unique_ptr<node> myRoot = pegtl::parse_tree::parse<
             TGrammar, GqlSelector /*, ns_pegtl::nothing, control*/
         >(p_in);
         spdlog::debug("\n\nAST of \"{}\":\n{}", p_query_name, K_OUTPUT_SEP);
         bool myParsingOk;
         if (myRoot) {
-            pegtl::parse_tree::print_dot(std::cout, *myRoot);
-            std::cout << endl
-                    << K_OUTPUT_SEP << endl
-                    << endl;
+            if (p_print_dot) {
+                pegtl::parse_tree::print_dot(std::cout, *myRoot);
+                std::cout << endl
+                        << K_OUTPUT_SEP << endl
+                        << endl;
+                std::cout.flush();
+            }
             myParsingOk = true;
             if (p_trace_on_success) {
                 p_in.restart();
