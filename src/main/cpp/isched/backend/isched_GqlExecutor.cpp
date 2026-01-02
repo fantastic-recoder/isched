@@ -8,7 +8,6 @@
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <tao/pegtl.hpp>
-#include <isched/backend/isched_GqlParser.hpp>
 
 #include "isched_gql_grammar.hpp"
 
@@ -39,6 +38,20 @@ namespace isched::v0_0_1::backend {
         }
     }
 
+    json GqlExecutor::extract_argument_value(const TNodePtr &p_arg, ExecutionResult& p_execution_result) const {
+        json my_ret_val;
+        if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
+            const std::string_view my_ret_val_str(p_arg->string_view());
+            if (my_ret_val_str.front() == '"' && my_ret_val_str.back() == '"') {
+                my_ret_val = my_ret_val_str.substr(1, my_ret_val_str.length()-2);
+            }
+        } else {
+            p_execution_result.errors.push_back({EErrorCodes::PARSE_ERROR,
+                format("Unknown argument value type: {}.", p_arg->type)});
+        }
+        return my_ret_val;
+    }
+
     json GqlExecutor::process_arguments(const TNodePtr &p_field_node, ExecutionResult &p_execution_result) const {
         json my_ret_val = json::object();
         if (p_field_node->children.size() > 1) {
@@ -59,7 +72,7 @@ namespace isched::v0_0_1::backend {
                     continue;
                 }
                 const auto& myArgName = myArg->children[0]->string_view();
-                my_ret_val[myArgName] = myArg->children[1]->string_view();
+                my_ret_val[myArgName] = extract_argument_value(myArg->children[1], p_execution_result);
             }
         }
         return my_ret_val;

@@ -66,6 +66,6 @@ namespace isched::v0_0_1::backend {
         REQUIRE(myReply.data["data"]["hello"].is_array());
         REQUIRE(myReply.data["data"]["hello"][0] == "Hello, World!");
         REQUIRE(myReply.data["data"]["hello_who"].is_array());
-        REQUIRE(myReply.data["data"]["hello_who"][0] == "Hello, \"Josef\"!");
+        REQUIRE(myReply.data["data"]["hello_who"][0] == "Hello, Josef!");
     }
 }

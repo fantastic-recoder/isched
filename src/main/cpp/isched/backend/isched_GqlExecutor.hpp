@@ -163,6 +163,8 @@ namespace isched::v0_0_1::backend {
                                       const TNodePtr &p_typedef,
                                       size_t p_idx);
 
+        nlohmann::json extract_argument_value(const TNodePtr &p_arg, ExecutionResult &p_execution_result) const;
+
         nlohmann::json process_arguments(const TNodePtr & p_field_node, ExecutionResult & p_execution_result) const;
 
         void process_field_selection(const TNodePtr &p_selection_set, ExecutionResult &p_result) const;
