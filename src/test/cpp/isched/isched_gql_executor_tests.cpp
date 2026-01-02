@@ -141,7 +141,24 @@ namespace isched::v0_0_1::backend {
         SECTION("BlockString") {
             const auto reply = proc.execute(R"(query { test_args(s: """line1""") } )", true);
             REQUIRE(reply.is_success());
-            //REQUIRE(reply.data["test_args"]["s"].get<std::string>() == "line1");
+            REQUIRE(reply.data["test_args"]["s"].get<std::string>() == "line1");
+        }
+    }
+
+    TEST_CASE("Test statefull resolver","[isched_gql_executor_tests]") {
+        GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
+        struct Summator {
+            double sum = 0;
+        } summator;
+        proc.register_resolver("summ", [&summator](const json& args, const json&) -> json {
+            summator.sum += args["i"].get<double>();
+            return json{summator.sum}[0];
+        });
+        SECTION("Test stateful resolver") {
+            const auto reply=proc.execute("query { summ(i: 1) summ(i: 2) summ(i: 3) }", true);
+            REQUIRE(reply.is_success());
+            REQUIRE(summator.sum == double{6.0});
+            REQUIRE(reply.data["summ"].get<double>() == double{6.0});
         }
     }
 }
