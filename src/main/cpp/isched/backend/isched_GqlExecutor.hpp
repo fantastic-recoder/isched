@@ -13,6 +13,7 @@
 #include <tao/pegtl/parse_error.hpp>
 #include <tao/pegtl/string_input.hpp>
 #include <tao/pegtl/contrib/parse_tree.hpp>
+#include <utility>
 
 #include "isched_ExecutionResult.hpp"
 
@@ -43,7 +44,7 @@ namespace isched::v0_0_1::backend {
          * @param resolver Function to handle field resolution
          */
         void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
-            m_resolvers_map[field_name] = std::move(resolver);
+            m_resolvers_map[field_name] = move(resolver);
         }
 
         /**
@@ -110,16 +111,13 @@ namespace isched::v0_0_1::backend {
          * @param database Database manager for data access
          * @param config Execution configuration
          */
-        explicit GqlExecutor(std::shared_ptr<DatabaseManager> database, Config config);
+        GqlExecutor(std::shared_ptr<DatabaseManager> database, Config config);
 
         /**
-         * @brief Construct GraphQL executor with the default configuration
+         * @brief Construct GraphQL executor with default configuration
          * @param database Database manager for data access
          */
-        explicit GqlExecutor(std::shared_ptr<DatabaseManager> database) {
-            GqlExecutor(database, Config{});
-        }
-
+        explicit GqlExecutor(std::shared_ptr<DatabaseManager> database);
 
         // Non-copyable, movable
         GqlExecutor(const GqlExecutor&) = delete;
@@ -146,15 +144,14 @@ namespace isched::v0_0_1::backend {
          */
         [[nodiscard]] ExecutionResult execute(std::string_view p_query, bool p_print_dot=false) const;
 
-        ExecutionResult execute(gql::Document p_doc);
-        ExecutionResult load_schema(const std::string &pSchemaDocument);
+        ExecutionResult load_schema(const std::string &pSchemaDocument, bool p_print_dot=false);
 
         void log_parse_error_exception(const tao::pegtl::string_input<> &  in, ExecutionResult myResult,
                                        const tao::pegtl::parse_error &e) const;
 
 
         void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
-            m_resolvers.register_resolver(field_name, std::move(resolver));
+            m_resolvers.register_resolver(field_name, move(resolver));
         }
 
     private:

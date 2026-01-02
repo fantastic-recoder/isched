@@ -29,7 +29,7 @@ namespace isched::v0_0_1::backend {
         // Minimal empty document for now; parser not required for skeleton
         gql::Document doc; // NOTE: structure defined by grammar; empty is acceptable for skeleton
 
-        json result = proc.execute(doc).data;
+        json result = proc.execute("").data;
         // For a skeleton test, just assert it's a JSON value (object/array/etc.).
         // The current implementation returns default-constructed json which is null; accept that but ensure it is a json type.
         // Adjust expectations in future when load_schema() gains behavior.

@@ -16,7 +16,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     GqlExecutor executor(database);
     
     SECTION("Execute hello resolver") {
-        std::string query = "{ hello }";
+        std::string query = "type Query{ hello: String }";
         executor.register_resolver("hello",[](const json& ,const json& )
             ->json{ return json{"Hello, GraphQL!"}[0];});
         auto result = executor.load_schema(query);
@@ -31,7 +31,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     }
 
     SECTION("Execute hello resolver with single query") {
-        std::string query = "{ hello }";
+        std::string query = "type Query { hello : String }";
         executor.register_resolver("hello",[](const json& ,const json& )
             ->json{ return json{"Hello, GraphQL!"}[0];});
         auto result = executor.load_schema(query);
@@ -51,10 +51,10 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("version"));
-        REQUIRE(result.data["version"] == "1.0.0");
+        REQUIRE(result.data["version"] == "0.0.1");
         REQUIRE(result.errors.empty());
     }
-    
+
     SECTION("Execute uptime resolver") {
         std::string query = "{ uptime }";
         auto result = executor.load_schema(query);
@@ -196,13 +196,12 @@ TEST_CASE("GraphQL Error Handling", "[graphql][errors]") {
     
     SECTION("Error details are informative - test basic error handling") {
         std::string query = "{ nonExistentField }";
-        auto result = executor.load_schema(query);
+        auto result = executor.load_schema(query,true);
         
-        // Current implementation doesn't generate proper errors for unknown fields
-        // It just returns null values
-        REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("nonExistentField"));
+        REQUIRE(result.is_success()==false);
+        REQUIRE(!result.data.contains("nonExistentField"));
         REQUIRE(result.data["nonExistentField"].is_null());
+        REQUIRE(result.errors[0].code==EErrorCodes::EXECUTABLE_DEF_NOT_ALLOWED);
     }
 }
 
