@@ -23,6 +23,9 @@ namespace isched::v0_0_1::backend {
     void GqlExecutor::process_field_definition(ExecutionResult& p_result,
                                                const TNodePtr &p_typedef, size_t p_idx) {
         const auto& myField = p_typedef->children[p_idx];
+        if (myField->type != "isched::v0_0_1::gql::FieldDefinition") {
+            return;
+        }
         if (myField->children.empty() ) {
             p_result.errors.push_back(ExecutionError{
                 EErrorCodes::PARSE_ERROR,"Incomplete Query field definition"});
@@ -41,14 +44,47 @@ namespace isched::v0_0_1::backend {
     json GqlExecutor::extract_argument_value(const TNodePtr &p_arg, ExecutionResult& p_execution_result) const {
         json my_ret_val;
         if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
-            const std::string_view my_ret_val_str(p_arg->string_view());
-            if (my_ret_val_str.front() == '"' && my_ret_val_str.back() == '"') {
+            const std::string my_ret_val_str(p_arg->string_view());
+            if (my_ret_val_str.starts_with("\"\"\"")) {
+                 my_ret_val = my_ret_val_str.substr(3, my_ret_val_str.length() - 6);
+            } else if (my_ret_val_str.length() >= 2 && my_ret_val_str.front() == '"') {
                 my_ret_val = my_ret_val_str.substr(1, my_ret_val_str.length()-2);
             } else { my_ret_val = my_ret_val_str; }
         } else if (p_arg->type == "isched::v0_0_1::gql::IntValue") {
             const std::string_view my_ret_val_str(p_arg->string_view());
-            my_ret_val = std::stoi(std::string(my_ret_val_str));
-        } else{
+            my_ret_val = std::stoll(std::string(my_ret_val_str));
+        } else if (p_arg->type == "isched::v0_0_1::gql::FloatValue") {
+            const std::string_view my_ret_val_str(p_arg->string_view());
+            my_ret_val = std::stod(std::string(my_ret_val_str));
+        } else if (p_arg->type == "isched::v0_0_1::gql::BooleanValue") {
+            const std::string_view my_ret_val_str(p_arg->string_view());
+            my_ret_val = (my_ret_val_str == "true");
+        } else if (p_arg->type == "isched::v0_0_1::gql::NullValue") {
+            my_ret_val = nullptr;
+        } else if (p_arg->type == "isched::v0_0_1::gql::EnumValue") {
+            my_ret_val = std::string(p_arg->string_view());
+        } else if (p_arg->type == "isched::v0_0_1::gql::ListValue") {
+            my_ret_val = json::array();
+            for (const auto& myChild : p_arg->children) {
+                my_ret_val.push_back(extract_argument_value(myChild, p_execution_result));
+            }
+        } else if (p_arg->type == "isched::v0_0_1::gql::ObjectValue") {
+            my_ret_val = json::object();
+            for (const auto& myField : p_arg->children) {
+                if (myField->type == "isched::v0_0_1::gql::ObjectField") {
+                    const auto myFieldName = std::string(myField->children[0]->string_view());
+                    my_ret_val[myFieldName] = extract_argument_value(myField->children[1], p_execution_result);
+                }
+            }
+        } else if (p_arg->type == "isched::v0_0_1::gql::Value") {
+             if (!p_arg->children.empty()) {
+                 return extract_argument_value(p_arg->children[0], p_execution_result);
+             }
+        } else if (p_arg->type == "isched::v0_0_1::gql::Argument") {
+             if (p_arg->children.size() > 1) {
+                 return extract_argument_value(p_arg->children[1], p_execution_result);
+             }
+        } else {
             p_execution_result.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
                 format("Unknown argument value type: {}.", p_arg->type)});
         }
@@ -74,7 +110,7 @@ namespace isched::v0_0_1::backend {
                     p_execution_result.errors.push_back(ExecutionError{.code=EErrorCodes::PARSE_ERROR, .message="Empty argument"});
                     continue;
                 }
-                const auto& myArgName = myArg->children[0]->string_view();
+                const auto myArgName = std::string(myArg->children[0]->string_view());
                 my_ret_val[myArgName] = extract_argument_value(myArg->children[1], p_execution_result);
             }
         }
@@ -137,19 +173,16 @@ namespace isched::v0_0_1::backend {
                 return myResult;
             }
             m_current_schema=std::move(aRoot);
-            if (m_current_schema && !m_current_schema->children.empty() && !m_current_schema->children[0]->children.empty()) {
-                const auto& myTypedef = m_current_schema->children[0]->children[0];
-                if (myTypedef->type != "isched::v0_0_1::gql::TypeDefinition") {
-                    myResult.errors.push_back(ExecutionError{
-                        EErrorCodes::PARSE_ERROR,
-                        "Expected with a type definition"
-                    });
-                }
-                else {
-                    const auto myTypedefName= myTypedef->children[0]->string_view();
-                    if (myTypedefName == "Query") {
-                        for (size_t myIdx=1; myIdx<myTypedef->children.size(); ++myIdx) {
-                            process_field_definition(myResult, myTypedef, myIdx);
+            if (m_current_schema && !m_current_schema->children.empty()) {
+                const TNodePtr& myDoc = (m_current_schema->type == "isched::v0_0_1::gql::Document") ? m_current_schema : m_current_schema->children[0];
+                
+                for (const auto& myDefNode : myDoc->children) {
+                    if (myDefNode->type == "isched::v0_0_1::gql::TypeDefinition" || myDefNode->type == "isched::v0_0_1::gql::ObjectTypeDefinition") {
+                        const auto myTypedefName= myDefNode->children[0]->string_view();
+                        if (myTypedefName == "Query") {
+                            for (size_t myIdx=1; myIdx<myDefNode->children.size(); ++myIdx) {
+                                 process_field_definition(myResult, myDefNode, myIdx);
+                            }
                         }
                     }
                 }

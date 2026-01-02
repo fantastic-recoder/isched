@@ -920,6 +920,46 @@ schema { query: Query })";
     }
 }
 
+
+TEST_CASE("Test list value argument/input value","[grammar][type-system][positive]") {
+    SECTION("ListValue") {
+        std::string s = "[1,2,3]";
+        string_input in(s, "ListValue");
+        auto res = generate_ast_and_log<ListValue>(in, "ListValue", false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+    SECTION("ListValuePlusWs") {
+        std::string s = "[1,2,3 , 4 ]";
+        string_input in(s, "ListValuePlusWs");
+        auto res = generate_ast_and_log<ListValue>(in, "ListValuePlusWs", false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+    SECTION("Value of List of Int") {
+        std::string s = "[1,2,3]";
+        string_input in(s, "Value");
+        auto res = generate_ast_and_log<Value>(in, "Value", false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+    SECTION("Arguments value with list of ints") {
+        std::string s = "(l: [1, 2])";
+        string_input in(s, "Arguments");
+        auto res = generate_ast_and_log<Arguments>(in, "Arguments", false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+    SECTION("OperationDefinition with list of ints") {
+        std::string s = "query { test_args(l: [1, 2]) }";
+        string_input in(s, "OperationDefinition");
+        auto res = generate_ast_and_log<OperationDefinition>(in, "OperationDefinition", false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+    SECTION("Document ListValueArgument") {
+        std::string s = "query { test_args(l: [1, 2]) }";
+        string_input in(s, "ListValueArgument");
+        auto res = generate_ast_and_log<Document>(in, "ListValueArgument", false);
+        REQUIRE(std::get<0>(res) == true);
+    }
+}
+
 // ===== Tests for SchemaDefinition with Directives =====
 namespace isched { namespace v0_0_1 { namespace gql {
     struct JustSchemaDefinition : tao::pegtl::seq< SchemaDefinition, tao::pegtl::eof > {};

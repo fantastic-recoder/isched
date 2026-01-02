@@ -232,42 +232,42 @@ namespace isched::v0_0_1::gql {
     /// NamedType (identifier) in our demo grammar.
     struct TypeName : SeqWithComments<
                 TSeps,
-                pegtl::identifier,
+                identifier,
                 TSeps
     >{};
 
     /// Built-in scalar: String
     struct String : SeqWithComments<
                 TSeps,
-                pegtl::string<'S','t','r','i','n','g'>,
+                string<'S','t','r','i','n','g'>,
                 TSeps
     >{};
 
     /// Built-in scalar: Int
     struct Int : SeqWithComments<
                 TSeps,
-                pegtl::string<'I','n','t'>,
+                string<'I','n','t'>,
                 TSeps
     >{};
 
     /// Built-in scalar: Float
     struct Float : SeqWithComments<
                 TSeps,
-                pegtl::string<'F','l','o','a','t'>,
+                string<'F','l','o','a','t'>,
                 TSeps
     >{};
 
     /// Built-in scalar: Boolean
     struct Boolean : SeqWithComments<
                 TSeps,
-                pegtl::string<'B','o','o','l','e','a','n'>,
+                string<'B','o','o','l','e','a','n'>,
                 TSeps
     >{};
 
     /// Built-in scalar: ID
     struct ID : SeqWithComments<
                 TSeps,
-                pegtl::string<'I','D'>,
+                string<'I','D'>,
                 TSeps
     >{};
 
@@ -334,14 +334,10 @@ namespace isched::v0_0_1::gql {
     struct VariableDefinition : SeqWithComments<
         TSeps,
         opt<Description>,
-        TSeps,
         Variable,
         one<':'>,
-        TSeps,
         Type,
-        TSeps,
         opt<DefaultValue>,
-        TSeps,
         opt<DirectivesConst>
     >
     {};
@@ -363,7 +359,7 @@ namespace isched::v0_0_1::gql {
     struct EnumValue : Name {};
 
     struct ListValue: sor<
-        SeqWithComments<TSeps,one<'['>,TSeps,star<Value>,one<']'>>
+        SeqWithComments<TSeps,one<'['>,star<seq<Value,TSeps>>,one<']'>>
             >{};
 
     struct ObjectField :
@@ -396,21 +392,17 @@ namespace isched::v0_0_1::gql {
     struct InputValueDefinition : SeqWithComments<
         TSeps,
         opt<Description>,
-        TSeps,
         Name,
         one<':'>,
-        TSeps,
         Type,
-        TSeps,
         opt<DefaultValue>,
-        TSeps,
         opt<DirectivesConst>
     >{};
 
     struct ArgumentsDefinition : SeqWithComments<
         TSeps,
         one<'('>,
-        plus<InputValueDefinition>,
+        plus<seq<InputValueDefinition,TSeps>>,
         one<')'>
     >{};
 
@@ -683,6 +675,7 @@ namespace isched::v0_0_1::gql {
             Description,
             // Directives/Values
             DirectiveConst, DirectivesConst, ArgumentsConst, ArgumentConst, ValueConst,
+            BooleanValue, NullValue, EnumValue, ListValue, ObjectValue, ObjectField,
             TrueKeyword, FalseKeyword, NullKeyword,
             // Numeric terminals
             IntValue, FloatValue,
