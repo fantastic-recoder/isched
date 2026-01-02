@@ -3,7 +3,7 @@ target_link_libraries(isched_grammar_tests PRIVATE taocpp::pegtl restbed::restbe
 add_test(NAME isched_grammar_tests COMMAND isched_grammar_tests)
 
 add_executable(isched_graphql_tests isched_graphql_tests.cpp)
-target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3)
+target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
 add_executable(isched_gql_executor_tests isched_gql_executor_tests.cpp)
@@ -57,11 +57,11 @@ target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain 
 add_test(NAME test_server_startup COMMAND test_server_startup)
 
 add_executable(test_builtin_schema ../integration/test_builtin_schema.cpp)
-target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
+target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url taocpp::pegtl)
 add_test(NAME test_builtin_schema COMMAND test_builtin_schema)
 
 add_executable(test_builtin_schema_simple ../integration/test_builtin_schema_simple.cpp)
-target_link_libraries(test_builtin_schema_simple PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
+target_link_libraries(test_builtin_schema_simple PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url taocpp::pegtl)
 add_test(NAME test_builtin_schema_simple COMMAND test_builtin_schema_simple)
 
 add_executable(test_health_monitoring ../integration/test_health_monitoring.cpp)

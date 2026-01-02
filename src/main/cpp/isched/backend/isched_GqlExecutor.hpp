@@ -9,6 +9,7 @@
 #include <string>
 #include <memory>
 #include <nlohmann/json_fwd.hpp>
+
 #include <tao/pegtl/parse_error.hpp>
 #include <tao/pegtl/string_input.hpp>
 #include <tao/pegtl/contrib/parse_tree.hpp>
@@ -156,8 +157,10 @@ namespace isched::v0_0_1::backend {
         }
 
     private:
-        ResolverRegistry m_resolvers;
         using TNodePtr = std::vector<std::unique_ptr<tao::pegtl::parse_tree::node>>::value_type;
+
+        ResolverRegistry m_resolvers;
+        TNodePtr m_current_schema;
 
         void process_field_definition(ExecutionResult &p_result,
                                       const TNodePtr &p_typedef,

@@ -47,11 +47,11 @@ namespace isched::v0_0_1::backend {
         REQUIRE(myResult.errors[0].code==EErrorCodes::MISSING_GQL_RESOLVER);
         REQUIRE(myResult.errors[1].code==EErrorCodes::MISSING_GQL_RESOLVER);
         proc.register_resolver("hello", [](const json&,const json&) {
-            return json{"Hello, World!"};
+            return json{"Hello, World!"}[0];
         });
         proc.register_resolver("hello_who", [](const json& args,const json&) {
             std::cout << "hello_who resolver called with args: " << args.dump(4) << std::endl;
-            return json{std::format("Hello, {}!",args["who"].get<std::string>())};
+            return json{std::format("Hello, {}!",args["who"].get<std::string>())}[0];
         });
         const auto myResult2=proc.load_schema(schema_str);
         REQUIRE(myResult2.is_success());
@@ -63,9 +63,26 @@ namespace isched::v0_0_1::backend {
         REQUIRE(myReply.data.is_object());
         std::cerr << "myReply.data: " << myReply.data.dump(4) << std::endl;
         std::cerr.flush();
-        REQUIRE(myReply.data["data"]["hello"].is_array());
-        REQUIRE(myReply.data["data"]["hello"][0] == "Hello, World!");
-        REQUIRE(myReply.data["data"]["hello_who"].is_array());
-        REQUIRE(myReply.data["data"]["hello_who"][0] == "Hello, Josef!");
+        REQUIRE(myReply.data["hello"].is_string());
+        REQUIRE(myReply.data["hello"] == "Hello, World!");
+        REQUIRE(myReply.data["hello_who"].is_string());
+        REQUIRE(myReply.data["hello_who"] == "Hello, Josef!");
+    }
+
+    TEST_CASE("Test int resolver","[gql][processor][smoke]") {
+        GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
+        proc.register_resolver("multi", [](const json& args,const json&)->json {
+            int my_retval = args["p_i"].get<int>();
+            return json{my_retval*2}[0];
+        });
+        const auto myResult=proc.load_schema("type Query { multi(p_i: Int): Int }");
+        REQUIRE(myResult.is_success()==true);
+        const auto myReply= proc.execute(R"(query { multi(p_i: 2) } )", true);
+        for (int myIdx=0;auto& err : myReply.errors) {
+            std::cerr << "error "<< std::setw(3) << ++myIdx <<"   |" << err.message << "| code="  << std::endl << std::flush;
+        }
+        REQUIRE(myReply.is_success()) ;
+        REQUIRE(myReply.data["multi"].is_number_integer());
+        REQUIRE(myReply.data["multi"].get<int>()==4);
     }
 }
