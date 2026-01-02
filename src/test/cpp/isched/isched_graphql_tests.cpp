@@ -1,3 +1,4 @@
+#include <iostream>
 #include <catch2/catch_test_macros.hpp>
 #include <isched/backend/isched_GqlExecutor.hpp>
 #include <isched/backend/isched_DatabaseManager.hpp>
@@ -5,6 +6,7 @@
 #include <memory>
 
 using namespace isched::v0_0_1::backend;
+using nlohmann::json;
 
 TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     // Create a database manager for testing
@@ -15,17 +17,37 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     
     SECTION("Execute hello resolver") {
         std::string query = "{ hello }";
+        executor.register_resolver("hello",[](const json& ,const json& )
+            ->json{ return json{"Hello, GraphQL!"}[0];});
         auto result = executor.load_schema(query);
-        
         REQUIRE(result.is_success());
+
+        result = executor.execute("query {hello}");
+        REQUIRE(result.is_success());
+        std::cout<< result.data.dump(4)<< std::flush;
         REQUIRE(result.data.contains("hello"));
         REQUIRE(result.data["hello"] == "Hello, GraphQL!");
         REQUIRE(result.errors.empty());
     }
-    
+
+    SECTION("Execute hello resolver with single query") {
+        std::string query = "{ hello }";
+        executor.register_resolver("hello",[](const json& ,const json& )
+            ->json{ return json{"Hello, GraphQL!"}[0];});
+        auto result = executor.load_schema(query);
+        REQUIRE(result.is_success());
+
+        result = executor.execute("{hello}",true);
+        REQUIRE(result.is_success());
+        std::cout<< result.data.dump(4)<< std::flush;
+        REQUIRE(result.data.contains("hello"));
+        REQUIRE(result.data["hello"] == "Hello, GraphQL!");
+        REQUIRE(result.errors.empty());
+    }
+
     SECTION("Execute version resolver") {
         std::string query = "{ version }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("version"));

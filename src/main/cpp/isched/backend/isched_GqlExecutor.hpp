@@ -152,6 +152,7 @@ namespace isched::v0_0_1::backend {
         void log_parse_error_exception(const tao::pegtl::string_input<> &  in, ExecutionResult myResult,
                                        const tao::pegtl::parse_error &e) const;
 
+
         void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
             m_resolvers.register_resolver(field_name, std::move(resolver));
         }
@@ -165,6 +166,9 @@ namespace isched::v0_0_1::backend {
         void process_field_definition(ExecutionResult &p_result,
                                       const TNodePtr &p_typedef,
                                       size_t p_idx);
+
+        bool process_operation_definitions(ExecutionResult &p_result,
+                                           const TNodePtr &myOperation) const;
 
         nlohmann::json extract_argument_value(const TNodePtr &p_arg, ExecutionResult &p_execution_result) const;
 

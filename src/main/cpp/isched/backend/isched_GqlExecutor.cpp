@@ -202,6 +202,36 @@ namespace isched::v0_0_1::backend {
         });
     }
 
+    bool GqlExecutor::process_operation_definitions(ExecutionResult& p_result, const TNodePtr &myOperation) const {
+        if (myOperation->type != "isched::v0_0_1::gql::OperationDefinition") {
+            p_result.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
+                std::format("Expected with an operation definition, got {}.", myOperation->type)});
+            return true;
+        }
+        if (myOperation->children.empty()) {
+            p_result.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Empty operation definition"});
+            return true;
+        }
+        const auto a_op_type = myOperation->children[0]->string_view();
+        if (a_op_type=="query") {
+            for (size_t myIdx=1; myIdx<myOperation->children.size(); ++myIdx) {
+                if (myOperation->children[myIdx]->type == "isched::v0_0_1::gql::SelectionSet") {
+                    process_field_selection(myOperation->children[myIdx], p_result);
+                }else {
+                    p_result.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
+                        std::format("Expected with a selection set, got {}.", myOperation->children[myIdx]->type)});
+                }
+            }
+
+        } else if (myOperation->children[0]->type == "isched::v0_0_1::gql::SelectionSet") {
+            process_field_selection(myOperation->children[0], p_result);
+        } else {
+            p_result.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
+                std::format("Only query operations are supported, got {}.", a_op_type)});
+        }
+        return false;
+    }
+
     ExecutionResult GqlExecutor::execute(const std::string_view p_query, const bool p_print_dot) const {
         static const std::string aName = "ExecutableDocument";
         // Set up the states, here a single std::string as that is
@@ -236,30 +266,7 @@ namespace isched::v0_0_1::backend {
                     return myResult;
                 }
                 for (const auto& myOperation : myChild->children) {
-                    if (myOperation->type != "isched::v0_0_1::gql::OperationDefinition") {
-                        myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
-                            std::format("Expected with an operation definition, got {}.", myOperation->type)});
-                        return myResult;
-                    }
-                    if (myOperation->children.empty()) {
-                        myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Empty operation definition"});
-                        return myResult;
-                    }
-                    const auto a_op_type = myOperation->children[0]->string_view();
-                    if (a_op_type=="query") {
-                        for (size_t myIdx=1; myIdx<myOperation->children.size(); ++myIdx) {
-                            if (myOperation->children[myIdx]->type == "isched::v0_0_1::gql::SelectionSet") {
-                                process_field_selection(myOperation->children[myIdx], myResult);
-                            }else {
-                                myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
-                                    std::format("Expected with a selection set, got {}.", myOperation->children[myIdx]->type)});
-                            }
-                        }
-
-                    } else {
-                        myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR,
-                            std::format("Only query operations are supported, got {}.", a_op_type)});
-                    }
+                    process_operation_definitions(myResult, myOperation);
                 }
             }
         } catch (const tao::pegtl::parse_error &e) {
