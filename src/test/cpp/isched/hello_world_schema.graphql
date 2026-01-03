@@ -1,4 +1,4 @@
 type Query {
-  hello: String
+  hello_ping: String
   hello_who(p_name: String): String
 }

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <string>
 #include <memory>
+#include <format>
 #include <nlohmann/json_fwd.hpp>
 
 #include <tao/pegtl/parse_error.hpp>
@@ -28,8 +29,8 @@ namespace isched::v0_0_1::backend {
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
 
     using ResolverFunction = std::function<nlohmann::json(
-        const nlohmann::json& parent,
-        const nlohmann::json& context
+        const nlohmann::json& p_args,
+        const nlohmann::json& p_ctx
     )>;
 
     /**
@@ -64,7 +65,7 @@ namespace isched::v0_0_1::backend {
                 return it->second(parent, context);
             }
 
-            // Default resolver - try to extract field from parent object
+            // Default resolver - try to extract field from p_args object
             if (parent.is_object() && parent.contains(field_name)) {
                 return parent[field_name];
             }
@@ -95,6 +96,10 @@ namespace isched::v0_0_1::backend {
      */
     class GqlExecutor {
     public:
+
+        using TDbPtr = std::shared_ptr<DatabaseManager>;
+        using TNodePtr = std::vector<std::unique_ptr<tao::pegtl::parse_tree::node>>::value_type;
+
         /**
          * @brief Execution configuration
          */
@@ -108,10 +113,10 @@ namespace isched::v0_0_1::backend {
 
         /**
          * @brief Construct GraphQL executor
-         * @param database Database manager for data access
+         * @param p_database Database manager for data access
          * @param config Execution configuration
          */
-        GqlExecutor(std::shared_ptr<DatabaseManager> database, Config config);
+        GqlExecutor(std::shared_ptr<DatabaseManager> p_database, Config config);
 
         /**
          * @brief Construct GraphQL executor with default configuration
@@ -151,14 +156,17 @@ namespace isched::v0_0_1::backend {
 
 
         void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
+            if (m_resolvers.has_resolver(field_name)) {
+                throw std::runtime_error(std::format("GraphQL resolver \"{}\" already registered.",field_name));
+            }
             m_resolvers.register_resolver(field_name, move(resolver));
         }
 
     private:
-        using TNodePtr = std::vector<std::unique_ptr<tao::pegtl::parse_tree::node>>::value_type;
 
         ResolverRegistry m_resolvers;
         TNodePtr m_current_schema;
+        TDbPtr m_database;
 
         void process_field_definition(ExecutionResult &p_result,
                                       const TNodePtr &p_typedef,

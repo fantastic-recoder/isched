@@ -27,8 +27,6 @@ namespace isched::v0_0_1::backend {
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
 
         // Minimal empty document for now; parser not required for skeleton
-        gql::Document doc; // NOTE: structure defined by grammar; empty is acceptable for skeleton
-
         json result = proc.execute("").data;
         // For a skeleton test, just assert it's a JSON value (object/array/etc.).
         // The current implementation returns default-constructed json which is null; accept that but ensure it is a json type.
@@ -46,7 +44,7 @@ namespace isched::v0_0_1::backend {
         REQUIRE(myResult.errors.size()==2);
         REQUIRE(myResult.errors[0].code==EErrorCodes::MISSING_GQL_RESOLVER);
         REQUIRE(myResult.errors[1].code==EErrorCodes::MISSING_GQL_RESOLVER);
-        proc.register_resolver("hello", [](const json&,const json&) {
+        proc.register_resolver("hello_ping", [](const json&,const json&) {
             return json{"Hello, World!"}[0];
         });
         proc.register_resolver("hello_who", [](const json& args,const json&) {
@@ -55,7 +53,7 @@ namespace isched::v0_0_1::backend {
         });
         const auto myResult2=proc.load_schema(schema_str);
         REQUIRE(myResult2.is_success());
-        const auto myReply= proc.execute(R"(query { hello hello_who(who: "Josef") } )", true);
+        const auto myReply= proc.execute(R"(query { hello_ping hello_who(who: "Josef") } )", true);
         for (int myIdx=0;auto& err : myReply.errors) {
             std::cerr << "error "<< std::setw(3) << ++myIdx <<"   |" << err.message << "| code="  << std::endl;
         }
@@ -63,8 +61,8 @@ namespace isched::v0_0_1::backend {
         REQUIRE(myReply.data.is_object());
         std::cerr << "myReply.data: " << myReply.data.dump(4) << std::endl;
         std::cerr.flush();
-        REQUIRE(myReply.data["hello"].is_string());
-        REQUIRE(myReply.data["hello"] == "Hello, World!");
+        REQUIRE(myReply.data["hello_ping"].is_string());
+        REQUIRE(myReply.data["hello_ping"] == "Hello, World!");
         REQUIRE(myReply.data["hello_who"].is_string());
         REQUIRE(myReply.data["hello_who"] == "Hello, Josef!");
     }

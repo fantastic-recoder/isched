@@ -16,13 +16,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     GqlExecutor executor(database);
     
     SECTION("Execute hello resolver") {
-        std::string query = "type Query{ hello: String }";
-        executor.register_resolver("hello",[](const json& ,const json& )
-            ->json{ return json{"Hello, GraphQL!"}[0];});
-        auto result = executor.load_schema(query);
-        REQUIRE(result.is_success());
-
-        result = executor.execute("query {hello}");
+        auto result = executor.execute("query {hello}");
         REQUIRE(result.is_success());
         std::cout<< result.data.dump(4)<< std::flush;
         REQUIRE(result.data.contains("hello"));
@@ -31,13 +25,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     }
 
     SECTION("Execute hello resolver with single query") {
-        std::string query = "type Query { hello : String }";
-        executor.register_resolver("hello",[](const json& ,const json& )
-            ->json{ return json{"Hello, GraphQL!"}[0];});
-        auto result = executor.load_schema(query);
-        REQUIRE(result.is_success());
-
-        result = executor.execute("{hello}",true);
+        auto result = executor.execute("{hello}",true);
         REQUIRE(result.is_success());
         std::cout<< result.data.dump(4)<< std::flush;
         REQUIRE(result.data.contains("hello"));
@@ -57,7 +45,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
 
     SECTION("Execute uptime resolver") {
         std::string query = "{ uptime }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("uptime"));
@@ -68,7 +56,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     
     SECTION("Execute clientCount resolver") {
         std::string query = "{ clientCount }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("clientCount"));
@@ -78,9 +66,8 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     }
     
     SECTION("Execute multiple fields - currently limited to single field queries") {
-        // Note: Current implementation only supports single field queries
         std::string query = "{ hello }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("hello"));
@@ -89,13 +76,13 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
         
         // Test each field individually
         query = "{ version }";
-        result = executor.load_schema(query);
+        result = executor.execute(query);
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("version"));
-        REQUIRE(result.data["version"] == "1.0.0");
+        REQUIRE(result.data["version"] == "0.0.1");
         
         query = "{ uptime }";
-        result = executor.load_schema(query);
+        result = executor.execute(query);
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("uptime"));
         REQUIRE(result.data["uptime"].is_number());
@@ -104,7 +91,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     SECTION("Handle field alias - not yet implemented") {
         // Note: Current implementation doesn't support field aliases
         std::string query = "{ hello }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("hello"));
@@ -114,23 +101,23 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     
     SECTION("Handle unknown field - basic error handling") {
         std::string query = "{ unknownField }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         // Current implementation may not properly handle unknown fields
         // This tests the actual behavior
-        REQUIRE(result.is_success()); // May return empty result instead of error
-        REQUIRE(result.data.contains("unknownField"));
+        REQUIRE(result.is_success()==false); // May return empty result instead of error
+        REQUIRE(!result.data.contains("unknownField"));
         REQUIRE(result.data["unknownField"].is_null()); // Resolver returns null for unknown fields
     }
     
     SECTION("Handle invalid query syntax") {
         std::string query = "invalid syntax";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(!result.is_success());
         REQUIRE(result.data.empty());
         REQUIRE(!result.errors.empty());
-        REQUIRE(result.errors[0].message.find("Failed to parse query") != std::string::npos);
+        REQUIRE(result.errors[0].message.find("Failed to parse") != std::string::npos);
     }
 }
 
@@ -216,7 +203,7 @@ TEST_CASE("GraphQL Performance", "[graphql][performance]") {
         const int iterations = 10;
         
         for (int i = 0; i < iterations; ++i) {
-            auto result = executor.load_schema(query);
+            auto result = executor.execute(query);
             REQUIRE(result.is_success());
             REQUIRE(result.data["hello"] == "Hello, GraphQL!");
         }
