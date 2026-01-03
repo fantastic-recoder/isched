@@ -218,7 +218,7 @@ namespace isched::v0_0_1::backend {
         });
 
         // Enhanced schema introspection resolver
-        register_resolver("__schema", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+        register_resolver("__schema", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
             nlohmann::json schema;
 
             // Query type definition

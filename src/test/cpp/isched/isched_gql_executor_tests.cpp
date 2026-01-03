@@ -9,6 +9,8 @@
 #include <isched/backend/isched_GqlExecutor.hpp>
 #include <isched/backend/isched_GqlParser.hpp>
 #include <isched/backend/isched_gql_grammar.hpp>
+#include <tao/pegtl/string_input.hpp>
+#include <functional>
 
 #include "isched/backend/isched_DatabaseManager.hpp"
 #include "isched/shared/fs/isched_fs_utils.hpp"
@@ -158,6 +160,72 @@ namespace isched::v0_0_1::backend {
             REQUIRE(reply.is_success());
             REQUIRE(summator.sum == double{6.0});
             REQUIRE(reply.data["summ"].get<double>() == double{6.0});
+        }
+    }
+
+    TEST_CASE("AST Descriptions in Type Definitions", "[gql][ast][descriptions]") {
+        using namespace isched::v0_0_1;
+        using tao::pegtl::string_input;
+
+        auto verify_description = [](const std::string& input, const std::string& expected_desc) {
+            string_input in(input, "DescriptionTest");
+            auto [ok, root] = gql::generate_ast_and_log<gql::Document>(in,
+                "Description Test", false);
+            if (!ok) {
+                REQUIRE(ok);
+                return;
+            }
+            REQUIRE(root != nullptr);
+
+            std::vector<std::string> descriptions;
+            std::function<void(const gql::TAstNodePtr&)> find_desc = [&](const gql::TAstNodePtr& node) {
+                if (node->is_type<gql::Description>()) {
+                    descriptions.push_back(std::string(node->string_view()));
+                }
+                for (const auto& child : node->children) {
+                    find_desc(child);
+                }
+            };
+            find_desc(root);
+
+            bool found = false;
+            for (const auto& d : descriptions) {
+                if (d.find(expected_desc) != std::string::npos) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                std::cerr << "Expected description '" << expected_desc << "' not found in AST. Found " << descriptions.size() << " descriptions." << std::endl;
+                for (const auto& d : descriptions) {
+                    std::cerr << "  - |" << d << "|" << std::endl;
+                }
+            }
+            REQUIRE(found);
+        };
+
+        SECTION("Type description") {
+            verify_description(R"("Description of MyType" type MyType { field: String })", "Description of MyType");
+        }
+        SECTION("Field description") {
+            verify_description(R"(type MyType { "Description of field" field: String })", "Description of field");
+        }
+        SECTION("Scalar description") {
+            verify_description(R"("Description of MyScalar" scalar MyScalar)", "Description of MyScalar");
+        }
+        SECTION("Schema description") {
+            verify_description(R"("Description of Schema" schema { query: MyQuery })", "Description of Schema");
+        }
+        SECTION("Operation description") {
+            verify_description(R"("Description of Query" query MyQuery { field })", "Description of Query");
+        }
+        SECTION("Input value description") {
+            verify_description(R"(type MyType { field("Arg desc" arg: Int): String })", "Arg desc");
+        }
+        SECTION("Block string description") {
+            verify_description(R"("""Description with
+multiple lines"""
+type MyType { field: String })", "Description with");
         }
     }
 }

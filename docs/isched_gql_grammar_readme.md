@@ -21,7 +21,9 @@ The following rules were renamed for spec compliance:
 Every rule in `isched_gql_grammar.hpp` has been documented with references to the corresponding section in the GraphQL specification using `@see GraphQL Spec: "RuleName"`.
 
 ## Verification
-The changes were verified by adding and running unit tests in `src/test/cpp/isched/isched_grammar_tests.cpp`.
+The changes were verified by adding and running unit tests in:
+- `src/test/cpp/isched/isched_grammar_tests.cpp`: Focused on grammar compliance.
+- `src/test/cpp/isched/isched_gql_executor_tests.cpp`: Focused on AST structure and description capture.
 
 ### Test Case Tagging Scheme
 The unit tests use a systematic tagging scheme to categorize and filter tests:
@@ -31,8 +33,9 @@ The unit tests use a systematic tagging scheme to categorize and filter tests:
 - `[grammar][spec-examples][positive]`: Tests derived from official GraphQL specification examples.
 - `[grammar][internal][positive/negative]`: Internal parser helper rules.
 - `[grammar][lexical/type-system][integration]`: Tests verifying interaction between multiple rules.
+- `[gql][ast][descriptions]`: Verification of descriptions in the generated AST.
 
-Tags are consistently ordered as `[grammar][category][outcome/integration]`.
+Tags are consistently ordered as `[grammar][category][outcome/integration]` or `[gql][category][feature]`.
 
 ### Added Specification Examples
 The following examples from `docs/graph-ql-spec/GraphQL.html` were added as unit tests:
@@ -52,9 +55,10 @@ The following examples from `docs/graph-ql-spec/GraphQL.html` were added as unit
 ### Grammar Improvements
 To support these examples, the following improvements were made to `isched_gql_grammar.hpp`:
 - **`TSeparator`**: Updated to include `Comma` (`,`), ensuring that insignificant commas are correctly ignored between tokens.
+- **`Description`**: Added support for capture in the AST for various constructs (types, fields, scalars, schema, operations, arguments).
 - **`ArgumentsDefinition`**: Added to support formal argument lists in type system definitions (e.g., in `FieldDefinition`).
 - **`FieldDefinition`**: Updated to use `ArgumentsDefinition` instead of executable `Arguments`, allowing descriptions on field arguments in the type system.
-- **AST Selector**: Updated to include `ArgumentsDefinition` and `InputValueDefinition` for better parse tree representation.
+- **AST Selector**: Updated to include `ArgumentsDefinition`, `InputValueDefinition`, and `Description` for better parse tree representation.
 
 ## AST to String Conversion
 
@@ -68,6 +72,15 @@ The function `ast_node_to_str(const TAstNodePtr &p_node)` was implemented to all
     - If a node does not have content, it concatenates the results of calling `ast_node_to_str` on all its children.
 - **Formatting Preservation**: Because the grammar includes rules that capture whitespace and comments (e.g., `Document`, `OperationDefinition`, `FieldDefinition` use `TSeps` or `IgnoredMany`), and these rules are included in `GqlSelector`, the resulting string is a character-perfect reconstruction of the input in most cases.
 
+## AST Merging
+
+### Overview
+The utility `merge_type_definitions(TAstNodePtr &&p_schema_node, TAstNodePtr &&p_type_defs_node)` allows merging multiple GraphQL documents into a single AST.
+
+### Implementation Details
+- **File**: `src/main/cpp/isched/backend/isched_gql_grammar.cpp`
+- **Mechanism**: The function appends children from the second document node to the first one, effectively combining the type definitions.
+
 ### Verification
 The implementation is verified in `src/test/cpp/isched/isched_ast_node_tests.cpp`.
 
@@ -77,8 +90,12 @@ The implementation is verified in `src/test/cpp/isched/isched_ast_node_tests.cpp
 - **Complex Mutation**: Reconstructing mutations with nested fields and block string arguments.
 - **Type System Definitions**: Reconstructing `scalar` and `type` definitions with fields and descriptions.
 - **Directives and Arguments**: Reconstructing operations and fields with directives and arguments.
+- **AST Merging**: Verifying that multiple document ASTs can be merged correctly (`[isched][ast][merge]`).
 
 ## File Locations
 - Grammar Header: `src/main/cpp/isched/backend/isched_gql_grammar.hpp`
-- Unit Tests: `src/test/cpp/isched/isched_grammar_tests.cpp`
+- Unit Tests:
+    - `src/test/cpp/isched/isched_grammar_tests.cpp`: Grammar compliance.
+    - `src/test/cpp/isched/isched_gql_executor_tests.cpp`: AST Descriptions.
+    - `src/test/cpp/isched/isched_ast_node_tests.cpp`: AST to String and Merging.
 - Specification: `docs/graph-ql-spec/GraphQL.html`
