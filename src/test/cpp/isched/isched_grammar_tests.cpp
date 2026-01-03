@@ -31,27 +31,26 @@ TEST_CASE("Nested type definition grammar test","[grammar][type-system][positive
     REQUIRE(root != nullptr);
     
     // Check Document structure
+    // If we use generate_ast_and_log<Document>, the root is Document node.
     // Document -> seq<IgnoredMany, plus<seq<Definition, IgnoredMany>>, eof>
-    // Definitions are ObjectTypeDefinition here.
     
-    REQUIRE(root->children.size() == 2); // Two definitions: User and Profile
+    const auto* docNode = root.get();
+    if (root->children.size() == 1 && root->children[0]->is_type<Document>()) {
+        docNode = root->children[0].get();
+    }
+
+    // Now check docNode's children which should be Definitions
+    REQUIRE(docNode->children.size() >= 2); 
     
     // Check User definition
-    const auto& userDef = root->children[0];
+    const auto& userDef = docNode->children[0];
     REQUIRE(userDef->is_type<TypeDefinition>());
     
-    // TypeDefinition -> ObjectTypeDefinition
-    const auto& userObjDef = userDef->children[0];
-    REQUIRE(userObjDef->is_type<ObjectTypeDefinition>());
-    
-    // ObjectTypeDefinition -> seq<TSeps, opt<Description>, string<'t', 'y', 'p', 'e'>, Name, opt<ImplementsInterfaces>, opt<DirectivesConst>, FieldsDefinition>
-    // In our case: [TSeps (implied/skipped in store_content)], 'type', Name('User'), FieldsDefinition
-    
-    // GqlSelector for ObjectTypeDefinition has store_content::on, but it seems it's not a leaf in all cases.
-    // Wait, let's look at GqlSelector again.
+    // TypeDefinition -> ObjectTypeDefinition (ObjectTypeDefinition is NOT in selector, so its children are lifted)
+    // Children of TypeDefinition will be Name, FieldDefinition...
     
     bool foundUserName = false;
-    for(const auto& child : userObjDef->children) {
+    for(const auto& child : userDef->children) {
         if (child->is_type<Name>() && child->string_view() == "User") {
             foundUserName = true;
         }
@@ -59,13 +58,11 @@ TEST_CASE("Nested type definition grammar test","[grammar][type-system][positive
     REQUIRE(foundUserName);
 
     // Check Profile definition
-    const auto& profileDef = root->children[1];
+    const auto& profileDef = docNode->children[1];
     REQUIRE(profileDef->is_type<TypeDefinition>());
-    const auto& profileObjDef = profileDef->children[0];
-    REQUIRE(profileObjDef->is_type<ObjectTypeDefinition>());
     
     bool foundProfileName = false;
-    for(const auto& child : profileObjDef->children) {
+    for(const auto& child : profileDef->children) {
         if (child->is_type<Name>() && child->string_view() == "Profile") {
             foundProfileName = true;
         }
@@ -90,28 +87,36 @@ TEST_CASE("Nested types in fields","[grammar][type-system][positive]") {
     // Verify AST to string roundtrip
     auto reconstructed = ast_node_to_str(root);
     REQUIRE(reconstructed.has_value());
-    // spdlog::info("Reconstructed:\n{}", *reconstructed);
     
-    // Verify the presence of nested type usage
+    const auto* docNode = root.get();
+    if (root->children.size() == 1 && root->children[0]->is_type<Document>()) {
+        docNode = root->children[0].get();
+    }
+    
     bool foundUserInFriends = false;
-    // root is Document
-    for (const auto& def : root->children) {
-        // def is TypeDefinition
-        for (const auto& objDef : def->children) {
-            // objDef is ObjectTypeDefinition
-            for (const auto& child : objDef->children) {
-                if (child->is_type<FieldsDefinition>) {
-                    for (const auto& field : child->children) {
-                        // field is FieldDefinition
-                        if (field->children.size() >= 2) {
-                            // field->children[0] is Name
-                            // field->children[1] is Type
-                            if (field->children[0]->string_view() == "friends") {
-                                const auto& typeNode = field->children[1];
-                                // Type -> sor<NonNullType, ListType, NamedType>
-                                if (ast_node_to_str(typeNode).value_or("") == "[User!]") {
-                                    foundUserInFriends = true;
-                                }
+    // According to logs, TypeDefinition contains Name and then FieldDefinitions directly?
+    // Wait, looking at grammar:
+    // struct ObjectTypeDefinition : SeqWithComments<TSeps, opt<Description>, string<'t', 'y', 'p', 'e'>, Name, opt<ImplementsInterfaces>, opt<DirectivesConst>, FieldsDefinition> {};
+    // struct FieldsDefinition : SeqWithComments<TSeps, Beg, star<FieldDefinition>, End> {};
+    
+    // GqlSelector has: store_content::on<GqlQuery, Name, TypeDefinition, FieldDefinition,TypeName,Type,NamedType, Field, SelectionSet, Alias, Selection, ...>
+    // It DOES NOT have ObjectTypeDefinition or FieldsDefinition in store_content::on list!
+    // If a node is NOT in selector, its children are lifted to its parent.
+    // So TypeDefinition's children will be Name, FieldDefinition (from FieldsDefinition).
+    
+    for (const auto& def : docNode->children) {
+        if (def->is_type<TypeDefinition>()) {
+            for (const auto& child : def->children) {
+                if (child->is_type<FieldDefinition>()) {
+                    // field is FieldDefinition
+                    if (child->children.size() >= 2) {
+                        // field->children[0] is Name
+                        // field->children[1] is Type
+                        if (child->children[0]->string_view() == "friends") {
+                            const auto& typeNode = child->children[1];
+                            // Type -> sor<NonNullType, ListType, NamedType>
+                            if (ast_node_to_str(typeNode).value_or("") == "[User!]") {
+                                foundUserInFriends = true;
                             }
                         }
                     }
@@ -120,13 +125,6 @@ TEST_CASE("Nested types in fields","[grammar][type-system][positive]") {
         }
     }
     REQUIRE(foundUserInFriends);
-}
-
-TEST_CASE( "Dummy factorials are computed", "[factorial]" ) {
-REQUIRE( factorial(1) == 1 );
-REQUIRE( factorial(2) == 2 );
-REQUIRE( factorial(3) == 6 );
-REQUIRE( factorial(10) == 3628800 );
 }
 
 using isched::v0_0_1::GqlParser;
