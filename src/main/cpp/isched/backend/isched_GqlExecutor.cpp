@@ -8,8 +8,11 @@
 #include <regex>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <string>
 #include <tao/pegtl.hpp>
 
+#include "isched_ExecutionResult.hpp"
+#include "isched_gql_error.hpp"
 #include "isched_gql_grammar.hpp"
 #include "isched_builtin_server_schema.hpp"
 
@@ -361,7 +364,7 @@ namespace isched::v0_0_1::backend {
         json my_ret_val;
         if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
             const std::string my_ret_val_str(p_arg->string_view());
-            if (my_ret_val_str.starts_with("\"\"\"")) {
+            if (my_ret_val_str.starts_with(R"(""")")) {
                 my_ret_val = my_ret_val_str.substr(3, my_ret_val_str.length() - 6);
             } else if (my_ret_val_str.length() >= 2 && my_ret_val_str.front() == '"') {
                 my_ret_val = my_ret_val_str.substr(1, my_ret_val_str.length() - 2);
