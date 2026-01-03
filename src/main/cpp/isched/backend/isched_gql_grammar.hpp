@@ -753,5 +753,8 @@ namespace isched::v0_0_1::gql {
     using TExpectedStr = std::expected<std::string, std::vector<Error>>;
 
     TExpectedStr ast_node_to_str(const TAstNodePtr &p_node);
+
+    TAstNodePtr merge_type_definitions(TAstNodePtr &&p_schema_node, const TAstNodePtr &&p_type_defs_node);
+
 }
 #endif //ISCHED_ISCHED_GQL_GRAMMAR_HPP

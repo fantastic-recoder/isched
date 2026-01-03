@@ -130,7 +130,7 @@ TEST_CASE("GraphQL Introspection", "[graphql][introspection]") {
     
     SECTION("Execute schema introspection - basic implementation") {
         std::string query = "{ __schema }";
-        auto result = executor.load_schema(query);
+        auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("__schema"));

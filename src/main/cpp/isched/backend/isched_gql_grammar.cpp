@@ -13,7 +13,7 @@
 
 namespace isched::v0_0_1::gql {
 
-    TExpectedStr ast_node_to_str(const TAstNodePtr &p_node) {
+    auto ast_node_to_str(const TAstNodePtr &p_node) -> TExpectedStr {
         if (!p_node) {
             return "";
         }
@@ -32,13 +32,12 @@ namespace isched::v0_0_1::gql {
                 return child_str;
             }
             result += *child_str;
-            
-            // We might need to add spaces between some nodes if they are not captured in the AST
-            // However, the grammar seems to include some separators or tokens that might be in the AST.
-            // Let's check GqlSelector again.
         }
 
         return result;
     }
 
+    TAstNodePtr merge_type_definitions(TAstNodePtr &&p_schema_node, TAstNodePtr &&p_type_defs_node) {
+        return p_schema_node;
+    }
 }

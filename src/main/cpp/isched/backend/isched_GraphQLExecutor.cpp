@@ -336,13 +336,13 @@ void GqlExecutor::setup_builtin_resolvers() {
     });
     
     // Configuration properties endpoint
-    resolver_registry_.register_resolver("configprops", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
+    resolver_registry_.register_resolver("configprops", [this](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
         return nlohmann::json{
             {"server", {
-                {"port", 8080},
-                {"host", "0.0.0.0"},
-                {"maxConnections", 1000},
-                {"threadPoolSize", 8}
+                {"port", this->config_.port_number},
+                {"host", this->config_.host_address},
+                {"maxConnections", this->config_.max_connections},
+                {"threadPoolSize", this->config_.thread_pool_size},
             }},
             {"database", {
                 {"type", "SQLite"},
@@ -350,8 +350,8 @@ void GqlExecutor::setup_builtin_resolvers() {
                 {"enableWAL", true}
             }},
             {"features", nlohmann::json::array({"GraphQL", "Multi-tenant", "Health monitoring", "Metrics"})},
-            {"version", "1.0.0"},
-            {"environment", "development"}
+            {"version", this->config_.version},
+            {"environment", this->config_.environment},
         };
     });
     
