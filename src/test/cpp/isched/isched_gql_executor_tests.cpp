@@ -42,7 +42,7 @@ namespace isched::v0_0_1::backend {
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
         const auto myResult=proc.load_schema(schema_str);
         REQUIRE(myResult.is_success()==false);
-        REQUIRE(myResult.errors.size()==2);
+        REQUIRE(myResult.errors.size()==3);
         REQUIRE(myResult.errors[0].code==EErrorCodes::MISSING_GQL_RESOLVER);
         REQUIRE(myResult.errors[1].code==EErrorCodes::MISSING_GQL_RESOLVER);
         proc.register_resolver("hello_ping", [](const json&,const json&) {

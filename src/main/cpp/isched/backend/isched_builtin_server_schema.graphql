@@ -1,0 +1,159 @@
+"""Environment properties and system information"""
+type Environment {
+  """System-level properties like OS and user info"""
+  systemProperties: SystemProperties
+  """Filtered list of allowed environment variables"""
+  environmentVariables: EnvironmentVariables
+}
+
+"""Basic operating system and environment details"""
+type SystemProperties {
+  os_name: String
+  user_name: String
+  user_home: String
+  file_separator: String
+  path_separator: String
+}
+
+"""Dictionary of safe-to-expose environment variables"""
+type EnvironmentVariables {
+  PATH: String
+  HOME: String
+  USER: String
+  LANG: String
+  TZ: String
+}
+
+"""Application information"""
+type AppInfo {
+  app: AppDetails
+  build: BuildDetails
+  git: GitDetails
+}
+
+"""General application details"""
+type AppDetails {
+  name: String
+  description: String
+  version: String
+  encoding: String
+}
+
+"""Application build details"""
+type BuildDetails {
+  version: String
+  artifact: String
+  name: String
+  time: String
+  group: String
+}
+
+"""Version control information"""
+type GitDetails {
+  branch: String
+  commit: GitCommit
+}
+
+"""Git commit details"""
+type GitCommit {
+  id: String
+  time: String
+}
+
+"""Configuration properties for the server and its subsystems"""
+type Configuration {
+  server: ServerConfig
+  database: DatabaseConfig
+  features: [String]
+  version: String
+  environment: String
+}
+
+"""Configuration for the network server"""
+type ServerConfig {
+  port: Int
+  host: String
+  maxConnections: Int
+  threadPoolSize: Int
+}
+
+"""Configuration for the database connection layer"""
+type DatabaseConfig {
+  type: String
+  connectionPoolSize: Int
+  enableWAL: Boolean
+}
+
+"""Root query type"""
+type Query {
+  """Simple greeting message"""
+  hello: String
+  """Server version"""
+  version: String
+  """Server uptime in seconds"""
+  uptime: Int
+  """Number of active clients"""
+  clientCount: Int
+  """Server health status"""
+  health: HealthStatus
+  """Application information"""
+  info: AppInfo
+  """Server metrics"""
+  metrics: ServerMetrics
+  """Environment properties"""
+  env: Environment
+  """Configuration properties"""
+  configprops: Configuration
+}
+
+"""Health information for a specific system component"""
+type HealthComponent {
+  """The name of the component (e.g., 'database', 'memory')"""
+  name: String
+  """Component status (UP/DOWN)"""
+  status: String
+  """Additional technical details about the component health"""
+  details: HealthComponentDetails
+}
+
+"""Technical details for a health component"""
+type HealthComponentDetails {
+  """Database engine name (e.g., 'SQLite')"""
+  database: String
+  """Status of the connection pool"""
+  connectionPool: String
+  """Error message if the component is DOWN"""
+  error: String
+  """Memory usage statistics or availability"""
+  used: String
+  """Maximum memory allocated"""
+  max: String
+}
+
+"""Health status information"""
+type HealthStatus {
+  """Overall health status"""
+  status: String
+  """Individual component health"""
+  components: [HealthComponent]
+  """Health check timestamp"""
+  timestamp: String
+}
+
+"""Server performance metrics"""
+type ServerMetrics {
+  """Uptime in milliseconds"""
+  uptime: Int
+  """Active connections"""
+  activeConnections: Int
+  """Total requests processed"""
+  totalRequests: Int
+  """Failed requests"""
+  failedRequests: Int
+  """Average response time"""
+  averageResponseTime: Float
+  """Memory usage information"""
+  memoryUsage: String
+  """Active thread count"""
+  threadCount: Int
+}

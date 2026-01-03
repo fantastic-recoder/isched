@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <memory>
@@ -167,9 +168,21 @@ namespace isched::v0_0_1::backend {
 
     private:
 
+        using TTypeMap = std::map<std::string, const gql::TAstNodePtr*>;
+
         ResolverRegistry m_resolvers;
         gql::TAstNodePtr m_current_schema;
         TDbManagerPtr m_database;
+        TTypeMap m_type_map;
+
+        using TTime = std::chrono::time_point<std::chrono::system_clock>;
+
+        TTime m_start_time = std::chrono::system_clock::now();
+
+        void udate_type_map(const gql::TAstNodePtr &p_typedef,
+                            TTypeMap &p_type_map);
+
+        void update_type_map();
 
         void process_field_definition(ExecutionResult &p_result,
                                       const gql::TAstNodePtr &p_typedef,

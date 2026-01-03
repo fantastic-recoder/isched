@@ -4,261 +4,312 @@
 
 #include "isched_GqlExecutor.hpp"
 
+#include <chrono>
 #include <regex>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <tao/pegtl.hpp>
 
 #include "isched_gql_grammar.hpp"
+#include "isched_builtin_server_schema.hpp"
+
+namespace {
+}
 
 namespace isched::v0_0_1::backend {
     using nlohmann::json;
-    using isched::v0_0_1::gql::TAstNodePtr;
+    using gql::TAstNodePtr;
 
     GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> p_database, Config)
-        : m_database(std::move(p_database))
-    {
+        : m_database(std::move(p_database)) {
         setup_builtin_resolvers();
     }
 
     GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> database)
-            : GqlExecutor(std::move(database), Config{}) {
+        : GqlExecutor(std::move(database), Config{}) {
     }
 
     void GqlExecutor::setup_builtin_resolvers() {
-            // Static variables for tracking metrics
-    static auto start_time = std::chrono::system_clock::now();
-    static std::atomic<std::size_t> request_counter{0};
-    static std::atomic<std::size_t> error_counter{0};
+        static std::atomic<std::size_t> request_counter{0};
+        static std::atomic<std::size_t> error_counter{0};
 
-    // Basic Hello/Version resolvers
-    register_resolver("hello", [](const nlohmann::json&, const nlohmann::json&) {
-        return nlohmann::basic_json("Hello, GraphQL!");
-    });
+        // Basic Hello/Version resolvers
+        register_resolver("hello", [](const nlohmann::json &, const nlohmann::json &) {
+            return nlohmann::basic_json("Hello, GraphQL!");
+        });
 
-    register_resolver("version", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        return nlohmann::basic_json("0.0.1");
-    });
+        register_resolver("version", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            return nlohmann::basic_json("0.0.1");
+        });
 
-    // Uptime resolver
-    register_resolver("uptime", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        static auto start_time = std::chrono::steady_clock::now();
-        auto now = std::chrono::steady_clock::now();
-        auto uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count();
-        return nlohmann::basic_json(uptime_seconds);
-    });
+        // Uptime resolver
+        register_resolver("uptime", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            auto now = std::chrono::system_clock::now();
+            auto uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - m_start_time).count();
+            return nlohmann::basic_json(uptime_seconds);
+        });
 
-    // Client count resolver
-    register_resolver("clientCount", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        return nlohmann::basic_json(1); // Placeholder - could be enhanced with actual connection tracking
-    });
+        // Client count resolver
+        register_resolver("clientCount", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            return nlohmann::basic_json(1); // Placeholder - could be enhanced with actual connection tracking
+        });
 
-    // Spring Boot Actuator-style Health endpoint
-    register_resolver("health", [this](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        nlohmann::json health;
+        // Spring Boot Actuator-style Health endpoint
+        register_resolver("health", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            nlohmann::json health;
 
-        // Overall status check
-        std::string overall_status = "UP";
-        nlohmann::json components;
+            // Overall status check
+            std::string overall_status = "UP";
+            nlohmann::json components;
 
-        // Database health check
-        try {
-            if (m_database) {
-                components["database"] = {
-                    {"status", "UP"},
-                    {"details", {
-                        {"database", "SQLite"},
-                        {"connectionPool", "active"}
-                    }}
-                };
-            } else {
+            // Database health check
+            try {
+                if (m_database) {
+                    components["database"] = {
+                        {"status", "UP"},
+                        {
+                            "details", {
+                                {"database", "SQLite"},
+                                {"connectionPool", "active"}
+                            }
+                        }
+                    };
+                } else {
+                    components["database"] = {
+                        {"status", "DOWN"},
+                        {"details", {{"error", "Database manager not initialized"}}}
+                    };
+                    overall_status = "DOWN";
+                }
+            } catch (const std::exception &e) {
                 components["database"] = {
                     {"status", "DOWN"},
-                    {"details", {{"error", "Database manager not initialized"}}}
+                    {"details", {{"error", e.what()}}}
                 };
                 overall_status = "DOWN";
             }
-        } catch (const std::exception& e) {
-            components["database"] = {
-                {"status", "DOWN"},
-                {"details", {{"error", e.what()}}}
+
+            // Memory health check
+            components["memory"] = {
+                {"status", "UP"},
+                {
+                    "details", {
+                        {"used", "Available"},
+                        {"max", "Available"}
+                    }
+                }
             };
-            overall_status = "DOWN";
-        }
 
-        // Memory health check
-        components["memory"] = {
-            {"status", "UP"},
-            {"details", {
-                {"used", "Available"},
-                {"max", "Available"}
-            }}
-        };
+            health = {
+                {"status", overall_status},
+                {
+                    "timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count()
+                },
+                {"components", components}
+            };
 
-        health = {
-            {"status", overall_status},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()},
-            {"components", components}
-        };
-
-        return health;
-    });
-
-    // Application Info endpoint (Spring Boot actuator style)
-    register_resolver("info", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        return nlohmann::json{
-            {"app", {
-                {"name", "isched Universal Application Server"},
-                {"description", "Multi-tenant GraphQL application server"},
-                {"version", "1.0.0"},
-                {"encoding", "UTF-8"}
-            }},
-            {"build", {
-                {"version", "1.0.0"},
-                {"artifact", "isched-server"},
-                {"name", "isched"},
-                {"time", "2025-11-02T01:00:00Z"},
-                {"group", "isched"}
-            }},
-            {"git", {
-                {"commit", {
-                    {"time", "2025-11-02T01:00:00Z"},
-                    {"id", "unknown"}
-                }},
-                {"branch", "001-universal-backend"}
-            }}
-        };
-    });
-
-    // Metrics endpoint
-    register_resolver("metrics", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        static auto start_time = std::chrono::system_clock::now();
-        static std::atomic<int> request_counter{0};
-        static std::atomic<int> error_counter{0};
-
-        auto now = std::chrono::system_clock::now();
-        auto uptime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
-
-        request_counter++;
-
-        return nlohmann::json{
-            {"uptime", uptime_ms},
-            {"activeConnections", 1},
-            {"totalRequests", request_counter.load()},
-            {"failedRequests", error_counter.load()},
-            {"averageResponseTime", 15.5},
-            {"memoryUsage", "Available"},
-            {"threadCount", std::thread::hardware_concurrency()}
-        };
-    });
-
-    // Environment endpoint (filtered for security)
-    register_resolver("env", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        nlohmann::json env;
-
-        // System properties
-        env["systemProperties"] = {
-            {"os.name", "Linux"},
-            {"user.name", getenv("USER") ? getenv("USER") : "unknown"},
-            {"user.home", getenv("HOME") ? getenv("HOME") : "/"},
-            {"file.separator", "/"},
-            {"path.separator", ":"}
-        };
-
-        // Environment variables (filtered for security)
-        env["environmentVariables"] = nlohmann::json::object();
-        const char* safe_vars[] = {"PATH", "HOME", "USER", "LANG", "TZ", nullptr};
-        for (int i = 0; safe_vars[i]; ++i) {
-            if (const char* value = getenv(safe_vars[i])) {
-                env["environmentVariables"][safe_vars[i]] = value;
-            }
-        }
-
-        return env;
-    });
-
-    // Configuration properties endpoint
-    register_resolver("configprops", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        return nlohmann::json{
-            {"server", {
-                {"port", 8080},
-                {"host", "0.0.0.0"},
-                {"maxConnections", 1000},
-                {"threadPoolSize", 8}
-            }},
-            {"database", {
-                {"type", "SQLite"},
-                {"connectionPoolSize", 10},
-                {"enableWAL", true}
-            }},
-            {"features", nlohmann::json::array({"GraphQL", "Multi-tenant", "Health monitoring", "Metrics"})},
-            {"version", "1.0.0"},
-            {"environment", "development"}
-        };
-    });
-
-    // Enhanced schema introspection resolver
-    register_resolver("__schema", [](const nlohmann::json&, const nlohmann::json&) -> nlohmann::json {
-        nlohmann::json schema;
-
-        // Query type definition
-        schema["queryType"] = {
-            {"name", "Query"},
-            {"description", "Root query type for isched GraphQL API"}
-        };
-
-        schema["mutationType"] = nullptr;
-        schema["subscriptionType"] = nullptr;
-
-        // Built-in types with comprehensive field definitions
-        schema["types"] = nlohmann::json::array({
-            {
-                {"name", "Query"},
-                {"kind", "OBJECT"},
-                {"description", "Root query type"},
-                {"fields", nlohmann::json::array({
-                    {{"name", "hello"}, {"type", "String"}, {"description", "Simple greeting message"}},
-                    {{"name", "version"}, {"type", "String"}, {"description", "Server version"}},
-                    {{"name", "uptime"}, {"type", "Int"}, {"description", "Server uptime in seconds"}},
-                    {{"name", "clientCount"}, {"type", "Int"}, {"description", "Number of active clients"}},
-                    {{"name", "health"}, {"type", "HealthStatus"}, {"description", "Server health status"}},
-                    {{"name", "info"}, {"type", "AppInfo"}, {"description", "Application information"}},
-                    {{"name", "metrics"}, {"type", "ServerMetrics"}, {"description", "Server metrics"}},
-                    {{"name", "env"}, {"type", "Environment"}, {"description", "Environment properties"}},
-                    {{"name", "configprops"}, {"type", "Configuration"}, {"description", "Configuration properties"}}
-                })}
-            },
-            {
-                {"name", "HealthStatus"},
-                {"kind", "OBJECT"},
-                {"description", "Health status information"},
-                {"fields", nlohmann::json::array({
-                    {{"name", "status"}, {"type", "String"}, {"description", "Overall health status"}},
-                    {{"name", "components"}, {"type", "[HealthComponent]"}, {"description", "Individual component health"}},
-                    {{"name", "timestamp"}, {"type", "String"}, {"description", "Health check timestamp"}}
-                })}
-            },
-            {
-                {"name", "ServerMetrics"},
-                {"kind", "OBJECT"},
-                {"description", "Server performance metrics"},
-                {"fields", nlohmann::json::array({
-                    {{"name", "uptime"}, {"type", "Int"}, {"description", "Uptime in milliseconds"}},
-                    {{"name", "activeConnections"}, {"type", "Int"}, {"description", "Active connections"}},
-                    {{"name", "totalRequests"}, {"type", "Int"}, {"description", "Total requests processed"}},
-                    {{"name", "failedRequests"}, {"type", "Int"}, {"description", "Failed requests"}},
-                    {{"name", "averageResponseTime"}, {"type", "Float"}, {"description", "Average response time"}},
-                    {{"name", "memoryUsage"}, {"type", "String"}, {"description", "Memory usage information"}},
-                    {{"name", "threadCount"}, {"type", "Int"}, {"description", "Active thread count"}}
-                })}
-            }
+            return health;
         });
 
-        schema["directives"] = nlohmann::json::array();
+        // Application Info endpoint (Spring Boot actuator style)
+        register_resolver("info", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            return nlohmann::json{
+                {
+                    "app", {
+                        {"name", "isched Universal Application Server"},
+                        {"description", "Multi-tenant GraphQL application server"},
+                        {"version", "1.0.0"},
+                        {"encoding", "UTF-8"}
+                    }
+                },
+                {
+                    "build", {
+                        {"version", "1.0.0"},
+                        {"artifact", "isched-server"},
+                        {"name", "isched"},
+                        {"time", "2025-11-02T01:00:00Z"},
+                        {"group", "isched"}
+                    }
+                },
+                {
+                    "git", {
+                        {
+                            "commit", {
+                                {"time", "2025-11-02T01:00:00Z"},
+                                {"id", "unknown"}
+                            }
+                        },
+                        {"branch", "001-universal-backend"}
+                    }
+                }
+            };
+        });
 
-        return schema;
-    });
+        // Metrics endpoint
+        register_resolver("metrics", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            static auto start_time = std::chrono::system_clock::now();
+            static std::atomic<int> request_counter{0};
+            static std::atomic<int> error_counter{0};
+
+            auto now = std::chrono::system_clock::now();
+            auto uptime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+
+            request_counter++;
+
+            return nlohmann::json{
+                {"uptime", uptime_ms},
+                {"activeConnections", 1},
+                {"totalRequests", request_counter.load()},
+                {"failedRequests", error_counter.load()},
+                {"averageResponseTime", 15.5},
+                {"memoryUsage", "Available"},
+                {"threadCount", std::thread::hardware_concurrency()}
+            };
+        });
+
+        // Environment endpoint (filtered for security)
+        register_resolver("env", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            nlohmann::json env;
+
+            // System properties
+            env["systemProperties"] = {
+                {"os.name", "Linux"},
+                {"user.name", getenv("USER") ? getenv("USER") : "unknown"},
+                {"user.home", getenv("HOME") ? getenv("HOME") : "/"},
+                {"file.separator", "/"},
+                {"path.separator", ":"}
+            };
+
+            // Environment variables (filtered for security)
+            env["environmentVariables"] = nlohmann::json::object();
+            const char *safe_vars[] = {"PATH", "HOME", "USER", "LANG", "TZ", nullptr};
+            for (int i = 0; safe_vars[i]; ++i) {
+                if (const char *value = getenv(safe_vars[i])) {
+                    env["environmentVariables"][safe_vars[i]] = value;
+                }
+            }
+
+            return env;
+        });
+
+        // Configuration properties endpoint
+        register_resolver("configprops", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            return nlohmann::json{
+                {
+                    "server", {
+                        {"port", 8080},
+                        {"host", "0.0.0.0"},
+                        {"maxConnections", 1000},
+                        {"threadPoolSize", 8}
+                    }
+                },
+                {
+                    "database", {
+                        {"type", "SQLite"},
+                        {"connectionPoolSize", 10},
+                        {"enableWAL", true}
+                    }
+                },
+                {"features", nlohmann::json::array({"GraphQL", "Multi-tenant", "Health monitoring", "Metrics"})},
+                {"version", "1.0.0"},
+                {"environment", "development"}
+            };
+        });
+
+        // Enhanced schema introspection resolver
+        register_resolver("__schema", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+            nlohmann::json schema;
+
+            // Query type definition
+            schema["queryType"] = {
+                {"name", "Query"},
+                {"description", "Root query type for isched GraphQL API"}
+            };
+
+            schema["mutationType"] = nullptr;
+            schema["subscriptionType"] = nullptr;
+
+            // Built-in types with comprehensive field definitions
+            schema["types"] = nlohmann::json::array({
+                {
+                    {"name", "Query"},
+                    {"kind", "OBJECT"},
+                    {"description", "Root query type"},
+                    {
+                        "fields", nlohmann::json::array({
+                            {{"name", "hello"}, {"type", "String"}, {"description", "Simple greeting message"}},
+                            {{"name", "version"}, {"type", "String"}, {"description", "Server version"}},
+                            {{"name", "uptime"}, {"type", "Int"}, {"description", "Server uptime in seconds"}},
+                            {{"name", "clientCount"}, {"type", "Int"}, {"description", "Number of active clients"}},
+                            {{"name", "health"}, {"type", "HealthStatus"}, {"description", "Server health status"}},
+                            {{"name", "info"}, {"type", "AppInfo"}, {"description", "Application information"}},
+                            {{"name", "metrics"}, {"type", "ServerMetrics"}, {"description", "Server metrics"}},
+                            {{"name", "env"}, {"type", "Environment"}, {"description", "Environment properties"}},
+                            {
+                                {"name", "configprops"}, {"type", "Configuration"},
+                                {"description", "Configuration properties"}
+                            }
+                        })
+                    }
+                },
+                {
+                    {"name", "HealthStatus"},
+                    {"kind", "OBJECT"},
+                    {"description", "Health status information"},
+                    {
+                        "fields", nlohmann::json::array({
+                            {{"name", "status"}, {"type", "String"}, {"description", "Overall health status"}},
+                            {
+                                {"name", "components"}, {"type", "[HealthComponent]"},
+                                {"description", "Individual component health"}
+                            },
+                            {{"name", "timestamp"}, {"type", "String"}, {"description", "Health check timestamp"}}
+                        })
+                    }
+                },
+                {
+                    {"name", "ServerMetrics"},
+                    {"kind", "OBJECT"},
+                    {"description", "Server performance metrics"},
+                    {
+                        "fields", nlohmann::json::array({
+                            {{"name", "uptime"}, {"type", "Int"}, {"description", "Uptime in milliseconds"}},
+                            {{"name", "activeConnections"}, {"type", "Int"}, {"description", "Active connections"}},
+                            {{"name", "totalRequests"}, {"type", "Int"}, {"description", "Total requests processed"}},
+                            {{"name", "failedRequests"}, {"type", "Int"}, {"description", "Failed requests"}},
+                            {
+                                {"name", "averageResponseTime"}, {"type", "Float"},
+                                {"description", "Average response time"}
+                            },
+                            {{"name", "memoryUsage"}, {"type", "String"}, {"description", "Memory usage information"}},
+                            {{"name", "threadCount"}, {"type", "Int"}, {"description", "Active thread count"}}
+                        })
+                    }
+                }
+            });
+
+
+            schema["directives"] = nlohmann::json::array();
+
+            return schema;
+        });
+
+        load_schema(BUILTIN_SCHEMA);
+    }
+
+    void GqlExecutor::udate_type_map(const TAstNodePtr &p_typedef, TTypeMap &p_type_map) {
+        if (p_typedef->type == "isched::v0_0_1::gql::TypeDefinition") {
+            const auto myTypeName = std::string(p_typedef->children[0]->string_view());
+            p_type_map[myTypeName] = &p_typedef;
+        }
+        for (const auto &myChild: p_typedef->children) {
+            udate_type_map(myChild, p_type_map);
+        }
+    }
+
+    void GqlExecutor::update_type_map() {
+        m_type_map.clear();
     }
 
     void GqlExecutor::process_field_definition(ExecutionResult &p_result,
@@ -430,11 +481,11 @@ namespace isched::v0_0_1::backend {
                 myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
                 return myResult;
             }
-            m_current_schema = gql::merge_type_definitions(std::move(m_current_schema), std::move(aRoot));
-            if (m_current_schema && !m_current_schema->children.empty()) {
-                const TAstNodePtr &myDoc = (m_current_schema->type == "isched::v0_0_1::gql::Document")
-                                            ? m_current_schema
-                                            : m_current_schema->children[0];
+            update_type_map();
+            if (aRoot && !aRoot->children.empty()) {
+                const TAstNodePtr &myDoc = (aRoot->type == "isched::v0_0_1::gql::Document")
+                                               ? aRoot
+                                               : aRoot->children[0];
 
                 for (const auto &myDefNode: myDoc->children) {
                     if (myDefNode->type == "isched::v0_0_1::gql::TypeDefinition" || myDefNode->type ==
@@ -452,6 +503,12 @@ namespace isched::v0_0_1::backend {
                         });
                     }
                 }
+            }
+            if (myResult.is_success()) {
+                m_current_schema = gql::merge_type_definitions(std::move(m_current_schema), std::move(aRoot));
+            } else {
+                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR,
+                    "Failed to parse schema, ignoring it."});
             }
         } catch (const tao::pegtl::parse_error &e) {
             log_parse_error_exception(in, myResult, e);

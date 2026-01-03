@@ -5,9 +5,7 @@
 #include "../../../main/cpp/isched/backend/isched_GqlParser.hpp"
 
 namespace {
-    unsigned int factorial( unsigned int number ) {
-        return number <= 1 ? number : factorial(number-1)*number;
-    }
+    bool the_print_dot_flag = (getenv("ISCHED_TST_PRINT_DOT") != nullptr)&&(getenv("ISCHED_TST_PRINT_DOT") == std::string("true"));
 }
 
 using namespace isched::v0_0_1;
@@ -26,7 +24,8 @@ TEST_CASE("Nested type definition grammar test","[grammar][type-system][positive
     }
     )Qry";
     string_input in(myNestedTypeQuery, "nested type definition");
-    auto [ok, root] = generate_ast_and_log<Document>(in, "Parsing nested type definition", true);
+    auto [ok, root] = generate_ast_and_log<Document>(in,
+        "Parsing nested type definition", true);
     REQUIRE(ok == true);
     REQUIRE(root != nullptr);
     
@@ -81,7 +80,7 @@ TEST_CASE("Nested types in fields","[grammar][type-system][positive]") {
     }
     )Qry";
     string_input in(mySchema, "nested types in fields");
-    auto [ok, root] = generate_ast_and_log<Document>(in, "Parsing nested types in fields", true);
+    auto [ok, root] = generate_ast_and_log<Document>(in, "Parsing nested types in fields", true, the_print_dot_flag);
     REQUIRE(ok == true);
     
     // Verify AST to string roundtrip
@@ -1014,7 +1013,7 @@ TEST_CASE("SchemaDefinition accepts optional Description", "[grammar][type-syste
         std::string s = R"("""My schema"""
 schema { query: Query })";
         string_input in(s, "SchemaWithDescription");
-        auto res = generate_ast_and_log<SchemaDefinition>(in, "Schema with description", false);
+        auto res = generate_ast_and_log<SchemaDefinition>(in, "Schema with description", false, the_print_dot_flag);
         REQUIRE(std::get<0>(res) == true);
     }
     {

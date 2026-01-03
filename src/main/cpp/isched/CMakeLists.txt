@@ -1,3 +1,10 @@
+# Reads the file and escapes it for a C string
+file(READ "backend/isched_builtin_server_schema.graphql" SCHEMA_CONTENT)
+
+# Create a generated header
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/isched_builtin_server_schema.hpp"
+        "namespace { const char* BUILTIN_SCHEMA = R\"graphql(${SCHEMA_CONTENT})graphql\";}")
+
 add_library(isched
         isched.hpp
         shared/isched_exception_base.cpp
@@ -43,7 +50,7 @@ add_library(isched
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url sago::platform_folders)
-target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} )
+target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(isched_srv backend/isched_srv_main.cpp)
 target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog openssl::openssl)
