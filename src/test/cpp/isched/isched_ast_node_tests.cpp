@@ -92,4 +92,43 @@ query MyQuery @deprecated(reason: "old") {
             REQUIRE(s2.value() == s);
         }
     }
+
+    TEST_CASE("AST Node Merging", "[isched][ast][merge]") {
+        using isched::v0_0_1::gql::merge_type_definitions;
+
+        SECTION("Merge two documents") {
+            std::string s1 = "type User { id: ID }";
+            std::string s2 = "type Profile { bio: String }";
+
+            string_input in1(s1, "Doc1");
+            string_input in2(s2, "Doc2");
+
+            auto res1 = generate_ast_and_log<gql::Document>(in1, "Doc1", false);
+            auto res2 = generate_ast_and_log<gql::Document>(in2, "Doc2", false);
+
+            REQUIRE(std::get<0>(res1) == true);
+            REQUIRE(std::get<0>(res2) == true);
+
+            auto merged = merge_type_definitions(std::move(std::get<1>(res1)), std::move(std::get<1>(res2)));
+            
+            REQUIRE(merged != nullptr);
+            auto merged_str = ast_node_to_str(merged);
+            REQUIRE(merged_str.has_value());
+            
+            // The merged string should contain both
+            CHECK(merged_str.value().find("type User") != std::string::npos);
+            CHECK(merged_str.value().find("type Profile") != std::string::npos);
+        }
+
+        SECTION("Merge with empty") {
+            std::string s1 = "type User { id: ID }";
+            string_input in1(s1, "Doc1");
+            auto res1 = generate_ast_and_log<gql::Document>(in1, "Doc1", false);
+
+            auto merged = merge_type_definitions(std::move(std::get<1>(res1)), nullptr);
+            REQUIRE(merged != nullptr);
+            auto merged_str = ast_node_to_str(merged);
+            REQUIRE(merged_str.value() == s1);
+        }
+    }
 }

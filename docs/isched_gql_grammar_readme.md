@@ -46,6 +46,8 @@ The following examples from `docs/graph-ql-spec/GraphQL.html` were added as unit
 - **Example № 35**: Schema and Type definitions with block string descriptions and argument definitions.
 - **Example № 39**: Schema definition with multiple root operation types.
 - **Example № 43**: Multiple scalar type definitions with directives.
+- **Nested type definitions**: Verified that multiple object types can reference each other (e.g., `User` referencing `Profile`).
+- **Nested types in fields**: Verified character-perfect reconstruction of complex types like `[User!]` within field definitions using `ast_node_to_str`.
 
 ### Grammar Improvements
 To support these examples, the following improvements were made to `isched_gql_grammar.hpp`:

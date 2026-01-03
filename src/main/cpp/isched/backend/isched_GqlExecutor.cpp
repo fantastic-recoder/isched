@@ -430,7 +430,7 @@ namespace isched::v0_0_1::backend {
                 myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
                 return myResult;
             }
-            m_current_schema = std::move(aRoot);
+            m_current_schema = gql::merge_type_definitions(std::move(m_current_schema), std::move(aRoot));
             if (m_current_schema && !m_current_schema->children.empty()) {
                 const TAstNodePtr &myDoc = (m_current_schema->type == "isched::v0_0_1::gql::Document")
                                             ? m_current_schema

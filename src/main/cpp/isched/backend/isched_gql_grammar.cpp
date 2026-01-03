@@ -38,6 +38,25 @@ namespace isched::v0_0_1::gql {
     }
 
     TAstNodePtr merge_type_definitions(TAstNodePtr &&p_schema_node, TAstNodePtr &&p_type_defs_node) {
-        return p_schema_node;
+        if (!p_schema_node) {
+            return std::move(p_type_defs_node);
+        }
+        if (!p_type_defs_node) {
+            return std::move(p_schema_node);
+        }
+
+        // If both are Documents, we merge their children.
+        // In our grammar, Document -> seq<IgnoredMany, plus<seq<Definition, IgnoredMany>>, eof>
+        // Depending on how PEGTL's parse_tree stores it, we might have Children directly under Document.
+
+        // Actually, let's just append children from p_type_defs_node to p_schema_node
+        // if they are both the same type, or if it makes sense to merge them.
+        
+        // Move children from p_type_defs_node to p_schema_node
+        for (auto& child : p_type_defs_node->children) {
+            p_schema_node->children.push_back(std::move(child));
+        }
+
+        return std::move(p_schema_node);
     }
 }
