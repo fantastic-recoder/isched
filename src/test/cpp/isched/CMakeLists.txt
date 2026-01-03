@@ -72,3 +72,8 @@ add_executable(isched_fs_utils_tests isched_fs_utils_tests.cpp)
 target_link_libraries(isched_fs_utils_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
 add_test(NAME isched_fs_utils_tests COMMAND isched_fs_utils_tests)
 
+add_executable(isched_ast_node_tests isched_ast_node_tests.cpp)
+target_link_libraries(isched_ast_node_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog
+        Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json taocpp::pegtl )
+add_test(NAME isched_ast_node_tests COMMAND isched_ast_node_tests)
+

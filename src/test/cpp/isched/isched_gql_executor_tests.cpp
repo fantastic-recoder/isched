@@ -14,6 +14,7 @@
 #include "isched/shared/fs/isched_fs_utils.hpp"
 
 using nlohmann::json;
+using isched::v0_0_1::gql::EErrorCodes;
 
 namespace isched::v0_0_1::backend {
 

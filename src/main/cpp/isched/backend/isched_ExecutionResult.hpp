@@ -8,16 +8,11 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 
-#include "isched_EErrorCodes.hpp"
+#include "isched_gql_error.hpp"
 
 namespace isched::v0_0_1::backend {
 
-    struct ExecutionError {
-        EErrorCodes code;
-        std::string message;
-    };
-
-    inline nlohmann::json ec_to_json(const std::vector<ExecutionError>& pErrors) {
+    inline nlohmann::json ec_to_json(const std::vector<gql::Error>& pErrors) {
         nlohmann::json result = nlohmann::json::array();
         for (const auto& error : pErrors) {
             result.push_back(nlohmann::json{
@@ -32,7 +27,7 @@ namespace isched::v0_0_1::backend {
      */
     struct ExecutionResult {
         nlohmann::json data; ///< Query result data
-        std::vector<ExecutionError> errors; ///< Execution errors
+        std::vector<gql::Error> errors; ///< Execution errors
         nlohmann::json extensions; ///< Optional extensions
         std::chrono::milliseconds execution_time{0}; ///< Execution duration
 

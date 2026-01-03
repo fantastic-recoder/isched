@@ -6,17 +6,21 @@
 #define ISCHED_GQL_PROCESSOR_HPP
 
 #include <chrono>
+#include <cstddef>
+#include <stdexcept>
 #include <string>
 #include <memory>
 #include <format>
 #include <nlohmann/json_fwd.hpp>
 
+#include <string_view>
 #include <tao/pegtl/parse_error.hpp>
 #include <tao/pegtl/string_input.hpp>
-#include <tao/pegtl/contrib/parse_tree.hpp>
 #include <utility>
+#include <vector>
 
 #include "isched_ExecutionResult.hpp"
+#include "isched_gql_grammar.hpp"
 
 namespace isched::v0_0_1::gql {
     struct Document;
@@ -97,8 +101,7 @@ namespace isched::v0_0_1::backend {
     class GqlExecutor {
     public:
 
-        using TDbPtr = std::shared_ptr<DatabaseManager>;
-        using TNodePtr = std::vector<std::unique_ptr<tao::pegtl::parse_tree::node>>::value_type;
+        using TDbManagerPtr = std::shared_ptr<DatabaseManager>;
 
         /**
          * @brief Execution configuration
@@ -159,27 +162,27 @@ namespace isched::v0_0_1::backend {
             if (m_resolvers.has_resolver(field_name)) {
                 throw std::runtime_error(std::format("GraphQL resolver \"{}\" already registered.",field_name));
             }
-            m_resolvers.register_resolver(field_name, move(resolver));
+            m_resolvers.register_resolver(field_name, std::move(resolver));
         }
 
     private:
 
         ResolverRegistry m_resolvers;
-        TNodePtr m_current_schema;
-        TDbPtr m_database;
+        gql::TAstNodePtr m_current_schema;
+        TDbManagerPtr m_database;
 
         void process_field_definition(ExecutionResult &p_result,
-                                      const TNodePtr &p_typedef,
+                                      const gql::TAstNodePtr &p_typedef,
                                       size_t p_idx);
 
         bool process_operation_definitions(ExecutionResult &p_result,
-                                           const TNodePtr &myOperation) const;
+                                           const gql::TAstNodePtr &myOperation) const;
 
-        nlohmann::json extract_argument_value(const TNodePtr &p_arg, ExecutionResult &p_execution_result) const;
+        nlohmann::json extract_argument_value(const gql::TAstNodePtr &p_arg, ExecutionResult &p_execution_result) const;
 
-        nlohmann::json process_arguments(const TNodePtr & p_field_node, ExecutionResult & p_execution_result) const;
+        nlohmann::json process_arguments(const gql::TAstNodePtr & p_field_node, ExecutionResult & p_execution_result) const;
 
-        void process_field_selection(const TNodePtr &p_selection_set, ExecutionResult &p_result) const;
+        void process_field_selection(const gql::TAstNodePtr &p_selection_set, ExecutionResult &p_result) const;
     };
 }
 // isched::v0_0_1

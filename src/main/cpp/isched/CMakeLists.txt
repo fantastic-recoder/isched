@@ -29,6 +29,7 @@ add_library(isched
         backend/isched_AuthenticationMiddleware.cpp
         backend/isched_built_in_schema.hpp
         backend/isched_built_in_schema.cpp
+        backend/isched_gql_grammar.cpp
         shared/ipc/isched_ipc.hpp
         shared/ipc/isched_ipc.cpp
         shared/config/isched_config.hpp
@@ -39,7 +40,8 @@ add_library(isched
         backend/isched_GqlExecutor.cpp
         backend/isched_GqlExecutor.hpp
         backend/isched_ExecutionResult.hpp
-        backend/isched_EErrorCodes.hpp
+        backend/isched_gql_error.hpp
+        backend/isched_gql_grammar.cpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url sago::platform_folders)

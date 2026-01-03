@@ -5,12 +5,18 @@
 #ifndef ISCHED_E_ERROR_CODES_HPP
 #define ISCHED_E_ERROR_CODES_HPP
 
-namespace isched::v0_0_1::backend {
+namespace isched::v0_0_1::gql {
     enum class EErrorCodes {
         OK = 0,
         UNKNOWN_ERROR = 1,
         MISSING_GQL_RESOLVER = 2, PARSE_ERROR = 3, EXECUTABLE_DEF_NOT_ALLOWED =4, ARGUMENT_ERROR
     };
+
+    struct Error {
+        EErrorCodes code = EErrorCodes::UNKNOWN_ERROR;
+        std::string message{};
+    };
+
 }
 
 #endif //ISCHED_E_ERROR_CODES_HPP

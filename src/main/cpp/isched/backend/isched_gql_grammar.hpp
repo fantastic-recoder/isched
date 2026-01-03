@@ -29,15 +29,22 @@
 #define ISCHED_ISCHED_GQL_GRAMMAR_HPP
 
 #include <tuple>
-#include <tao/pegtl.hpp>
 #include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
 #include <tao/pegtl/contrib/trace.hpp>
 #include <spdlog/spdlog.h>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <regex>
-#include <algorithm>
+#include <expected>
+#include <tao/pegtl/ascii.hpp>
+#include <tao/pegtl/must_if.hpp>
+#include <tao/pegtl/rules.hpp>
+#include <tao/pegtl/string_input.hpp>
+#include <tao/pegtl/utf8.hpp>
+#include <utility>
+#include <vector>
+
+#include "isched_gql_error.hpp"
 
 namespace isched::v0_0_1::gql {
     struct Value;
@@ -713,7 +720,7 @@ namespace isched::v0_0_1::gql {
      */
     template<typename TGrammar>
     std::tuple<bool,std::unique_ptr<node>>
-    generate_ast_and_log(pegtl::string_input<>& p_in, const std::string &p_query_name, const bool p_trace_on_success=false, bool p_print_dot=false) {
+    generate_ast_and_log(string_input<>& p_in, const std::string &p_query_name, const bool p_trace_on_success=false, bool p_print_dot=false) {
         std::unique_ptr<node> myRoot = pegtl::parse_tree::parse<
             TGrammar, GqlSelector /*, ns_pegtl::nothing, control*/
         >(p_in);
@@ -742,5 +749,9 @@ namespace isched::v0_0_1::gql {
         return {myParsingOk,std::move(myRoot)};
     }
 
+    using TAstNodePtr = std::vector<std::unique_ptr<node>>::value_type;
+    using TExpectedStr = std::expected<std::string, std::vector<Error>>;
+
+    TExpectedStr ast_node_to_str(const TAstNodePtr &p_node);
 }
 #endif //ISCHED_ISCHED_GQL_GRAMMAR_HPP

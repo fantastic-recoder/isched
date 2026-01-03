@@ -886,7 +886,7 @@ TEST_CASE("Description positive cases", "[grammar][lexical][positive]") {
 }
 
 TEST_CASE("Description negative cases", "[grammar][lexical][negative]") {
-    using isched::v0_0_1::gql::JustDescription;
+    using gql::JustDescription;
     auto expect_fail = [](const std::string& s){
         string_input in(std::string(s), "DescriptionBad");
         auto res = generate_ast_and_log<JustDescription>(in, std::string("Description bad: ")+s, false);

@@ -6,6 +6,7 @@
 #include <memory>
 
 using namespace isched::v0_0_1::backend;
+using isched::v0_0_1::gql::EErrorCodes;
 using nlohmann::json;
 
 TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {

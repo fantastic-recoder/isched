@@ -13,6 +13,7 @@
 
 namespace isched::v0_0_1::backend {
     using nlohmann::json;
+    using isched::v0_0_1::gql::TAstNodePtr;
 
     GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> p_database, Config)
         : m_database(std::move(p_database))
@@ -261,28 +262,28 @@ namespace isched::v0_0_1::backend {
     }
 
     void GqlExecutor::process_field_definition(ExecutionResult &p_result,
-                                               const TNodePtr &p_typedef, size_t p_idx) {
+                                               const TAstNodePtr &p_typedef, size_t p_idx) {
         const auto &myField = p_typedef->children[p_idx];
         if (myField->type != "isched::v0_0_1::gql::FieldDefinition") {
             return;
         }
         if (myField->children.empty()) {
-            p_result.errors.push_back(ExecutionError{
-                EErrorCodes::PARSE_ERROR, "Incomplete Query field definition"
+            p_result.errors.push_back(gql::Error{
+                gql::EErrorCodes::PARSE_ERROR, "Incomplete Query field definition"
             });
         } else {
             const auto myFieldName = myField->children[0]->string_view();
             spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
             if (!m_resolvers.has_resolver(std::string(myFieldName))) {
-                p_result.errors.push_back(ExecutionError{
-                    EErrorCodes::MISSING_GQL_RESOLVER,
+                p_result.errors.push_back(gql::Error{
+                    gql::EErrorCodes::MISSING_GQL_RESOLVER,
                     std::format("Missing resolver for field {} in Query type", myFieldName)
                 });
             }
         }
     }
 
-    json GqlExecutor::extract_argument_value(const TNodePtr &p_arg, ExecutionResult &p_execution_result) const {
+    json GqlExecutor::extract_argument_value(const TAstNodePtr &p_arg, ExecutionResult &p_execution_result) const {
         json my_ret_val;
         if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
             const std::string my_ret_val_str(p_arg->string_view());
@@ -326,36 +327,36 @@ namespace isched::v0_0_1::backend {
                 return extract_argument_value(p_arg->children[1], p_execution_result);
             }
         } else {
-            p_execution_result.errors.push_back(ExecutionError{
-                EErrorCodes::PARSE_ERROR,
+            p_execution_result.errors.push_back(gql::Error{
+                gql::EErrorCodes::PARSE_ERROR,
                 format("Unknown argument value type: {}.", p_arg->type)
             });
         }
         return my_ret_val;
     }
 
-    json GqlExecutor::process_arguments(const TNodePtr &p_field_node, ExecutionResult &p_execution_result) const {
+    json GqlExecutor::process_arguments(const TAstNodePtr &p_field_node, ExecutionResult &p_execution_result) const {
         json my_ret_val = json::object();
         if (p_field_node->children.size() > 1) {
             const auto &myArgs = p_field_node->children[1];
             if (!myArgs || myArgs->type != "isched::v0_0_1::gql::Arguments") {
-                p_execution_result.errors.push_back(ExecutionError{
-                    .code = EErrorCodes::PARSE_ERROR,
+                p_execution_result.errors.push_back(gql::Error{
+                    .code = gql::EErrorCodes::PARSE_ERROR,
                     .message = format("Expected arguments, got a {}", myArgs->type)
                 });
                 return my_ret_val;
             }
             for (const auto &myArg: myArgs->children) {
                 if (myArg->type != "isched::v0_0_1::gql::Argument") {
-                    p_execution_result.errors.push_back(ExecutionError{
-                        .code = EErrorCodes::PARSE_ERROR,
+                    p_execution_result.errors.push_back(gql::Error{
+                        .code = gql::EErrorCodes::PARSE_ERROR,
                         .message = format("Expected an argument, got a {}", myArg->type)
                     });
                     continue;
                 }
                 if (myArg->children.size() != 2) {
-                    p_execution_result.errors.push_back(ExecutionError{
-                        .code = EErrorCodes::PARSE_ERROR, .message = "Empty argument"
+                    p_execution_result.errors.push_back(gql::Error{
+                        .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty argument"
                     });
                     continue;
                 }
@@ -366,35 +367,35 @@ namespace isched::v0_0_1::backend {
         return my_ret_val;
     }
 
-    void GqlExecutor::process_field_selection(const TNodePtr &p_selection_set, ExecutionResult &p_result) const {
+    void GqlExecutor::process_field_selection(const TAstNodePtr &p_selection_set, ExecutionResult &p_result) const {
         for (const auto &mySelection: p_selection_set->children) {
             if (mySelection->type == "isched::v0_0_1::gql::SelectionSet") {
                 process_field_selection(mySelection, p_result);
             } else if (mySelection->type == "isched::v0_0_1::gql::Selection") {
                 if (mySelection->children.empty()) {
-                    p_result.errors.push_back(ExecutionError{
-                        .code = EErrorCodes::PARSE_ERROR, .message = "Empty selection"
+                    p_result.errors.push_back(gql::Error{
+                        .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty selection"
                     });
                     continue;
                 }
                 const auto &myField = mySelection->children[0];
                 if (myField->type != "isched::v0_0_1::gql::Field") {
-                    p_result.errors.push_back(ExecutionError{
-                        .code = EErrorCodes::PARSE_ERROR,
+                    p_result.errors.push_back(gql::Error{
+                        .code = gql::EErrorCodes::PARSE_ERROR,
                         .message = format("Expected a field, got a {}", myField->type)
                     });
                     continue;
                 }
                 if (myField->children.empty()) {
                     p_result.errors.push_back(
-                        ExecutionError{.code = EErrorCodes::PARSE_ERROR, .message = "Empty field"});
+                        gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
                     continue;
                 }
                 const std::string myFieldName = std::string(myField->children[0]->string_view());
                 spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
                 if (!m_resolvers.has_resolver(myFieldName)) {
-                    p_result.errors.push_back(ExecutionError{
-                        EErrorCodes::MISSING_GQL_RESOLVER,
+                    p_result.errors.push_back(gql::Error{
+                        gql::EErrorCodes::MISSING_GQL_RESOLVER,
                         std::format("Missing resolver for field {} in Query type", myFieldName)
                     });
                 } else {
@@ -407,8 +408,8 @@ namespace isched::v0_0_1::backend {
                     p_result.data[myFieldName] = my_result;
                 }
             } else {
-                p_result.errors.push_back(ExecutionError{
-                    EErrorCodes::PARSE_ERROR,
+                p_result.errors.push_back(gql::Error{
+                    gql::EErrorCodes::PARSE_ERROR,
                     format("Expected a selection or selection set, got a {}", mySelection->type)
                 });
             }
@@ -426,12 +427,12 @@ namespace isched::v0_0_1::backend {
             const bool aParsingOk = std::get<0>(myRetVal);
             auto aRoot = std::get<1>(std::move(myRetVal));
             if (!aParsingOk) {
-                myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
+                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
                 return myResult;
             }
             m_current_schema = std::move(aRoot);
             if (m_current_schema && !m_current_schema->children.empty()) {
-                const TNodePtr &myDoc = (m_current_schema->type == "isched::v0_0_1::gql::Document")
+                const TAstNodePtr &myDoc = (m_current_schema->type == "isched::v0_0_1::gql::Document")
                                             ? m_current_schema
                                             : m_current_schema->children[0];
 
@@ -445,8 +446,8 @@ namespace isched::v0_0_1::backend {
                             }
                         }
                     } else if (myDefNode->type == "isched::v0_0_1::gql::ExecutableDefinition") {
-                        myResult.errors.push_back(ExecutionError{
-                            EErrorCodes::EXECUTABLE_DEF_NOT_ALLOWED,
+                        myResult.errors.push_back(gql::Error{
+                            gql::EErrorCodes::EXECUTABLE_DEF_NOT_ALLOWED,
                             "Executable definition not allowed in schema load."
                         });
                     }
@@ -461,23 +462,23 @@ namespace isched::v0_0_1::backend {
     void GqlExecutor::log_parse_error_exception(const tao::pegtl::string_input<> &in, ExecutionResult myResult,
                                                 const tao::pegtl::parse_error &e) const {
         const auto p = e.positions().front();
-        myResult.errors.push_back(ExecutionError{
-            EErrorCodes::PARSE_ERROR,
+        myResult.errors.push_back(gql::Error{
+            gql::EErrorCodes::PARSE_ERROR,
             std::format("Error parsing schema: message={}, line={} column={}.",
                         e.what(), in.line_at(p), p.column)
         });
     }
 
-    bool GqlExecutor::process_operation_definitions(ExecutionResult &p_result, const TNodePtr &myOperation) const {
+    bool GqlExecutor::process_operation_definitions(ExecutionResult &p_result, const TAstNodePtr &myOperation) const {
         if (myOperation->type != "isched::v0_0_1::gql::OperationDefinition") {
-            p_result.errors.push_back(ExecutionError{
-                EErrorCodes::PARSE_ERROR,
+            p_result.errors.push_back(gql::Error{
+                gql::EErrorCodes::PARSE_ERROR,
                 std::format("Expected with an operation definition, got {}.", myOperation->type)
             });
             return true;
         }
         if (myOperation->children.empty()) {
-            p_result.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Empty operation definition"});
+            p_result.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty operation definition"});
             return true;
         }
         const auto a_op_type = myOperation->children[0]->string_view();
@@ -486,8 +487,8 @@ namespace isched::v0_0_1::backend {
                 if (myOperation->children[myIdx]->type == "isched::v0_0_1::gql::SelectionSet") {
                     process_field_selection(myOperation->children[myIdx], p_result);
                 } else {
-                    p_result.errors.push_back(ExecutionError{
-                        EErrorCodes::PARSE_ERROR,
+                    p_result.errors.push_back(gql::Error{
+                        gql::EErrorCodes::PARSE_ERROR,
                         std::format("Expected with a selection set, got {}.", myOperation->children[myIdx]->type)
                     });
                 }
@@ -495,8 +496,8 @@ namespace isched::v0_0_1::backend {
         } else if (myOperation->children[0]->type == "isched::v0_0_1::gql::SelectionSet") {
             process_field_selection(myOperation->children[0], p_result);
         } else {
-            p_result.errors.push_back(ExecutionError{
-                EErrorCodes::PARSE_ERROR,
+            p_result.errors.push_back(gql::Error{
+                gql::EErrorCodes::PARSE_ERROR,
                 std::format("Only query operations are supported, got {}.", a_op_type)
             });
         }
@@ -508,8 +509,8 @@ namespace isched::v0_0_1::backend {
         ExecutionResult myResult;
         if (p_query.length() > 100000) {
             // Max pQuery length
-            myResult.errors.push_back(ExecutionError{
-                EErrorCodes::ARGUMENT_ERROR,
+            myResult.errors.push_back(gql::Error{
+                gql::EErrorCodes::ARGUMENT_ERROR,
                 "Query length exceeds maximum allowed"
             });
         }
@@ -521,26 +522,26 @@ namespace isched::v0_0_1::backend {
             auto aRoot = std::get<1>(std::move(myRetVal));
             const bool aParsingOk = std::get<0>(myRetVal);
             if (!aParsingOk) {
-                myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
+                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
                 return myResult;
             }
             if (!aRoot || aRoot->children.empty()) {
-                myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Empty document"});
+                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty document"});
                 return myResult;
             }
             const auto &myDoc = aRoot->children[0];
             if (!myDoc || myDoc->type != "isched::v0_0_1::gql::Document") {
-                myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Expected with a document"});
+                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Expected with a document"});
                 return myResult;
             }
             if (myDoc->children.empty()) {
-                myResult.errors.push_back(ExecutionError{EErrorCodes::PARSE_ERROR, "Empty document"});
+                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty document"});
                 return myResult;
             }
             for (const auto &myChild: myDoc->children) {
                 if (myChild->type != "isched::v0_0_1::gql::ExecutableDefinition") {
-                    myResult.errors.push_back(ExecutionError{
-                        EErrorCodes::PARSE_ERROR,
+                    myResult.errors.push_back(gql::Error{
+                        gql::EErrorCodes::PARSE_ERROR,
                         std::format("Expected with an executable definition, got {}.", myChild->type)
                     });
                     return myResult;
