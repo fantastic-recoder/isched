@@ -134,6 +134,8 @@ namespace isched::v0_0_1::backend {
 
         void setup_builtin_resolvers();
 
+        nlohmann::json generate_schema_introspection();
+
         GqlExecutor(GqlExecutor&&) = default;
         GqlExecutor& operator=(GqlExecutor&&) = default;
 
@@ -179,7 +181,7 @@ namespace isched::v0_0_1::backend {
 
         TTime m_start_time = std::chrono::system_clock::now();
 
-        void udate_type_map(const gql::TAstNodePtr &p_typedef,
+        void update_type_map_recursive(const gql::TAstNodePtr &p_typedef,
                             TTypeMap &p_type_map);
 
         void update_type_map();

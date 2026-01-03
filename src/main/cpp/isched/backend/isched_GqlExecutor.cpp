@@ -219,103 +219,117 @@ namespace isched::v0_0_1::backend {
 
         // Enhanced schema introspection resolver
         register_resolver("__schema", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
-            nlohmann::json schema;
-
-            // Query type definition
-            schema["queryType"] = {
-                {"name", "Query"},
-                {"description", "Root query type for isched GraphQL API"}
-            };
-
-            schema["mutationType"] = nullptr;
-            schema["subscriptionType"] = nullptr;
-
-            // Built-in types with comprehensive field definitions
-            schema["types"] = nlohmann::json::array({
-                {
-                    {"name", "Query"},
-                    {"kind", "OBJECT"},
-                    {"description", "Root query type"},
-                    {
-                        "fields", nlohmann::json::array({
-                            {{"name", "hello"}, {"type", "String"}, {"description", "Simple greeting message"}},
-                            {{"name", "version"}, {"type", "String"}, {"description", "Server version"}},
-                            {{"name", "uptime"}, {"type", "Int"}, {"description", "Server uptime in seconds"}},
-                            {{"name", "clientCount"}, {"type", "Int"}, {"description", "Number of active clients"}},
-                            {{"name", "health"}, {"type", "HealthStatus"}, {"description", "Server health status"}},
-                            {{"name", "info"}, {"type", "AppInfo"}, {"description", "Application information"}},
-                            {{"name", "metrics"}, {"type", "ServerMetrics"}, {"description", "Server metrics"}},
-                            {{"name", "env"}, {"type", "Environment"}, {"description", "Environment properties"}},
-                            {
-                                {"name", "configprops"}, {"type", "Configuration"},
-                                {"description", "Configuration properties"}
-                            }
-                        })
-                    }
-                },
-                {
-                    {"name", "HealthStatus"},
-                    {"kind", "OBJECT"},
-                    {"description", "Health status information"},
-                    {
-                        "fields", nlohmann::json::array({
-                            {{"name", "status"}, {"type", "String"}, {"description", "Overall health status"}},
-                            {
-                                {"name", "components"}, {"type", "[HealthComponent]"},
-                                {"description", "Individual component health"}
-                            },
-                            {{"name", "timestamp"}, {"type", "String"}, {"description", "Health check timestamp"}}
-                        })
-                    }
-                },
-                {
-                    {"name", "ServerMetrics"},
-                    {"kind", "OBJECT"},
-                    {"description", "Server performance metrics"},
-                    {
-                        "fields", nlohmann::json::array({
-                            {{"name", "uptime"}, {"type", "Int"}, {"description", "Uptime in milliseconds"}},
-                            {{"name", "activeConnections"}, {"type", "Int"}, {"description", "Active connections"}},
-                            {{"name", "totalRequests"}, {"type", "Int"}, {"description", "Total requests processed"}},
-                            {{"name", "failedRequests"}, {"type", "Int"}, {"description", "Failed requests"}},
-                            {
-                                {"name", "averageResponseTime"}, {"type", "Float"},
-                                {"description", "Average response time"}
-                            },
-                            {{"name", "memoryUsage"}, {"type", "String"}, {"description", "Memory usage information"}},
-                            {{"name", "threadCount"}, {"type", "Int"}, {"description", "Active thread count"}}
-                        })
-                    }
-                }
-            });
-
-
-            schema["directives"] = nlohmann::json::array();
-
-            return schema;
+            json my_ret_val = generate_schema_introspection();
+            return my_ret_val;
         });
 
         load_schema(BUILTIN_SCHEMA);
     }
 
-    void GqlExecutor::udate_type_map(const TAstNodePtr &p_typedef, TTypeMap &p_type_map) {
-        if (p_typedef->type == "isched::v0_0_1::gql::TypeDefinition") {
-            const auto myTypeName = std::string(p_typedef->children[0]->string_view());
-            p_type_map[myTypeName] = &p_typedef;
+    json GqlExecutor::generate_schema_introspection() {
+        nlohmann::json schema;
+
+        // Default query type is "Query"
+        schema["queryType"] = {
+            {"name", "Query"}
+        };
+        schema["mutationType"] = nullptr;
+        schema["subscriptionType"] = nullptr;
+
+        auto types = nlohmann::json::array();
+
+        for (const auto& [typeName, typeNodePtr] : m_type_map) {
+            const auto& typeNode = *typeNodePtr;
+            nlohmann::json typeObj;
+            typeObj["name"] = typeName;
+            typeObj["kind"] = "OBJECT"; // Simplified for now
+
+            // Extract description if present
+            for (const auto& child : typeNode->children) {
+                if (child->type.find("Description") != std::string::npos) {
+                    typeObj["description"] = child->string_view();
+                }
+            }
+
+            // Extract fields
+            auto fieldsArray = nlohmann::json::array();
+            // Helper to find fields recursively within the type node
+            std::function<void(const TAstNodePtr&)> findFieldsRecursive;
+            findFieldsRecursive = [&](const TAstNodePtr& node) {
+                if (!node) return;
+                if (node->type.find("FieldDefinition") != std::string::npos) {
+                    nlohmann::json fieldObj;
+                    for (const auto& fieldChild : node->children) {
+                        if (fieldChild->type.find("Name") != std::string::npos) {
+                             fieldObj["name"] = fieldChild->string_view();
+                             break;
+                        }
+                    }
+                    for (const auto& fieldChild : node->children) {
+                        if (fieldChild->type.find("Description") != std::string::npos) {
+                            fieldObj["description"] = fieldChild->string_view();
+                        } else if (fieldChild->type.find("Type") != std::string::npos && 
+                                   fieldChild->type.find("Definition") == std::string::npos) {
+                            auto typeStr = gql::ast_node_to_str(fieldChild);
+                            if (typeStr) {
+                                fieldObj["type"] = {{"name", *typeStr}};
+                            } else {
+                                fieldObj["type"] = {{"name", "Unknown"}};
+                            }
+                        }
+                    }
+                    fieldsArray.push_back(fieldObj);
+                } else {
+                    for (const auto& child : node->children) {
+                        findFieldsRecursive(child);
+                    }
+                }
+            };
+            findFieldsRecursive(typeNode);
+            typeObj["fields"] = fieldsArray;
+            types.push_back(typeObj);
+        }
+
+        schema["types"] = types;
+        schema["directives"] = nlohmann::json::array();
+
+        return schema;
+    }
+
+    void GqlExecutor::update_type_map_recursive(const TAstNodePtr &p_typedef, TTypeMap &p_type_map) {
+        if (!p_typedef) return;
+        // ObjectTypeDefinition, ScalarTypeDefinition, etc.
+        if (p_typedef->children.size() >= 1) {
+             // For ObjectTypeDefinition, name is usually child 0 or 1
+             for (const auto& child : p_typedef->children) {
+                 if (child->type.find("Name") != std::string::npos) {
+                     const auto myTypeName = std::string(child->string_view());
+                     // If the parent is a TypeDefinition or starts with it, it's a type
+                     if (p_typedef->type.find("Definition") != std::string::npos && 
+                         p_typedef->type.find("Field") == std::string::npos &&
+                         p_typedef->type.find("Operation") == std::string::npos) {
+                         p_type_map[myTypeName] = &p_typedef;
+                         break;
+                     }
+                 }
+             }
         }
         for (const auto &myChild: p_typedef->children) {
-            udate_type_map(myChild, p_type_map);
+            update_type_map_recursive(myChild, p_type_map);
         }
     }
 
     void GqlExecutor::update_type_map() {
         m_type_map.clear();
+        if (m_current_schema) {
+            update_type_map_recursive(m_current_schema, m_type_map);
+        }
     }
 
     void GqlExecutor::process_field_definition(ExecutionResult &p_result,
                                                const TAstNodePtr &p_typedef, size_t p_idx) {
         const auto &myField = p_typedef->children[p_idx];
-        if (myField->type != "isched::v0_0_1::gql::FieldDefinition") {
+        if (!myField || myField->type.find("FieldDefinition") == std::string::npos) {
             return;
         }
         if (myField->children.empty()) {
@@ -323,13 +337,22 @@ namespace isched::v0_0_1::backend {
                 gql::EErrorCodes::PARSE_ERROR, "Incomplete Query field definition"
             });
         } else {
-            const auto myFieldName = myField->children[0]->string_view();
-            spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
-            if (!m_resolvers.has_resolver(std::string(myFieldName))) {
-                p_result.errors.push_back(gql::Error{
-                    gql::EErrorCodes::MISSING_GQL_RESOLVER,
-                    std::format("Missing resolver for field {} in Query type", myFieldName)
-                });
+            const TAstNodePtr* nameNodePtr = nullptr;
+            for (const auto& child : myField->children) {
+                if (child->type.find("Name") != std::string::npos) {
+                    nameNodePtr = &child;
+                    break;
+                }
+            }
+            if (nameNodePtr) {
+                const auto myFieldName = (*nameNodePtr)->string_view();
+                spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
+                if (!m_resolvers.has_resolver(std::string(myFieldName))) {
+                    p_result.errors.push_back(gql::Error{
+                        gql::EErrorCodes::MISSING_GQL_RESOLVER,
+                        std::format("Missing resolver for field {} in Query type", myFieldName)
+                    });
+                }
             }
         }
     }
@@ -506,6 +529,7 @@ namespace isched::v0_0_1::backend {
             }
             if (myResult.is_success()) {
                 m_current_schema = gql::merge_type_definitions(std::move(m_current_schema), std::move(aRoot));
+                update_type_map();
             } else {
                 myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR,
                     "Failed to parse schema, ignoring it."});
