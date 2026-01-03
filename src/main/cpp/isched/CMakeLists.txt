@@ -27,8 +27,6 @@ add_library(isched
         backend/isched_DatabaseManager.cpp
         backend/isched_AuthenticationMiddleware.hpp
         backend/isched_AuthenticationMiddleware.cpp
-        backend/isched_built_in_schema.hpp
-        backend/isched_built_in_schema.cpp
         backend/isched_gql_grammar.cpp
         shared/ipc/isched_ipc.hpp
         shared/ipc/isched_ipc.cpp

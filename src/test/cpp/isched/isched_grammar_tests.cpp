@@ -14,6 +14,114 @@ using namespace isched::v0_0_1;
 using namespace isched::v0_0_1::gql;
 using namespace tao::pegtl;
 
+TEST_CASE("Nested type definition grammar test","[grammar][type-system][positive]") {
+    static const char* myNestedTypeQuery=R"Qry(
+    type User {
+        id: ID!
+        profile: Profile
+    }
+    type Profile {
+        bio: String
+        age: Int
+    }
+    )Qry";
+    string_input in(myNestedTypeQuery, "nested type definition");
+    auto [ok, root] = generate_ast_and_log<Document>(in, "Parsing nested type definition", true);
+    REQUIRE(ok == true);
+    REQUIRE(root != nullptr);
+    
+    // Check Document structure
+    // Document -> seq<IgnoredMany, plus<seq<Definition, IgnoredMany>>, eof>
+    // Definitions are ObjectTypeDefinition here.
+    
+    REQUIRE(root->children.size() == 2); // Two definitions: User and Profile
+    
+    // Check User definition
+    const auto& userDef = root->children[0];
+    REQUIRE(userDef->is_type<TypeDefinition>());
+    
+    // TypeDefinition -> ObjectTypeDefinition
+    const auto& userObjDef = userDef->children[0];
+    REQUIRE(userObjDef->is_type<ObjectTypeDefinition>());
+    
+    // ObjectTypeDefinition -> seq<TSeps, opt<Description>, string<'t', 'y', 'p', 'e'>, Name, opt<ImplementsInterfaces>, opt<DirectivesConst>, FieldsDefinition>
+    // In our case: [TSeps (implied/skipped in store_content)], 'type', Name('User'), FieldsDefinition
+    
+    // GqlSelector for ObjectTypeDefinition has store_content::on, but it seems it's not a leaf in all cases.
+    // Wait, let's look at GqlSelector again.
+    
+    bool foundUserName = false;
+    for(const auto& child : userObjDef->children) {
+        if (child->is_type<Name>() && child->string_view() == "User") {
+            foundUserName = true;
+        }
+    }
+    REQUIRE(foundUserName);
+
+    // Check Profile definition
+    const auto& profileDef = root->children[1];
+    REQUIRE(profileDef->is_type<TypeDefinition>());
+    const auto& profileObjDef = profileDef->children[0];
+    REQUIRE(profileObjDef->is_type<ObjectTypeDefinition>());
+    
+    bool foundProfileName = false;
+    for(const auto& child : profileObjDef->children) {
+        if (child->is_type<Name>() && child->string_view() == "Profile") {
+            foundProfileName = true;
+        }
+    }
+    REQUIRE(foundProfileName);
+}
+
+TEST_CASE("Nested types in fields","[grammar][type-system][positive]") {
+    static const char* mySchema = R"Qry(
+    type Query {
+        me: User
+    }
+    type User {
+        id: ID!
+        friends: [User!]
+    }
+    )Qry";
+    string_input in(mySchema, "nested types in fields");
+    auto [ok, root] = generate_ast_and_log<Document>(in, "Parsing nested types in fields", true);
+    REQUIRE(ok == true);
+    
+    // Verify AST to string roundtrip
+    auto reconstructed = ast_node_to_str(root);
+    REQUIRE(reconstructed.has_value());
+    // spdlog::info("Reconstructed:\n{}", *reconstructed);
+    
+    // Verify the presence of nested type usage
+    bool foundUserInFriends = false;
+    // root is Document
+    for (const auto& def : root->children) {
+        // def is TypeDefinition
+        for (const auto& objDef : def->children) {
+            // objDef is ObjectTypeDefinition
+            for (const auto& child : objDef->children) {
+                if (child->is_type<FieldsDefinition>) {
+                    for (const auto& field : child->children) {
+                        // field is FieldDefinition
+                        if (field->children.size() >= 2) {
+                            // field->children[0] is Name
+                            // field->children[1] is Type
+                            if (field->children[0]->string_view() == "friends") {
+                                const auto& typeNode = field->children[1];
+                                // Type -> sor<NonNullType, ListType, NamedType>
+                                if (ast_node_to_str(typeNode).value_or("") == "[User!]") {
+                                    foundUserInFriends = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    REQUIRE(foundUserInFriends);
+}
+
 TEST_CASE( "Dummy factorials are computed", "[factorial]" ) {
 REQUIRE( factorial(1) == 1 );
 REQUIRE( factorial(2) == 2 );

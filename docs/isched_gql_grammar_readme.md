@@ -54,6 +54,28 @@ To support these examples, the following improvements were made to `isched_gql_g
 - **`FieldDefinition`**: Updated to use `ArgumentsDefinition` instead of executable `Arguments`, allowing descriptions on field arguments in the type system.
 - **AST Selector**: Updated to include `ArgumentsDefinition` and `InputValueDefinition` for better parse tree representation.
 
+## AST to String Conversion
+
+### Overview
+The function `ast_node_to_str(const TAstNodePtr &p_node)` was implemented to allow converting an AST node back to its original string representation. This is particularly useful for debugging, logging, and potentially for schema merging or transformation tasks where the original formatting (including comments and whitespaces) needs to be preserved.
+
+### Implementation Details
+- **File**: `src/main/cpp/isched/backend/isched_gql_grammar.cpp`
+- **Mechanism**: The function recursively traverses the AST.
+    - If a node `has_content()` (as defined in `GqlSelector`), it returns the `string_view()` of that node.
+    - If a node does not have content, it concatenates the results of calling `ast_node_to_str` on all its children.
+- **Formatting Preservation**: Because the grammar includes rules that capture whitespace and comments (e.g., `Document`, `OperationDefinition`, `FieldDefinition` use `TSeps` or `IgnoredMany`), and these rules are included in `GqlSelector`, the resulting string is a character-perfect reconstruction of the input in most cases.
+
+### Verification
+The implementation is verified in `src/test/cpp/isched/isched_ast_node_tests.cpp`.
+
+#### Test Cases
+- **Schema with description**: Reconstructing a schema definition starting with a block string description.
+- **Simple Query**: Reconstructing basic selection sets.
+- **Complex Mutation**: Reconstructing mutations with nested fields and block string arguments.
+- **Type System Definitions**: Reconstructing `scalar` and `type` definitions with fields and descriptions.
+- **Directives and Arguments**: Reconstructing operations and fields with directives and arguments.
+
 ## File Locations
 - Grammar Header: `src/main/cpp/isched/backend/isched_gql_grammar.hpp`
 - Unit Tests: `src/test/cpp/isched/isched_grammar_tests.cpp`
