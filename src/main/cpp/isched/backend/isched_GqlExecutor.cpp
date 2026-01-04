@@ -10,6 +10,7 @@
 #include <spdlog/spdlog.h>
 #include <string>
 #include <tao/pegtl.hpp>
+#include <tao/pegtl/string_input.hpp>
 
 #include "isched_ExecutionResult.hpp"
 #include "isched_gql_error.hpp"
@@ -21,6 +22,7 @@ namespace {
 
 namespace isched::v0_0_1::backend {
     using nlohmann::json;
+    using nlohmann::basic_json;
     using gql::TAstNodePtr;
 
     GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> p_database, Config)
@@ -229,8 +231,27 @@ namespace isched::v0_0_1::backend {
         load_schema(BUILTIN_SCHEMA);
     }
 
+    basic_json<> GqlExecutor::generate_directives_introspection() {
+        basic_json my_ret_val = basic_json<>::array();
+        static std::string their_null_str = "Unknown";
+        for (const auto &myDirective: m_directives) {
+            TAstNodePtr const *myTypeDefPtr = find_node_by_type(myDirective, "isched::v0_0_1::gql::Name");
+            int my_args;
+            int my_locations;
+            int my_desc;
+            std::string_view my_name = myTypeDefPtr ? (*myTypeDefPtr)->string_view() : their_null_str;
+            my_ret_val.push_back({
+                {"name", my_name},
+                {"description", my_desc},
+                {"locations", my_locations},
+                {"args", my_args}
+            });
+        }
+        return my_ret_val;
+    }
+
     json GqlExecutor::generate_schema_introspection() {
-        nlohmann::json schema;
+        json schema;
 
         // Default query type is "Query"
         schema["queryType"] = {
@@ -241,15 +262,15 @@ namespace isched::v0_0_1::backend {
 
         auto types = nlohmann::json::array();
 
-        for (const auto& [typeName, typeNodePtr] : m_type_map) {
-            const auto& typeNode = *typeNodePtr;
+        for (const auto &[typeName, typeNodePtr]: m_type_map) {
+            const auto &typeNode = *typeNodePtr;
             nlohmann::json typeObj;
             typeObj["name"] = typeName;
             typeObj["kind"] = "OBJECT"; // Simplified for now
 
             // Extract description if present
-            for (const auto& child : typeNode->children) {
-                if (child->type.find("Description") != std::string::npos) {
+            for (const auto &child: typeNode->children) {
+                if (child->type == "isched::v0_0_1::gql::Description") {
                     typeObj["description"] = child->string_view();
                 }
             }
@@ -257,22 +278,22 @@ namespace isched::v0_0_1::backend {
             // Extract fields
             auto fieldsArray = nlohmann::json::array();
             // Helper to find fields recursively within the type node
-            std::function<void(const TAstNodePtr&)> findFieldsRecursive;
-            findFieldsRecursive = [&](const TAstNodePtr& node) {
+            std::function<void(const TAstNodePtr &)> findFieldsRecursive;
+            findFieldsRecursive = [&](const TAstNodePtr &node) {
                 if (!node) return;
-                if (node->type.find("FieldDefinition") != std::string::npos) {
-                    nlohmann::json fieldObj;
-                    for (const auto& fieldChild : node->children) {
-                        if (fieldChild->type.find("Name") != std::string::npos) {
-                             fieldObj["name"] = fieldChild->string_view();
-                             break;
+                if (node->type == "isched::v0_0_1::gql::FieldDefinition") {
+                    json fieldObj;
+                    for (const auto &fieldChild: node->children) {
+                        // should we check for TypeName as well?
+                        if (fieldChild->type == "isched::v0_0_1::gql::Name") {
+                            fieldObj["name"] = fieldChild->string_view();
+                            break;
                         }
                     }
-                    for (const auto& fieldChild : node->children) {
-                        if (fieldChild->type.find("Description") != std::string::npos) {
+                    for (const auto &fieldChild: node->children) {
+                        if (fieldChild->type == "isched::v0_0_1::gql::Description") {
                             fieldObj["description"] = fieldChild->string_view();
-                        } else if (fieldChild->type.find("Type") != std::string::npos && 
-                                   fieldChild->type.find("Definition") == std::string::npos) {
+                        } else if (fieldChild->type == "isched::v0_0_1::gql::Type") {
                             auto typeStr = gql::ast_node_to_str(fieldChild);
                             if (typeStr) {
                                 fieldObj["type"] = {{"name", *typeStr}};
@@ -283,7 +304,7 @@ namespace isched::v0_0_1::backend {
                     }
                     fieldsArray.push_back(fieldObj);
                 } else {
-                    for (const auto& child : node->children) {
+                    for (const auto &child: node->children) {
                         findFieldsRecursive(child);
                     }
                 }
@@ -294,28 +315,28 @@ namespace isched::v0_0_1::backend {
         }
 
         schema["types"] = types;
-        schema["directives"] = nlohmann::json::array();
+        schema["directives"] = generate_directives_introspection();
 
         return schema;
     }
 
-    void GqlExecutor::update_type_map_recursive(const TAstNodePtr &p_typedef, TTypeMap &p_type_map) {
+    void GqlExecutor::update_type_map_recursive(const TAstNodePtr &p_typedef, TAstNodeMap &p_type_map) {
         if (!p_typedef) return;
         // ObjectTypeDefinition, ScalarTypeDefinition, etc.
         if (p_typedef->children.size() >= 1) {
-             // For ObjectTypeDefinition, name is usually child 0 or 1
-             for (const auto& child : p_typedef->children) {
-                 if (child->type.find("Name") != std::string::npos) {
-                     const auto myTypeName = std::string(child->string_view());
-                     // If the parent is a TypeDefinition or starts with it, it's a type
-                     if (p_typedef->type.find("Definition") != std::string::npos && 
-                         p_typedef->type.find("Field") == std::string::npos &&
-                         p_typedef->type.find("Operation") == std::string::npos) {
-                         p_type_map[myTypeName] = &p_typedef;
-                         break;
-                     }
-                 }
-             }
+            // For ObjectTypeDefinition, name is usually child 0 or 1
+            for (const auto &child: p_typedef->children) {
+                if (child->type.find("Name") != std::string::npos) {
+                    const auto myTypeName = std::string(child->string_view());
+                    // If the parent is a TypeDefinition or starts with it, it's a type
+                    if (p_typedef->type.find("Definition") != std::string::npos &&
+                        p_typedef->type.find("Field") == std::string::npos &&
+                        p_typedef->type.find("Operation") == std::string::npos) {
+                        p_type_map[myTypeName] = &p_typedef;
+                        break;
+                    }
+                }
+            }
         }
         for (const auto &myChild: p_typedef->children) {
             update_type_map_recursive(myChild, p_type_map);
@@ -340,8 +361,8 @@ namespace isched::v0_0_1::backend {
                 gql::EErrorCodes::PARSE_ERROR, "Incomplete Query field definition"
             });
         } else {
-            const TAstNodePtr* nameNodePtr = nullptr;
-            for (const auto& child : myField->children) {
+            const TAstNodePtr *nameNodePtr = nullptr;
+            for (const auto &child: myField->children) {
                 if (child->type.find("Name") != std::string::npos) {
                     nameNodePtr = &child;
                     break;
@@ -493,11 +514,29 @@ namespace isched::v0_0_1::backend {
         }
     }
 
+    TAstNodePtr const *GqlExecutor::find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const {
+        if (!pair.second) {
+            return nullptr;
+        }
+        if (!pair.second->get()) {
+            return nullptr;
+        }
+        if (pair.second->get()->children.empty()) {
+            return nullptr;
+        }
+        for (const auto &child: pair.second->get()->children) {
+            if (child->type == p_type) {
+                return &child;
+            }
+        }
+        return nullptr;
+    }
+
     ExecutionResult GqlExecutor::load_schema(const std::string &pSchemaDocument, bool p_print_dot) {
         static const std::string aName = "SchemaDocument";
         // Set up the states, here a single std::string as that is
         // what our action requires as an additional function argument.
-        tao::pegtl::string_input in(std::move(pSchemaDocument), aName);
+        tao::pegtl::string_input in(pSchemaDocument, aName);
         ExecutionResult myResult;
         try {
             auto myRetVal = gql::generate_ast_and_log<gql::Document>(in, aName, false, p_print_dot);
@@ -534,8 +573,10 @@ namespace isched::v0_0_1::backend {
                 m_current_schema = gql::merge_type_definitions(std::move(m_current_schema), std::move(aRoot));
                 update_type_map();
             } else {
-                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR,
-                    "Failed to parse schema, ignoring it."});
+                myResult.errors.push_back(gql::Error{
+                    gql::EErrorCodes::PARSE_ERROR,
+                    "Failed to parse schema, ignoring it."
+                });
             }
         } catch (const tao::pegtl::parse_error &e) {
             log_parse_error_exception(in, myResult, e);

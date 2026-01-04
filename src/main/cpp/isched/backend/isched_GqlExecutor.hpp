@@ -134,6 +134,8 @@ namespace isched::v0_0_1::backend {
 
         void setup_builtin_resolvers();
 
+        nlohmann::json generate_directives_introspection();
+
         nlohmann::json generate_schema_introspection();
 
         GqlExecutor(GqlExecutor&&) = default;
@@ -170,34 +172,34 @@ namespace isched::v0_0_1::backend {
 
     private:
 
-        using TTypeMap = std::map<std::string, const gql::TAstNodePtr*>;
+        using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
 
         ResolverRegistry m_resolvers;
         gql::TAstNodePtr m_current_schema;
         TDbManagerPtr m_database;
-        TTypeMap m_type_map;
+        TAstNodeMap m_type_map;
+        TAstNodeMap m_directives;
 
         using TTime = std::chrono::time_point<std::chrono::system_clock>;
 
         TTime m_start_time = std::chrono::system_clock::now();
 
-        void update_type_map_recursive(const gql::TAstNodePtr &p_typedef,
-                            TTypeMap &p_type_map);
+        void update_type_map_recursive(const gql::TAstNodePtr &p_typedef, TAstNodeMap &p_type_map);
 
         void update_type_map();
 
-        void process_field_definition(ExecutionResult &p_result,
-                                      const gql::TAstNodePtr &p_typedef,
-                                      size_t p_idx);
+        void process_field_definition(ExecutionResult &p_result, const gql::TAstNodePtr &p_typedef, size_t p_idx);
 
-        bool process_operation_definitions(ExecutionResult &p_result,
-                                           const gql::TAstNodePtr &myOperation) const;
+        bool process_operation_definitions(ExecutionResult &p_result, const gql::TAstNodePtr &myOperation) const;
 
         nlohmann::json extract_argument_value(const gql::TAstNodePtr &p_arg, ExecutionResult &p_execution_result) const;
 
         nlohmann::json process_arguments(const gql::TAstNodePtr & p_field_node, ExecutionResult & p_execution_result) const;
 
         void process_field_selection(const gql::TAstNodePtr &p_selection_set, ExecutionResult &p_result) const;
+
+        gql::TAstNodePtr const * find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const ;
+
     };
 }
 // isched::v0_0_1
