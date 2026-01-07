@@ -456,55 +456,76 @@ namespace isched::v0_0_1::backend {
         return my_ret_val;
     }
 
-    json GqlExecutor::process_resolver_arguments(const TAstNodePtr &p_field_node, json &p_result,
-                                                 gql::TErrorVector &p_errors) const {
-        spdlog::debug("Will extract arguments out field: \n***\n{}\n***\n.", gql::dump_ast(p_field_node));
+    /**
+     * Extracts arguments from a GraphQL field node and returns them as a JSON object.
+     *
+     * @param p_field_node The field node containing arguments
+     * @param p_errors Error vector to store parsing errors
+     * @return JSON object containing extracted arguments
+     */
+    json GqlExecutor::process_arguments(const TAstNodePtr &p_arguments_node,
+                                        gql::TErrorVector &p_errors) const {
         json my_ret_val = json::object();
-        if (p_field_node->children.size() > 1) {
-            const auto &myArgs = p_field_node->children[1];
-            if (!myArgs || myArgs->type != "isched::v0_0_1::gql::Arguments") {
+        if (!p_arguments_node || p_arguments_node->type != "isched::v0_0_1::gql::Arguments") {
+            p_errors.push_back(gql::Error{
+                .code = gql::EErrorCodes::PARSE_ERROR,
+                .message = format("Expected arguments, got a {}", p_arguments_node->type)
+            });
+            spdlog::error("Expected arguments, got a {}", gql::dump_ast(p_arguments_node));
+            return my_ret_val;
+        }
+        for (const auto &myArg: p_arguments_node->children) {
+            if (myArg->type != "isched::v0_0_1::gql::Argument") {
                 p_errors.push_back(gql::Error{
                     .code = gql::EErrorCodes::PARSE_ERROR,
-                    .message = format("Expected arguments, got a {}", myArgs->type)
+                    .message = format("Expected an argument, got a {}", myArg->type)
                 });
-                return my_ret_val;
+                continue;
             }
-            for (const auto &myArg: myArgs->children) {
-                if (myArg->type != "isched::v0_0_1::gql::Argument") {
-                    p_errors.push_back(gql::Error{
-                        .code = gql::EErrorCodes::PARSE_ERROR,
-                        .message = format("Expected an argument, got a {}", myArg->type)
-                    });
-                    continue;
-                }
-                if (myArg->children.size() != 2) {
-                    p_errors.push_back(gql::Error{
-                        .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty argument"
-                    });
-                    continue;
-                }
-                const auto myArgName = std::string(myArg->children[0]->string_view());
-                p_result[myArgName] = extract_argument_value(myArg->children[1], p_errors);
+            if (myArg->children.size() != 2) {
+                p_errors.push_back(gql::Error{
+                    .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty argument"
+                });
+                continue;
             }
+            const auto myArgName = std::string(myArg->children[0]->string_view());
+            my_ret_val[myArgName] = extract_argument_value(myArg->children[1], p_errors);
+        }
+        return my_ret_val;
+    }
+
+    json GqlExecutor::process_argument_field(const TAstNodePtr &p_field_node,gql::TErrorVector &p_errors) const {
+        spdlog::debug("Will extract arguments out field: \n***\n{}\n***\n.", gql::dump_ast(p_field_node));
+        json my_ret_val = json::object();
+        for (const auto &my_arguments_node: p_field_node->children) {
+            if (my_arguments_node->type == "isched::v0_0_1::gql::Name") {
+                spdlog::debug("Skipping argument field: {}", std::string(my_arguments_node->string_view()));
+                continue;
+            }
+            my_ret_val=process_arguments(my_arguments_node, p_errors);
         }
         spdlog::debug("Got args: '{}' for field '{}'", my_ret_val.dump(4), std::string(p_field_node->children[0]->string_view()));
         return my_ret_val;
     }
 
     void GqlExecutor::process_sub_selection(const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
-        if (node->type != "isched::v0_0_1::gql::SelectionSet") {
-            p_errors.push_back(gql::Error{gql::EErrorCodes::ARGUMENT_ERROR,format(
-                "Expected a selection set, got a {}.", node->type)});
-            return;
-        }
-        for (const auto &my_selection_set: node->children) {
-            if (my_selection_set->type != "isched::v0_0_1::gql::Selection") {
+        if (node->type == "isched::v0_0_1::gql::Arguments") {
+            process_arguments(node, p_errors);
+        } else {
+            if (node->type != "isched::v0_0_1::gql::SelectionSet") {
                 p_errors.push_back(gql::Error{gql::EErrorCodes::ARGUMENT_ERROR,format(
-                    "Expected a selection, got a {}.", my_selection_set->type)});
-                continue;
+                    "Expected a arguments or selection set while processing sub selection, got a {}.", node->type)});
+                return;
             }
-            for (const auto &my_field: my_selection_set->children) {
-                process_field_selection(my_field, p_result, p_errors);
+            for (const auto &my_selection_set: node->children) {
+                if (my_selection_set->type != "isched::v0_0_1::gql::Selection") {
+                    p_errors.push_back(gql::Error{gql::EErrorCodes::ARGUMENT_ERROR,format(
+                        "Expected a selection, got a {}.", my_selection_set->type)});
+                    continue;
+                }
+                for (const auto &my_field: my_selection_set->children) {
+                    process_field_selection(my_field, p_result, p_errors);
+                }
             }
         }
         spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
@@ -531,7 +552,7 @@ namespace isched::v0_0_1::backend {
             for (size_t myIdx = 1; myIdx < p_selection_set->children.size(); ++myIdx) {
                 process_sub_selection(p_selection_set->children[myIdx], p_result, p_error);
             }
-            json my_args = process_resolver_arguments(p_selection_set, p_result,p_error);
+            json my_args = process_argument_field(p_selection_set, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction my_found_resolver = m_resolvers.get_resolver(myFieldName);
             json my_result = my_found_resolver(my_args, my_ctx);

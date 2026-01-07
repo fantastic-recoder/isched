@@ -202,9 +202,12 @@ namespace isched::v0_0_1::backend {
 
         nlohmann::json extract_argument_value(const gql::TAstNodePtr &p_arg, gql::TErrorVector &p_errors) const;
 
-        nlohmann::json process_resolver_arguments(
+        nlohmann::json process_arguments(const gql::TAstNodePtr &p_field_node,
+                                         gql::TErrorVector &p_errors) const;
+
+        nlohmann::json process_argument_field(
             const gql::TAstNodePtr &p_field_node,
-            nlohmann::json &p_result, gql::TErrorVector &p_error) const;
+            gql::TErrorVector &p_error) const;
 
         void process_sub_selection(
             const gql::TAstNodePtr & node,
