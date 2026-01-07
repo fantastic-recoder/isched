@@ -14,6 +14,7 @@
 using tao::pegtl::string_input;
 using isched::v0_0_1::gql::generate_ast_and_log;
 using isched::v0_0_1::gql::ast_node_to_str;
+using isched::v0_0_1::gql::dump_ast;
 
 namespace isched::v0_0_1 {
     TEST_CASE("AST Node to String Conversion", "[isched][ast][string]") {
@@ -90,6 +91,24 @@ query MyQuery @deprecated(reason: "old") {
             auto s2 = ast_node_to_str(ast);
             REQUIRE(s2.has_value());
             REQUIRE(s2.value() == s);
+        }
+    }
+
+    TEST_CASE("AST Node Dumping", "[isched][ast][dump]") {
+        SECTION("Simple Dump") {
+            std::string s = "type User { id: ID }";
+            string_input in(s, "SimpleDump");
+            auto res = generate_ast_and_log<gql::Document>(in, "Simple Dump", false);
+            REQUIRE(std::get<0>(res) == true);
+            const auto &ast = std::get<1>(res);
+            auto dump = dump_ast(ast);
+            
+            CHECK(dump.find("isched::v0_0_1::gql::Document") != std::string::npos);
+            CHECK(dump.find("isched::v0_0_1::gql::TypeDefinition") != std::string::npos);
+            CHECK(dump.find("isched::v0_0_1::gql::Name (\"User\")") != std::string::npos);
+            CHECK(dump.find("isched::v0_0_1::gql::FieldDefinition") != std::string::npos);
+            CHECK(dump.find("isched::v0_0_1::gql::Name (\"id\")") != std::string::npos);
+            CHECK(dump.find("isched::v0_0_1::gql::NamedType (\"ID\")") != std::string::npos);
         }
     }
 

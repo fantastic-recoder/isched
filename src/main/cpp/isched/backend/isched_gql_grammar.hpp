@@ -611,8 +611,18 @@ namespace isched::v0_0_1::gql {
 
     struct TypeSystemDocument: plus< TypeSystemDefinition > {};
 
-    // Placeholders: not implemented — set to failure to avoid empty matches in loops
-    struct DirectiveDefinition : failure {};
+    /// @see GraphQL Spec: "DirectiveDefinition"
+    struct DirectiveDefinition : SeqWithComments<
+            TSeps,
+            opt<Description>,
+            string<'d','i','r','e','c','t','i','v','e'>,
+            TSeps,
+            one<'@'>,
+            Name,
+            opt<ArgumentsDefinition>,
+            opt<seq<TSeps, string<'o','n'>, plus<seq<TSeps, Name>>>>, // Simplified locations
+            TSeps
+    > {};
     struct TypeSystemExtension : failure {};
 
     /// @see GraphQL Spec: "SchemaDefinition"
@@ -671,7 +681,7 @@ namespace isched::v0_0_1::gql {
         TRule,
         parse_tree::store_content::on<
             GqlQuery, Name, TypeDefinition, FieldDefinition,TypeName,Type,NamedType,
-            Field, SelectionSet, Alias, Selection,
+            Field, SelectionSet, Alias, Selection, DirectiveDefinition,
             String,Int,Float,Boolean,ID,ListType,GqlNonNullType,
             // New grammar nodes for Document/Schema
             Document, ExecutableDefinition, OperationDefinition, OperationType,
@@ -725,10 +735,10 @@ namespace isched::v0_0_1::gql {
         std::unique_ptr<node> myRoot = pegtl::parse_tree::parse<
             TGrammar, GqlSelector /*, ns_pegtl::nothing, control*/
         >(p_in);
-        spdlog::debug("\n\nAST of \"{}\":\n{}", p_query_name, K_OUTPUT_SEP);
         bool myParsingOk;
         if (myRoot) {
             if (p_print_dot) {
+                spdlog::debug("AST of \"{}\":\n{}", p_query_name, K_OUTPUT_SEP);
                 pegtl::parse_tree::print_dot(std::cout, *myRoot);
                 std::cout << endl
                         << K_OUTPUT_SEP << endl
@@ -751,9 +761,10 @@ namespace isched::v0_0_1::gql {
     }
 
     using TAstNodePtr = std::vector<std::unique_ptr<node>>::value_type;
-    using TExpectedStr = std::expected<std::string, std::vector<Error>>;
+    using TExpectedStr = std::expected<std::string, TErrorVector>;
 
     TExpectedStr ast_node_to_str(const TAstNodePtr &p_node);
+    std::string dump_ast(const TAstNodePtr& ast);
 
     TAstNodePtr merge_type_definitions(TAstNodePtr &&p_schema_node, TAstNodePtr &&p_type_defs_node);
 

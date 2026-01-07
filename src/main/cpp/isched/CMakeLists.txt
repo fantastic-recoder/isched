@@ -46,6 +46,7 @@ add_library(isched
         backend/isched_GqlExecutor.hpp
         backend/isched_ExecutionResult.hpp
         backend/isched_gql_error.hpp
+        backend/isched_multi_dim_map.hpp
         backend/isched_gql_grammar.cpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json

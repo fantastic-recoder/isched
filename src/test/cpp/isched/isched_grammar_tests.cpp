@@ -1257,6 +1257,31 @@ TEST_CASE("Parse Example 9 from spec", "[grammar][spec-examples][positive]") {
     REQUIRE(std::get<0>(res) == true);
 }
 
+TEST_CASE("GraphQL Directive Grammar", "[gql][grammar][directive]") {
+    using namespace isched::v0_0_1::gql;
+
+    SECTION("Basic Directive Definition") {
+        const std::string input = "directive @skip on FIELD FRAGMENT_SPREAD INLINE_FRAGMENT";
+        tao::pegtl::string_input in(input, "test");
+        REQUIRE(tao::pegtl::parse<DirectiveDefinition>(in));
+    }
+
+    SECTION("Directive with Arguments") {
+        const std::string input = "directive @auth(role: String, level: Int) on FIELD_DEFINITION";
+        tao::pegtl::string_input in(input, "test");
+        REQUIRE(tao::pegtl::parse<DirectiveDefinition>(in));
+    }
+
+    SECTION("Directive with Description") {
+        const std::string input = R"(
+                "Skips execution"
+                directive @skip(if: Boolean!) on FIELD FRAGMENT_SPREAD INLINE_FRAGMENT
+            )";
+        tao::pegtl::string_input in(input, "test");
+        REQUIRE(tao::pegtl::parse<DirectiveDefinition>(in));
+    }
+}
+
 TEST_CASE("Parse Example 1 from spec", "[grammar][spec-examples][positive]") {
     static const char* example1 = R"Qry(
     {

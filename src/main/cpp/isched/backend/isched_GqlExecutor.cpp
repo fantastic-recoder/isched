@@ -234,18 +234,38 @@ namespace isched::v0_0_1::backend {
     basic_json<> GqlExecutor::generate_directives_introspection() {
         basic_json my_ret_val = basic_json<>::array();
         static std::string their_null_str = "Unknown";
-        for (const auto &myDirective: m_directives) {
-            TAstNodePtr const *myTypeDefPtr = find_node_by_type(myDirective, "isched::v0_0_1::gql::Name");
-            int my_args;
-            int my_locations;
-            int my_desc;
-            std::string_view my_name = myTypeDefPtr ? (*myTypeDefPtr)->string_view() : their_null_str;
-            my_ret_val.push_back({
-                {"name", my_name},
-                {"description", my_desc},
-                {"locations", my_locations},
-                {"args", my_args}
-            });
+        for (const auto &[dirName, dirNodePtr]: m_directives) {
+            const auto &dirNode = *dirNodePtr;
+            json dirObj;
+            dirObj["name"] = dirName;
+            dirObj["description"] = nullptr;
+            dirObj["locations"] = nlohmann::json::array();
+            dirObj["args"] = nlohmann::json::array();
+
+            for (const auto &child: dirNode->children) {
+                if (child->type == "isched::v0_0_1::gql::Description") {
+                    dirObj["description"] = child->string_view();
+                } else if (child->type == "isched::v0_0_1::gql::ArgumentsDefinition") {
+                    for (const auto &argChild: child->children) {
+                        if (argChild->type == "isched::v0_0_1::gql::InputValueDefinition") {
+                            nlohmann::json argObj;
+                            for (const auto &ivChild: argChild->children) {
+                                if (ivChild->type == "isched::v0_0_1::gql::Name") {
+                                    argObj["name"] = ivChild->string_view();
+                                } else if (ivChild->type == "isched::v0_0_1::gql::Type") {
+                                    auto typeStr = gql::ast_node_to_str(ivChild);
+                                    argObj["type"] = {{"name", typeStr ? *typeStr : "Unknown"}};
+                                }
+                            }
+                            dirObj["args"].push_back(argObj);
+                        }
+                    }
+                }
+            }
+            // For locations, we'd need more logic if we want to extract them properly from our simplified grammar
+            // For now, let's just put a placeholder if needed, or leave it empty.
+            
+            my_ret_val.push_back(dirObj);
         }
         return my_ret_val;
     }
@@ -295,11 +315,7 @@ namespace isched::v0_0_1::backend {
                             fieldObj["description"] = fieldChild->string_view();
                         } else if (fieldChild->type == "isched::v0_0_1::gql::Type") {
                             auto typeStr = gql::ast_node_to_str(fieldChild);
-                            if (typeStr) {
-                                fieldObj["type"] = {{"name", *typeStr}};
-                            } else {
-                                fieldObj["type"] = {{"name", "Unknown"}};
-                            }
+                            fieldObj["type"] = {{"name", typeStr ? *typeStr : "Unknown"}};
                         }
                     }
                     fieldsArray.push_back(fieldObj);
@@ -320,33 +336,40 @@ namespace isched::v0_0_1::backend {
         return schema;
     }
 
-    void GqlExecutor::update_type_map_recursive(const TAstNodePtr &p_typedef, TAstNodeMap &p_type_map) {
+    void GqlExecutor::update_type_map_recursive(const TAstNodePtr &p_typedef, TAstNodeMap &p_type_map, TAstNodeMap &p_directives) {
         if (!p_typedef) return;
-        // ObjectTypeDefinition, ScalarTypeDefinition, etc.
-        if (p_typedef->children.size() >= 1) {
-            // For ObjectTypeDefinition, name is usually child 0 or 1
-            for (const auto &child: p_typedef->children) {
-                if (child->type.find("Name") != std::string::npos) {
-                    const auto myTypeName = std::string(child->string_view());
-                    // If the parent is a TypeDefinition or starts with it, it's a type
-                    if (p_typedef->type.find("Definition") != std::string::npos &&
-                        p_typedef->type.find("Field") == std::string::npos &&
-                        p_typedef->type.find("Operation") == std::string::npos) {
-                        p_type_map[myTypeName] = &p_typedef;
-                        break;
-                    }
+        // ObjectTypeDefinition, ScalarTypeDefinition, DirectiveDefinition, etc.
+        // For ObjectTypeDefinition, name is usually child 0 or 1
+        std::string myTypeName;
+        for (const auto &child: p_typedef->children) {
+            if (child->type.find("Name") != std::string::npos) {
+                myTypeName = std::string(child->string_view());
+                break;
+            }
+        }
+        if (!myTypeName.empty()) {
+            // If the parent is a TypeDefinition or starts with it, it's a type
+            if (p_typedef->type.find("Definition") != std::string::npos &&
+                p_typedef->type.find("Field") == std::string::npos &&
+                p_typedef->type.find("Operation") == std::string::npos) {
+
+                if (p_typedef->type.find("DirectiveDefinition") != std::string::npos) {
+                    p_directives[myTypeName] = &p_typedef;
+                } else {
+                    p_type_map[myTypeName] = &p_typedef;
                 }
             }
         }
         for (const auto &myChild: p_typedef->children) {
-            update_type_map_recursive(myChild, p_type_map);
+            update_type_map_recursive(myChild, p_type_map, p_directives);
         }
     }
 
     void GqlExecutor::update_type_map() {
         m_type_map.clear();
+        m_directives.clear();
         if (m_current_schema) {
-            update_type_map_recursive(m_current_schema, m_type_map);
+            update_type_map_recursive(m_current_schema, m_type_map, m_directives);
         }
     }
 
@@ -381,7 +404,7 @@ namespace isched::v0_0_1::backend {
         }
     }
 
-    json GqlExecutor::extract_argument_value(const TAstNodePtr &p_arg, ExecutionResult &p_execution_result) const {
+    json GqlExecutor::extract_argument_value(const TAstNodePtr &p_arg, gql::TErrorVector& p_errors) const {
         json my_ret_val;
         if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
             const std::string my_ret_val_str(p_arg->string_view());
@@ -406,26 +429,26 @@ namespace isched::v0_0_1::backend {
         } else if (p_arg->type == "isched::v0_0_1::gql::ListValue") {
             my_ret_val = json::array();
             for (const auto &myChild: p_arg->children) {
-                my_ret_val.push_back(extract_argument_value(myChild, p_execution_result));
+                my_ret_val.push_back(extract_argument_value(myChild, p_errors));
             }
         } else if (p_arg->type == "isched::v0_0_1::gql::ObjectValue") {
             my_ret_val = json::object();
             for (const auto &myField: p_arg->children) {
                 if (myField->type == "isched::v0_0_1::gql::ObjectField") {
                     const auto myFieldName = std::string(myField->children[0]->string_view());
-                    my_ret_val[myFieldName] = extract_argument_value(myField->children[1], p_execution_result);
+                    my_ret_val[myFieldName] = extract_argument_value(myField->children[1], p_errors);
                 }
             }
         } else if (p_arg->type == "isched::v0_0_1::gql::Value") {
             if (!p_arg->children.empty()) {
-                return extract_argument_value(p_arg->children[0], p_execution_result);
+                return extract_argument_value(p_arg->children[0], p_errors);
             }
         } else if (p_arg->type == "isched::v0_0_1::gql::Argument") {
             if (p_arg->children.size() > 1) {
-                return extract_argument_value(p_arg->children[1], p_execution_result);
+                return extract_argument_value(p_arg->children[1], p_errors);
             }
         } else {
-            p_execution_result.errors.push_back(gql::Error{
+            p_errors.push_back(gql::Error{
                 gql::EErrorCodes::PARSE_ERROR,
                 format("Unknown argument value type: {}.", p_arg->type)
             });
@@ -433,12 +456,14 @@ namespace isched::v0_0_1::backend {
         return my_ret_val;
     }
 
-    json GqlExecutor::process_arguments(const TAstNodePtr &p_field_node, ExecutionResult &p_execution_result) const {
+    json GqlExecutor::process_resolver_arguments(const TAstNodePtr &p_field_node, json &p_result,
+                                                 gql::TErrorVector &p_errors) const {
+        spdlog::debug("Will extract arguments out field: \n***\n{}\n***\n.", gql::dump_ast(p_field_node));
         json my_ret_val = json::object();
         if (p_field_node->children.size() > 1) {
             const auto &myArgs = p_field_node->children[1];
             if (!myArgs || myArgs->type != "isched::v0_0_1::gql::Arguments") {
-                p_execution_result.errors.push_back(gql::Error{
+                p_errors.push_back(gql::Error{
                     .code = gql::EErrorCodes::PARSE_ERROR,
                     .message = format("Expected arguments, got a {}", myArgs->type)
                 });
@@ -446,67 +471,97 @@ namespace isched::v0_0_1::backend {
             }
             for (const auto &myArg: myArgs->children) {
                 if (myArg->type != "isched::v0_0_1::gql::Argument") {
-                    p_execution_result.errors.push_back(gql::Error{
+                    p_errors.push_back(gql::Error{
                         .code = gql::EErrorCodes::PARSE_ERROR,
                         .message = format("Expected an argument, got a {}", myArg->type)
                     });
                     continue;
                 }
                 if (myArg->children.size() != 2) {
-                    p_execution_result.errors.push_back(gql::Error{
+                    p_errors.push_back(gql::Error{
                         .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty argument"
                     });
                     continue;
                 }
                 const auto myArgName = std::string(myArg->children[0]->string_view());
-                my_ret_val[myArgName] = extract_argument_value(myArg->children[1], p_execution_result);
+                p_result[myArgName] = extract_argument_value(myArg->children[1], p_errors);
             }
         }
+        spdlog::debug("Got args: '{}' for field '{}'", my_ret_val.dump(4), std::string(p_field_node->children[0]->string_view()));
         return my_ret_val;
     }
 
-    void GqlExecutor::process_field_selection(const TAstNodePtr &p_selection_set, ExecutionResult &p_result) const {
+    void GqlExecutor::process_sub_selection(const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
+        if (node->type != "isched::v0_0_1::gql::SelectionSet") {
+            p_errors.push_back(gql::Error{gql::EErrorCodes::ARGUMENT_ERROR,format(
+                "Expected a selection set, got a {}.", node->type)});
+            return;
+        }
+        for (const auto &my_selection_set: node->children) {
+            if (my_selection_set->type != "isched::v0_0_1::gql::Selection") {
+                p_errors.push_back(gql::Error{gql::EErrorCodes::ARGUMENT_ERROR,format(
+                    "Expected a selection, got a {}.", my_selection_set->type)});
+                continue;
+            }
+            for (const auto &my_field: my_selection_set->children) {
+                process_field_selection(my_field, p_result, p_errors);
+            }
+        }
+        spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
+    }
+
+    bool GqlExecutor::resolve_field_selection_details(const TAstNodePtr &p_selection_set, json &p_result, gql::TErrorVector& p_error) const {
+        if (p_selection_set->children.empty()) {
+            p_error.push_back(
+                gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
+            return true;
+        }
+        const std::string myFieldName = std::string(p_selection_set->children[0]->string_view());
+        spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
+        if (!m_resolvers.has_resolver(myFieldName)) {
+            p_error.push_back(gql::Error{
+                gql::EErrorCodes::MISSING_GQL_RESOLVER,
+                std::format("Missing resolver for field {} in Query type", myFieldName)
+            });
+        } else {
+            if (p_result.empty()) {
+                p_result = json::object();
+            }
+            json my_ctx ={basic_json<>::array()};
+            for (size_t myIdx = 1; myIdx < p_selection_set->children.size(); ++myIdx) {
+                process_sub_selection(p_selection_set->children[myIdx], p_result, p_error);
+            }
+            json my_args = process_resolver_arguments(p_selection_set, p_result,p_error);
+            spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
+            const ResolverFunction my_found_resolver = m_resolvers.get_resolver(myFieldName);
+            json my_result = my_found_resolver(my_args, my_ctx);
+            p_result[myFieldName] = my_result;
+        }
+        return false;
+    }
+
+    void GqlExecutor::process_field_selection(const TAstNodePtr &p_selection_set,  json &p_result, gql::TErrorVector& p_errors) const {
         for (const auto &mySelection: p_selection_set->children) {
             if (mySelection->type == "isched::v0_0_1::gql::SelectionSet") {
-                process_field_selection(mySelection, p_result);
+                process_field_selection(mySelection, p_result,p_errors);
             } else if (mySelection->type == "isched::v0_0_1::gql::Selection") {
                 if (mySelection->children.empty()) {
-                    p_result.errors.push_back(gql::Error{
+                    p_errors.push_back(gql::Error{
                         .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty selection"
                     });
                     continue;
                 }
                 const auto &myField = mySelection->children[0];
                 if (myField->type != "isched::v0_0_1::gql::Field") {
-                    p_result.errors.push_back(gql::Error{
+                    p_errors.push_back(gql::Error{
                         .code = gql::EErrorCodes::PARSE_ERROR,
                         .message = format("Expected a field, got a {}", myField->type)
                     });
                     continue;
                 }
-                if (myField->children.empty()) {
-                    p_result.errors.push_back(
-                        gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
-                    continue;
-                }
-                const std::string myFieldName = std::string(myField->children[0]->string_view());
-                spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
-                if (!m_resolvers.has_resolver(myFieldName)) {
-                    p_result.errors.push_back(gql::Error{
-                        gql::EErrorCodes::MISSING_GQL_RESOLVER,
-                        std::format("Missing resolver for field {} in Query type", myFieldName)
-                    });
-                } else {
-                    if (p_result.data.empty()) {
-                        p_result.data = json::object();
-                    }
-                    json my_args = process_arguments(myField, p_result);
-                    const ResolverFunction my_found_resolver = m_resolvers.get_resolver(myFieldName);
-                    json my_result = my_found_resolver(my_args, json::object());
-                    p_result.data[myFieldName] = my_result;
-                }
+                resolve_field_selection_details(myField, p_result,p_errors);
             } else {
-                p_result.errors.push_back(gql::Error{
+                p_errors.push_back(gql::Error{
                     gql::EErrorCodes::PARSE_ERROR,
                     format("Expected a selection or selection set, got a {}", mySelection->type)
                 });
@@ -534,9 +589,11 @@ namespace isched::v0_0_1::backend {
 
     ExecutionResult GqlExecutor::load_schema(const std::string &pSchemaDocument, bool p_print_dot) {
         static const std::string aName = "SchemaDocument";
+        m_schema_documents.push_back(pSchemaDocument);
+        const std::string& savedSchema = m_schema_documents.back();
         // Set up the states, here a single std::string as that is
         // what our action requires as an additional function argument.
-        tao::pegtl::string_input in(pSchemaDocument, aName);
+        tao::pegtl::string_input in(savedSchema, aName);
         ExecutionResult myResult;
         try {
             auto myRetVal = gql::generate_ast_and_log<gql::Document>(in, aName, false, p_print_dot);
@@ -584,9 +641,10 @@ namespace isched::v0_0_1::backend {
         return myResult;
     }
 
-    void GqlExecutor::log_parse_error_exception(const tao::pegtl::string_input<> &in, ExecutionResult myResult,
+    void GqlExecutor::log_parse_error_exception(const tao::pegtl::string_input<> &in, ExecutionResult &myResult,
                                                 const tao::pegtl::parse_error &e) const {
         const auto p = e.positions().front();
+        std::cerr << "Parse error: " << e.what() << " at " << in.line_at(p) << ":" << p.column << std::endl;
         myResult.errors.push_back(gql::Error{
             gql::EErrorCodes::PARSE_ERROR,
             std::format("Error parsing schema: message={}, line={} column={}.",
@@ -594,34 +652,35 @@ namespace isched::v0_0_1::backend {
         });
     }
 
-    bool GqlExecutor::process_operation_definitions(ExecutionResult &p_result, const TAstNodePtr &myOperation) const {
+    bool GqlExecutor::process_operation_definitions(const TAstNodePtr &myOperation,
+        json &p_result, gql::TErrorVector &p_errors) const {
         if (myOperation->type != "isched::v0_0_1::gql::OperationDefinition") {
-            p_result.errors.push_back(gql::Error{
+            p_errors.push_back(gql::Error{
                 gql::EErrorCodes::PARSE_ERROR,
                 std::format("Expected with an operation definition, got {}.", myOperation->type)
             });
             return true;
         }
         if (myOperation->children.empty()) {
-            p_result.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty operation definition"});
+            p_errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty operation definition"});
             return true;
         }
         const auto a_op_type = myOperation->children[0]->string_view();
         if (a_op_type == "query") {
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 if (myOperation->children[myIdx]->type == "isched::v0_0_1::gql::SelectionSet") {
-                    process_field_selection(myOperation->children[myIdx], p_result);
+                    process_field_selection(myOperation->children[myIdx], p_result,p_errors);
                 } else {
-                    p_result.errors.push_back(gql::Error{
+                    p_errors.push_back(gql::Error{
                         gql::EErrorCodes::PARSE_ERROR,
                         std::format("Expected with a selection set, got {}.", myOperation->children[myIdx]->type)
                     });
                 }
             }
         } else if (myOperation->children[0]->type == "isched::v0_0_1::gql::SelectionSet") {
-            process_field_selection(myOperation->children[0], p_result);
+            process_field_selection(myOperation->children[0], p_result,p_errors);
         } else {
-            p_result.errors.push_back(gql::Error{
+            p_errors.push_back(gql::Error{
                 gql::EErrorCodes::PARSE_ERROR,
                 std::format("Only query operations are supported, got {}.", a_op_type)
             });
@@ -631,10 +690,10 @@ namespace isched::v0_0_1::backend {
 
     ExecutionResult GqlExecutor::execute(const std::string_view p_query, const bool p_print_dot) const {
         static const std::string aName = "ExecutableDocument";
-        ExecutionResult myResult;
+        ExecutionResult my_result;
         if (p_query.length() > 100000) {
             // Max pQuery length
-            myResult.errors.push_back(gql::Error{
+            my_result.errors.push_back(gql::Error{
                 gql::EErrorCodes::ARGUMENT_ERROR,
                 "Query length exceeds maximum allowed"
             });
@@ -647,38 +706,38 @@ namespace isched::v0_0_1::backend {
             auto aRoot = std::get<1>(std::move(myRetVal));
             const bool aParsingOk = std::get<0>(myRetVal);
             if (!aParsingOk) {
-                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
-                return myResult;
+                my_result.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Failed to parse schema document"});
+                return my_result;
             }
             if (!aRoot || aRoot->children.empty()) {
-                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty document"});
-                return myResult;
+                my_result.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty document"});
+                return my_result;
             }
             const auto &myDoc = aRoot->children[0];
             if (!myDoc || myDoc->type != "isched::v0_0_1::gql::Document") {
-                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Expected with a document"});
-                return myResult;
+                my_result.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Expected with a document"});
+                return my_result;
             }
             if (myDoc->children.empty()) {
-                myResult.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty document"});
-                return myResult;
+                my_result.errors.push_back(gql::Error{gql::EErrorCodes::PARSE_ERROR, "Empty document"});
+                return my_result;
             }
             for (const auto &myChild: myDoc->children) {
                 if (myChild->type != "isched::v0_0_1::gql::ExecutableDefinition") {
-                    myResult.errors.push_back(gql::Error{
+                    my_result.errors.push_back(gql::Error{
                         gql::EErrorCodes::PARSE_ERROR,
                         std::format("Expected with an executable definition, got {}.", myChild->type)
                     });
-                    return myResult;
+                    return my_result;
                 }
                 for (const auto &myOperation: myChild->children) {
-                    process_operation_definitions(myResult, myOperation);
+                    process_operation_definitions(myOperation,my_result.data,my_result.errors);
                 }
             }
         } catch (const tao::pegtl::parse_error &e) {
-            log_parse_error_exception(in, myResult, e);
+            log_parse_error_exception(in, my_result, e);
         }
-        return myResult;
+        return my_result;
     }
 
 

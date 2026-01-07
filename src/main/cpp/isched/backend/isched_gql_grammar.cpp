@@ -59,4 +59,26 @@ namespace isched::v0_0_1::gql {
 
         return std::move(p_schema_node);
     }
+
+    void dump_ast_recursive(const TAstNodePtr& p_node, std::string& p_result, int p_indent) {
+        if (!p_node) return;
+
+        for (int i = 0; i < p_indent; ++i) p_result += (i==0 ? "|--" : "---" );
+        
+        p_result += p_node->type;
+        if (p_node->has_content()) {
+            p_result += " (\"" + std::string(p_node->string_view()) + "\")";
+        }
+        p_result += "|\n";
+
+        for (const auto& child : p_node->children) {
+            dump_ast_recursive(child, p_result, p_indent + 1);
+        }
+    }
+
+    std::string dump_ast(const TAstNodePtr& ast) {
+        std::string result;
+        dump_ast_recursive(ast, result, 1);
+        return result;
+    }
 }

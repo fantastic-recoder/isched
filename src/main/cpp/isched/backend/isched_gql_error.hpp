@@ -5,6 +5,9 @@
 #ifndef ISCHED_E_ERROR_CODES_HPP
 #define ISCHED_E_ERROR_CODES_HPP
 
+#include <string>
+#include <vector>
+
 namespace isched::v0_0_1::gql {
     enum class EErrorCodes {
         OK = 0,
@@ -16,6 +19,8 @@ namespace isched::v0_0_1::gql {
         EErrorCodes code = EErrorCodes::UNKNOWN_ERROR;
         std::string message{};
     };
+
+    using TErrorVector = std::vector<Error>;
 
 }
 

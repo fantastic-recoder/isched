@@ -12,7 +12,7 @@
 
 namespace isched::v0_0_1::backend {
 
-    inline nlohmann::json ec_to_json(const std::vector<gql::Error>& pErrors) {
+    inline nlohmann::json ec_to_json(const gql::TErrorVector& pErrors) {
         nlohmann::json result = nlohmann::json::array();
         for (const auto& error : pErrors) {
             result.push_back(nlohmann::json{
@@ -27,7 +27,7 @@ namespace isched::v0_0_1::backend {
      */
     struct ExecutionResult {
         nlohmann::json data; ///< Query result data
-        std::vector<gql::Error> errors; ///< Execution errors
+        gql::TErrorVector errors; ///< Execution errors
         nlohmann::json extensions; ///< Optional extensions
         std::chrono::milliseconds execution_time{0}; ///< Execution duration
 

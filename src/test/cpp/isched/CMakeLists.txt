@@ -8,7 +8,7 @@ add_executable(isched_graphql_tests isched_graphql_tests.cpp)
 target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
-add_executable(isched_gql_executor_tests isched_gql_executor_tests.cpp)
+add_executable(isched_gql_executor_tests isched_gql_executor_tests.cpp isched_test_run_listener.cpp)
 target_link_libraries(isched_gql_executor_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
 add_test(NAME isched_gql_executor_tests COMMAND isched_gql_executor_tests)
 
@@ -36,7 +36,8 @@ add_executable(isched_resolver_tests isched_resolver_tests.cpp)
 target_link_libraries(isched_resolver_tests isched Catch2::Catch2WithMain)
 add_test(NAME isched_resolver_tests COMMAND isched_resolver_tests)
 
-add_executable(database_test isched_database_test.cpp)
+add_executable(database_test isched_database_test.cpp
+        isched_test_run_listener.cpp)
 target_link_libraries(database_test PRIVATE isched Catch2::Catch2WithMain SQLite::SQLite3 nlohmann_json::nlohmann_json spdlog::spdlog)
 add_test(NAME database_test COMMAND database_test)
 
@@ -70,4 +71,8 @@ add_executable(isched_ast_node_tests isched_ast_node_tests.cpp)
 target_link_libraries(isched_ast_node_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog
         Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json taocpp::pegtl )
 add_test(NAME isched_ast_node_tests COMMAND isched_ast_node_tests)
+
+add_executable(isched_multi_dim_map_tests isched_multi_dim_map_tests.cpp)
+target_link_libraries(isched_multi_dim_map_tests PRIVATE isched Catch2::Catch2WithMain)
+add_test(NAME isched_multi_dim_map_tests COMMAND isched_multi_dim_map_tests)
 

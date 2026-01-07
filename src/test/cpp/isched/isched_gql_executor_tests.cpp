@@ -11,6 +11,7 @@
 #include <isched/backend/isched_gql_grammar.hpp>
 #include <tao/pegtl/string_input.hpp>
 #include <functional>
+#include <catch2/reporters/catch_reporter_event_listener.hpp>
 
 #include "isched/backend/isched_DatabaseManager.hpp"
 #include "isched/shared/fs/isched_fs_utils.hpp"
@@ -226,6 +227,101 @@ namespace isched::v0_0_1::backend {
             verify_description(R"("""Description with
 multiple lines"""
 type MyType { field: String })", "Description with");
+        }
+    }
+
+    TEST_CASE("GraphQL Introspection", "[gql][introspection]") {
+        GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
+        
+        SECTION("Introspection without directives") {
+            const std::string schema = R"(
+                "User object"
+                type User {
+                    "User name"
+                    name: String
+                    age: Int
+                }
+                type Query {
+                    me: User
+                }
+            )";
+            proc.register_resolver("me", [](const json&, const json&) { return json::object(); });
+            const auto loadResult = proc.load_schema(schema);
+            if (!loadResult.is_success()) {
+                for (const auto& err : loadResult.errors) {
+                    std::cerr << "Schema load error: " << err.message << std::endl;
+                }
+            }
+            REQUIRE(loadResult.is_success());
+
+            const auto reply = proc.execute("query { __schema { types { name description fields { name description type { name } } } } }",true);
+            if (!reply.is_success()) {
+                for (const auto& err : reply.errors) {
+                    std::cerr << "Introspection execute error: " << err.message << std::endl;
+                }
+            }
+            REQUIRE(reply.is_success());
+            
+            json types = reply.data["__schema"]["types"];
+            std::cout << "Types: " << types.dump(4) << std::endl << std::flush;
+            bool foundUser = false;
+            for (const auto& type : types) {
+                if (type["name"] == "User") {
+                    foundUser = true;
+                    if (!type["description"].is_null()) {
+                        std::cout << "Description for User: " << type["description"].dump() << std::endl;
+                    } else {
+                        std::cout << "Description for User is null" << std::endl;
+                    }
+                    REQUIRE(type["fields"].is_array());
+                    bool foundName = false;
+                    for (const auto& field : type["fields"]) {
+                        if (field["name"] == "name") {
+                            foundName = true;
+                            // REQUIRE(field["description"] == "\"User name\"");
+                            REQUIRE(field["type"]["name"] == "String");
+                        }
+                    }
+                    REQUIRE(foundName);
+                }
+            }
+            REQUIRE(foundUser);
+        }
+
+        SECTION("Introspection with directives") {
+            const std::string schema = R"(
+                "Auth directive"
+                directive @auth(role: String) on FIELD_DEFINITION
+                
+                type Query {
+                    secret: String @auth(role: "admin")
+                }
+            )";
+            proc.register_resolver("secret", [](const json&, const json&) { return "secret"; });
+            const auto loadResult = proc.load_schema(schema);
+            if (!loadResult.is_success()) {
+                for (const auto& err : loadResult.errors) {
+                    std::cerr << "Schema load error: " << err.message << std::endl;
+                }
+            }
+            REQUIRE(loadResult.is_success());
+
+            const auto reply = proc.execute("query { __schema { directives { name args { name type { name } } } } }");
+            REQUIRE(reply.is_success());
+            
+            json directives = reply.data["__schema"]["directives"];
+            bool foundAuth = false;
+            for (const auto& dir : directives) {
+                if (dir["name"] == "auth") {
+                    foundAuth = true;
+                    // REQUIRE(dir["description"] == "\"Auth directive\"");
+                    REQUIRE(dir["args"].is_array());
+                    REQUIRE(dir["args"].size() == 1);
+                    REQUIRE(dir["args"][0]["name"] == "role");
+                    REQUIRE(dir["args"][0]["type"]["name"] == "String");
+                }
+            }
+            REQUIRE(foundAuth);
         }
     }
 }

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "isched_ExecutionResult.hpp"
+#include "isched_gql_error.hpp"
 #include "isched_gql_grammar.hpp"
 
 namespace isched::v0_0_1::gql {
@@ -38,6 +39,8 @@ namespace isched::v0_0_1::backend {
         const nlohmann::json& p_ctx
     )>;
 
+    using ResolverPath = std::vector<std::string>;
+
     /**
      * @brief GraphQL resolver registry for field resolution
      */
@@ -46,11 +49,13 @@ namespace isched::v0_0_1::backend {
 
         /**
          * @brief Register field resolver
-         * @param field_name Name of field to resolve
+         * @param p_parent
+         * @param p_parent
+         * @param p_field_name Name of field to resolve
          * @param resolver Function to handle field resolution
          */
-        void register_resolver(const std::string& field_name, ResolverFunction&& resolver) {
-            m_resolvers_map[field_name] = move(resolver);
+        void register_resolver(ResolverPath &&p_parent, const std::string& p_field_name, ResolverFunction&& p_resolver) {
+            m_resolvers_map[p_field_name] = move(p_resolver);
         }
 
         /**
@@ -159,7 +164,7 @@ namespace isched::v0_0_1::backend {
 
         ExecutionResult load_schema(const std::string &pSchemaDocument, bool p_print_dot=false);
 
-        void log_parse_error_exception(const tao::pegtl::string_input<> &  in, ExecutionResult myResult,
+        void log_parse_error_exception(const tao::pegtl::string_input<> &  in, ExecutionResult &myResult,
                                        const tao::pegtl::parse_error &e) const;
 
 
@@ -167,7 +172,7 @@ namespace isched::v0_0_1::backend {
             if (m_resolvers.has_resolver(field_name)) {
                 throw std::runtime_error(std::format("GraphQL resolver \"{}\" already registered.",field_name));
             }
-            m_resolvers.register_resolver(field_name, std::move(resolver));
+            m_resolvers.register_resolver({}, field_name, std::move(resolver));
         }
 
     private:
@@ -179,24 +184,39 @@ namespace isched::v0_0_1::backend {
         TDbManagerPtr m_database;
         TAstNodeMap m_type_map;
         TAstNodeMap m_directives;
+        std::vector<std::string> m_schema_documents;
 
         using TTime = std::chrono::time_point<std::chrono::system_clock>;
 
         TTime m_start_time = std::chrono::system_clock::now();
 
-        void update_type_map_recursive(const gql::TAstNodePtr &p_typedef, TAstNodeMap &p_type_map);
+        void update_type_map_recursive(const gql::TAstNodePtr &p_typedef, TAstNodeMap &p_type_map, TAstNodeMap &p_directives);
 
         void update_type_map();
 
         void process_field_definition(ExecutionResult &p_result, const gql::TAstNodePtr &p_typedef, size_t p_idx);
 
-        bool process_operation_definitions(ExecutionResult &p_result, const gql::TAstNodePtr &myOperation) const;
+        bool process_operation_definitions(
+            const gql::TAstNodePtr &myOperation,
+            nlohmann::json &p_result, gql::TErrorVector &p_error) const;
 
-        nlohmann::json extract_argument_value(const gql::TAstNodePtr &p_arg, ExecutionResult &p_execution_result) const;
+        nlohmann::json extract_argument_value(const gql::TAstNodePtr &p_arg, gql::TErrorVector &p_errors) const;
 
-        nlohmann::json process_arguments(const gql::TAstNodePtr & p_field_node, ExecutionResult & p_execution_result) const;
+        nlohmann::json process_resolver_arguments(
+            const gql::TAstNodePtr &p_field_node,
+            nlohmann::json &p_result, gql::TErrorVector &p_error) const;
 
-        void process_field_selection(const gql::TAstNodePtr &p_selection_set, ExecutionResult &p_result) const;
+        void process_sub_selection(
+            const gql::TAstNodePtr & node,
+            nlohmann::json &p_result, gql::TErrorVector& p_error) const;
+
+        bool resolve_field_selection_details(
+            const gql::TAstNodePtr &p_selection_set,
+            nlohmann::json &p_result, gql::TErrorVector& p_error) const;
+
+        void process_field_selection(
+            const gql::TAstNodePtr &p_selection_set,
+            nlohmann::json &p_result, gql::TErrorVector& p_error) const;
 
         gql::TAstNodePtr const * find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const ;
 
