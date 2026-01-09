@@ -37,7 +37,8 @@ target_link_libraries(isched_resolver_tests isched Catch2::Catch2WithMain)
 add_test(NAME isched_resolver_tests COMMAND isched_resolver_tests)
 
 add_executable(database_test isched_database_test.cpp
-        isched_test_run_listener.cpp)
+        isched_test_run_listener.cpp
+        ../../../main/cpp/isched/backend/isched_log_result.hpp)
 target_link_libraries(database_test PRIVATE isched Catch2::Catch2WithMain SQLite::SQLite3 nlohmann_json::nlohmann_json spdlog::spdlog)
 add_test(NAME database_test COMMAND database_test)
 
@@ -73,6 +74,6 @@ target_link_libraries(isched_ast_node_tests PRIVATE isched Catch2::Catch2WithMai
 add_test(NAME isched_ast_node_tests COMMAND isched_ast_node_tests)
 
 add_executable(isched_multi_dim_map_tests isched_multi_dim_map_tests.cpp)
-target_link_libraries(isched_multi_dim_map_tests PRIVATE isched Catch2::Catch2WithMain)
+target_link_libraries(isched_multi_dim_map_tests PRIVATE Catch2::Catch2WithMain)
 add_test(NAME isched_multi_dim_map_tests COMMAND isched_multi_dim_map_tests)
 

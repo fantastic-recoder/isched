@@ -6,6 +6,7 @@
 #define ISCHED_ISCHED_EXECUTION_RESULT_HPP
 
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <vector>
 
 #include "isched_gql_error.hpp"

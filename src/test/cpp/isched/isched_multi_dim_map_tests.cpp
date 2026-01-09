@@ -40,6 +40,8 @@ TEST_CASE("multi_dim_map path functionality", "[multi_dim_map]") {
         REQUIRE(my_mmap.at(path) == 42);
         std::vector<multi_dim_map<std::string, int>::key_type> path2 = {"a", "b"};
         REQUIRE(my_mmap.at(path2) == 21);
+        my_mmap[std::vector<std::string>{}]["a"]=11;
+        REQUIRE(my_mmap["a"] == 11);
     }
 }
 
@@ -80,9 +82,45 @@ TEST_CASE("multi_dim_map STL container methods", "[multi_dim_map]") {
         REQUIRE_FALSE(my_mmap.empty());
         REQUIRE(my_mmap.count("a") == 1);
         REQUIRE(my_mmap.count("d") == 0);
-        REQUIRE(my_mmap.find("b") != my_mmap.end());
+        
+        auto it = my_mmap.find("b");
+        REQUIRE(it != my_mmap.end());
+        REQUIRE(it->first == "b");
+        REQUIRE(it->second.has_value());
+        REQUIRE(it->second.get_value() == 2);
+
         REQUIRE(my_mmap.find("e") == my_mmap.end());
         REQUIRE(my_mmap.contains("c"));
+    }
+
+    SECTION("Find and value retrieval") {
+        my_mmap["deep"]["node"] = 42;
+        
+        auto it = my_mmap.find("deep");
+        REQUIRE(it != my_mmap.end());
+        REQUIRE(it->first == "deep");
+        REQUIRE_FALSE(it->second.has_value()); // "deep" doesn't have a value itself
+        
+        auto it_inner = it->second.find("node");
+        REQUIRE(it_inner != it->second.end());
+        REQUIRE(it_inner->first == "node");
+        REQUIRE(it_inner->second.has_value());
+        REQUIRE(it_inner->second.get_value() == 42);
+        
+        // Retrieval via conversion
+        int val = it_inner->second;
+        REQUIRE(val == 42);
+    }
+
+    SECTION("Find should search only in subnet") {
+        my_mmap["x"]["x0"] = 100;
+        my_mmap["x"]["x1"] = 101;
+        my_mmap["y"]["y0"] = 102;
+        my_mmap["y"]["y1"] = 103;
+        auto it0 = my_mmap[std::vector<std::string>{"x"}].find("y0");
+        REQUIRE(it0 == my_mmap[std::vector<std::string>{"x"}].end());
+        it0 = my_mmap[std::vector<std::string>{"x"}].find("y");
+        REQUIRE(it0 == my_mmap[std::vector<std::string>{"x"}].end());
     }
 
     SECTION("Modifiers") {
@@ -94,4 +132,30 @@ TEST_CASE("multi_dim_map STL container methods", "[multi_dim_map]") {
         REQUIRE(my_mmap.size() == 0);
         REQUIRE(my_mmap.empty());
     }
+
+    SECTION("Emplace") {
+        my_mmap.emplace("d", 4);
+        REQUIRE(my_mmap.size() == 4);
+        REQUIRE(my_mmap.contains("d"));
+        REQUIRE(my_mmap["d"] == 4);
+
+        // Nested emplace
+        my_mmap["d"].emplace("e", 5);
+        REQUIRE(my_mmap["d"]["e"] == 5);
+    }
 }
+
+TEST_CASE("multi_dim_map basic int functionality", "[multi_dim_map]") {
+    multi_dim_map<int, int> my_mmap;
+
+    SECTION("Initial requirement test") {
+        my_mmap[0] = 0;
+        my_mmap[1] = 1;
+        my_mmap[0][0] = 2;
+        my_mmap[0][0] = 3;
+        REQUIRE(my_mmap[0][0] == 3);
+        REQUIRE(my_mmap[0] == 0);
+        REQUIRE(my_mmap[1] == 1);
+    }
+}
+

@@ -1,18 +1,18 @@
 // Skeleton unit tests for GqlExecutor
 
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/internal/catch_stdstreams.hpp>
 #include <catch2/matchers/catch_matchers.hpp>
-#include <catch2/matchers/catch_matchers_vector.hpp>
+#include <memory>
 #include <nlohmann/json.hpp>
 
 #include <isched/backend/isched_GqlExecutor.hpp>
-#include <isched/backend/isched_GqlParser.hpp>
 #include <isched/backend/isched_gql_grammar.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <tao/pegtl/string_input.hpp>
 #include <functional>
-#include <catch2/reporters/catch_reporter_event_listener.hpp>
+#include <vector>
 
+#include "isched/backend/isched_log_result.hpp"
 #include "isched/backend/isched_DatabaseManager.hpp"
 #include "isched/shared/fs/isched_fs_utils.hpp"
 
@@ -43,19 +43,19 @@ namespace isched::v0_0_1::backend {
         const std::string schema_str = fsutils::read_file("hello_world_schema.graphql");
         REQUIRE(!schema_str.empty());
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
-        const auto myResult=proc.load_schema(schema_str);
+        const auto myResult=proc.load_schema(std::string(schema_str));
         REQUIRE(myResult.is_success()==false);
         REQUIRE(myResult.errors.size()==3);
         REQUIRE(myResult.errors[0].code==EErrorCodes::MISSING_GQL_RESOLVER);
         REQUIRE(myResult.errors[1].code==EErrorCodes::MISSING_GQL_RESOLVER);
-        proc.register_resolver("hello_ping", [](const json&,const json&) {
+        proc.register_resolver({},"hello_ping", [](const json&,const json&) {
             return json{"Hello, World!"}[0];
         });
-        proc.register_resolver("hello_who", [](const json& args,const json&) {
+        proc.register_resolver({},"hello_who", [](const json& args,const json&) {
             std::cout << "hello_who resolver called with args: " << args.dump(4) << std::endl;
             return json{std::format("Hello, {}!",args["who"].get<std::string>())}[0];
         });
-        const auto myResult2=proc.load_schema(schema_str);
+        const auto myResult2=proc.load_schema(std::string(schema_str));
         REQUIRE(myResult2.is_success());
         const auto myReply= proc.execute(R"(query { hello_ping hello_who(who: "Josef") } )", true);
         for (int myIdx=0;auto& err : myReply.errors) {
@@ -73,7 +73,7 @@ namespace isched::v0_0_1::backend {
 
     TEST_CASE("Test int resolver","[gql][processor][smoke]") {
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
-        proc.register_resolver("multi", [](const json& args,const json&)->json {
+        proc.register_resolver({},"multi", [](const json& args,const json&)->json {
             long long my_retval = args["p_i"].get<long long>();
             return json{my_retval*2}[0];
         });
@@ -91,12 +91,12 @@ namespace isched::v0_0_1::backend {
     TEST_CASE("Test all argument types", "[gql][processor][arguments]") {
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
         
-        proc.register_resolver("test_args", [](const json& args, const json&) -> json {
+        proc.register_resolver({},"test_args", [](const json& args, const json&) -> json {
             return args;
         });
 
         const std::string schema = "type Query { test_args: String }";
-        const auto loadResult = proc.load_schema(schema);
+        const auto loadResult = proc.load_schema(std::string(schema));
         REQUIRE(loadResult.is_success());
 
         // Simple query with each argument type separately to verify they work
@@ -142,6 +142,7 @@ namespace isched::v0_0_1::backend {
         }
         SECTION("BlockString") {
             const auto reply = proc.execute(R"(query { test_args(s: """line1""") } )", true);
+            log_result(reply);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["s"].get<std::string>() == "line1");
         }
@@ -152,7 +153,7 @@ namespace isched::v0_0_1::backend {
         struct Summator {
             double sum = 0;
         } summator;
-        proc.register_resolver("summ", [&summator](const json& args, const json&) -> json {
+        proc.register_resolver({},"summ", [&summator](const json& args, const json&) -> json {
             summator.sum += args["i"].get<double>();
             return json{summator.sum}[0];
         });
@@ -245,21 +246,14 @@ type MyType { field: String })", "Description with");
                     me: User
                 }
             )";
-            proc.register_resolver("me", [](const json&, const json&) { return json::object(); });
-            const auto loadResult = proc.load_schema(schema);
-            if (!loadResult.is_success()) {
-                for (const auto& err : loadResult.errors) {
-                    std::cerr << "Schema load error: " << err.message << std::endl;
-                }
-            }
+            proc.register_resolver({},"me", [](const json&, const json&)
+                { return json::object(); });
+            const auto loadResult = proc.load_schema(std::string(schema));
+            log_result(loadResult);
             REQUIRE(loadResult.is_success());
 
             const auto reply = proc.execute("query { __schema { types { name description fields { name description type { name } } } } }",true);
-            if (!reply.is_success()) {
-                for (const auto& err : reply.errors) {
-                    std::cerr << "Introspection execute error: " << err.message << std::endl;
-                }
-            }
+            log_result(reply);
             REQUIRE(reply.is_success());
             
             json types = reply.data["__schema"]["types"];
@@ -297,13 +291,9 @@ type MyType { field: String })", "Description with");
                     secret: String @auth(role: "admin")
                 }
             )";
-            proc.register_resolver("secret", [](const json&, const json&) { return "secret"; });
-            const auto loadResult = proc.load_schema(schema);
-            if (!loadResult.is_success()) {
-                for (const auto& err : loadResult.errors) {
-                    std::cerr << "Schema load error: " << err.message << std::endl;
-                }
-            }
+            proc.register_resolver({},"secret", [](const json&, const json&) { return "secret"; });
+            const auto loadResult = proc.load_schema(std::string(schema));
+            log_result(loadResult);
             REQUIRE(loadResult.is_success());
 
             const auto reply = proc.execute("query { __schema { directives { name args { name type { name } } } } }");
