@@ -17,6 +17,7 @@ This project follows comprehensive Doxygen documentation standards to ensure hig
 - **Cross-References**: Use `@see`, `@ref`, and `@link` tags to create comprehensive documentation cross-references
 - **Version Information**: Critical components should include `@since` and `@version` tags for API evolution tracking
 - **GraphQL Grammar**: See [GraphQL Grammar Protocol](docs/isched_gql_grammar_readme.md) for details on the grammar implementation, spec compliance, and AST tools.
+- **GraphQL Directives**: See [Using Directives](docs/guides/directives.md) for a guide on using and defining directives.
 
 The documentation is generated using Doxygen and follows C++ Core Guidelines documentation practices. This ensures that all code is self-documenting and provides clear guidance for developers working with the isched Universal Application Server Backend.
 

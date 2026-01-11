@@ -611,6 +611,34 @@ namespace isched::v0_0_1::gql {
 
     struct TypeSystemDocument: plus< TypeSystemDefinition > {};
 
+    struct DirectiveLocation : sor<
+        string<'Q','U','E','R','Y'>,
+        string<'M','U','T','A','T','I','O','N'>,
+        string<'S','U','B','S','C','R','I','P','T','I','O','N'>,
+        string<'F','R','A','G','M','E','N','T','_','D','E','F','I','N','I','T','I','O','N'>,
+        string<'F','R','A','G','M','E','N','T','_','S','P','R','E','A','D'>,
+        string<'I','N','L','I','N','E','_','F','R','A','G','M','E','N','T'>,
+        string<'V','A','R','I','A','B','L','E','_','D','E','F','I','N','I','T','I','O','N'>,
+        string<'S','C','H','E','M','A'>,
+        string<'S','C','A','L','A','R'>,
+        string<'O','B','J','E','C','T'>,
+        string<'F','I','E','L','D','_','D','E','F','I','N','I','T','I','O','N'>,
+        string<'F','I','E','L','D'>,
+        string<'A','R','G','U','M','E','N','T','_','D','E','F','I','N','I','T','I','O','N'>,
+        string<'I','N','T','E','R','F','A','C','E'>,
+        string<'U','N','I','O','N'>,
+        string<'E','N','U','M','_','V','A','L','U','E'>,
+        string<'E','N','U','M'>,
+        string<'I','N','P','U','T','_','F','I','E','L','D','_','D','E','F','I','N','I','T','I','O','N'>,
+        string<'I','N','P','U','T','_','O','B','J','E','C','T'>
+    > {};
+
+    struct DirectiveLocations : seq<
+        opt<seq<TSeps, one<'|'>>>,
+        DirectiveLocation,
+        star<seq<TSeps, opt<one<'|'>>, TSeps, DirectiveLocation>>
+    > {};
+
     /// @see GraphQL Spec: "DirectiveDefinition"
     struct DirectiveDefinition : SeqWithComments<
             TSeps,
@@ -620,7 +648,7 @@ namespace isched::v0_0_1::gql {
             one<'@'>,
             Name,
             opt<ArgumentsDefinition>,
-            opt<seq<TSeps, string<'o','n'>, plus<seq<TSeps, Name>>>>, // Simplified locations
+            opt<seq<TSeps, string<'o','n'>, TSeps, DirectiveLocations>>,
             TSeps
     > {};
     struct TypeSystemExtension : failure {};
@@ -653,7 +681,7 @@ namespace isched::v0_0_1::gql {
         > {};
 
     /// @see GraphQL Spec: "Definition"
-    struct Definition : sor< ExecutableDefinition, TypeSystemDefinitionOrExtension > {};
+    struct Definition : sor< TypeSystemDefinitionOrExtension, ExecutableDefinition > {};
 
     /// @see GraphQL Spec: "ExecutableDocument"
     struct ExecutableDocument : plus< ExecutableDefinition > {};
@@ -688,6 +716,7 @@ namespace isched::v0_0_1::gql {
             SchemaDefinition, RootOperationTypeDefinition,
             // Types
             ScalarTypeDefinition,FieldDefinition,Arguments, Argument, ArgumentsDefinition, InputValueDefinition,
+            DirectiveLocation, DirectiveLocations,
             ListType, NonNullType,Type,
             // Description
             Description,

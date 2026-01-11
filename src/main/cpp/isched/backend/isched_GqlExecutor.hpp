@@ -91,11 +91,25 @@ namespace isched::v0_0_1::backend {
          *
          */
         [[nodiscard]] bool has_resolver(const ResolverPath& p_path, const std::string& field_name) const noexcept {
-            return m_resolvers_map[p_path].find(field_name) != m_resolvers_map[p_path].end();
+            const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
+            for (const auto& key : p_path) {
+                auto it = current->find(key);
+                if (it == current->end()) return false;
+                current = &(it->second);
+            }
+            return current->find(field_name) != current->end();
         }
 
         [[nodiscard]] const ResolverFunction & get_resolver(const ResolverPath& p_path, const std::string & p_name) const {
-            return m_resolvers_map[p_path].find(p_name)->second.get_value();
+            const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
+            for (const auto& key : p_path) {
+                auto it = current->find(key);
+                if (it == current->end()) throw std::out_of_range("Resolver path not found");
+                current = &(it->second);
+            }
+            auto it = current->find(p_name);
+            if (it == current->end()) throw std::out_of_range("Resolver not found: " + p_name);
+            return it->second.get_value();
         }
 
     private:

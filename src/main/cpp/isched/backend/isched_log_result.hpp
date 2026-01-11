@@ -14,10 +14,10 @@ namespace isched::v0_0_1::backend
 {
     inline void log_result(const ExecutionResult& p_result) {
         if (!p_result.is_success()) {
+            spdlog::error("Result: failed, data: {}", p_result.data.dump(4,'.'));
             for (int aI=0;const auto& err : p_result.errors) {
                 spdlog::error( "Result error no=\t{}: {}.",++aI,err.message);
             }
-            spdlog::error("Result: failed, data: {}", p_result.data.dump(4,'.'));
         } else {
             spdlog::debug("Result: ok, data: {}", p_result.data.dump(4,'.'));
         }

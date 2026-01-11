@@ -230,16 +230,25 @@ namespace isched::v0_0_1::backend {
             return my_ret_val;
         });
         register_resolver({"__schema"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
-            return json::object({{"__schema", {"name","resolver"}}});
+            return basic_json("res1");
         });
         register_resolver({"__schema"},"description", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
-            return json::object({{"__schema", {"description","resolver"}}});
+            return basic_json("res2");
         });
         register_resolver({"__schema"},"fields", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
-            return json::object({{"__schema", {"fields","resolver"}}});
+            return basic_json("res3");
+        });
+        register_resolver({"__schema"},"args", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return basic_json("res-schema-args");
+        });
+        register_resolver({"__schema","args"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return basic_json("res-schema-args");
         });
         register_resolver({"__schema","fields"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
-            return json::object({{"__schema", {"fields",{"name","resolver"}}}});
+            return basic_json("res4");
+        });
+        register_resolver({"__schema","types","fields"},"description", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return basic_json("res5");
         });
         load_schema(BUILTIN_SCHEMA);
     }
@@ -677,6 +686,8 @@ namespace isched::v0_0_1::backend {
                                 process_field_definition(my_path, myResult, myDefNode, myIdx);
                             }
                         }
+                    } else if (myDefNode->type == "isched::v0_0_1::gql::DirectiveDefinition") {
+                        spdlog::debug("Loaded directive definition: {}", myDefNode->children[0]->string_view());
                     } else if (myDefNode->type == "isched::v0_0_1::gql::ExecutableDefinition") {
                         myResult.errors.push_back(gql::Error{
                             .code=gql::EErrorCodes::EXECUTABLE_DEF_NOT_ALLOWED,
