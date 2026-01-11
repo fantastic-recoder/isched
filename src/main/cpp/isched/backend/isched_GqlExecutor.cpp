@@ -229,7 +229,18 @@ namespace isched::v0_0_1::backend {
             json my_ret_val = generate_schema_introspection();
             return my_ret_val;
         });
-
+        register_resolver({"__schema"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return json::object({{"__schema", {"name","resolver"}}});
+        });
+        register_resolver({"__schema"},"description", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return json::object({{"__schema", {"description","resolver"}}});
+        });
+        register_resolver({"__schema"},"fields", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return json::object({{"__schema", {"fields","resolver"}}});
+        });
+        register_resolver({"__schema","fields"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+            return json::object({{"__schema", {"fields",{"name","resolver"}}}});
+        });
         load_schema(BUILTIN_SCHEMA);
     }
 
@@ -293,7 +304,6 @@ namespace isched::v0_0_1::backend {
             // Extract description if present
             for (const auto &child: typeNode->children) {
                 if (child->type == "isched::v0_0_1::gql::Description") {
-                    spdlog::debug("Desc:{}", child->string_view());
                     typeObj["description"] = child->string_view();
                 }
             }
@@ -551,30 +561,33 @@ namespace isched::v0_0_1::backend {
         }
     }
 
-    bool GqlExecutor::resolve_field_selection_details(const ResolverPath& p_path,const TAstNodePtr &p_selection_set, json &p_result, gql::TErrorVector& p_error) const {
-        if (p_selection_set->children.empty()) {
+    bool GqlExecutor::resolve_field_selection_details(const ResolverPath& p_path,const TAstNodePtr &p_field_node, json &p_result, gql::TErrorVector& p_error) const {
+        if (p_field_node->children.empty()) {
             p_error.push_back(
                 gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
             return true;
         }
-        const std::string myFieldName = std::string(p_selection_set->children[0]->string_view());
+        const std::string myFieldName = std::string(p_field_node->children[0]->string_view());
         spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
         if (!m_resolvers.has_resolver(p_path,myFieldName)) {
             p_error.push_back(gql::Error{
-                gql::EErrorCodes::MISSING_GQL_RESOLVER,
-                std::format("Missing resolver for field {}.{} in Query type", concat_vector(p_path),myFieldName,".")
+                .code=gql::EErrorCodes::MISSING_GQL_RESOLVER,
+                .message = std::format("Missing resolver for field {}.{} in Query type", concat_vector(p_path, "."),
+                                       myFieldName)
             });
         } else {
             if (p_result.empty()) {
                 p_result = json::object();
             }
             json my_ctx ={basic_json<>::array()};
-            json my_args = process_argument_field(p_selection_set, p_error);
+            json my_args = process_argument_field(p_field_node, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
             json my_result = my_found_resolver(my_args, my_ctx);
             p_result[myFieldName] = my_result;
-            process_field_sub_selections(p_path, p_selection_set, p_result, p_error, myFieldName);
+            spdlog::debug("Got result: '{}' for field '{}' in Query type, going to process sub selections.",
+                p_result.dump(4,'.'), myFieldName);
+            process_field_sub_selections(p_path, p_field_node, p_result, p_error, myFieldName);
         }
         return false;
     }

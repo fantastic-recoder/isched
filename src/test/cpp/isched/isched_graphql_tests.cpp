@@ -167,24 +167,21 @@ TEST_CASE("GraphQL Error Handling", "[graphql][errors]") {
     GqlExecutor executor(database);
     
     SECTION("Graceful handling of empty query") {
-        std::string query = "";
-        auto result = executor.load_schema(query);
+        auto result = executor.load_schema("");
         
         REQUIRE(!result.is_success());
         REQUIRE(!result.errors.empty());
     }
     
     SECTION("Graceful handling of whitespace-only query") {
-        std::string query = "   \n\t  ";
-        auto result = executor.load_schema(query);
+        auto result = executor.load_schema("   \n\t  ");
         
         REQUIRE(!result.is_success());
         REQUIRE(!result.errors.empty());
     }
     
     SECTION("Error details are informative - test basic error handling") {
-        std::string query = "{ nonExistentField }";
-        auto result = executor.load_schema(query,true);
+        auto result = executor.load_schema("{ nonExistentField }",true);
         
         REQUIRE(result.is_success()==false);
         REQUIRE(!result.data.contains("nonExistentField"));

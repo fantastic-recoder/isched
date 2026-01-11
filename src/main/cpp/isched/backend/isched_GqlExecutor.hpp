@@ -163,7 +163,19 @@ namespace isched::v0_0_1::backend {
          */
         [[nodiscard]] ExecutionResult execute(std::string_view p_query, bool p_print_dot=false) const;
 
+        /**
+         *
+         * @param pSchemaDocument input schema definition, it will be consumed
+         *
+         * @param p_print_dot verbose flag
+         *
+         * @return the query execution result
+         */
         ExecutionResult load_schema(std::string &&pSchemaDocument, bool p_print_dot = false);
+
+        ExecutionResult load_schema(const std::string &pSchemaDocument, bool p_print_dot = false) {
+            return load_schema(std::string(pSchemaDocument),p_print_dot);
+        }
 
         void log_parse_error_exception(const tao::pegtl::string_input<> &  in, ExecutionResult &myResult,
                                        const tao::pegtl::parse_error &e) const;
@@ -222,7 +234,7 @@ namespace isched::v0_0_1::backend {
 
         bool resolve_field_selection_details(
             const ResolverPath &p_path,
-            const gql::TAstNodePtr &p_selection_set, nlohmann::json &p_result, gql::TErrorVector &p_error) const;
+            const gql::TAstNodePtr &p_field_node, nlohmann::json &p_result, gql::TErrorVector &p_error) const;
 
         void process_field_selection(
             const ResolverPath &p_path,
