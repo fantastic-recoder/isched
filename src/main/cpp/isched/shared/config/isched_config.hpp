@@ -27,6 +27,7 @@
 
 namespace isched::v0_0_1::backend {
 
+    bool match_pattern(const std::string& pattern, const std::string& str);
 /**
  * @brief Configuration value types supported by the configuration system
  */

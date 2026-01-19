@@ -10,10 +10,11 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
-#include <memory>
-#include <string>
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <string>
+#include <system_error>
 
 #include "isched/shared/config/isched_config.hpp"
 
@@ -24,18 +25,24 @@ using namespace isched::v0_0_1::backend;
  */
 class ConfigTestFixture {
 public:
-    ConfigTestFixture() {
-        config_manager = ConfigManager::create();
-        test_config_file = "test_config.json";
+    ConfigTestFixture() 
+        : config_manager(ConfigManager::create()),
+          test_config_file((std::filesystem::temp_directory_path() /
+                            ("test_config_" + std::to_string(getpid()) + ".json")).string()) {
+        config_manager->add_provider(static_cast<std::unique_ptr<ConfigProvider>>(new JsonConfigProvider(test_config_file)));
     }
-    
-    ~ConfigTestFixture() {
-        // Cleanup test files
-        if (std::filesystem::exists(test_config_file)) {
-            std::filesystem::remove(test_config_file);
+
+    // Delete copy operations to make it non-copyable
+    ConfigTestFixture(const ConfigTestFixture&) = delete;
+    ConfigTestFixture& operator=(const ConfigTestFixture&) = delete;
+
+    virtual ~ConfigTestFixture() {
+        std::error_code ec;
+        if (std::filesystem::exists(test_config_file, ec)) {
+            std::filesystem::remove(test_config_file, ec);
         }
     }
-    
+
 protected:
     std::unique_ptr<ConfigManager> config_manager;
     std::string test_config_file;

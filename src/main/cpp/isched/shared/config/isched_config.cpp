@@ -41,6 +41,21 @@ ConfigManager::ConfigManager() : impl_(std::make_unique<Impl>()) {}
 
 ConfigManager::~ConfigManager() = default;
 
+bool match_pattern(const std::string &pattern, const std::string &str) {
+    if (pattern.empty()) {
+        return true;
+    }
+
+    if (pattern == "*") {
+        return true;
+    }
+
+    if (pattern.back() == '*') {
+        return str.find(pattern.substr(0, pattern.size() - 1)) == 0;
+    }
+    return false;
+}
+
 std::unique_ptr<ConfigManager> ConfigManager::create() {
     return std::make_unique<ConfigManager>();
 }
@@ -201,6 +216,7 @@ bool ConfigManager::set(const std::string& key, const ConfigValue& value) {
     return false;
 }
 
+
 void ConfigManager::notify_change_callbacks(const std::string& key, const ConfigValue& new_value) {
     std::lock_guard<std::mutex> lock(impl_->callbacks_mutex_);
     
@@ -210,7 +226,7 @@ void ConfigManager::notify_change_callbacks(const std::string& key, const Config
         const auto& [pattern, callback] = callback_pair;
         
         // Simple pattern matching (exact match or wildcard)
-        if (pattern == "*" || pattern == key || key.find(pattern) == 0) {
+        if (match_pattern(pattern, key)) {
             try {
                 callback(key, old_value, new_value);
             } catch (const std::exception& e) {

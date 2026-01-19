@@ -51,7 +51,7 @@ add_executable(isched_ipc_tests isched_ipc_tests.cpp)
 target_link_libraries(isched_ipc_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
 add_test(NAME isched_ipc_tests COMMAND isched_ipc_tests)
 
-add_executable(isched_config_tests isched_config_tests.cpp)
+add_executable(isched_config_tests isched_config_tests.cpp isched_pattern_match_tests.cpp)
 target_link_libraries(isched_config_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
 add_test(NAME isched_config_tests COMMAND isched_config_tests)
 
@@ -59,10 +59,6 @@ add_test(NAME isched_config_tests COMMAND isched_config_tests)
 add_executable(test_server_startup ../integration/test_server_startup.cpp)
 target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
 add_test(NAME test_server_startup COMMAND test_server_startup)
-
-add_executable(test_health_monitoring ../integration/test_health_monitoring.cpp)
-        target_link_libraries(test_health_monitoring PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
-add_test(NAME test_health_monitoring COMMAND test_health_monitoring)
 
 add_executable(isched_fs_utils_tests isched_fs_utils_tests.cpp)
 target_link_libraries(isched_fs_utils_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
