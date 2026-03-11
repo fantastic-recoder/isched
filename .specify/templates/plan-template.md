@@ -3,7 +3,7 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/plan-template.md` for the execution workflow.
 
 ## Summary
 
@@ -17,26 +17,21 @@
   the iteration process.
 -->
 
-**Language/Version**: C++20 (ISO standard compliance required)
-**Primary Dependencies**: Conan-managed dependencies (restbed, spdlog, catch2, pegtl, nlohmann_json)
-**Storage**: Embedded database with ACID transaction support
-**Testing**: Catch2 for unit/integration tests + performance regression testing
-**Target Platform**: Linux primary, cross-platform compatibility required
-**Project Type**: High-performance C++ backend server
-**Performance Goals**: Massive parallel operation, cloud-to-embedded scalability
-**Constraints**: Multi-tenant isolation, GraphQL spec compliance, security-first
-**Scale/Scope**: Enterprise-grade multi-tenant backend with embedded database
+**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
+**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
+**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
+**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
+**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
+**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
+**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-✅ **High Performance**: Implementation must consider performance impact on multi-tenant operation
-✅ **GraphQL Compliance**: All GraphQL features must conform to official specification
-✅ **Security-First**: Authentication/authorization must use industry standards
-✅ **Test-Driven Development**: TDD mandatory for core functionality
-✅ **Cross-Platform Portability**: Must build with Conan on Linux, documented elsewhere
-✅ **C++ Core Guidelines**: All C++ code must adhere to ISO C++ Core Guidelines
+[Gates determined based on constitution file]
 
 ## Project Structure
 

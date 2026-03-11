@@ -30,12 +30,12 @@
 #
 # 5. Multi-Agent Support
 #    - Handles agent-specific file paths and naming conventions
-#    - Supports: Claude, Gemini, Copilot, Cursor, Qwen, opencode, Codex, Windsurf, Kilo Code, Auggie CLI, Roo Code, CodeBuddy CLI, Amp, or Amazon Q Developer CLI
+#    - Supports: Claude, Gemini, Copilot, Cursor, Qwen, opencode, Codex, Windsurf, Kilo Code, Auggie CLI, Roo Code, CodeBuddy CLI, Qoder CLI, Amp, SHAI, Tabnine CLI, Kiro CLI, Mistral Vibe, Antigravity or Generic
 #    - Can update single agents or all existing agent files
 #    - Creates default Claude file if no agent files exist
 #
 # Usage: ./update-agent-context.sh [agent_type]
-# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|q
+# Agent types: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|generic
 # Leave empty to update all existing agent files
 
 set -e
@@ -49,7 +49,7 @@ set -o pipefail
 #==============================================================================
 
 # Get script directory and load common functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(CDPATH="" cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 # Get all paths and variables from common functions
@@ -61,7 +61,7 @@ AGENT_TYPE="${1:-}"
 # Agent-specific file paths  
 CLAUDE_FILE="$REPO_ROOT/CLAUDE.md"
 GEMINI_FILE="$REPO_ROOT/GEMINI.md"
-COPILOT_FILE="$REPO_ROOT/.github/copilot-instructions.md"
+COPILOT_FILE="$REPO_ROOT/.github/agents/copilot-instructions.md"
 CURSOR_FILE="$REPO_ROOT/.cursor/rules/specify-rules.mdc"
 QWEN_FILE="$REPO_ROOT/QWEN.md"
 AGENTS_FILE="$REPO_ROOT/AGENTS.md"
@@ -70,8 +70,14 @@ KILOCODE_FILE="$REPO_ROOT/.kilocode/rules/specify-rules.md"
 AUGGIE_FILE="$REPO_ROOT/.augment/rules/specify-rules.md"
 ROO_FILE="$REPO_ROOT/.roo/rules/specify-rules.md"
 CODEBUDDY_FILE="$REPO_ROOT/CODEBUDDY.md"
+QODER_FILE="$REPO_ROOT/QODER.md"
 AMP_FILE="$REPO_ROOT/AGENTS.md"
-Q_FILE="$REPO_ROOT/AGENTS.md"
+SHAI_FILE="$REPO_ROOT/SHAI.md"
+TABNINE_FILE="$REPO_ROOT/TABNINE.md"
+KIRO_FILE="$REPO_ROOT/AGENTS.md"
+AGY_FILE="$REPO_ROOT/.agent/rules/specify-rules.md"
+BOB_FILE="$REPO_ROOT/AGENTS.md"
+VIBE_FILE="$REPO_ROOT/.vibe/agents/specify-agents.md"
 
 # Template file
 TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
@@ -347,10 +353,19 @@ create_new_agent_file() {
     # Convert \n sequences to actual newlines
     newline=$(printf '\n')
     sed -i.bak2 "s/\\\\n/${newline}/g" "$temp_file"
-    
+
     # Clean up backup files
     rm -f "$temp_file.bak" "$temp_file.bak2"
-    
+
+    # Prepend Cursor frontmatter for .mdc files so rules are auto-included
+    if [[ "$target_file" == *.mdc ]]; then
+        local frontmatter_file
+        frontmatter_file=$(mktemp) || return 1
+        printf '%s\n' "---" "description: Project Development Guidelines" "globs: [\"**/*\"]" "alwaysApply: true" "---" "" > "$frontmatter_file"
+        cat "$temp_file" >> "$frontmatter_file"
+        mv "$frontmatter_file" "$temp_file"
+    fi
+
     return 0
 }
 
@@ -488,13 +503,24 @@ update_existing_agent_file() {
         changes_entries_added=true
     fi
     
+    # Ensure Cursor .mdc files have YAML frontmatter for auto-inclusion
+    if [[ "$target_file" == *.mdc ]]; then
+        if ! head -1 "$temp_file" | grep -q '^---'; then
+            local frontmatter_file
+            frontmatter_file=$(mktemp) || { rm -f "$temp_file"; return 1; }
+            printf '%s\n' "---" "description: Project Development Guidelines" "globs: [\"**/*\"]" "alwaysApply: true" "---" "" > "$frontmatter_file"
+            cat "$temp_file" >> "$frontmatter_file"
+            mv "$frontmatter_file" "$temp_file"
+        fi
+    fi
+
     # Move temp file to target atomically
     if ! mv "$temp_file" "$target_file"; then
         log_error "Failed to update target file"
         rm -f "$temp_file"
         return 1
     fi
-    
+
     return 0
 }
 #==============================================================================
@@ -615,15 +641,36 @@ update_specific_agent() {
         codebuddy)
             update_agent_file "$CODEBUDDY_FILE" "CodeBuddy CLI"
             ;;
+        qodercli)
+            update_agent_file "$QODER_FILE" "Qoder CLI"
+            ;;
         amp)
             update_agent_file "$AMP_FILE" "Amp"
             ;;
-        q)
-            update_agent_file "$Q_FILE" "Amazon Q Developer CLI"
+        shai)
+            update_agent_file "$SHAI_FILE" "SHAI"
+            ;;
+        tabnine)
+            update_agent_file "$TABNINE_FILE" "Tabnine CLI"
+            ;;
+        kiro-cli)
+            update_agent_file "$KIRO_FILE" "Kiro CLI"
+            ;;
+        agy)
+            update_agent_file "$AGY_FILE" "Antigravity"
+            ;;
+        bob)
+            update_agent_file "$BOB_FILE" "IBM Bob"
+            ;;
+        vibe)
+            update_agent_file "$VIBE_FILE" "Mistral Vibe"
+            ;;
+        generic)
+            log_info "Generic agent: no predefined context file. Use the agent-specific update script for your agent."
             ;;
         *)
             log_error "Unknown agent type '$agent_type'"
-            log_error "Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|roo|amp|q"
+            log_error "Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|generic"
             exit 1
             ;;
     esac
@@ -688,8 +735,37 @@ update_all_existing_agents() {
         found_agent=true
     fi
 
-    if [[ -f "$Q_FILE" ]]; then
-        update_agent_file "$Q_FILE" "Amazon Q Developer CLI"
+    if [[ -f "$SHAI_FILE" ]]; then
+        update_agent_file "$SHAI_FILE" "SHAI"
+        found_agent=true
+    fi
+
+    if [[ -f "$TABNINE_FILE" ]]; then
+        update_agent_file "$TABNINE_FILE" "Tabnine CLI"
+        found_agent=true
+    fi
+
+    if [[ -f "$QODER_FILE" ]]; then
+        update_agent_file "$QODER_FILE" "Qoder CLI"
+        found_agent=true
+    fi
+
+    if [[ -f "$KIRO_FILE" ]]; then
+        update_agent_file "$KIRO_FILE" "Kiro CLI"
+        found_agent=true
+    fi
+
+    if [[ -f "$AGY_FILE" ]]; then
+        update_agent_file "$AGY_FILE" "Antigravity"
+        found_agent=true
+    fi
+    if [[ -f "$BOB_FILE" ]]; then
+        update_agent_file "$BOB_FILE" "IBM Bob"
+        found_agent=true
+    fi
+
+    if [[ -f "$VIBE_FILE" ]]; then
+        update_agent_file "$VIBE_FILE" "Mistral Vibe"
         found_agent=true
     fi
     
@@ -716,8 +792,7 @@ print_summary() {
     fi
     
     echo
-
-    log_info "Usage: $0 [claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|codebuddy|q]"
+    log_info "Usage: $0 [claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|roo|codebuddy|amp|shai|tabnine|kiro-cli|agy|bob|vibe|qodercli|generic]"
 }
 
 #==============================================================================
@@ -769,4 +844,3 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-

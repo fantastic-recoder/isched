@@ -20,22 +20,10 @@ description: "Task list template for feature implementation"
 
 ## Path Conventions
 
-- **Isched C++ Backend**: `src/main/cpp/` for implementation, `src/test/cpp/` for tests
-- **Headers**: `src/main/cpp/isched/` for main headers
-- **Dependencies**: Managed via `conanfile.txt` and CMake
-- **Build**: CMake with Conan integration, use `cmake-build-debug/` for builds
-- Paths shown below follow Isched project structure
-
-## Constitutional Compliance Checklist
-
-Each task implementation MUST verify:
-
-- ✅ **Performance**: Multi-tenant performance maintained, cloud-to-embedded compatibility
-- ✅ **GraphQL Spec**: Compliance with [GraphQL specification](https://spec.graphql.org/)
-- ✅ **Security**: Industry-standard auth protocols, secure-by-default configuration  
-- ✅ **Testing**: TDD approach, integration tests for GraphQL endpoints, performance tests
-- ✅ **Portability**: Linux/Conan build compatibility, cross-platform documentation
-- ✅ **C++ Core Guidelines**: Adherence to [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines), justified deviations documented
+- **Single project**: `src/`, `tests/` at repository root
+- **Web app**: `backend/src/`, `frontend/src/`
+- **Mobile**: `api/src/`, `ios/src/` or `android/src/`
+- Paths shown below assume single project - adjust based on plan.md structure
 
 <!-- 
   ============================================================================
