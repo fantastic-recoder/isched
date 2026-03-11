@@ -1,7 +1,6 @@
 // Skeleton unit tests for GqlExecutor
 
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers.hpp>
 #include <memory>
 #include <nlohmann/json.hpp>
 
@@ -48,14 +47,20 @@ namespace isched::v0_0_1::backend {
         REQUIRE(myResult.errors.size()==3);
         REQUIRE(myResult.errors[0].code==EErrorCodes::MISSING_GQL_RESOLVER);
         REQUIRE(myResult.errors[1].code==EErrorCodes::MISSING_GQL_RESOLVER);
-        proc.register_resolver({},"hello_ping", [](const json&,const json&) {
-            return json{"Hello, World!"}[0];
+        proc.register_resolver({},"hello_ping", [](const json&,const json &, const ResolverCtx&)->json
+        {
+            return "Hello, World!";
         });
-        proc.register_resolver({},"hello_who", [](const json& args,const json&) {
+        proc.register_resolver({},"hello_who", [](const json& parent,const json& args, const ResolverCtx&)->json {
+            REQUIRE(parent.is_object());
+            REQUIRE(args.is_object());
+            REQUIRE(args.contains("who"));
             std::cout << "hello_who resolver called with args: " << args.dump(4) << std::endl;
-            return json{std::format("Hello, {}!",args["who"].get<std::string>())}[0];
+            std::string my_who = args["who"].get<std::string>();
+            std::string my_ret_val = std::format("Hello, {}!",my_who);
+            return my_ret_val;
         });
-        const auto myResult2=proc.load_schema(std::string(schema_str));
+        const auto myResult2=proc.load_schema(schema_str);
         REQUIRE(myResult2.is_success());
         const auto myReply= proc.execute(R"(query { hello_ping hello_who(who: "Josef") } )", true);
         for (int myIdx=0;auto& err : myReply.errors) {
@@ -72,8 +77,8 @@ namespace isched::v0_0_1::backend {
     }
 
     TEST_CASE("Test int resolver","[gql][processor][smoke]") {
-        GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
-        proc.register_resolver({},"multi", [](const json& args,const json&)->json {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({},"multi", [](const json& ,const json& args, const ResolverCtx&)->json {
             long long my_retval = args["p_i"].get<long long>();
             return json{my_retval*2}[0];
         });
@@ -91,7 +96,7 @@ namespace isched::v0_0_1::backend {
     TEST_CASE("Test all argument types", "[gql][processor][arguments]") {
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
         
-        proc.register_resolver({},"test_args", [](const json& args, const json&) -> json {
+        proc.register_resolver({},"test_args", [](const json&, const json& args, const ResolverCtx) -> json {
             return args;
         });
 
@@ -153,7 +158,8 @@ namespace isched::v0_0_1::backend {
         struct Summator {
             double sum = 0;
         } summator;
-        proc.register_resolver({},"summ", [&summator](const json& args, const json&) -> json {
+        proc.register_resolver(
+            {}, "summ", [&summator](const json &, const json &args, const ResolverCtx &) -> json {
             summator.sum += args["i"].get<double>();
             return json{summator.sum}[0];
         });
@@ -171,8 +177,9 @@ namespace isched::v0_0_1::backend {
 
         auto verify_description = [](const std::string& input, const std::string& expected_desc) {
             string_input in(input, "DescriptionTest");
-            auto [ok, root] = gql::generate_ast_and_log<gql::Document>(in,
-                "Description Test", false);
+            // Ensure the input actually matches the Document structure
+            // e.g., " \"My Description\" type User { name: String } "
+            auto [ok, root] = gql::generate_ast_and_log<gql::Document>(in, "Description Test");
             if (!ok) {
                 REQUIRE(ok);
                 return;
@@ -246,7 +253,7 @@ type MyType { field: String })", "Description with");
                     me: User
                 }
             )";
-            proc.register_resolver({},"me", [](const json&, const json&)
+            proc.register_resolver({},"me", [](const json&, const json&, const ResolverCtx&)
                 { return json::object(); });
             const auto loadResult = proc.load_schema(std::string(schema));
             log_result(loadResult);
@@ -291,7 +298,8 @@ type MyType { field: String })", "Description with");
                     secret: String @auth(role: "admin")
                 }
             )";
-            proc.register_resolver({},"secret", [](const json&, const json&) { return "secret"; });
+            proc.register_resolver({},"secret", [](const json&, const json&, const ResolverCtx&)
+                { return "secret"; });
             const auto loadResult = proc.load_schema(schema,true);
             log_result(loadResult);
             REQUIRE(loadResult.is_success());

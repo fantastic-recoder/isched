@@ -7,6 +7,8 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -26,6 +28,10 @@
 #include "isched_log_result.hpp"
 #include "isched_multi_dim_map.hpp"
 
+namespace Catch {
+    class Context;
+}
+
 namespace isched::v0_0_1::gql {
     struct Document;
 }
@@ -36,9 +42,21 @@ namespace isched::v0_0_1::backend {
 
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
 
+    /**
+     * Resolver context for GraphQL field resolution; will provide access to the database and other resources
+     */
+    struct ResolverCtx {
+    };
+
+    /**
+     * p_parent - parents resolver result for field resolution
+     * p_args - arguments passed to resolver
+     * p_ctx - context passed to resolver
+     */
     using ResolverFunction = std::function<nlohmann::json(
+        const nlohmann::json& p_parent,
         const nlohmann::json& p_args,
-        const nlohmann::json& p_ctx
+        const ResolverCtx& p_ctx
     )>;
 
     using ResolverPath = std::vector<std::string>;
@@ -55,25 +73,27 @@ namespace isched::v0_0_1::backend {
          * @param p_field_name Name of field to resolve
          * @param p_resolver Function to handle field resolution
          */
-        void register_resolver(const ResolverPath& p_scope,const std::string& p_field_name, ResolverFunction &&p_resolver) {
-            m_resolvers_map[p_scope][p_field_name]= move(p_resolver);
+        void register_resolver(const ResolverPath& p_scope, const std::string& p_field_name, ResolverFunction &&p_resolver) {
+            m_resolvers_map[p_scope][p_field_name]= p_resolver;
         }
 
         /**
          * @brief Resolve field value
          * @param field_name Name of field to resolve
-         * @param parent Parent object context
+         * @param parent Parent resolver result
+         * @param args Arguments passed to resolver
          * @param context Execution context
          * @return Resolved field value
          */
         [[nodiscard]] nlohmann::json resolve_field(
             const std::string& field_name,
             const nlohmann::json& parent,
-            const nlohmann::json& context) const {
+            const nlohmann::json& args,
+            const ResolverCtx& context) const {
 
             auto it = m_resolvers_map.find(field_name);
             if (it != m_resolvers_map.end()) {
-                return it->second.get_value()(parent, context);
+                return it->second.get_value()(parent, args, context);
             }
 
             // Default resolver - try to extract field from p_args object
@@ -81,7 +101,7 @@ namespace isched::v0_0_1::backend {
                 return parent[field_name];
             }
 
-            return nlohmann::json();
+            return {};
         }
 
         /**
@@ -94,7 +114,9 @@ namespace isched::v0_0_1::backend {
             const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
             for (const auto& key : p_path) {
                 auto it = current->find(key);
-                if (it == current->end()) return false;
+                if (it == current->end()) {
+                    return false;
+                }
                 current = &(it->second);
             }
             return current->find(field_name) != current->end();
@@ -104,11 +126,15 @@ namespace isched::v0_0_1::backend {
             const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
             for (const auto& key : p_path) {
                 auto it = current->find(key);
-                if (it == current->end()) throw std::out_of_range("Resolver path not found");
+                if (it == current->end()) {
+                    throw std::out_of_range("Resolver path not found");
+                }
                 current = &(it->second);
             }
             auto it = current->find(p_name);
-            if (it == current->end()) throw std::out_of_range("Resolver not found: " + p_name);
+            if (it == current->end()) {
+                throw std::out_of_range("Resolver not found: " + p_name);
+            }
             return it->second.get_value();
         }
 
@@ -151,6 +177,7 @@ namespace isched::v0_0_1::backend {
         // Non-copyable, movable
         GqlExecutor(const GqlExecutor&) = delete;
         GqlExecutor& operator=(const GqlExecutor&) = delete;
+        ~GqlExecutor() = default;
 
         void setup_builtin_resolvers();
 
@@ -175,7 +202,7 @@ namespace isched::v0_0_1::backend {
          * @param p_print_dot
          * @return Execution result
          */
-        [[nodiscard]] ExecutionResult execute(std::string_view p_query, bool p_print_dot=false) const;
+        [[nodiscard]] ExecutionResult execute(std::string_view p_query, bool p_print_dot = false) const;
 
         /**
          *
@@ -227,7 +254,8 @@ namespace isched::v0_0_1::backend {
         void process_field_definition(const ResolverPath &p_path, ExecutionResult &p_result, const gql::TAstNodePtr &p_typedef, size_t p_idx);
 
         bool process_operation_definitions(
-            const gql::TAstNodePtr &myOperation, nlohmann::json &p_result, gql::TErrorVector &p_errors) const;
+            nlohmann::json p_parent_result, const gql::TAstNodePtr &myOperation, nlohmann::json &p_result, gql::TErrorVector &
+            p_errors) const;
 
         nlohmann::json extract_argument_value(const gql::TAstNodePtr &p_arg, gql::TErrorVector &p_errors) const;
 
@@ -239,22 +267,30 @@ namespace isched::v0_0_1::backend {
             gql::TErrorVector &p_error) const;
 
         void process_sub_selection(
-            const ResolverPath &p_path,
-            const gql::TAstNodePtr &node, nlohmann::json &p_result, gql::TErrorVector &p_errors) const;
+            const nlohmann::json &p_parent_result,
+            const ResolverPath &p_path, const gql::TAstNodePtr &node,
+            nlohmann::json &p_result,
+            gql::TErrorVector &p_errors) const;
 
-        void process_field_sub_selections(const ResolverPath &p_path, const gql::TAstNodePtr &p_selection_set,
-                                          nlohmann::json &p_result, gql::TErrorVector &p_error,
-                                          std::string myFieldName) const;
+        void process_field_sub_selections(
+            const nlohmann::json &p_parent_result,
+            const ResolverPath &p_path,
+            const gql::TAstNodePtr &p_selection_set,
+            nlohmann::json &p_result,
+            gql::TErrorVector &p_error,
+            std::string myFieldName
+        ) const;
 
         bool resolve_field_selection_details(
             const ResolverPath &p_path,
             const gql::TAstNodePtr &p_field_node, nlohmann::json &p_result, gql::TErrorVector &p_error) const;
 
         void process_field_selection(
-            const ResolverPath &p_path,
-            const gql::TAstNodePtr &p_selection_set, nlohmann::json &p_result, gql::TErrorVector &p_errors) const;
+            const nlohmann::json &p_parent_result,
+            const ResolverPath &p_path, const gql::TAstNodePtr &p_selection_set, nlohmann::json &p_result, gql::TErrorVector &
+            p_errors) const;
 
-        gql::TAstNodePtr const * find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const ;
+        [[nodiscard]] gql::TAstNodePtr const * find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const ;
 
     };
 }

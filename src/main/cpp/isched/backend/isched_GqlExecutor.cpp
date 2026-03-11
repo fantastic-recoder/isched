@@ -5,7 +5,6 @@
 #include "isched_GqlExecutor.hpp"
 
 #include <chrono>
-#include <regex>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -41,33 +40,31 @@ namespace isched::v0_0_1::backend {
         static std::atomic<std::size_t> error_counter{0};
 
         // Basic Hello/Version resolvers
-        register_resolver({},"hello", [](const nlohmann::json &, const nlohmann::json &) {
+        register_resolver({},"hello", [](const json &, const json &, const ResolverCtx&)->json {
             return basic_json("Hello, GraphQL!");
         });
 
-        register_resolver({},"version", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({},"version", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("0.0.1");
         });
 
         // Uptime resolver
-        register_resolver({},"uptime", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({},"uptime", [this](const json &, const json &, const ResolverCtx&) -> json {
             auto now = std::chrono::system_clock::now();
             auto uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - m_start_time).count();
             return basic_json(uptime_seconds);
         });
 
         // Client count resolver
-        register_resolver({},"clientCount", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
-            return nlohmann::basic_json(1); // Placeholder - could be enhanced with actual connection tracking
+        register_resolver({},"clientCount", [](const json &, const json &, const ResolverCtx&) -> json {
+            return basic_json(1); // Placeholder - could be enhanced with actual connection tracking
         });
 
         // Spring Boot Actuator-style Health endpoint
-        register_resolver({},"health", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
-            nlohmann::json health;
-
+        register_resolver({},"health", [this](const json &, const json &, const ResolverCtx&) -> json {
             // Overall status check
             std::string overall_status = "UP";
-            nlohmann::json components;
+            json components;
 
             // Database health check
             try {
@@ -107,7 +104,7 @@ namespace isched::v0_0_1::backend {
                 }
             };
 
-            health = {
+            json health = {
                 {"status", overall_status},
                 {
                     "timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -120,8 +117,8 @@ namespace isched::v0_0_1::backend {
         });
 
         // Application Info endpoint (Spring Boot actuator style)
-        register_resolver({},"info", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
-            return nlohmann::json{
+        register_resolver({},"info", [](const json &, const json &, const ResolverCtx&) -> json {
+            return json{
                 {
                     "app", {
                         {"name", "isched Universal Application Server"},
@@ -154,7 +151,7 @@ namespace isched::v0_0_1::backend {
         });
 
         // Metrics endpoint
-        register_resolver({},"metrics", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({},"metrics", [](const json &, const json &, const ResolverCtx&) -> json {
             static auto start_time = std::chrono::system_clock::now();
             static std::atomic<int> request_counter{0};
             static std::atomic<int> error_counter{0};
@@ -164,7 +161,7 @@ namespace isched::v0_0_1::backend {
 
             request_counter++;
 
-            return nlohmann::json{
+            return json{
                 {"uptime", uptime_ms},
                 {"activeConnections", 1},
                 {"totalRequests", request_counter.load()},
@@ -176,8 +173,8 @@ namespace isched::v0_0_1::backend {
         });
 
         // Environment endpoint (filtered for security)
-        register_resolver({},"env", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
-            nlohmann::json env;
+        register_resolver({},"env", [](const json &, const json &, const ResolverCtx&) -> json {
+            json env;
 
             // System properties
             env["systemProperties"] = {
@@ -189,7 +186,7 @@ namespace isched::v0_0_1::backend {
             };
 
             // Environment variables (filtered for security)
-            env["environmentVariables"] = nlohmann::json::object();
+            env["environmentVariables"] = json::object();
             const char *safe_vars[] = {"PATH", "HOME", "USER", "LANG", "TZ", nullptr};
             for (int i = 0; safe_vars[i]; ++i) {
                 if (const char *value = getenv(safe_vars[i])) {
@@ -201,8 +198,8 @@ namespace isched::v0_0_1::backend {
         });
 
         // Configuration properties endpoint
-        register_resolver({},"configprops", [](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
-            return nlohmann::json{
+        register_resolver({},"configprops", [](const json &, const json &, const ResolverCtx&) -> json {
+            return json{
                 {
                     "server", {
                         {"port", 8080},
@@ -218,36 +215,36 @@ namespace isched::v0_0_1::backend {
                         {"enableWAL", true}
                     }
                 },
-                {"features", nlohmann::json::array({"GraphQL", "Multi-tenant", "Health monitoring", "Metrics"})},
+                {"features", json::array({"GraphQL", "Multi-tenant", "Health monitoring", "Metrics"})},
                 {"version", "1.0.0"},
                 {"environment", "development"}
             };
         });
 
         // Enhanced schema introspection resolver
-        register_resolver({},"__schema", [this](const nlohmann::json &, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({},"__schema", [this](const json &, const json &, const ResolverCtx&) -> json {
             json my_ret_val = generate_schema_introspection();
             return my_ret_val;
         });
-        register_resolver({"__schema"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema"},"name", [this](const json &p_args, const json &, const ResolverCtx&) -> json {
             return basic_json("res1");
         });
-        register_resolver({"__schema"},"description", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema"},"description", [this](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("res2");
         });
-        register_resolver({"__schema"},"fields", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema"},"fields", [](const json & , const json &, const ResolverCtx&) -> json {
             return basic_json("res3");
         });
-        register_resolver({"__schema"},"args", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema"},"args", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("res-schema-args");
         });
-        register_resolver({"__schema","args"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema","args"},"name", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("res-schema-args");
         });
-        register_resolver({"__schema","fields"},"name", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema","fields"},"name", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("res4");
         });
-        register_resolver({"__schema","types","fields"},"description", [this](const nlohmann::json &p_args, const nlohmann::json &) -> nlohmann::json {
+        register_resolver({"__schema","types","fields"},"description", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("res5");
         });
         load_schema(BUILTIN_SCHEMA);
@@ -261,8 +258,8 @@ namespace isched::v0_0_1::backend {
             json dirObj;
             dirObj["name"] = dirName;
             dirObj["description"] = nullptr;
-            dirObj["locations"] = nlohmann::json::array();
-            dirObj["args"] = nlohmann::json::array();
+            dirObj["locations"] = json::array();
+            dirObj["args"] = json::array();
 
             for (const auto &child: dirNode->children) {
                 if (child->type == "isched::v0_0_1::gql::Description") {
@@ -270,7 +267,7 @@ namespace isched::v0_0_1::backend {
                 } else if (child->type == "isched::v0_0_1::gql::ArgumentsDefinition") {
                     for (const auto &argChild: child->children) {
                         if (argChild->type == "isched::v0_0_1::gql::InputValueDefinition") {
-                            nlohmann::json argObj;
+                            json argObj;
                             for (const auto &ivChild: argChild->children) {
                                 if (ivChild->type == "isched::v0_0_1::gql::Name") {
                                     argObj["name"] = ivChild->string_view();
@@ -302,11 +299,11 @@ namespace isched::v0_0_1::backend {
         schema["mutationType"] = nullptr;
         schema["subscriptionType"] = nullptr;
 
-        auto types = nlohmann::json::array();
+        auto types = json::array();
 
         for (const auto &[typeName, typeNodePtr]: m_type_map) {
             const auto &typeNode = *typeNodePtr;
-            nlohmann::json typeObj;
+            json typeObj;
             typeObj["name"] = typeName;
             typeObj["kind"] = "OBJECT"; // Simplified for now
 
@@ -318,7 +315,7 @@ namespace isched::v0_0_1::backend {
             }
 
             // Extract fields
-            auto fieldsArray = nlohmann::json::array();
+            auto fieldsArray = json::array();
             // Helper to find fields recursively within the type node
              std::function<void(const TAstNodePtr &)> findFieldsRecursive;
              findFieldsRecursive = [&](const TAstNodePtr &node) {
@@ -532,7 +529,7 @@ namespace isched::v0_0_1::backend {
         return my_ret_val;
     }
 
-    void GqlExecutor::process_sub_selection(const ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
+    void GqlExecutor::process_sub_selection(const json& p_parent_result, const ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
         json my_args=json::object(); //<TODO
         if (node->type == "isched::v0_0_1::gql::Arguments") {
             my_args=process_arguments(node, p_errors);
@@ -549,7 +546,7 @@ namespace isched::v0_0_1::backend {
                     continue;
                 }
                 for (const auto &my_field: my_selection_set->children) {
-                    process_field_selection(p_path, my_field, p_result, p_errors);
+                    process_field_selection(p_parent_result,p_path, my_field, p_result, p_errors);
                 }
             }
         }
@@ -557,6 +554,7 @@ namespace isched::v0_0_1::backend {
     }
 
     void GqlExecutor::process_field_sub_selections(
+        const json &p_parent_result,
         const ResolverPath &p_path,
         const TAstNodePtr &p_selection_set,
         json &p_result,
@@ -566,7 +564,7 @@ namespace isched::v0_0_1::backend {
         ResolverPath my_sub_path = p_path;
         my_sub_path.push_back(myFieldName);
         for (size_t myIdx = 1; myIdx < p_selection_set->children.size(); ++myIdx) {
-            process_sub_selection(my_sub_path,p_selection_set->children[myIdx], p_result, p_error);
+            process_sub_selection(p_parent_result,my_sub_path,p_selection_set->children[myIdx], p_result, p_error);
         }
     }
 
@@ -588,24 +586,24 @@ namespace isched::v0_0_1::backend {
             if (p_result.empty()) {
                 p_result = json::object();
             }
-            json my_ctx ={basic_json<>::array()};
+            ResolverCtx my_ctx ={};
             json my_args = process_argument_field(p_field_node, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
-            json my_result = my_found_resolver(my_args, my_ctx);
+            json my_result = my_found_resolver(json::object(),my_args, my_ctx);
             p_result[myFieldName] = my_result;
             spdlog::debug("Got result: '{}' for field '{}' in Query type, going to process sub selections.",
                 p_result.dump(4,'.'), myFieldName);
-            process_field_sub_selections(p_path, p_field_node, p_result, p_error, myFieldName);
+            process_field_sub_selections(my_result,p_path, p_field_node, p_result, p_error, myFieldName);
         }
         return false;
     }
 
-    void GqlExecutor::process_field_selection(const ResolverPath& p_path, const TAstNodePtr &p_selection_set,
+    void GqlExecutor::process_field_selection(const json& p_parent_result,const ResolverPath& p_path, const TAstNodePtr &p_selection_set,
         json &p_result, gql::TErrorVector& p_errors) const {
         for (const auto &mySelection: p_selection_set->children) {
             if (mySelection->type == "isched::v0_0_1::gql::SelectionSet") {
-                process_field_selection(p_path, mySelection,p_result, p_errors);
+                process_field_selection(p_parent_result, p_path,mySelection, p_result, p_errors);
             } else if (mySelection->type == "isched::v0_0_1::gql::Selection") {
                 if (mySelection->children.empty()) {
                     p_errors.push_back(gql::Error{
@@ -723,8 +721,10 @@ namespace isched::v0_0_1::backend {
     }
 
     bool GqlExecutor::process_operation_definitions(
+        json p_parent_result,
         const TAstNodePtr &myOperation,
-        json &p_result, gql::TErrorVector &p_errors) const {
+        json &p_result,
+        gql::TErrorVector &p_errors) const {
         if (myOperation->type != "isched::v0_0_1::gql::OperationDefinition") {
             p_errors.push_back(gql::Error{
                 gql::EErrorCodes::PARSE_ERROR,
@@ -741,7 +741,7 @@ namespace isched::v0_0_1::backend {
         if (a_op_type == "query") {
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 if (myOperation->children[myIdx]->type == "isched::v0_0_1::gql::SelectionSet") {
-                    process_field_selection(p_path, myOperation->children[myIdx],p_result, p_errors);
+                    process_field_selection(p_parent_result, p_path,myOperation->children[myIdx], p_result, p_errors);
                 } else {
                     p_errors.push_back(gql::Error{
                         .code=gql::EErrorCodes::PARSE_ERROR,
@@ -750,7 +750,7 @@ namespace isched::v0_0_1::backend {
                 }
             }
         } else if (myOperation->children[0]->type == "isched::v0_0_1::gql::SelectionSet") {
-            process_field_selection(p_path, myOperation->children[0],p_result, p_errors);
+            process_field_selection(p_parent_result, p_path,myOperation->children[0], p_result, p_errors);
         } else {
             p_errors.push_back(gql::Error{
                 .code=gql::EErrorCodes::PARSE_ERROR,
@@ -760,7 +760,10 @@ namespace isched::v0_0_1::backend {
         return false;
     }
 
-    ExecutionResult GqlExecutor::execute(const std::string_view p_query, const bool p_print_dot) const {
+    ExecutionResult GqlExecutor::execute(
+        const std::string_view p_query,
+        const bool p_print_dot
+    ) const {
         static const std::string aName = "ExecutableDocument";
         ExecutionResult my_result;
         if (p_query.length() > 100000) {
@@ -806,7 +809,7 @@ namespace isched::v0_0_1::backend {
                     return my_result;
                 }
                 for (const auto &myOperation: myChild->children) {
-                    process_operation_definitions(myOperation,my_result.data, my_result.errors);
+                    process_operation_definitions(basic_json(),myOperation, my_result.data, my_result.errors);
                 }
             }
         } catch (const tao::pegtl::parse_error &e) {
