@@ -1,6 +1,15 @@
-//
-// Created by grobap on 4.2.2024.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_EHttpMethods.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief HTTP method enumeration and `toString()` helper (legacy).
+ *
+ * Provides `EHttpMethods` (GET, POST) consumed by the legacy REST resolver
+ * layer.  Scheduled for removal in Phase 7.
+ *
+ * @deprecated Used only by legacy REST resolvers scheduled for Phase 7 removal.
+ */
 
 #ifndef ISCHED_EHTTPMETHODS_HPP
 #define ISCHED_EHTTPMETHODS_HPP

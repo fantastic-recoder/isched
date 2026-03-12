@@ -1,6 +1,19 @@
-//
-// Created by groby on 2025-12-19.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_GqlExecutor.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief GraphQL query/mutation executor and built-in resolver registry.
+ *
+ * Declares `GqlExecutor`, which owns the resolver map, dispatches incoming
+ * GraphQL operations to registered handler lambdas, and provides built-in
+ * schema fields (`hello`, `version`, `uptime`, `serverInfo`, `health`,
+ * `metrics`, `env`, `configprops`) plus a skeleton introspection
+ * implementation (`__schema`, `__type`).
+ *
+ * @see isched_gql_grammar.hpp  PEGTL grammar consumed by this class.
+ * @see isched_GqlParser.hpp    Parser facade.
+ */
 
 #ifndef ISCHED_GQL_PROCESSOR_HPP
 #define ISCHED_GQL_PROCESSOR_HPP

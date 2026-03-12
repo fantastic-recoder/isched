@@ -2,195 +2,214 @@
 
 **Feature Branch**: `001-universal-backend`  
 **Created**: 2025-11-01  
-**Status**: Draft  
-**Input**: User description: "The \"Isched\" universal application server backend should simplify web application development. The frontend developer should not need any other software to develop the frontend. A procedural configuration (for example in Python or Typescript) of the Isched is the only thing needed. Isched will adhere to the GraphQL specification to not \"reinvent the wheel\"."
+**Updated**: 2026-03-12  
+**Status**: Revised Draft  
+**Input**: User description: "The Isched universal application server backend should simplify web application development. No IPC, no scripting. The only interface MUST be GraphQL via HTTP and WebSocket."
 
 ## Clarifications
 
-### Session 2025-11-01
+### Session 2026-03-12
 
-- Q: Error Response Format for GraphQL Specification Compliance → A: Enhanced format with Isched-specific extensions: Include additional error metadata like `{"extensions": {"code": "VALIDATION_ERROR", "timestamp": "...", "requestId": "..."}}`
-- Q: GraphQL Schema Bootstrapping for "Hello World" Test → A: Minimal built-in schema with basic queries including server health monitoring (client count, current configuration, uptime) similar to Spring Boot actuators
-- Q: Multi-Tenant Process Isolation Strategy → A: Pre-allocated tenant process pool: Fixed number of tenant processes (configurable) with tenant assignment based on load balancing
-- Q: Thread Pool Configuration Strategy → A: Adaptive thread pool sizing: Automatic thread pool adjustment based on tenant load patterns and response time metrics with configurable maximum threads
-- Q: Database Connection Pooling Strategy for Multi-Tenant Architecture → A: Per-tenant database connections with pooling: Each tenant process maintains its own connection pool to tenant-specific SQLite databases
-- Q: Python/TypeScript Runtime Architecture → A: Separated dynamic library with CLI executables: Python and TypeScript runtimes implemented as isched-cli-python and isched-cli-typescript CLI executables, loaded via dynamic library by main Isched server. Configuration scripts saved to disk and executed via spawn processes with shared memory for isolation and reduced attack surface.
-- Q: IPC Communication Mechanism for CLI Process Coordination → A: IPC via shared memory segments with message queues for command/response coordination
-- Q: Configuration Data Exchange Format → A: JSON configuration with version-controlled updates for rollback support
-- Q: Dynamic Library Core Functionality → A: GraphQL resolver system with plugin support: Core data types, IPC utilities, built-in resolvers (REST API, SQL database), and binary plugin system for custom resolvers configurable via CLI
-- Q: Memory Management Strategy for C++ Core Guidelines Compliance → A: Smart pointers mandatory: All resource management MUST use std::unique_ptr or std::shared_ptr instead of raw pointers (e.g., SQLite connections, file handles, dynamic allocations)
-- Q: Documentation Generation Strategy for Build Process → A: Automated source code documentation with reference inclusion: Build process MUST generate comprehensive documentation from source code including API references, code examples, and inline source code snippets for complete developer reference
-
-### Session 2025-11-02
-
-- Q: Authentication token storage and session management strategy for multi-tenant architecture → A: Per-tenant in-memory with shared session store backup
-- Q: Configuration script error handling and validation strategy during runtime updates → A: Atomic deployment with automatic rollback to previous working configuration
-- Q: Database schema migration strategy for data model changes → A: Automatic schema migration with backup for safe changes only
-
-- Q: Error Response Format for GraphQL Specification Compliance → A: Enhanced format with Isched-specific extensions: Include additional error metadata like `{"extensions": {"code": "VALIDATION_ERROR", "timestamp": "...", "requestId": "..."}}`
-- Q: GraphQL Schema Bootstrapping for "Hello World" Test → A: Minimal built-in schema with basic queries including server health monitoring (client count, current configuration, uptime) similar to Spring Boot actuators
-- Q: Multi-Tenant Process Isolation Strategy → A: Pre-allocated tenant process pool: Fixed number of tenant processes (configurable) with tenant assignment based on load balancing
-- Q: Thread Pool Configuration Strategy → A: Adaptive thread pool sizing: Automatic thread pool adjustment based on tenant load patterns and response time metrics with configurable maximum threads
-- Q: Database Connection Pooling Strategy for Multi-Tenant Architecture → A: Per-tenant database connections with pooling: Each tenant process maintains its own connection pool to tenant-specific SQLite databases
-- Q: Python/TypeScript Runtime Architecture → A: Separated dynamic library with CLI executables: Python and TypeScript runtimes implemented as isched-cli-python and isched-cli-typescript CLI executables, loaded via dynamic library by main Isched server. Configuration scripts saved to disk and executed via spawn processes with shared memory for isolation and reduced attack surface.
-- Q: IPC Communication Mechanism for CLI Process Coordination → A: IPC via shared memory segments with message queues for command/response coordination
-- Q: Configuration Data Exchange Format → A: JSON configuration with version-controlled updates for rollback support
-- Q: Dynamic Library Core Functionality → A: GraphQL resolver system with plugin support: Core data types, IPC utilities, built-in resolvers (REST API, SQL database), and binary plugin system for custom resolvers configurable via CLI
-- Q: Memory Management Strategy for C++ Core Guidelines Compliance → A: Smart pointers mandatory: All resource management MUST use std::unique_ptr or std::shared_ptr instead of raw pointers (e.g., SQLite connections, file handles, dynamic allocations)
-- Q: Documentation Generation Strategy for Build Process → A: Automated source code documentation with reference inclusion: Build process MUST generate comprehensive documentation from source code including API references, code examples, and inline source code snippets for complete developer reference
+- Q: What transport interfaces are allowed? → A: Only GraphQL over HTTP and GraphQL over WebSocket are allowed as externally supported interfaces.
+- Q: How is backend behavior configured without scripting? → A: Backend behavior is configured through GraphQL mutations that persist versioned configuration snapshots and data model definitions.
+- Q: What runtime architecture replaces CLI executables and IPC? → A: A single server runtime hosts tenant-aware services, configuration management, authentication, GraphQL execution, and subscriptions in-process.
+- Q: How are health and operational metrics exposed? → A: Health, server info, and operational status are exposed through built-in GraphQL queries and subscriptions, not through REST endpoints.
+- Q: Which WebSocket protocol is required? → A: The server uses the `graphql-transport-ws` protocol for GraphQL subscriptions.
+- Q: How is tenant isolation handled without separate processes? → A: Tenant isolation is logical and data-scoped within a single runtime using tenant-scoped SQLite databases, connection pools, authorization checks, and scheduler quotas.
+- Q: How are runtime configuration changes applied safely? → A: Configuration mutations produce versioned snapshots, validate them in-process, and apply them atomically with rollback to the previous active snapshot on failure.
+- Q: What is the memory management requirement? → A: All resource ownership uses `std::unique_ptr` or `std::shared_ptr`; raw owning pointers are forbidden.
+- Q: What documentation is required? → A: The build must generate API and source-reference documentation automatically.
+- Q: How is GraphQL input parsed? → A: The server implements its own PEGTL-based GraphQL parser. The grammar is defined in `src/main/cpp/isched/backend/isched_gql_grammar.hpp`. No third-party GraphQL parsing library is used for the core parsing pipeline. The parser produces structured output consumed by the execution engine, schema generation, and SDL validation subsystems.
+- Q: Why implement a custom parser rather than using a library? → A: Tight control over parse-tree structure, error reporting, and SDL fragment handling within a C++23/PEGTL-only dependency footprint. The grammar is tested directly against the GraphQL specification.
+- Q: Does the server support GraphQL introspection? → A: Yes. The server MUST implement complete GraphQL introspection as defined in the GraphQL specification, including all meta-types (`__Schema`, `__Type`, `__TypeKind`, `__Field`, `__InputValue`, `__EnumValue`, `__Directive`, `__DirectiveLocation`), the `__schema` and `__type(name:)` root fields, and the `__typename` meta-field on every object type. Introspection must be accurate enough for standard GraphQL UI tools (GraphiQL, Apollo Sandbox, Altair) and code-generation clients to function correctly and reflect the current active schema.
+- Q: Why is a full introspection implementation required rather than the skeleton? → A: Partial introspection causes silent failures in standard tooling. GraphQL clients use introspection to build type-safe queries, and UIs use it to provide auto-complete and documentation. Incomplete `kind`, missing built-in scalar types, absent `ofType` for wrapped types, or missing `inputFields` for `INPUT_OBJECT` types all cause standard tools to fail or produce incorrect results.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Frontend Developer Setup (Priority: P1)
+### User Story 1 - Immediate GraphQL Startup (Priority: P1)
 
-A frontend developer can configure and run a complete backend server using only Isched and a simple configuration script. They don't need to install databases, authentication services, or additional backend frameworks.
+A frontend developer can start Isched and immediately use a built-in GraphQL API over HTTP without installing any other backend software.
 
-**Why this priority**: This is the core value proposition - eliminating the need for multiple backend services and complex setup procedures.
+**Why this priority**: This is the core promise of the product. If the default GraphQL endpoint is not available immediately, the backend does not reduce setup cost.
 
-**Independent Test**: Can be fully tested by a frontend developer creating a basic configuration script and successfully running a GraphQL endpoint that serves data and handles authentication.
+**Independent Test**: Start the server binary, send GraphQL requests over HTTP to `/graphql`, and verify built-in queries for server info and health without creating any custom configuration.
 
 **Acceptance Scenarios**:
 
-1. **Given** a frontend developer with only Isched installed, **When** they start Isched without any configuration script, **Then** they can immediately access a GraphQL endpoint with built-in health monitoring queries (hello, version, clientCount, uptime)
-2. **Given** a running Isched server, **When** a frontend developer makes GraphQL queries, **Then** they receive properly formatted GraphQL responses according to the specification
-3. **Given** a basic configuration, **When** the server starts, **Then** it automatically provides user authentication and basic data storage without additional setup
+1. **Given** Isched is installed, **When** the frontend developer starts the server with default settings, **Then** a GraphQL endpoint is available over HTTP at `/graphql` with built-in queries such as `hello`, `version`, `uptime`, and `health`
+2. **Given** a running server, **When** the frontend developer sends valid GraphQL queries over HTTP, **Then** responses conform to the GraphQL over HTTP response format
+3. **Given** a running server, **When** the frontend developer queries built-in health and configuration information, **Then** they receive operational data through GraphQL rather than a separate REST management API
 
 ---
 
-### User Story 2 - Procedural Configuration (Priority: P2)
+### User Story 2 - GraphQL-Native Configuration (Priority: P2)
 
-Frontend developers can define their backend behavior through procedural scripts (Python or TypeScript) rather than complex configuration files or manual setup.
+Frontend developers can configure data models, authentication options, and tenant-specific backend behavior through GraphQL mutations instead of scripts or external tools.
 
-**Why this priority**: Procedural configuration provides flexibility and familiarity for developers while maintaining simplicity.
+**Why this priority**: Removing scripting only works if the GraphQL-native configuration model is expressive enough to replace it.
 
-**Independent Test**: Can be tested by writing different configuration scripts that modify server behavior and verifying that the changes take effect without manual server configuration.
+**Independent Test**: Apply a configuration snapshot through GraphQL mutations, verify the schema updates, confirm the new behavior is persisted, and validate rollback behavior when an invalid configuration is submitted.
 
 **Acceptance Scenarios**:
 
-1. **Given** a configuration script, **When** the developer defines data models, **Then** Isched automatically creates the corresponding GraphQL schema and database storage
-2. **Given** a running server, **When** the configuration script is updated, **Then** the server reflects the changes without manual intervention
-3. **Given** authentication requirements in the script, **When** the server starts, **Then** it automatically configures OAuth and JWT token handling
+1. **Given** an authenticated administrative client, **When** it submits GraphQL mutations that define data models and tenant configuration, **Then** Isched persists a new versioned configuration snapshot and updates the active schema
+2. **Given** a valid configuration update, **When** it is applied, **Then** the server makes the updated schema available without requiring an external script runner or out-of-process coordinator
+3. **Given** an invalid configuration update, **When** validation fails, **Then** the system keeps the previous active configuration and returns GraphQL errors that explain the rejection
 
 ---
 
-### User Story 3 - GraphQL Specification Compliance (Priority: P3)
+### User Story 3 - Real-Time GraphQL Transport (Priority: P3)
 
-All GraphQL interactions follow the official GraphQL specification exactly, ensuring compatibility with existing GraphQL tools and client libraries.
+Clients can use GraphQL over WebSocket for subscriptions and other real-time events while staying fully compatible with standard GraphQL clients.
 
-**Why this priority**: Standards compliance ensures interoperability and prevents vendor lock-in, allowing developers to use familiar GraphQL tools.
+**Why this priority**: The user explicitly constrained the product to GraphQL over HTTP and WebSocket only, so WebSocket support is a first-class transport requirement rather than an optional add-on.
 
-**Independent Test**: Can be tested by running standard GraphQL introspection queries and validating responses against the official GraphQL specification test suite.
+**Independent Test**: Connect using a GraphQL WebSocket client, subscribe to configuration or health events, trigger changes, and verify the server emits standards-compliant subscription messages.
 
 **Acceptance Scenarios**:
 
-1. **Given** a configured Isched server, **When** GraphQL introspection queries are executed, **Then** they return properly formatted schema information per the GraphQL spec
-2. **Given** various GraphQL query types (queries, mutations, subscriptions), **When** they are executed, **Then** responses conform exactly to GraphQL specification formatting
-3. **Given** GraphQL client libraries, **When** they connect to Isched, **Then** they can interact normally without compatibility issues
+1. **Given** a GraphQL WebSocket client using `graphql-transport-ws`, **When** it connects and authenticates, **Then** it can establish subscriptions successfully
+2. **Given** configuration, health, or data changes, **When** subscribed clients are connected, **Then** the server pushes events over WebSocket without polling
+3. **Given** a GraphQL client library that supports HTTP queries and WebSocket subscriptions, **When** it connects to Isched, **Then** it interoperates without custom transport adapters
 
 ---
 
 ### Edge Cases
 
-- Configuration errors cause atomic validation and automatic rollback. When configuration is changed at runtime, a new instance of the Isched server process validates the new configuration in isolation. If validation passes completely, the system switches atomically to the new configuration. If validation fails, the system automatically rolls back to the previous working configuration and provides detailed error messages to the developer. Current connections remain unaffected during the validation process.
-- When GraphQL queries exceed reasonable complexity limits the query should abort with a good description of the problem returned in the error message. The complexity metric should be configurable.
-- When configuration scripts try to define conflicting authentication methods, the atomic validation process will detect the conflict and reject the entire configuration update, maintaining the previous working state.
-- When data model changes require destructive schema migrations (remove columns, change types), the system will reject the automatic migration and require manual intervention to prevent data loss. Safe changes (add columns, rename fields) are automatically migrated with database backup.
+- When a configuration mutation creates an invalid schema, the mutation must fail atomically and the previous active configuration snapshot must remain active.
+- When a GraphQL query exceeds configured complexity or depth limits, execution must stop and the response must include a standards-compliant error with Isched-specific extensions.
+- When a WebSocket client disconnects unexpectedly, the server must clean up subscription state and allow idempotent client reconnection and resubscription.
+- When a configuration update would require destructive schema migration, the update must be rejected until an explicit migration workflow is provided.
+- When authentication rules are changed while sessions are active, the system must apply the new rules to new sessions while preserving already-issued tokens until expiration or revocation.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST allow frontend developers to configure the entire backend using only procedural scripts (Python or TypeScript)
-- **FR-002**: System MUST automatically provide user authentication and authorization without requiring external services
-- **FR-002-A**: System MUST implement per-tenant in-memory session caching with shared session store backup for performance and consistency across tenant processes
-- **FR-003**: System MUST generate GraphQL schemas automatically based on configuration script definitions
-- **FR-004**: System MUST provide embedded data storage that doesn't require separate database installation
-- **FR-005**: System MUST start and run a complete backend server from a single configuration script execution
-- **FR-006**: System MUST support both Python and TypeScript for configuration scripts through separate CLI executables (isched-cli-python, isched-cli-typescript)
-- **FR-007**: System MUST provide basic user and organization management capabilities out of the box
-- **FR-008**: System MUST provide enhanced GraphQL error responses with extensions containing error codes, timestamps, and request IDs for debugging and monitoring
-- **FR-009**: System MUST provide a minimal built-in GraphQL schema for immediate testing with health monitoring queries (hello, version, clientCount, uptime, currentConfiguration) similar to Spring Boot actuators
-- **FR-010**: System MUST serve thousands of clients using a pre-allocated tenant process pool with configurable thread pools per process
-- **FR-011**: System MUST complete requests within 20 milliseconds on Ryzen 7/Intel i5 hardware under normal load conditions
-- **FR-012**: System MUST provide adaptive thread pool sizing with automatic adjustment based on tenant load patterns and response time metrics, subject to configurable maximum thread limits
-- **FR-013**: System MUST maintain per-tenant database connections with pooling, where each tenant process maintains its own connection pool to tenant-specific SQLite databases
-- **FR-013-A**: System MUST implement automatic schema migration with database backup for safe changes (add columns, rename fields), while requiring manual intervention for destructive changes (remove columns, change types) to prevent data loss
-- **FR-014**: System MUST execute configuration scripts in isolated processes using isched-cli-python and isched-cli-typescript executables with shared memory communication for security and performance
-- **FR-015**: System MUST save GraphQL mutation-based configuration to script files on server work directory before execution by spawned CLI processes
-- **FR-016**: System MUST use shared memory segments with message queues for IPC coordination between server and CLI processes to ensure efficient command/response handling
-- **FR-017**: System MUST exchange configuration data and schema definitions using JSON format with version-controlled updates to support rollback and human-readable debugging
-- **FR-017-A**: System MUST implement atomic configuration deployment with automatic rollback to previous working configuration when validation fails, ensuring zero downtime during configuration updates
-- **FR-018**: System MUST provide a GraphQL resolver system with built-in resolvers for REST API calls and SQL database operations
-- **FR-019**: System MUST support binary plugin system for custom resolvers that can be loaded dynamically and configured via CLI executables
-- **FR-020**: System MUST allow CLI processes to define, configure, and manage GraphQL resolvers in the server runtime
-- **FR-021**: System MUST use smart pointers (std::unique_ptr, std::shared_ptr) for all resource management instead of raw pointers to ensure C++ Core Guidelines compliance and memory safety
-- **FR-022**: System MUST generate comprehensive source code documentation as part of the build process, including API references, inline code examples, and embedded source code snippets for complete developer reference
+- **FR-001**: System MUST expose GraphQL over HTTP and GraphQL over WebSocket as the only supported external interfaces.
+- **FR-002**: System MUST NOT require procedural scripts, CLI runtime executables, or IPC mechanisms for configuration or runtime coordination.
+- **FR-003**: System MUST allow administrative and tenant-specific backend configuration through GraphQL mutations.
+- **FR-004**: System MUST persist configuration as versioned snapshots that can be queried, activated, and rolled back.
+- **FR-005**: System MUST provide a minimal built-in GraphQL schema for immediate startup, including health and server information queries.
+- **FR-006**: System MUST generate and update tenant-specific GraphQL schema elements from persisted data model definitions and configuration metadata.
+- **FR-007**: System MUST provide embedded data storage without requiring a separately installed database server.
+- **FR-008**: System MUST automatically provide user authentication and authorization without requiring external identity infrastructure for baseline operation.
+- **FR-009**: System MUST provide enhanced GraphQL error responses with `extensions` containing error codes, timestamps, and request IDs.
+- **FR-010**: System MUST support GraphQL subscriptions over WebSocket using `graphql-transport-ws`.
+- **FR-011**: System MUST maintain logical tenant isolation within a single runtime using tenant-scoped authorization, database separation, and resource quotas.
+- **FR-012**: System MUST complete requests within 20 milliseconds on Ryzen 7 or Intel i5 class hardware under normal load conditions.
+- **FR-013**: System MUST provide adaptive worker-thread management based on tenant load and response-time metrics.
+- **FR-014**: System MUST maintain per-tenant SQLite database connections with pooling.
+- **FR-014-A**: System MUST implement automatic schema migration with backup for safe changes, while rejecting destructive changes that could cause data loss.
+- **FR-015**: System MUST validate and apply configuration updates atomically, rolling back to the previous active snapshot if validation or activation fails.
+- **FR-016**: System MUST expose operational health, uptime, and runtime information through GraphQL queries and subscriptions instead of a REST management surface.
+- **FR-017**: System MUST store configuration metadata, schema metadata, and deployment history in JSON and GraphQL SDL forms suitable for debugging and audit.
+- **FR-018**: System MUST provide built-in resolvers for common data operations and outbound HTTP integrations while keeping GraphQL as the only external client interface.
+- **FR-019**: System MUST use smart pointers (`std::unique_ptr`, `std::shared_ptr`) for all owned resources.
+- **FR-020**: System MUST generate comprehensive source code documentation as part of the build process, including API references, inline code examples, and source snippets.
 
 ### Constitutional Requirements
 
 **Performance Requirements** (Constitution Principle I):
 
-- **FR-PERF-001**: Feature MUST maintain multi-tenant performance characteristics
-- **FR-PERF-002**: Implementation MUST support cloud-to-embedded deployment scenarios  
-- **FR-PERF-003**: Performance impact MUST be measured and documented
+- **FR-PERF-001**: Feature MUST maintain high-concurrency, multi-tenant performance characteristics within a single runtime.
+- **FR-PERF-002**: Implementation MUST support cloud-to-embedded deployment scenarios.
+- **FR-PERF-003**: Performance impact MUST be measured and documented for HTTP queries and WebSocket subscriptions.
 
 **GraphQL Compliance** (Constitution Principle II):
 
-- **FR-GQL-001**: All GraphQL features MUST conform to [GraphQL specification](https://spec.graphql.org/)
-- **FR-GQL-002**: Any non-standard extensions MUST be explicitly documented
+- **FR-GQL-001**: All GraphQL behavior MUST conform to the [GraphQL specification](https://spec.graphql.org/).
+- **FR-GQL-002**: GraphQL over HTTP behavior MUST conform to the GraphQL over HTTP conventions used by standard clients.
+- **FR-GQL-003**: Any non-standard `extensions` fields MUST be explicitly documented.
+- **FR-GQL-004**: The HTTP transport layer MUST use `cpp-httplib` as the sole HTTP and WebSocket library. `restbed` MUST be removed from `conanfile.txt` and from all source files.
+- **FR-GQL-005**: The server MUST accept GraphQL queries and mutations via HTTP POST to `/graphql` with `Content-Type: application/json`. WebSocket connections to `/graphql` MUST be upgraded using `cpp-httplib`'s WebSocket support for subscription and streaming use cases. No other HTTP methods or paths are required for the GraphQL endpoint.
+- **FR-GQL-006**: The REST resolver infrastructure (`isched_BaseRestResolver`, `isched_DocRootRestResolver`, `isched_SingleActionRestResolver`, `isched_DocRootSvc`, `isched_EHttpMethods`) MUST be removed. `isched_MainSvc` MUST be replaced or reduced to a non-REST stub.
+
+**Introspection Requirements** (Standard GraphQL Client Interoperability):
+
+- **FR-INTRO-001**: The server MUST implement the full GraphQL introspection system as defined in the GraphQL specification, Section "Introspection".
+- **FR-INTRO-002**: The `__schema` field MUST be available on the root query type and return a complete `__Schema` object including `queryType`, `mutationType`, `subscriptionType`, `types` (all types in the active schema), and `directives`.
+- **FR-INTRO-003**: The `__type(name: String!)` field MUST be available on the root query type and return the full `__Type` representation for any named type in the active schema, or `null` for unknown names.
+- **FR-INTRO-004**: The `__typename` meta-field MUST be supported on every object, interface, and union type and return the runtime type name as a non-null `String`.
+- **FR-INTRO-005**: The `__Type` introspection object MUST correctly populate all fields: `kind`, `name`, `description`, `fields(includeDeprecated:)`, `interfaces`, `possibleTypes`, `enumValues(includeDeprecated:)`, `inputFields`, `ofType`, `specifiedByURL`.
+- **FR-INTRO-006**: The `kind` field on `__Type` MUST return the correct `__TypeKind` enum value: `SCALAR`, `OBJECT`, `INTERFACE`, `UNION`, `ENUM`, `INPUT_OBJECT`, `LIST`, or `NON_NULL`. The current skeleton returning only `OBJECT` is non-conformant and MUST be corrected.
+- **FR-INTRO-007**: All built-in scalar types (`String`, `Int`, `Float`, `Boolean`, `ID`) MUST appear in the `types` array returned by `__schema`. They MUST NOT be omitted even if not referenced in the current active schema.
+- **FR-INTRO-008**: `LIST` and `NON_NULL` wrapping types MUST be represented through the `ofType` chain in `__Type`. A field of type `[String!]!` MUST be representable as `NON_NULL → LIST → NON_NULL → SCALAR(String)` via nested `ofType` references.
+- **FR-INTRO-009**: The `__Field` introspection object MUST populate `name`, `description`, `args`, `type`, `isDeprecated`, and `deprecationReason`.
+- **FR-INTRO-010**: The `__InputValue` introspection object MUST populate `name`, `description`, `type`, `defaultValue`, `isDeprecated`, and `deprecationReason`.
+- **FR-INTRO-011**: The `__EnumValue` introspection object MUST populate `name`, `description`, `isDeprecated`, and `deprecationReason`.
+- **FR-INTRO-012**: The `__Directive` introspection object MUST populate `name`, `description`, `locations`, `args`, and `isRepeatable`.
+- **FR-INTRO-013**: Built-in directives (`@skip`, `@include`, `@deprecated`, `@specifiedBy`) MUST appear in the `directives` array returned by `__schema`.
+- **FR-INTRO-014**: Introspection results MUST reflect the **currently active schema**, including any types added by a configuration snapshot activation.
+- **FR-INTRO-015**: The introspection subsystem MUST be covered by unit tests in `src/test/cpp/isched/isched_gql_executor_tests.cpp`. Tests MUST NOT have assertions commented out. Every `__Type` field variant MUST have at least one positive test.
+
+- **FR-PARSER-001**: The server MUST implement its own PEGTL-based GraphQL parser. The grammar MUST reside in `src/main/cpp/isched/backend/isched_gql_grammar.hpp`. Third-party GraphQL parsing libraries MUST NOT be used for the core execution parsing pipeline.
+- **FR-PARSER-002**: The PEGTL grammar MUST cover the full GraphQL document language: executable definitions (query, mutation, subscription, selection sets, fields, arguments, fragments, directives), type system definitions (scalar, object, interface, union, enum, input, directive), and schema definitions.
+- **FR-PARSER-003**: `GqlExecutor` is the sole entry point for GraphQL document parsing and owns the PEGTL grammar invocation directly. The `isched_GqlParser` facade class and its source files (`isched_GqlParser.hpp`, `isched_GqlParser.cpp`) MUST be removed; they add indirection with no benefit. Parse-error conversion (FR-PARSER-005) is implemented within `GqlExecutor`.
+- **FR-PARSER-004**: Grammar correctness MUST be verified by the unit test suite in `src/test/cpp/isched/isched_grammar_tests.cpp`. Coverage MUST include positive cases, negative/invalid cases, and spec-derived edge cases for each grammar group (lexical, numeric, string, type-system, executable, schema, document).
+- **FR-PARSER-005**: The grammar MUST produce parse errors that are surfaced as standards-compliant GraphQL error objects with `locations` and `message` fields, not as uncaught C++ exceptions at the transport boundary.
+- **FR-PARSER-006**: Grammar rules MUST be documented with Doxygen comments that map each rule to the corresponding GraphQL specification section.
 
 **Security Requirements** (Constitution Principle III):
 
-- **FR-SEC-001**: Authentication MUST use industry-standard protocols (OAuth, JWT)
-- **FR-SEC-002**: Default configuration MUST be secure-by-default
-- **FR-SEC-003**: Multi-tenant data isolation MUST be maintained
+- **FR-SEC-001**: Authentication MUST use industry-standard mechanisms such as JWT and OAuth-compatible flows where enabled.
+- **FR-SEC-002**: Default configuration MUST be secure-by-default.
+- **FR-SEC-003**: Tenant data isolation MUST be maintained for both HTTP and WebSocket operations.
+
+**Execution Engine Requirements** (Field Resolution Correctness):
+
+- **FR-EXEC-001**: The execution engine MUST implement the GraphQL field resolution algorithm as defined in the GraphQL specification §6.4. For each field in a selection set, the field resolver MUST be invoked with `(parent_value, args, context)` where `parent_value` is the result returned by the parent field's resolver. For root-level fields, `parent_value` MUST be an empty JSON object.
+- **FR-EXEC-002**: When no explicit resolver is registered for a sub-field and `parent_value` is a JSON object containing a key matching the field name, the execution engine MUST apply the **default field resolver** and return `parent_value[field_name]`. It MUST NOT emit a `MISSING_GQL_RESOLVER` error for sub-fields that satisfy this condition. When neither an explicit resolver is registered nor the parent object contains the field name, the execution engine MUST emit a `MISSING_GQL_RESOLVER` error for that field.
+- **FR-EXEC-003**: Sub-selection results MUST be placed in the response at the correct nesting level. For a query `{ a { b } }`, the response data MUST have the form `{"a": {"b": ...}}`. Placing a sub-field result at the top level of the response object instead of nested under its parent field is non-conformant.
+- **FR-EXEC-004**: `ResolverPath` MUST represent the chain of field names from the root to the immediate parent of the field being resolved, and MUST be used to look up the correct resolver function for nested fields at any depth.
+- **FR-EXEC-005**: Errors originating within a sub-resolver MUST be captured in the `errors` array of the response. A sub-resolver error MUST NOT prevent sibling fields at the same level from being resolved. The `path` component of each error MUST reflect the full field path in document order, using a mixed-type JSON array: `string` elements for named object fields and `int` elements for list indices (e.g., `["users", 0, "name"]`). This format MUST be used from the first implementation to remain compatible when list field resolution is added later.
+- **FR-EXEC-006**: The field resolution engine MUST be unit-tested in `src/test/cpp/isched/isched_gql_executor_tests.cpp`. Tests MUST cover: (a) flat queries (single-level fields), (b) single-level nested sub-selections with an explicit sub-resolver, (c) default field resolver extraction from a parent result object without an explicit resolver, (d) multi-level nesting (at least two levels deep, e.g. `{ a { b { c } } }`) producing the correct response shape, (e) a sub-resolver receiving the correct non-empty parent value, (f) error propagation from a failing sub-resolver without blocking sibling field resolution, and (g) argument passing to a sub-resolver.
+- **FR-EXEC-007**: The `register_resolver` API MUST allow callers to register a resolver function for any `ResolverPath` and field name combination, enabling explicitly registered sub-resolvers at arbitrary nesting depths.
 
 **Testing Requirements** (Constitution Principle IV):
 
-- **FR-TEST-001**: Core functionality MUST follow TDD approach
-- **FR-TEST-002**: Integration tests required for GraphQL endpoints
-- **FR-TEST-003**: Performance regression tests MUST validate scalability
+- **FR-TEST-001**: Core functionality MUST follow a TDD approach.
+- **FR-TEST-002**: Integration tests are required for GraphQL over HTTP and GraphQL over WebSocket.
+- **FR-TEST-003**: Performance regression tests MUST validate scalability and subscription overhead.
+- **FR-TEST-004**: The complete `ctest` test suite (`cd cmake-build-debug && ctest --output-on-failure`) MUST pass after every individual task is marked done. No task transitions to complete while any test — pre-existing or newly introduced — is failing. This is a hard gate, not a guideline.
 
 **Portability Requirements** (Constitution Principle V):
 
-- **FR-PORT-001**: Code MUST compile on Linux with Conan dependencies
-- **FR-PORT-002**: Cross-platform documentation MUST be provided
+- **FR-PORT-001**: Code MUST compile on Linux with Conan-managed dependencies.
+- **FR-PORT-002**: Cross-platform documentation MUST be provided for supported deployment modes.
 
 **C++ Core Guidelines Requirements** (Constitution Technical Standards):
 
-- **FR-CPP-001**: All C++ code MUST adhere to [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines)
-- **FR-CPP-002**: Code reviews MUST verify guideline compliance
-- **FR-CPP-003**: Any deviations MUST be explicitly justified and documented
+- **FR-CPP-001**: All C++ code MUST adhere to the [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines).
+- **FR-CPP-002**: Code reviews MUST verify guideline compliance.
+- **FR-CPP-003**: Any deviations MUST be explicitly justified and documented.
 
 ### Key Entities
 
-- **Configuration Script**: Python or TypeScript file that defines backend behavior, data models, and authentication rules, executed via isched-cli-python or isched-cli-typescript in isolated processes
-- **Data Model**: User-defined data structures that automatically generate GraphQL types and database schemas with automatic migration support for safe changes and backup protection
-- **Authentication Context**: User session and permission information managed automatically by the server using per-tenant in-memory caching with shared session store backup
-- **GraphQL Schema**: Automatically generated schema based on configuration script definitions
-- **Server Instance**: Running Isched server configured by the procedural script
-- **Tenant Process Pool**: Pre-allocated pool of tenant processes with load balancing and adaptive thread management
-- **Database Connection Pool**: Per-tenant connection pools managing access to tenant-specific SQLite databases
-- **CLI Executables**: Separate isched-cli-python and isched-cli-typescript processes for executing configuration scripts with shared memory communication
-- **Dynamic Library**: Shared isched runtime library loaded by server and CLI executables for common functionality
-- **GraphQL Resolvers**: Built-in and plugin-based resolvers for data fetching, including REST API and SQL database resolvers
-- **Binary Plugin System**: Dynamic loading system for custom resolver implementations configurable via CLI processes
+- **Configuration Snapshot**: Versioned, persisted representation of tenant configuration applied through GraphQL mutations.
+- **Data Model Definition**: User-defined model metadata that drives schema generation and database structure.
+- **Authentication Context**: User session and permission information used for HTTP and WebSocket request authorization.
+- **GraphQL Schema**: Active schema representation composed of built-in types and configuration-derived tenant types.
+- **Server Instance**: Running Isched server process that hosts HTTP and WebSocket GraphQL transports.
+- **Tenant Runtime**: In-process tenant-scoped runtime state including connection pools, quotas, auth settings, and active configuration.
+- **Database Connection Pool**: Per-tenant pool of SQLite connections.
+- **Subscription Session**: Active WebSocket connection and subscription registry for a client.
+- **Resolver Definition**: Built-in or configured GraphQL resolver metadata that maps operations to storage or integration behavior.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Frontend developers can create a working backend server in under 10 minutes using only a configuration script
-- **SC-002**: System eliminates the need for 100% of external backend services (databases, auth servers, API frameworks) for typical web applications
-- **SC-003**: All GraphQL responses pass 100% of official GraphQL specification compliance tests
-- **SC-004**: Configuration script changes take effect in under 5 seconds without server restart
-- **SC-005**: 95% of common web application backend requirements can be satisfied through configuration script alone
-- **SC-006**: System serves thousands of concurrent clients with 95th percentile response times under 20 milliseconds on Ryzen 7/Intel i5 hardware
+- **SC-001**: Frontend developers can start a working backend server in under 10 minutes without installing any external backend services.
+- **SC-002**: System eliminates the need for external databases, custom REST administration endpoints, scripting runtimes, and IPC services for typical web applications.
+- **SC-003**: All GraphQL HTTP responses and WebSocket subscription flows pass the targeted GraphQL compliance test suite.
+- **SC-004**: Valid configuration changes applied through GraphQL mutations take effect in under 5 seconds without process restarts.
+- **SC-005**: 95% of common web application backend requirements can be satisfied using built-in schema features and GraphQL configuration mutations.
+- **SC-006**: System serves thousands of concurrent clients with 95th percentile response times under 20 milliseconds for standard queries on Ryzen 7 or Intel i5 class hardware.
 
 ## Assumptions
 
-- Frontend developers have basic programming knowledge in Python or TypeScript
-- Applications built with Isched target typical web application use cases (CRUD operations, user management, basic business logic)
-- GraphQL is the preferred API interface for modern web applications
-- Embedded database performance is sufficient for most small to medium-scale applications
-- Configuration through code is preferred over configuration files for developer experience
+- Frontend developers are comfortable using GraphQL clients over HTTP and WebSocket.
+- Typical applications target CRUD operations, user management, and moderate real-time event delivery.
+- Embedded SQLite performance is sufficient for small to medium deployments and tenant isolation needs.
+- Configuration managed through GraphQL mutations is acceptable in place of procedural scripting.

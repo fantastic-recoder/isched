@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_gql_grammar.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief PEGTL-based GraphQL grammar used by the isched backend.
  *
  * This header defines the lexical and syntactic grammar for a GraphQL subset/superset

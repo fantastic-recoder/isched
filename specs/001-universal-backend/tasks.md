@@ -1,417 +1,347 @@
 # Tasks: Universal Application Server Backend
 
-**Input**: Design documents from `/specs/001-universal-backend/`
-**Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
-
-**Tests**: Test tasks included based on constitutional TDD requirements.
-
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+**Input**: Revised design documents from `/specs/001-universal-backend/`  
+**Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`  
+**Tests**: Test tasks included based on constitutional TDD requirements.  
+**Organization**: Tasks are grouped by user story to match the revised GraphQL-only scope.
 
 ## Format: `[ID] [P?] [Story] Description`
 
-- **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
-- Include exact file paths in descriptions
+- **[P]**: Can run in parallel
+- **[Story]**: User story association (`US1`, `US2`, `US3`)
+- Exact file paths are included where practical
 
 ## Path Conventions
 
-- **Isched C++ Backend**: `src/main/cpp/` for implementation, `src/test/cpp/` for tests
-- **Headers**: `src/main/cpp/isched/` for main headers
-- **Dependencies**: Managed via `conanfile.txt` and CMake
-- **Build**: CMake with Conan integration, use `cmake-build-debug/` for builds
-- Paths shown below follow Isched project structure
+- **Implementation**: `src/main/cpp/`
+- **Tests**: `src/test/cpp/`
+- **Contracts and planning**: `specs/001-universal-backend/`
 
 ## Constitutional Compliance Checklist
 
 Each task implementation MUST verify:
 
-- ✅ **Performance**: Multi-tenant performance maintained, cloud-to-embedded compatibility
-- ✅ **GraphQL Spec**: Compliance with [GraphQL specification](https://spec.graphql.org/)
-- ✅ **Security**: Industry-standard auth protocols, secure-by-default configuration  
-- ✅ **Testing**: TDD approach, integration tests for GraphQL endpoints, performance tests
-- ✅ **Portability**: Linux/Conan build compatibility, cross-platform documentation
-- ✅ **C++ Core Guidelines**: Adherence to [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines), justified deviations documented
+- ✅ **Tests pass**: `cd cmake-build-debug && ctest --output-on-failure` MUST exit 0 after every task is marked done. This is a hard gate — no task is complete while any test is failing.
+- ✅ **Performance**: HTTP and WebSocket performance remain within targets
+- ✅ **GraphQL Spec**: Behavior matches GraphQL and transport expectations
+- ✅ **Security**: Secure-by-default auth and tenant isolation
+- ✅ **Testing**: TDD, HTTP integration tests, WebSocket integration tests, performance coverage
+- ✅ **Portability**: Linux/Conan compatibility maintained
+- ✅ **C++ Core Guidelines**: Smart-pointer ownership and justified deviations only
+
+> **Rule**: If implementing a task causes an existing test to fail, the task MUST either fix the broken test in the same change or revert the breaking change. Leaving a passing test broken while moving to the next task is not allowed.
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Setup
 
-**Purpose**: Project initialization and C++23 structure with Conan dependencies
+**Purpose**: Maintain the base project structure and toolchain for the revised scope.
 
-- [x] T001 Create C++23 project structure per implementation plan in src/main/cpp/isched/
-- [x] T002 [P] Configure CMakeLists.txt with C++23 standard and Conan integration
-- [x] T003 [P] Setup conanfile.txt with required dependencies (pegtl, restbed, sqlite3, nlohmann_json, spdlog, jwt-cpp, catch2)
-- [x] T004 [P] Configure clang-tidy with C++ Core Guidelines compliance rules
-- [x] T005 [P] Setup automated documentation generation with Doxygen integration in CMakeLists.txt
-
----
-
-## Phase 2: Foundational (Blocking Prerequisites)
-
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
-
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
-
-- [x] T006 Implement base Server class in src/main/cpp/isched/isched_Server.hpp/cpp with lifecycle management
-- [x] T007 [P] Implement TenantManager class in src/main/cpp/isched/isched_TenantManager.hpp/cpp for multi-process isolation
-- [x] T008 [P] Implement DatabaseManager class in src/main/cpp/isched/isched_DatabaseManager.hpp/cpp with SQLite integration
-- [x] T009 [P] Implement ConnectionPool class in src/main/cpp/isched/isched_DatabaseManager.hpp for per-tenant database pooling
-- [x] T010 [P] Implement basic GqlExecutor class in src/main/cpp/isched/isched_GraphQLExecutor.hpp/cpp with PEGTL parser
-- [x] T011 [P] Implement AuthenticationMiddleware class in src/main/cpp/isched/isched_AuthenticationMiddleware.hpp/cpp with JWT support
-- [x] T012 [P] Implement shared memory IPC framework in src/main/cpp/isched/shared/ipc/
-- [x] T013 [P] Setup Restbed HTTP service integration in src/main/cpp/isched/isched_Server.cpp
-- [x] T014 [P] Implement configuration management in src/main/cpp/isched/shared/config/
-- [x] T015 [P] Setup Catch2 test framework integration in src/test/cpp/
-
-**Checkpoint**: Foundation ready - user story implementation can now begin in parallel
+- [x] T001 Create and maintain the C++23 project structure in `src/main/cpp/isched/`
+- [x] T002 [P] Configure `CMakeLists.txt` with C++23 and Conan integration
+- [x] T003 [P] Maintain Conan dependencies for GraphQL, storage, auth, logging, and testing
+- [x] T004 [P] Configure clang-tidy or equivalent guideline checks
+- [x] T005 [P] Maintain Doxygen integration in `CMakeLists.txt`
 
 ---
 
-## Phase 3: User Story 1 - Frontend Developer Setup (Priority: P1) 🎯 MVP
+## Phase 1b: Custom PEGTL GraphQL Parser
 
-**Goal**: Frontend developers can configure and run a complete backend server using only Isched and a simple configuration script
+**Purpose**: The server MUST implement its own PEGTL-based GraphQL parser. No third-party GraphQL parsing library is used. This phase tracks grammar completeness and parser integration.
 
-**Independent Test**: A frontend developer can create a basic configuration script and successfully run a GraphQL endpoint with health monitoring
+**Grammar file**: `src/main/cpp/isched/backend/isched_gql_grammar.hpp`  
+**Parser facade**: `src/main/cpp/isched/backend/isched_GqlParser.hpp/.cpp`  
+**Tests**: `src/test/cpp/isched/isched_grammar_tests.cpp`
+
+### Grammar completeness
+
+- [x] T-GQL-001 [P] Implement lexical rules: `Whitespace`, `LineTerminator`, `Comment`, `Comma`, `Ignored`, `UnicodeBOM`, `Name`, `Token`, `Punctuator`, `Ellipsis`
+- [x] T-GQL-002 [P] Implement numeric literals: `IntValue`, `FloatValue` (sign, fractional, exponent, follow-restrictions)
+- [x] T-GQL-003 [P] Implement string literals: quoted strings, escape sequences, block strings (`"""…"""`), `BlockStringCharacter`
+- [x] T-GQL-004 [P] Implement type-reference rules: `NamedType`, `ListType`, `NonNullType`, built-in scalars
+- [x] T-GQL-005 [P] Implement value rules: `Variable`, `IntValue`, `FloatValue`, `StringValue`, `BooleanValue`, `NullValue`, `EnumValue`, `ListValue`, `ObjectValue`, `DefaultValue`
+- [x] T-GQL-006 [P] Implement type-system definition rules: `ScalarTypeDefinition`, `ObjectTypeDefinition`, `FieldDefinition`, `FieldsDefinition`, `ArgumentsDefinition`, `InputValueDefinition`, `Description`
+- [x] T-GQL-007 [P] Implement directive rules: `DirectivesConst`, `Directive`, `DirectiveDefinition`
+- [x] T-GQL-008 [P] Implement executable definition rules: `OperationType`, `SelectionSet`, `Field`, `Alias`, `Arguments`, `GqlQuery`, `VariableDefinitions`, `VariableDefinition`
+- [x] T-GQL-009 [P] Implement schema definition rules: `SchemaDefinition`, `RootOperationTypeDefinition`
+- [x] T-GQL-010 [P] Implement top-level `Document` entry point
+- [ ] T-GQL-011 [P] Implement fragment rules: `FragmentDefinition`, `FragmentSpread`, `InlineFragment`, `TypeCondition`
+- [ ] T-GQL-012 [P] Implement remaining type-system definitions: `InterfaceTypeDefinition`, `UnionTypeDefinition`, `EnumTypeDefinition`, `InputObjectTypeDefinition`
+- [ ] T-GQL-013 [P] Implement type extension rules: `ObjectTypeExtension`, `InterfaceTypeExtension`, `UnionTypeExtension`, `EnumTypeExtension`, `InputObjectTypeExtension`, `ScalarTypeExtension`
+- [ ] T-GQL-014 [P] Ensure `Selection` rule matches all three variants: `Field`, `FragmentSpread`, `InlineFragment`
+
+### Parser integration
+
+- [ ] T-GQL-020 [P] Remove `isched_GqlParser.hpp` and `isched_GqlParser.cpp` — `GqlExecutor` owns PEGTL grammar invocation directly via `isched_gql_grammar.hpp`; also remove `IGdlParserTree` if it is only referenced by `GqlParser`
+- ~~T-GQL-021~~ **Eliminated** — `GqlExecutor` already calls PEGTL directly; no separate `GqlParser` integration layer is needed
+- [ ] T-GQL-022 [P] Verify parse-error conversion in `GqlExecutor`: PEGTL parse errors MUST become standards-compliant GraphQL error objects with `message` and `locations` before reaching transport (no `GqlParser` layer required)
+- [ ] T-GQL-023 [P] Use `GqlExecutor`'s PEGTL grammar for SDL schema validation in the configuration snapshot subsystem (not a regex or string-match approach)
+
+### Grammar test coverage
+
+- [x] T-GQL-030 Maintain positive-case grammar tests in `isched_grammar_tests.cpp` for: lexical elements, numeric literals, string literals, type system, executable queries, schema documents
+- [ ] T-GQL-031 [P] Add negative/rejection tests for every major grammar group (invalid tokens, malformed strings, bad numeric formats, unclosed braces)
+- [ ] T-GQL-032 [P] Add spec-derived conformance tests: multi-level selection sets, inline fragments, named fragments, mutations, subscriptions, operation variables, aliases
+- [ ] T-GQL-033 [P] Add parse-error-message tests: verify location information (`line`, `column`) and message text in `IGdlParserTree` rejection results
+
+**Checkpoint**: Custom PEGTL parser is complete, owned directly by `GqlExecutor`, `GqlParser` facade removed, standards-compliant parse errors verified, grammar conformance tests pass. `ctest` MUST be green before moving to Phase 1c.
+
+---
+
+## Phase 1c: GraphQL Execution Engine — Field Resolution Correctness
+
+**Purpose**: The current `GqlExecutor` sub-field dispatch path contains three structural defects: parent values are never forwarded to sub-resolvers; sub-selection results are placed at the wrong JSON nesting level; and the default field resolver (extract `parent[field_name]`) is not wired into the dispatch path. These defects must be corrected and covered by unit tests before the higher-level runtime work in Phase 2 begins.
+
+### Fix Sub-Resolver Dispatch
+
+- [ ] T-EXEC-001 [P] Extend `resolve_field_selection_details()` to accept a `const json& p_parent` parameter and forward it to every resolver call — replace the `json::object()` placeholder with the actual resolved parent value
+- [ ] T-EXEC-002 [P] Fix sub-selection result placement: after resolving a field to `my_result`, create `p_result[fieldName]` as the container and write sub-field results into it, so `{ a { b } }` produces `{"a": {"b": ...}}` rather than `{"a": ..., "b": ...}`; update `process_field_sub_selections()` and `process_sub_selection()` accordingly
+- [ ] T-EXEC-003 [P] Implement the **default field resolver**: when `ResolverRegistry::get_resolver()` finds no explicit resolver for a sub-field and `parent_value` is a JSON object containing the field's key, return `parent_value[field_name]`; when the key is absent and there is no explicit resolver, emit `MISSING_GQL_RESOLVER`
+- [ ] T-EXEC-004 [P] Remove the `json my_args=json::object(); //<TODO` placeholder in `process_sub_selection()` and implement proper argument extraction for each sub-field before dispatch into `process_field_selection()`
+- [ ] T-EXEC-005 [P] Thread `p_parent` consistently through the full call chain: `process_field_selection(p_parent, ...) → resolve_field_selection_details(..., p_parent, ...) → resolver(p_parent, args, ctx)` — no step in the chain may silently drop the parent value
+
+### Sub-Resolver Unit Tests
+
+- [ ] T-EXEC-006 [P] Add unit tests to `isched_gql_executor_tests.cpp` covering all cases required by FR-EXEC-006:
+  - Flat query (existing coverage, must remain green)
+  - Single-level nested sub-selection with an explicit sub-resolver receiving the correct parent value
+  - Default field resolver: parent resolver returns `{version:"1.0"}`, `version` sub-field is extracted without any explicit resolver registered
+  - Multi-level nesting: `{ a { b { c } } }` produces `{"a":{"b":{"c":...}}}` at all levels
+  - Sub-resolver receives the correct non-empty parent value (assert the parent arg equals the parent resolver's return value)
+  - Error propagation: a failing sub-resolver sets that field to null and populates `errors`, sibling fields still resolve
+  - Argument passing: arguments supplied in the query reach the sub-resolver's `p_args` parameter
+  - Missing default resolver: parent resolves to `{}`, sub-field `x` has no explicit resolver and parent has no key `x` → `MISSING_GQL_RESOLVER` error appears in `errors`
+  - Error `path` array elements: string for named fields, int for list indices (mixed type from first implementation)
+
+**Checkpoint**: Sub-resolver dispatch is correct, default field resolver is wired, results are correctly nested in the response, and all T-EXEC-006 test variants pass. `ctest` MUST be green before moving to Phase 2.
+
+---
+
+## Phase 2: Foundational GraphQL Runtime
+
+**Purpose**: Core infrastructure that must exist before user stories can be completed.
+
+- [ ] T006 [P] Replace `restbed` with `cpp-httplib` as the sole HTTP/WebSocket library:
+  - Rewrite `isched_Server.hpp/cpp` to use `httplib::Server` for HTTP POST `/graphql` and `httplib::Server::set_pre_routing_handler` / WebSocket upgrade for WebSocket connections to `/graphql`
+  - Remove `restbed` from `conanfile.txt`
+  - Delete `isched_BaseRestResolver.hpp/cpp`, `isched_DocRootRestResolver.hpp/cpp`, `isched_SingleActionRestResolver.hpp/cpp`, `isched_DocRootSvc.hpp/cpp`, `isched_EHttpMethods.hpp`
+  - Replace `isched_MainSvc.hpp/cpp` with a minimal cpp-httplib bootstrap (or delete if `isched_Server` absorbs the role)
+  - Populate `ResolverCtx` with `tenant_id` (string), `db` (pointer to tenant DB connection), and `current_user_id` (string); update all resolver call sites
+  - Verify `ctest` is green after removal
+- [ ] T007 [P] Refactor `isched_TenantManager.hpp/cpp` for in-process tenant isolation rather than process management
+- [ ] T008 [P] Complete `isched_DatabaseManager.hpp/cpp` for tenant-scoped SQLite storage and connection pooling
+- [ ] T009 [P] Complete `ConnectionPool` behavior in `isched_DatabaseManager.hpp/cpp`
+- [ ] T010 [P] Complete `isched_GqlExecutor.hpp/cpp` for query, mutation, and schema execution
+- [ ] T011 [P] Complete `isched_AuthenticationMiddleware.hpp/cpp` for real JWT validation and session handling
+- [ ] T012 [P] Add a subscription broker implementation in `src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp/.cpp` *(to be created)* for WebSocket subscriptions
+- [ ] T013 [P] Implement GraphQL HTTP transport at `/graphql` and remove non-GraphQL transport assumptions
+- [ ] T014 [P] Refactor `src/main/cpp/isched/shared/config/` around configuration snapshots instead of scripts
+- [ ] T015 [P] Ensure Catch2 and transport-level test wiring is correct in `src/test/cpp/`
+
+**Checkpoint**: Foundation ready for HTTP queries, WebSocket subscriptions, auth, and configuration snapshots. `ctest` MUST be green before moving to Phase 3.
+
+---
+
+## Phase 3: User Story 1 - Immediate GraphQL Startup (Priority: P1)
+
+**Goal**: Frontend developers can start the server and use built-in GraphQL immediately over HTTP.
 
 ### Tests for User Story 1
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [x] T016 [P] [US1] Integration test for basic server startup in src/test/cpp/integration/test_server_startup.cpp
-- [x] T017 [P] [US1] Integration test for built-in GraphQL schema in src/test/cpp/integration/test_builtin_schema.cpp
-- [x] T018 [P] [US1] Integration test for health monitoring endpoints in src/test/cpp/integration/test_health_monitoring.cpp
+- [ ] T016 [P] [US1] Add integration test for server startup and `/graphql` availability in `src/test/cpp/integration/test_server_startup.cpp` *(exists — extend with real transport assertions)*
+- [ ] T017 [P] [US1] Add integration test for built-in GraphQL queries in `src/test/cpp/integration/test_builtin_schema.cpp` *(to be created)*
+- [ ] T018 [P] [US1] Add integration test for GraphQL-based health and server info queries in `src/test/cpp/integration/test_health_queries.cpp` *(to be created)*
 
 ### Implementation for User Story 1
 
-- [x] T019 [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/backend/isched_built_in_schema.hpp/cpp with health queries
-- [x] T020 [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
-- [x] T021 [US1] Integrate BuiltInSchema with GqlExecutor for immediate GraphQL endpoint availability
-- [x] T022 [US1] Implement basic server lifecycle (start/stop/health) in src/main/cpp/isched/backend/isched_Server.cpp
-- [x] T023 [US1] Add automatic GraphQL playground endpoint setup in src/main/cpp/isched/backend/isched_Server.cpp
-- [x] T024 [US1] Implement GraphQL specification compliance validation in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
-- [x] T025 [US1] Add enhanced error response format with Isched extensions in src/main/cpp/isched/backend/isched_GraphQLExecutor.cpp
+- [ ] T019 [P] [US1] Implement built-in GraphQL schema and resolvers for `hello`, `version`, `uptime`, `serverInfo`, and `health`
+- [ ] T020 [P] [US1] Route HTTP GraphQL requests through the real executor in `isched_Server.cpp`
+- [ ] T021 [US1] Enforce GraphQL as the only external interface in server routing and documentation
+- [ ] T022 [US1] Remove or disable REST-style health and management endpoint expectations from the runtime
+- [ ] T023 [US1] Implement GraphQL over HTTP request parsing, validation, and serialization
+- [ ] T024 [US1] Implement enhanced GraphQL error formatting with request IDs and extensions
+- [ ] T025 [US1] Document startup and built-in query behavior in user-facing docs
 
-**Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
+**Checkpoint**: User Story 1 is independently testable over HTTP. `ctest` MUST be green before moving to Phase 4.
 
 ---
 
-## Phase 4: User Story 2 - Procedural Configuration (Priority: P2)
+## Phase 4: User Story 2 - GraphQL-Native Configuration (Priority: P2)
 
-**Goal**: Frontend developers can define their backend behavior through procedural scripts (Python or TypeScript)
-
-**Independent Test**: Writing different configuration scripts modifies server behavior and changes take effect without manual server configuration
+**Goal**: Backend behavior is configured through GraphQL mutations with no scripting and no IPC.
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Integration test for Python CLI executable in src/test/cpp/integration/test_python_cli.cpp
-- [ ] T027 [P] [US2] Integration test for TypeScript CLI executable in src/test/cpp/integration/test_typescript_cli.cpp
-- [ ] T028 [P] [US2] Integration test for configuration script execution in src/test/cpp/integration/test_config_execution.cpp
+- [ ] T026 [P] [US2] Add integration test for configuration snapshot creation in `src/test/cpp/integration/test_configuration_snapshots.cpp` *(to be created)*
+- [ ] T027 [P] [US2] Add integration test for schema updates after configuration mutation in `src/test/cpp/integration/test_schema_activation.cpp` *(to be created)*
+- [ ] T028 [P] [US2] Add integration test for configuration rollback on invalid updates in `src/test/cpp/integration/test_configuration_rollback.cpp` *(to be created)*
 
 ### Implementation for User Story 2
 
-- [ ] T029 [P] [US2] Implement CLI process framework in src/main/cpp/isched/cli/python/main.cpp for isched-cli-python
-- [ ] T030 [P] [US2] Implement CLI process framework in src/main/cpp/isched/cli/typescript/main.cpp for isched-cli-typescript
-- [ ] T031 [P] [US2] Create PythonExecutor class in src/main/cpp/isched/cli/python/python_executor.hpp/cpp
-- [ ] T032 [P] [US2] Create TypeScriptExecutor class in src/main/cpp/isched/cli/typescript/typescript_executor.hpp/cpp
-- [ ] T033 [P] [US2] Implement IPC client communication in src/main/cpp/isched/cli/python/ipc_client.hpp/cpp
-- [ ] T034 [P] [US2] Implement IPC client communication in src/main/cpp/isched/cli/typescript/ipc_client.hpp/cpp
-- [ ] T035 [US2] Integrate CLI process spawning with main server in src/main/cpp/isched/isched_Server.cpp
-- [ ] T036 [US2] Implement configuration script parsing and validation in src/main/cpp/isched/shared/config/config_parser.hpp/cpp
-- [ ] T037 [US2] Add atomic configuration deployment with rollback in src/main/cpp/isched/shared/config/config_manager.hpp/cpp
+- [ ] T029 [P] [US2] Implement `ConfigurationSnapshot` persistence in `src/main/cpp/isched/shared/config/`
+- [ ] T030 [P] [US2] Implement `applyConfiguration` and related mutations in `isched_GqlExecutor.cpp`
+- [ ] T031 [P] [US2] Implement model-definition persistence and schema generation support
+- [ ] T032 [P] [US2] Implement atomic activation and rollback for configuration snapshots
+- [ ] T033 [P] [US2] Implement safe schema migration and backup handling in `isched_DatabaseManager.cpp`
+- [ ] T034 [US2] Integrate configuration activation with tenant runtime refresh in `isched_Server.cpp` and `isched_TenantManager.cpp`
+- [ ] T035 [US2] Implement queryable configuration history and active configuration resolvers
+- [ ] T036 [US2] Replace obsolete scripting assumptions in docs and runtime comments
 
-**Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
+**Checkpoint**: User Story 2 is independently testable with mutation-driven configuration. `ctest` MUST be green before moving to Phase 5.
 
 ---
 
-## Phase 5: User Story 3 - GraphQL Specification Compliance (Priority: P3)
+## Phase 5: User Story 3 - Real-Time GraphQL Transport (Priority: P3)
 
-**Goal**: All GraphQL interactions follow the official GraphQL specification exactly
-
-**Independent Test**: Standard GraphQL introspection queries validate responses against the official GraphQL specification test suite
+**Goal**: Clients can use GraphQL subscriptions over WebSocket with standards-compatible behavior.
 
 ### Tests for User Story 3
 
-- [ ] T038 [P] [US3] GraphQL specification compliance test suite in src/test/cpp/integration/test_graphql_compliance.cpp
-- [ ] T039 [P] [US3] GraphQL introspection test in src/test/cpp/integration/test_graphql_introspection.cpp
-- [ ] T040 [P] [US3] GraphQL client library compatibility test in src/test/cpp/integration/test_client_compatibility.cpp
+- [ ] T037 [P] [US3] Add WebSocket integration test for `graphql-transport-ws` connection lifecycle in `src/test/cpp/integration/test_graphql_websocket.cpp` *(to be created)*
+- [ ] T038 [P] [US3] Add integration test for configuration and health subscriptions in `src/test/cpp/integration/test_graphql_subscriptions.cpp` *(to be created)*
+- [ ] T039 [P] [US3] Add interoperability test for GraphQL HTTP plus WebSocket clients in `src/test/cpp/integration/test_client_compatibility.cpp` *(to be created)*
 
 ### Implementation for User Story 3
 
-- [ ] T041 [P] [US3] Implement complete GraphQL introspection support in src/main/cpp/isched/isched_GraphQLExecutor.cpp
-- [ ] T042 [P] [US3] Add GraphQL query complexity analysis in src/main/cpp/isched/isched_GraphQLExecutor.cpp
-- [ ] T043 [P] [US3] Implement GraphQL subscription support in src/main/cpp/isched/isched_GraphQLExecutor.cpp
-- [ ] T044 [US3] Add GraphQL specification test validation framework in src/main/cpp/isched/isched_GraphQLExecutor.cpp
-- [ ] T045 [US3] Implement standard GraphQL error formatting in src/main/cpp/isched/isched_GraphQLExecutor.cpp
-- [ ] T046 [US3] Add GraphQL schema validation against specification in src/main/cpp/isched/isched_GraphQLExecutor.cpp
+- [ ] T040 [P] [US3] Implement complete GraphQL introspection in `isched_GqlExecutor.cpp` — see Phase 5b below for detailed breakdown
+- [ ] T041 [P] [US3] Add GraphQL query complexity and depth analysis
+- [ ] T042 [P] [US3] Implement WebSocket `/graphql` endpoint and subscription session lifecycle
+- [ ] T043 [P] [US3] Implement subscription broker fan-out and disconnect cleanup
+- [ ] T044 [US3] Add GraphQL compliance validation for HTTP and WebSocket transport behavior
+- [ ] T045 [US3] Implement authentication during WebSocket `connection_init`
+- [ ] T046 [US3] Add subscription event types for configuration and health changes
 
-**Checkpoint**: All user stories should now be independently functional
-
----
-
-## Phase 6: Advanced Features - Data Model and Plugin System
-
-**Purpose**: Core data modeling and extensibility features
-
-- [ ] T047 [P] Implement SchemaMigrator class in src/main/cpp/isched/isched_DatabaseManager.cpp for automatic migrations
-- [ ] T048 [P] Implement ResolverRegistry class in src/main/cpp/isched/isched_plugin.hpp/cpp for plugin system
-- [ ] T049 [P] Create binary plugin loading framework in src/main/cpp/isched/isched_plugin.cpp
-- [ ] T050 [US2] Integrate data model generation from configuration scripts in src/main/cpp/isched/shared/config/model_generator.hpp/cpp
-- [ ] T051 [US2] Add automatic GraphQL schema generation from data models in src/main/cpp/isched/isched_GraphQLExecutor.cpp
-- [ ] T052 [US1] [US2] Implement tenant process pool management in src/main/cpp/isched/isched_TenantManager.cpp
+**Checkpoint**: User Story 3 is independently testable over WebSocket. `ctest` MUST be green before moving to Phase 6.
 
 ---
 
-## Phase 7: Performance and Authentication
+## Phase 5b: Full GraphQL Introspection (Standard Client Interoperability)
 
-**Purpose**: Performance optimization and authentication features
+**Purpose**: Replace the current skeleton `generate_schema_introspection()` with a spec-compliant implementation so that standard GraphQL tools (GraphiQL, Apollo Sandbox, Altair, code-generation clients) function correctly against the running server.
 
-- [ ] T053 [P] Implement adaptive thread pool sizing in src/main/cpp/isched/isched_TenantManager.cpp
-- [ ] T054 [P] Add performance monitoring and metrics in src/main/cpp/isched/isched_Server.cpp
-- [ ] T055 [P] Implement per-tenant session management in src/main/cpp/isched/isched_AuthenticationMiddleware.cpp
-- [ ] T056 [P] Add OAuth2 provider integration in src/main/cpp/isched/isched_AuthenticationMiddleware.cpp
-- [ ] T057 [P] Implement JWT token validation and refresh in src/main/cpp/isched/isched_AuthenticationMiddleware.cpp
-- [ ] T058 [US1] [US2] Add 20ms response time optimization in src/main/cpp/isched/isched_Server.cpp
+**Implementation file**: `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`  
+**Test file**: `src/test/cpp/isched/isched_gql_executor_tests.cpp`  
+**Spec reference**: GraphQL specification, Section "Introspection"
+
+### Introspection data model
+
+- [ ] T-INTRO-001 Define an internal `IntrospectionType` struct (or equivalent) in `GqlExecutor` that holds `kind`, `name`, `description`, `fields`, `interfaces`, `possibleTypes`, `enumValues`, `inputFields`, and `ofType` — populated from the active schema parse tree during `load_schema()` / `update_type_map()`
+- [ ] T-INTRO-002 Populate built-in scalar types (`String`, `Int`, `Float`, `Boolean`, `ID`) unconditionally in the introspection model regardless of whether they appear in the active schema
+- [ ] T-INTRO-003 Represent wrapped types (`LIST`, `NON_NULL`) as recursive `ofType` chains rather than flattened strings; ensure a field typed `[String!]!` resolves to `NON_NULL → LIST → NON_NULL → SCALAR(String)`
+- [ ] T-INTRO-004 Populate introspection meta-types themselves (`__Schema`, `__Type`, `__TypeKind`, `__Field`, `__InputValue`, `__EnumValue`, `__Directive`, `__DirectiveLocation`) in the types list
+- [ ] T-INTRO-005 Refresh the introspection model whenever a configuration snapshot is activated so `__schema` results reflect the current live schema
+
+### `__schema` root field
+
+- [ ] T-INTRO-010 Emit correct `queryType`, `mutationType`, `subscriptionType` names (not always `null`) based on the loaded schema's schema definition
+- [ ] T-INTRO-011 Emit all types (user-defined + built-in scalars + meta-types) in `__schema { types }`
+- [ ] T-INTRO-012 Emit correct `kind` for each type: `OBJECT`, `SCALAR`, `INTERFACE`, `UNION`, `ENUM`, `INPUT_OBJECT`, `LIST`, `NON_NULL` — remove the hard-coded `"OBJECT"` default
+- [ ] T-INTRO-013 Populate `fields` correctly for `OBJECT` and `INTERFACE` types; return `null` for other kinds
+- [ ] T-INTRO-014 Populate `inputFields` for `INPUT_OBJECT` types; return `null` for other kinds
+- [ ] T-INTRO-015 Populate `enumValues` for `ENUM` types; return `null` for other kinds
+- [ ] T-INTRO-016 Populate `interfaces` for `OBJECT` types; return `null` or empty for other kinds
+- [ ] T-INTRO-017 Populate `possibleTypes` for `INTERFACE` and `UNION` types; return `null` for other kinds
+- [ ] T-INTRO-018 Populate `isDeprecated` and `deprecationReason` on `__Field`, `__InputValue`, and `__EnumValue` (derive from `@deprecated` directive on the definition node)
+
+### `__type(name:)` root field
+
+- [ ] T-INTRO-020 Implement the `__type(name: String!)` root field in the execution dispatch path
+- [ ] T-INTRO-021 Return `null` for unknown type names without raising an execution error
+
+### `__typename` meta-field
+
+- [ ] T-INTRO-025 Dispatch `__typename` as a special field in the selection-set executor; return the runtime type name of the current object
+- [ ] T-INTRO-026 Support `__typename` in nested selection sets, not only at the query root
+
+### Built-in directives
+
+- [ ] T-INTRO-030 Include `@skip`, `@include`, `@deprecated`, and `@specifiedBy` in the `directives` array returned by `__schema`; populate correct `locations` and `args` for each
+- [ ] T-INTRO-031 Populate `isRepeatable` on `__Directive` objects
+
+### Test coverage (un-comment and extend `isched_gql_executor_tests.cpp`)
+
+- [ ] T-INTRO-040 Un-comment all commented-out assertions in the existing "GraphQL Introspection" `TEST_CASE`; every assertion MUST pass
+- [ ] T-INTRO-041 [P] Add test: `__schema { types }` contains all five built-in scalars by name and kind `SCALAR`
+- [ ] T-INTRO-042 [P] Add test: `__schema { types }` contains user-defined `OBJECT` type with correct `fields`, `name`, and `description`
+- [ ] T-INTRO-043 [P] Add test: `__schema { types }` contains user-defined `INPUT_OBJECT` type with correct `inputFields`
+- [ ] T-INTRO-044 [P] Add test: `__schema { types }` contains user-defined `ENUM` type with correct `enumValues`
+- [ ] T-INTRO-045 [P] Add test: `__type(name: "User")` returns correct `__Type` for a user-defined object type
+- [ ] T-INTRO-046 [P] Add test: `__type(name: "NonExistent")` returns `null` without error
+- [ ] T-INTRO-047 [P] Add test: field of type `[String!]!` produces `ofType` chain `NON_NULL → LIST → NON_NULL → SCALAR`
+- [ ] T-INTRO-048 [P] Add test: `__typename` returns correct type name in a nested selection set
+- [ ] T-INTRO-049 [P] Add test: `__schema { directives }` contains `@skip`, `@include`, `@deprecated` with correct `locations` and `args`
+- [ ] T-INTRO-050 [P] Add test: `@deprecated` on a field sets `isDeprecated: true` and `deprecationReason` in introspection
+- [ ] T-INTRO-051 [P] Add test: `__schema { queryType { name } }` returns `"Query"` when a `Query` type is defined
+
+**Checkpoint**: Standard GraphQL tools (GraphiQL, Altair, Apollo Sandbox) can connect to the server, load and browse the full schema, and auto-complete queries without errors. `ctest` MUST be green before closing Phase 5b.
 
 ---
 
-## Phase 8: Polish & Cross-Cutting Concerns
+## Phase 6: Data Model, Performance, and Auth Completion
 
-**Purpose**: Improvements that affect multiple user stories
+**Purpose**: Cross-cutting capabilities required after the GraphQL-only baseline is functional.
 
-- [ ] T059 [P] Performance benchmark suite in src/test/cpp/performance/benchmark_suite.cpp
-- [ ] T060 [P] Memory usage optimization for multi-tenant operations in src/main/cpp/isched/
-- [ ] T061 [P] Documentation generation automation in CMakeLists.txt
-- [ ] T062 [P] Production deployment configuration in docker/ and scripts/
-- [ ] T063 [P] Security hardening and vulnerability scanning integration
+- [ ] T047 [P] Implement full tenant-scoped user and organization persistence
+- [ ] T048 [P] Implement outbound HTTP integration resolvers while preserving GraphQL as the only client-facing interface
+- [ ] T049 [P] Complete per-tenant session management and revocation in `isched_AuthenticationMiddleware.cpp`
+- [ ] T050 [P] Add adaptive worker-thread and subscription resource controls in `isched_TenantManager.cpp`
+- [ ] T051 [P] Add performance metrics surfaced through GraphQL queries or subscriptions
+- [ ] T052 [P] Add performance benchmark coverage in `src/test/cpp/performance/benchmark_suite.cpp` *(to be created)*
+
+---
+
+## Phase 7: Polish and Hardening
+
+**Purpose**: Production hardening for the revised architecture.
+
+- [ ] T053 [P] Remove legacy REST transport files: `isched_BaseRestResolver.hpp/cpp`, `isched_DocRootRestResolver.hpp/cpp`, `isched_DocRootSvc.hpp/cpp`, `isched_EHttpMethods.hpp`, `isched_MainSvc.hpp/cpp`, `isched_SingleActionRestResolver.hpp/cpp` — and all CMakeLists.txt references to them
+- [ ] T054 [P] Remove legacy IPC files: `shared/ipc/isched_ipc.hpp/cpp`, `src/test/cpp/isched/isched_ipc_tests.cpp`, `src/test/cpp/isched/isched_rest_hello_world.cpp` — and all CMakeLists.txt references to them
+- [ ] T055 [P] Review docs and generated references for GraphQL-only terminology consistency
+- [ ] T056 [P] Add security hardening and vulnerability scanning integration
+- [ ] T057 [P] Add deployment documentation for HTTP and WebSocket operation
+
 ---
 
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
-- **User Stories (Phase 3-5)**: All depend on Foundational phase completion
-  - User stories can then proceed in parallel (if staffed)
-  - Or sequentially in priority order (P1 → P2 → P3)
-- **Advanced Features (Phase 6)**: Depends on User Stories 1-2 completion
-- **Performance/Auth (Phase 7)**: Depends on User Stories 1-2 completion
-- **Polish (Phase 8)**: Depends on all desired user stories being complete
+- **Phase 1**: Baseline project tooling
+- **Phase 2**: Blocks all user stories
+- **Phase 3**: Depends on foundational GraphQL runtime
+- **Phase 4**: Depends on foundational GraphQL runtime and should follow Phase 3 for MVP sequencing
+- **Phase 5**: Depends on HTTP runtime, auth, and subscription broker foundations
+- **Phase 6-7**: Depend on desired user stories being functional
 
 ### User Story Dependencies
 
-- **User Story 1 (P1)**: Can start after Foundational (Phase 2) - No dependencies on other stories
-- **User Story 2 (P2)**: Can start after Foundational (Phase 2) - May integrate with US1 but should be independently testable
-- **User Story 3 (P3)**: Can start after Foundational (Phase 2) - May integrate with US1/US2 but should be independently testable
+- **User Story 1 (P1)**: No dependency on other user stories
+- **User Story 2 (P2)**: Depends on the HTTP GraphQL runtime and auth foundations
+- **User Story 3 (P3)**: Depends on HTTP runtime, auth, and subscription broker foundations
 
 ### Within Each User Story
 
-- Tests MUST be written and FAIL before implementation
-- Core classes before integration
-- Individual components marked [P] can run in parallel
-- Story complete before moving to next priority
-
-### Parallel Opportunities
-
-- All Setup tasks marked [P] can run in parallel
-- All Foundational tasks marked [P] can run in parallel (within Phase 2)
-- Once Foundational phase completes, all user stories can start in parallel (if team capacity allows)
-- All tests for a user story marked [P] can run in parallel
-- Implementation tasks within a story marked [P] can run in parallel
-- Different user stories can be worked on in parallel by different team members
-
----
-
-## Parallel Example: User Story 1
-
-```bash
-# Launch all tests for User Story 1 together:
-Task: "Integration test for basic server startup in src/test/cpp/integration/test_server_startup.cpp"
-Task: "Integration test for built-in GraphQL schema in src/test/cpp/integration/test_builtin_schema.cpp"
-Task: "Integration test for health monitoring endpoints in src/test/cpp/integration/test_health_monitoring.cpp"
-
-# Launch all parallel implementation tasks for User Story 1:
-Task: "Implement BuiltInSchema class in src/main/cpp/isched/isched_built_in_schema.hpp/cpp"
-Task: "Create default GraphQL resolvers for hello, version, clientCount, uptime"
-```
-
----
+- Tests must be written and fail before implementation
+- Transport behavior should be exercised end-to-end, not only through direct method calls
+- Parallel tasks must touch separate files or clearly separable subsystems
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 Only)
+### MVP First
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 1
-4. **STOP and VALIDATE**: Test User Story 1 independently
-5. Deploy/demo if ready
+1. Complete Phase 2 foundational GraphQL runtime work
+2. Complete Phase 3 for immediate GraphQL startup
+3. Validate HTTP-based built-in schema behavior end-to-end
 
 ### Incremental Delivery
 
-1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 → Test independently → Deploy/Demo (MVP!)
-3. Add User Story 2 → Test independently → Deploy/Demo
-4. Add User Story 3 → Test independently → Deploy/Demo
-5. Each story adds value without breaking previous stories
+1. HTTP GraphQL baseline
+2. GraphQL-native configuration snapshots
+3. WebSocket subscriptions
+4. Performance, auth, and hardening
 
-### Parallel Team Strategy
+### Scope Guardrails
 
-With multiple developers:
-
-1. Team completes Setup + Foundational together
-2. Once Foundational is done:
-   - Developer A: User Story 1
-   - Developer B: User Story 2
-   - Developer C: User Story 3
-3. Stories complete and integrate independently
-
----
-
-## Summary
-
-- **Total Tasks**: 64 tasks across 8 phases
-- **User Story 1 (MVP)**: 10 tasks (T016-T025)
-- **User Story 2**: 12 tasks (T026-T037)
-- **User Story 3**: 9 tasks (T038-T046)
-- **Parallel Opportunities**: 42 tasks marked [P] can run in parallel within their phases
-- **Constitutional Compliance**: All tasks include mandatory verification against 6 constitutional principles
-- **Suggested MVP Scope**: Complete Phases 1-3 (User Story 1) for immediate frontend developer value
-
-**Format Validation**: ✅ All tasks follow required checklist format with [ID], [P] markers, [Story] labels, and exact file paths
-  - [ ] Smart pointer usage for CLI command objects
-- **Files to Create/Modify**:
-  - `src/main/cpp/isched/cli/isched_backend_commands.hpp` (create)
-  - `src/main/cpp/isched/cli/isched_backend_commands.cpp` (create)
-- **Dependencies**: Task 2.3.2
-- **Estimated Effort**: 6 hours
-
-### Epic 4.3: Documentation & Examples
-
-#### Task 4.3.1: Generate Comprehensive API Documentation
-- **Description**: Create complete API documentation with Doxygen integration
-- **Acceptance Criteria**:
-  - [ ] Automated Doxygen documentation generation
-  - [ ] API reference documentation with code examples
-  - [ ] Inline source code snippets in documentation
-  - [ ] Developer guides and tutorials
-  - [ ] Complete working examples
-- **Files to Create/Modify**:
-  - `docs/api/` (generated API documentation)
-  - `docs/source/` (source code with examples)
-  - `docs/guides/` (developer guides)
-  - `docs/examples/` (working examples)
-- **Dependencies**: All implementation tasks
-- **Estimated Effort**: 10 hours
-
-#### Task 4.3.2: Create Developer Quickstart Examples
-- **Description**: Create complete working examples for developers
-- **Acceptance Criteria**:
-  - [ ] Python configuration script examples
-  - [ ] TypeScript configuration script examples
-  - [ ] Complete "Hello World" backend setup
-  - [ ] Authentication and authorization examples
-  - [ ] Plugin development examples
-- **Files to Create/Modify**:
-  - `examples/` (working example projects)
-  - `examples/python/` (Python configuration examples)
-  - `examples/typescript/` (TypeScript configuration examples)
-- **Dependencies**: Task 4.3.1
-- **Estimated Effort**: 8 hours
-
----
-
-## Task Dependency Graph
-
-```mermaid
-graph TD
-    A[1.1.1: Build System] --> B[1.1.2: Directory Structure]
-    B --> C[1.2.1: Server Foundation]
-    C --> D[1.2.2: Tenant Management]
-    D --> E[1.2.3: Database Layer]
-    C --> F[1.3.1: GraphQL Parser]
-    F --> G[1.3.2: Built-in Schema]
-    
-    C --> H[2.1.1: Runtime Library]
-    H --> I[2.1.2: IPC Layer]
-    I --> J[2.2.1: Python CLI]
-    I --> K[2.2.2: TypeScript CLI]
-    J --> L[2.3.1: Config Management]
-    K --> L
-    L --> M[2.3.2: CLI Coordinator]
-    
-    G --> N[3.1.1: Resolver System]
-    N --> O[3.1.2: Plugin System]
-    N --> P[3.2.1: Introspection]
-    P --> Q[3.2.2: Error Handling]
-    D --> R[3.3.1: JWT Auth]
-    R --> S[3.3.2: Authorization]
-    
-    M --> T[4.2.1: Backend Commands]
-    O --> U[4.1.1: Unit Tests]
-    Q --> U
-    S --> U
-    U --> V[4.1.2: Integration Tests]
-    V --> W[4.1.3: Compliance Tests]
-    W --> X[4.3.1: API Documentation]
-    X --> Y[4.3.2: Examples]
-```
-
-## Parallel Execution Opportunities
-
-**Phase 1 Parallel Tracks**:
-- Track A: Epic 1.2 (Server Infrastructure) 
-- Track B: Epic 1.3 (GraphQL Infrastructure)
-
-**Phase 2 Parallel Tracks**:
-- Track A: Epic 2.1 (Dynamic Library)
-- Track B: Epic 2.2 (CLI Executables) [after 2.1.2]
-- Track C: Epic 2.3 (Configuration Management) [after 2.2.x]
-
-**Phase 3 Parallel Tracks**:
-- Track A: Epic 3.1 (GraphQL Features)
-- Track B: Epic 3.2 (Specification Compliance) [after 3.1.1]
-- Track C: Epic 3.3 (Authentication) [independent]
-
-**Phase 4 Parallel Tracks**:
-- Track A: Epic 4.1 (Testing)
-- Track B: Epic 4.2 (CLI Integration)
-- Track C: Epic 4.3 (Documentation) [after most implementation]
-
-## Success Criteria Validation
-
-**Measurable Outcomes Mapping**:
-- SC-001 (10-minute setup): Validated by Tasks 4.3.2 and integration tests
-- SC-002 (100% service elimination): Validated by Tasks 1.2.3, 3.3.1-3.3.2
-- SC-003 (GraphQL compliance): Validated by Task 4.1.3
-- SC-004 (5-second changes): Validated by Task 2.3.2 and integration tests
-- SC-005 (95% web app requirements): Validated by Task 3.1.1 and examples
-- SC-006 (20ms response times): Validated by Task 4.1.1 performance tests
-
-## Risk Mitigation
-
-**High-Risk Tasks**:
-- Task 1.3.1 (GraphQL Parser): Complex PEGTL implementation
-  - Mitigation: Early prototype, incremental development
-- Task 2.1.2 (IPC Layer): Cross-process synchronization complexity
-  - Mitigation: Thorough testing, proven patterns
-- Task 3.1.1 (Resolver System): Plugin architecture complexity
-  - Mitigation: Simple initial implementation, extensible design
-
-**Dependencies Management**:
-- Critical path through server foundation and IPC layer
-- Early validation of smart pointer usage patterns
-- Continuous integration for C++23 compliance
-
-## Estimated Total Effort
-
-**Phase 1**: 52 hours  
-**Phase 2**: 60 hours  
-**Phase 3**: 60 hours  
-**Phase 4**: 60 hours  
-
-**Total Estimated Effort**: 232 hours (~6 weeks with 2 developers)
-
----
-
-*Generated by speckit.tasks methodology - Complete implementation roadmap for Universal Application Server Backend feature*
+- Do not reintroduce IPC, CLI runtimes, or scripting-based configuration.
+- Do not add REST admin endpoints for health, config, or auth flows.
+- Keep GraphQL over HTTP and WebSocket as the only externally documented interfaces.

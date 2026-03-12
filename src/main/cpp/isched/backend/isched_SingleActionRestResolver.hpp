@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_SingleActionRestResolver.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Resolver that responds to a single REST action with a fixed answer.
  */
 

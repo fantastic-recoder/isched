@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_MainSvc.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Implementation of the main REST service wrapper.
  */
 #include <memory>

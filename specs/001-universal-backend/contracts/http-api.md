@@ -1,411 +1,189 @@
-# HTTP API Contract
+# GraphQL Transport Contract
 
-**Purpose**: Defines the REST endpoints and HTTP interface for the Universal Application Server Backend.
-**Version**: 1.0.0
+**Purpose**: Defines the allowed external transport surface for the Universal Application Server Backend.  
+**Version**: 2.0.0  
 **Base URL**: `http://localhost:8080` (configurable)
 
-## Core Endpoints
+## Scope
 
-### Configuration Management
+The server exposes GraphQL as its only external interface.
 
-#### POST /api/v1/configuration
-Create a new configuration script.
+- GraphQL over HTTP at `/graphql`
+- GraphQL over WebSocket at `/graphql`
 
-**Request**:
-```json
-{
-  "language": "python" | "typescript",
-  "content": "string",
-  "tenant_id": "uuid"
-}
-```
+No REST configuration API, health API, metrics API, or scripting API is part of the supported contract.
 
-**Response** (201 Created):
-```json
-{
-  "id": "uuid",
-  "language": "python",
-  "content": "string",
-  "version": "1.0.0",
-  "tenant_id": "uuid",
-  "created_at": "2025-11-01T10:00:00Z",
-  "updated_at": "2025-11-01T10:00:00Z",
-  "is_active": false
-}
-```
+## HTTP Transport
 
-#### PUT /api/v1/configuration/{id}/activate
-Activate a configuration script.
+### POST /graphql
 
-**Response** (200 OK):
-```json
-{
-  "id": "uuid",
-  "is_active": true,
-  "activated_at": "2025-11-01T10:00:00Z"
-}
-```
-
-#### GET /api/v1/configuration/{tenant_id}
-Get active configuration for tenant.
-
-**Response** (200 OK):
-```json
-{
-  "id": "uuid",
-  "language": "python",
-  "content": "string",
-  "version": "1.0.0",
-  "is_active": true
-}
-```
-
-### Authentication
-
-#### POST /api/v1/auth/login
-Authenticate user and create session.
+Primary endpoint for GraphQL queries and mutations.
 
 **Request**:
+
 ```json
 {
-  "email": "user@example.com",
-  "password": "password",
-  "tenant_id": "uuid"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "access_token": "jwt_token",
-  "refresh_token": "refresh_token",
-  "expires_at": "2025-11-01T11:00:00Z",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "display_name": "John Doe"
-  }
-}
-```
-
-#### POST /api/v1/auth/refresh
-Refresh access token.
-
-**Request**:
-```json
-{
-  "refresh_token": "refresh_token"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "access_token": "new_jwt_token",
-  "expires_at": "2025-11-01T12:00:00Z"
-}
-```
-
-#### POST /api/v1/auth/logout
-Logout and invalidate session.
-
-**Request**:
-```json
-{
-  "session_id": "uuid"
-}
-```
-
-**Response** (204 No Content)
-
-### GraphQL Endpoint
-
-#### POST /graphql
-Main GraphQL endpoint for all data operations.
-
-**Request**:
-```json
-{
-  "query": "query { users { id email displayName } }",
+  "query": "query { serverInfo { version } }",
   "variables": {},
   "operationName": null
 }
 ```
 
+**Headers**:
+
+- `Content-Type: application/json`
+- `Authorization: Bearer <token>` when authentication is required
+
 **Response** (200 OK):
+
 ```json
 {
   "data": {
-    "users": [
-      {
-        "id": "uuid",
-        "email": "user@example.com",
-        "displayName": "John Doe"
-      }
-    ]
-  },
-  "errors": null
+    "serverInfo": {
+      "version": "1.0.0"
+    }
+  }
 }
 ```
 
-#### GET /graphql?query={query}
-GraphQL endpoint for GET requests (queries only).
+**Error Response** (GraphQL execution failure):
 
-**Response**: Same as POST format.
-
-### Server Management
-
-#### POST /api/v1/server/start
-Start a server instance with configuration.
-
-**Request**:
 ```json
 {
-  "tenant_id": "uuid",
-  "config_script_id": "uuid",
-  "port": 8080
-}
-```
-
-**Response** (201 Created):
-```json
-{
-  "id": "uuid",
-  "tenant_id": "uuid",
-  "config_script_id": "uuid",
-  "port": 8080,
-  "status": "starting",
-  "started_at": "2025-11-01T10:00:00Z"
-}
-```
-
-#### POST /api/v1/server/{id}/stop
-Stop a running server instance.
-
-**Response** (200 OK):
-```json
-{
-  "id": "uuid",
-  "status": "stopping",
-  "stopped_at": "2025-11-01T10:00:00Z"
-}
-```
-
-#### GET /api/v1/server/{tenant_id}/status
-Get status of server instances for tenant.
-
-**Response** (200 OK):
-```json
-{
-  "instances": [
+  "data": null,
+  "errors": [
     {
-      "id": "uuid",
-      "status": "running",
-      "port": 8080,
-      "memory_usage": 256000000,
-      "request_count": 1542
+      "message": "Configuration snapshot is invalid",
+      "extensions": {
+        "code": "CONFIG_VALIDATION_ERROR",
+        "timestamp": "2026-03-12T10:00:00Z",
+        "requestId": "req-123"
+      }
     }
   ]
 }
 ```
 
-### Health and Monitoring
+### GET /graphql
 
-#### GET /health
-Health check endpoint.
-
-**Response** (200 OK):
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-11-01T10:00:00Z",
-  "version": "1.0.0",
-  "uptime": 3661
-}
-```
-
-#### GET /metrics
-Prometheus-compatible metrics endpoint.
-
-**Response** (200 OK):
-```text
-# HELP isched_requests_total Total number of requests
-# TYPE isched_requests_total counter
-isched_requests_total{tenant="uuid",method="POST"} 1542
-
-# HELP isched_memory_usage Current memory usage in bytes
-# TYPE isched_memory_usage gauge
-isched_memory_usage{tenant="uuid"} 256000000
-```
-
-### Configuration Script Endpoints
-
-#### POST /api/v1/config/validate
-Validate configuration script syntax.
+Optional support for query operations and introspection over HTTP GET.
 
 **Request**:
-```json
-{
-  "language": "python",
-  "content": "from isched import define_model\n..."
-}
+
+```text
+GET /graphql?query=query%20%7B%20hello%20%7D
 ```
 
-**Response** (200 OK):
-```json
-{
-  "valid": true,
-  "errors": [],
-  "warnings": [
-    "Unused import detected on line 5"
-  ]
-}
+**Constraints**:
+
+- GET is allowed only for operations that are safe to expose as URL-encoded queries
+- Mutations must use POST
+
+## WebSocket Transport
+
+### WS /graphql
+
+Subscription endpoint for GraphQL over WebSocket.
+
+**Protocol**: `graphql-transport-ws`
+
+**Connection Example**:
+
+```http
+GET /graphql HTTP/1.1
+Upgrade: websocket
+Sec-WebSocket-Protocol: graphql-transport-ws
 ```
 
-#### GET /api/v1/config/schema/{tenant_id}
-Get generated GraphQL schema for tenant.
+### Connection Init
 
-**Response** (200 OK):
-```json
-{
-  "schema": "type Query { ... }",
-  "generated_at": "2025-11-01T10:00:00Z",
-  "version": "1.0.0"
-}
-```
-
-## Error Responses
-
-### Standard Error Format
-
-All error responses follow a consistent format:
+Client message:
 
 ```json
 {
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Invalid configuration script syntax",
-    "details": {
-      "line": 15,
-      "column": 22,
-      "syntax_error": "Unexpected token ';'"
-    },
-    "timestamp": "2025-11-01T10:00:00Z"
+  "type": "connection_init",
+  "payload": {
+    "authorization": "Bearer <token>"
   }
 }
 ```
 
-### Common Error Codes
-
-- `VALIDATION_ERROR` (400): Invalid request data
-- `AUTHENTICATION_REQUIRED` (401): Missing or invalid authentication
-- `AUTHORIZATION_FAILED` (403): Insufficient permissions
-- `RESOURCE_NOT_FOUND` (404): Requested resource doesn't exist
-- `CONFLICT` (409): Resource conflict (e.g., duplicate email)
-- `RATE_LIMITED` (429): Too many requests
-- `INTERNAL_ERROR` (500): Server error
-- `SERVICE_UNAVAILABLE` (503): Server temporarily unavailable
-
-## Authentication
-
-### JWT Token Format
-
-All authenticated endpoints require JWT token in header:
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-### JWT Claims
+Server acknowledgement:
 
 ```json
 {
-  "sub": "user_uuid",
-  "tenant_id": "tenant_uuid",
-  "permissions": ["read:users", "write:config"],
-  "exp": 1672531200,
-  "iat": 1672527600,
-  "iss": "isched-server"
+  "type": "connection_ack"
 }
 ```
 
-### OAuth 2.0 Support
+### Subscribe
 
-#### GET /api/v1/auth/oauth/{provider}
-Initiate OAuth flow.
+Client message:
 
-**Supported providers**: google, github, auth0
-
-**Response** (302 Redirect):
-```
-Location: https://provider.com/oauth/authorize?client_id=...
-```
-
-#### GET /api/v1/auth/oauth/{provider}/callback
-OAuth callback endpoint.
-
-**Query Parameters**:
-- `code`: Authorization code from provider
-- `state`: CSRF protection state
-
-**Response** (200 OK):
 ```json
 {
-  "access_token": "jwt_token",
-  "refresh_token": "refresh_token",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "display_name": "John Doe"
+  "id": "sub-1",
+  "type": "subscribe",
+  "payload": {
+    "query": "subscription { configurationApplied(tenantId: \"tenant-demo\") { tenantId version activatedAt } }",
+    "variables": {}
   }
 }
 ```
 
-## Rate Limiting
+Server event message:
 
-### Default Limits
-
-- **General API**: 1000 requests per hour per IP
-- **GraphQL**: 100 queries per minute per user
-- **Authentication**: 10 login attempts per minute per IP
-- **Configuration**: 10 updates per hour per tenant
-
-### Rate Limit Headers
-
-```
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 999
-X-RateLimit-Reset: 1672531200
-X-RateLimit-Retry-After: 60
-```
-
-## CORS Configuration
-
-### Default CORS Settings
-
-```
-Access-Control-Allow-Origin: *
-Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
-Access-Control-Allow-Headers: Content-Type, Authorization, X-Tenant-ID
-Access-Control-Max-Age: 86400
+```json
+{
+  "id": "sub-1",
+  "type": "next",
+  "payload": {
+    "data": {
+      "configurationApplied": {
+        "tenantId": "tenant-demo",
+        "version": "42",
+        "activatedAt": "2026-03-12T10:00:00Z"
+      }
+    }
+  }
+}
 ```
 
-### Configurable CORS
+Completion message:
 
-CORS settings can be customized per tenant through configuration scripts.
+```json
+{
+  "id": "sub-1",
+  "type": "complete"
+}
+```
 
-## Content Types
+### Ping/Pong
 
-### Supported Content Types
+Server and client may exchange:
 
-- `application/json` (default)
-- `application/graphql` (for GraphQL queries)
-- `text/plain` (for metrics endpoint)
+```json
+{ "type": "ping" }
+```
 
-### Request Headers
+```json
+{ "type": "pong" }
+```
 
-- `Content-Type`: Request content type
-- `Accept`: Response content type preference
-- `Authorization`: JWT authentication token
-- `X-Tenant-ID`: Tenant identifier (optional, can be in JWT)
-- `X-Request-ID`: Request tracking identifier
+## Built-In Operational Surface
+
+Operational concerns are exposed through GraphQL operations such as:
+
+- `serverInfo`
+- `health`
+- `activeConfiguration`
+- `configurationApplied` subscription
+
+There are no separate REST endpoints for:
+
+- `/health`
+- `/metrics`
+- `/api/v1/configuration`
+- `/api/v1/auth/*`
+
+Those concerns must be modeled in GraphQL.

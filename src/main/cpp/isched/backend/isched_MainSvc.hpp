@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_MainSvc.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Public interface for the main REST service wrapper.
  *
  * Exposes the `MainSvc` class that manages the underlying REST service,

@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_TenantManager.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Tenant management system for multi-tenant process pool with database isolation
  * @author isched Development Team
  * @version 1.0.0
@@ -11,7 +14,7 @@
  * 
  * @example Basic tenant management usage:
  * @code{cpp}
- * #include "isched_tenant_manager.hpp"
+ * #include "isched_TenantManager.hpp"
  * 
  * auto manager = isched::v0_0_1::backend::TenantManager::create();
  * manager->configure_pool_size(10, 50); // min 10, max 50 processes

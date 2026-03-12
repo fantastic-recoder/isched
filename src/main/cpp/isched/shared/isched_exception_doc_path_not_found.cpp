@@ -1,6 +1,10 @@
-//
-// Created by grobap on 3.2.2024.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_exception_doc_path_not_found.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Implementation of `ExceptionDocPathNotFound`.
+ */
 
 #include "isched/shared/isched_exception_doc_path_not_found.hpp"
 

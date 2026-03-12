@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_DatabaseManager.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Implementation of SQLite-based database management layer
  * @author Isched Development Team
  * @date 2024-12-20

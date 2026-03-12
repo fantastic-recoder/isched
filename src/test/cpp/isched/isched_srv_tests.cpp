@@ -1,3 +1,15 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_srv_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 integration-style tests for the server via cpp-httplib.
+ *
+ * Starts the server in a subprocess and fires HTTP requests through
+ * cpp-httplib to validate end-to-end GraphQL request handling.
+ * Requires `ISCHED_TEST_PORT` or uses the default server port.
+ */
+
 #include <future>
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>

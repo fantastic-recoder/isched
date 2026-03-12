@@ -1,3 +1,15 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_grammar_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 grammar conformance tests for the custom PEGTL GraphQL parser.
+ *
+ * Covers positive parsing of: lexical elements, numeric literals, string
+ * literals, type system definitions, executable queries, and schema documents
+ * using `isched_gql_grammar.hpp` and `isched_GqlParser.hpp`.
+ */
+
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>
 

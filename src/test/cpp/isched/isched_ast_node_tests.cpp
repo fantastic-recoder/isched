@@ -1,6 +1,14 @@
-//
-// Created by groby on 2026-01-03.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_ast_node_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 tests for PEGTL parse-tree AST node helpers.
+ *
+ * Exercises `ast_node_to_str()` and related utilities defined in
+ * `isched_gql_grammar.cpp`, covering leaf content extraction and
+ * recursive child-node string reconstruction.
+ */
 
 #include <tao/pegtl/contrib/parse_tree_to_dot.hpp>
 #include <tao/pegtl/contrib/trace.hpp>

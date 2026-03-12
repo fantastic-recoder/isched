@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_GqlParser.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Public parser interface for the GraphQL PEGTL grammar.
  *
  * This header declares a minimal facade (`GqlParser`) that parses a GraphQL input

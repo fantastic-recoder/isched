@@ -1,6 +1,13 @@
-//
-// Created by grobap on 4.2.2024.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_exception_unknown_enum_value.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Exception thrown on unhandled enum-to-string conversion.
+ *
+ * `ExceptionUnknownEnumValue` is raised by `toString()` helpers (e.g.
+ * `EHttpMethods::toString`) when an unexpected enum value is encountered.
+ */
 
 #ifndef ISCHED_EXCEPTIONUNKNOWNENUMVALUE_HPP
 #define ISCHED_EXCEPTIONUNKNOWNENUMVALUE_HPP

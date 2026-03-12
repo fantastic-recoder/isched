@@ -1,6 +1,14 @@
-//
-// Created by groby on 2025-12-19.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_ExecutionResult.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief GraphQL execution result type and JSON serialisation helpers.
+ *
+ * Defines `ExecutionResult` (data + errors vector) and `ec_to_json()` which
+ * converts a `TErrorVector` into the JSON `errors` array required by the
+ * GraphQL over HTTP specification.
+ */
 
 #ifndef ISCHED_ISCHED_EXECUTION_RESULT_HPP
 #define ISCHED_ISCHED_EXECUTION_RESULT_HPP

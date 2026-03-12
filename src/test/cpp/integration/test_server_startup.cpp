@@ -1,11 +1,12 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file test_server_startup.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Integration tests for server startup functionality (User Story 1)
  * 
  * Tests the basic server lifecycle and confirms that the built-in GraphQL
- * schema and health monitoring endpoints are functional. These tests are
- * designed to provide immediate value to frontend developers by validating
- * server availability and basic health monitoring capabilities.
+ * schema is available through the server-facing GraphQL execution path.
  * 
  * Constitutional Requirements:
  * - All response times must be under 20ms
@@ -82,72 +83,65 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "Basic server creation and lifecycle"
 }
 
 TEST_CASE_METHOD(ServerStartupTestFixture, "Built-in GraphQL schema availability", "[integration][graphql][us1]") {
-    SECTION("Server provides health monitoring endpoints") {
+    SECTION("Server exposes the GraphQL endpoint metadata") {
         bool started = server->start();
         REQUIRE(started);
         REQUIRE(server->get_status() == Server::Status::RUNNING);
-        
-        // Verify health endpoint is available
-        auto health_response = server->get_health();
-        REQUIRE_FALSE(health_response.empty());
-        
-        // Parse health response as JSON
-        auto health_json = nlohmann::json::parse(health_response);
-        REQUIRE(health_json.contains("status"));
-        REQUIRE(health_json["status"] == "UP");
+
+        REQUIRE(server->has_graphql_endpoint());
+        REQUIRE(server->get_graphql_endpoint_path() == "/graphql");
+        REQUIRE_FALSE(server->has_playground_endpoint());
         
         server->stop();
     }
     
-    SECTION("Server provides metrics endpoints") {
+    SECTION("Server executes built-in GraphQL queries") {
         bool started = server->start();
         REQUIRE(started);
-        
-        // Verify metrics endpoint is available
-        auto metrics_response = server->get_metrics();
-        REQUIRE_FALSE(metrics_response.empty());
-        
-        // Parse metrics response as JSON
-        auto metrics_json = nlohmann::json::parse(metrics_response);
-        REQUIRE(metrics_json.contains("uptime_seconds"));
-        REQUIRE(metrics_json.contains("active_connections"));
+
+        auto graphql_response = server->execute_graphql("{ hello version }");
+        REQUIRE_FALSE(graphql_response.empty());
+
+        auto graphql_json = nlohmann::json::parse(graphql_response);
+        REQUIRE(graphql_json.contains("data"));
+        REQUIRE(graphql_json["data"]["hello"] == "Hello, GraphQL!");
+        REQUIRE(graphql_json["data"]["version"] == "0.0.1");
+        REQUIRE(graphql_json["extensions"]["endpoint"] == "/graphql");
+
+        server->stop();
+    }
+
+    SECTION("Server exposes operational status through GraphQL fields") {
+        bool started = server->start();
+        REQUIRE(started);
+
+        auto graphql_response = server->execute_graphql(
+            "{ health { status components } serverInfo { version activeTenants transportModes } }");
+        auto graphql_json = nlohmann::json::parse(graphql_response);
+
+        REQUIRE(graphql_json.contains("data"));
+        REQUIRE(graphql_json["data"]["health"]["status"] == "UP");
+        REQUIRE(graphql_json["data"]["serverInfo"]["version"] == "0.0.1");
+        REQUIRE(graphql_json["data"]["serverInfo"]["activeTenants"] == 1);
+        REQUIRE(graphql_json["data"]["serverInfo"]["transportModes"].is_array());
         
         server->stop();
     }
 }
 
 TEST_CASE_METHOD(ServerStartupTestFixture, "Performance validation", "[integration][performance][us1]") {
-    SECTION("Health endpoint response time meets constitutional requirements") {
+    SECTION("Built-in GraphQL query response time meets constitutional requirements") {
         bool started = server->start();
         REQUIRE(started);
-        
-        // Measure health endpoint response time (must be < 20ms per constitution)
+
         auto start_time = std::chrono::high_resolution_clock::now();
-        auto health_response = server->get_health();
+        auto graphql_response = server->execute_graphql("{ health { status } }");
         auto end_time = std::chrono::high_resolution_clock::now();
-        
+
         auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        REQUIRE(duration_ms.count() < 20); // Constitutional requirement: 20ms max
-        
-        REQUIRE_FALSE(health_response.empty());
-        
-        server->stop();
-    }
-    
-    SECTION("Metrics endpoint response time meets constitutional requirements") {
-        bool started = server->start();
-        REQUIRE(started);
-        
-        // Measure metrics endpoint response time (must be < 20ms per constitution)
-        auto start_time = std::chrono::high_resolution_clock::now();
-        auto metrics_response = server->get_metrics();
-        auto end_time = std::chrono::high_resolution_clock::now();
-        
-        auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        REQUIRE(duration_ms.count() < 20); // Constitutional requirement: 20ms max
-        
-        REQUIRE_FALSE(metrics_response.empty());
-        
+        REQUIRE(duration_ms.count() < 20);
+        REQUIRE_FALSE(graphql_response.empty());
+
         server->stop();
     }
 }

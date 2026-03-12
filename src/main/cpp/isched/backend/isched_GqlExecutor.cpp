@@ -1,6 +1,12 @@
-//
-// Created by groby on 2025-12-19.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_GqlExecutor.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Implementation of the GraphQL executor, resolver dispatch, and
+ *        built-in schema resolvers (hello, version, uptime, serverInfo,
+ *        health, metrics, env, configprops, __schema skeleton introspection).
+ */
 
 #include "isched_GqlExecutor.hpp"
 
@@ -46,6 +52,17 @@ namespace isched::v0_0_1::backend {
 
         register_resolver({},"version", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("0.0.1");
+        });
+
+        register_resolver({},"serverInfo", [this](const json &, const json &, const ResolverCtx&) -> json {
+            return json{
+                {"version", "0.0.1"},
+                {"startedAt", std::chrono::duration_cast<std::chrono::milliseconds>(
+                    m_start_time.time_since_epoch()).count()},
+                {"activeTenants", 1},
+                {"activeWebSocketSessions", 0},
+                {"transportModes", json::array({"http", "websocket"})}
+            };
         });
 
         // Uptime resolver

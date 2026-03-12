@@ -1,3 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_fs_utils_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 tests for `isched_fs_utils` filesystem utilities.
+ *
+ * Covers `glob()` pattern matching across various wildcard patterns,
+ * including recursive `**` patterns and character-class segments.
+ */
+
 #include <catch2/catch_all.hpp>
 #include <filesystem>
 #include <fstream>

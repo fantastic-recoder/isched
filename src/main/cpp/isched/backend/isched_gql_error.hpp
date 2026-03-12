@@ -1,6 +1,14 @@
-//
-// Created by groby on 2025-12-29.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_gql_error.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief GraphQL error codes and error-list types used across the execution pipeline.
+ *
+ * Defines `EErrorCodes`, the `Error` struct, and `TErrorVector`.  These
+ * types are the primary error-propagation currency between the parser,
+ * executor, and transport layers.
+ */
 
 #ifndef ISCHED_E_ERROR_CODES_HPP
 #define ISCHED_E_ERROR_CODES_HPP

@@ -1,3 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_pattern_match_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 tests for the `match_pattern()` configuration utility.
+ *
+ * Verifies wildcard and exact pattern matching behaviour of
+ * `isched::v0_0_1::backend::match_pattern` from `isched_config.hpp`.
+ */
+
 #include <catch2/catch_test_macros.hpp>
 #include "isched/shared/config/isched_config.hpp"
 #include <string>

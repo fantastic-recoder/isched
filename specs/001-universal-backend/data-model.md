@@ -1,493 +1,286 @@
 # Data Model: Universal Application Server Backend
 
-**Phase**: 1 (Design & Contracts)
-**Created**: 2025-11-01
-**Updated**: 2025-11-01 (Phase 1 Implementation Details)
+**Phase**: 1 (Design & Contracts)  
+**Created**: 2025-11-01  
+**Updated**: 2026-03-12  
 **Feature**: Universal Application Server Backend
 
 ## Implementation Context
 
-**Namespace**: `isched::v0_0_1::backend`
-**File Prefix**: `isched_`
-**Database**: SQLite per-tenant with file-per-tenant isolation
-**Schema Generation**: Automatic from configuration scripts
+**Namespace**: `isched::v0_0_1::backend`  
+**File Prefix**: `isched_`  
+**Database**: SQLite per tenant with file-per-tenant isolation  
+**Schema Source**: Built-in GraphQL schema plus configuration-derived model metadata
 
 ## Core Entities
 
-### Configuration Script
+### Configuration Snapshot
 
-**Purpose**: Represents a procedural configuration script that defines backend behavior.
+**Purpose**: Represents a persisted, versioned backend configuration applied through GraphQL mutations.
 
 **Attributes**:
-- `id`: Unique identifier (UUID)
-- `language`: Script language (Python, TypeScript)
-- `content`: Script source code
-- `version`: Script version for change tracking
+
+- `id`: Unique snapshot identifier
 - `tenant_id`: Associated tenant identifier
-- `created_at`: Script creation timestamp
-- `updated_at`: Last modification timestamp
-- `is_active`: Whether script is currently active
+- `version`: Monotonic version label or sequence
+- `display_name`: Human-readable label for the snapshot
+- `settings`: JSON object with tenant runtime settings
+- `schema_sdl`: Generated SDL fragment for tenant-defined schema
+- `created_at`: Snapshot creation timestamp
+- `activated_at`: Activation timestamp for the current snapshot
+- `created_by`: User identifier that submitted the change
+- `is_active`: Whether the snapshot is currently active
 
 **Relationships**:
-- One-to-many with DataModel (script defines multiple data models)
-- One-to-many with AuthenticationRule (script defines auth rules)
-- Belongs-to Tenant (multi-tenant isolation)
+
+- One-to-many with Data Model Definition
+- One-to-many with Resolver Definition
+- Belongs-to Tenant Runtime
 
 **Validation Rules**:
-- Language must be 'python' or 'typescript'
-- Content must be valid syntax for specified language
-- Only one active script per tenant at a time
 
-### Data Model
+- Only one snapshot may be active per tenant at a time
+- Snapshot must pass schema validation before activation
+- Settings must satisfy tenant resource limits and auth rules
 
-**Purpose**: Represents a user-defined data structure from configuration script.
+### Data Model Definition
+
+**Purpose**: Represents tenant-defined model metadata that drives GraphQL schema generation and SQLite schema creation.
 
 **Attributes**:
+
 - `id`: Unique identifier
-- `name`: Model name (e.g., "User", "Product")
-- `fields`: JSON representation of field definitions
-- `indexes`: Database index definitions
-- `constraints`: Data validation constraints
-- `config_script_id`: Associated configuration script
-- `graphql_type`: Generated GraphQL type definition
-- `sql_schema`: Generated SQLite table schema
+- `tenant_id`: Associated tenant identifier
+- `snapshot_id`: Configuration snapshot identifier
+- `name`: Model name
+- `fields`: JSON array or object of field definitions
+- `indexes`: JSON array of index definitions
+- `relationships`: JSON array of model relationships
+- `constraints`: JSON object of validation constraints
+- `graphql_type_name`: Generated GraphQL object type name
+- `table_name`: SQLite table name
 
 **Relationships**:
-- Belongs-to ConfigurationScript
-- Many-to-many with DataModel (relationships between models)
+
+- Belongs-to Configuration Snapshot
+- May reference other Data Model Definition entities
 
 **Validation Rules**:
-- Name must be valid GraphQL type name
-- Fields must include type information
-- Required fields must be specified
+
+- Name must be a valid GraphQL type name
+- Field names must be unique within the model
+- Relationship targets must reference existing models in the same snapshot
+
+### Resolver Definition
+
+**Purpose**: Represents built-in or configured resolver behavior mapped into the active GraphQL schema.
+
+**Attributes**:
+
+- `id`: Unique identifier
+- `tenant_id`: Associated tenant
+- `snapshot_id`: Owning configuration snapshot
+- `field_path`: GraphQL path served by the resolver
+- `resolver_kind`: Built-in, storage-backed, or outbound integration
+- `configuration`: JSON configuration blob
+- `requires_authentication`: Whether auth is required
+- `is_subscription`: Whether resolver participates in subscription delivery
+
+**Relationships**:
+
+- Belongs-to Configuration Snapshot
+- May reference Data Model Definition
+
+**Validation Rules**:
+
+- Resolver path must be unique within active schema scope
+- Outbound integration configuration must be explicitly declared and validated
 
 ### GraphQL Schema
 
-**Purpose**: Automatically generated GraphQL schema based on data models.
+**Purpose**: Represents the effective GraphQL schema visible to a tenant at runtime.
 
 **Attributes**:
-- `id`: Unique identifier
+
 - `tenant_id`: Associated tenant
-- `schema_definition`: Complete GraphQL SDL
-- `introspection_result`: Cached introspection response
-- `generated_at`: Schema generation timestamp
-- `is_current`: Whether this is the active schema
+- `built_in_sdl`: Built-in schema SDL
+- `generated_sdl`: Tenant-generated SDL fragment
+- `full_sdl`: Combined active schema SDL
+- `introspection_result`: Cached introspection output
+- `generated_at`: Timestamp of last schema generation
+- `source_snapshot_id`: Snapshot used to generate the schema
 
 **Relationships**:
-- Belongs-to Tenant
-- Generated-from multiple DataModel entities
+
+- Generated-from Configuration Snapshot and Data Model Definition
+- Belongs-to Tenant Runtime
 
 **State Transitions**:
+
 - Draft → Validating → Active → Superseded
 
 ### Authentication Context
 
-**Purpose**: Represents user session and permission information.
+**Purpose**: Represents user session and permission information for HTTP requests and WebSocket sessions.
 
 **Attributes**:
+
 - `id`: Session identifier
 - `user_id`: Associated user identifier
 - `tenant_id`: Tenant context
-- `jwt_token`: Encrypted JWT token
-- `refresh_token`: Token refresh capability
+- `access_token_id`: Token identifier or fingerprint
 - `permissions`: JSON array of granted permissions
+- `issued_at`: Session creation timestamp
 - `expires_at`: Session expiration timestamp
-- `created_at`: Session creation time
-- `last_activity`: Last request timestamp
+- `last_activity`: Last seen timestamp
+- `transport_scope`: HTTP, WebSocket, or both
 
 **Relationships**:
+
 - Belongs-to User
-- Belongs-to Tenant
+- Belongs-to Tenant Runtime
 
 **Validation Rules**:
-- JWT token must be valid and unexpired
-- Permissions must be valid for tenant
-- Session must not exceed maximum duration
+
+- Session must be unexpired
+- Permissions must be valid for the tenant and operation
+
+### Subscription Session
+
+**Purpose**: Represents an active GraphQL WebSocket connection and its subscription registry.
+
+**Attributes**:
+
+- `id`: Connection identifier
+- `tenant_id`: Tenant context
+- `user_id`: Optional authenticated user identifier
+- `protocol`: Expected to be `graphql-transport-ws`
+- `connected_at`: Connection timestamp
+- `last_heartbeat`: Last ping or pong timestamp
+- `active_subscriptions`: Map of subscription IDs to execution descriptors
+- `connection_state`: Connecting, Open, Closing, Closed
+
+**Relationships**:
+
+- May reference Authentication Context
+- Belongs-to Tenant Runtime
+
+**Validation Rules**:
+
+- Protocol must match supported GraphQL WebSocket protocol
+- Subscription IDs must be unique per connection
 
 ### User
 
-**Purpose**: Represents system users with authentication capabilities.
+**Purpose**: Represents a system user with authentication and tenant-scoped permissions.
 
 **Attributes**:
-- `id`: Unique user identifier (UUID)
-- `email`: User email address (unique)
-- `password_hash`: Encrypted password storage
+
+- `id`: Unique user identifier
+- `email`: User email address
+- `password_hash`: Password hash or credential record
 - `display_name`: User-friendly display name
-- `tenant_id`: Primary tenant association
-- `oauth_providers`: JSON array of linked OAuth providers
-- `is_active`: Account status
+- `tenant_ids`: Array of tenant associations
+- `roles`: Array of role identifiers
+- `is_active`: Account state
 - `created_at`: Account creation timestamp
-- `last_login`: Last successful login
+- `last_login`: Last successful login timestamp
 
 **Relationships**:
-- Belongs-to Tenant (primary)
-- Many-to-many with Tenant (can belong to multiple tenants)
-- One-to-many with AuthenticationContext (multiple sessions)
 
-**Validation Rules**:
-- Email must be valid email format
-- Password must meet minimum security requirements
-- Display name must be non-empty
+- One-to-many with Authentication Context
+- Many-to-many with Tenant Runtime
 
 ### Organization
 
-**Purpose**: Represents tenant organizations for multi-tenant isolation.
+**Purpose**: Represents a tenant or organization boundary in the multi-tenant system.
 
 **Attributes**:
-- `id`: Unique organization identifier (UUID)
+
+- `id`: Unique organization identifier
 - `name`: Organization name
-- `domain`: Organization domain (optional)
-- `subscription_tier`: Service tier level
-- `configuration_limit`: Maximum active configurations
-- `user_limit`: Maximum users allowed
-- `storage_limit`: Data storage limit
-- `created_at`: Organization creation timestamp
+- `domain`: Optional organization domain
+- `subscription_tier`: Service tier
+- `user_limit`: Maximum users
+- `storage_limit`: Tenant storage limit
+- `created_at`: Creation timestamp
 
 **Relationships**:
-- One-to-many with User (organization members)
-- One-to-many with ConfigurationScript (organization configurations)
 
-**Validation Rules**:
-- Name must be unique across system
-- Limits must be positive integers
-- Domain must be valid domain format if provided
+- One-to-many with User
+- One-to-many with Configuration Snapshot
 
-### Server Instance
+### Tenant Runtime
 
-**Purpose**: Represents a running Isched server instance with specific configuration.
+**Purpose**: Represents live in-process state for a tenant.
 
 **Attributes**:
-- `id`: Instance identifier
-- `tenant_id`: Associated tenant
-- `config_script_id`: Active configuration script
-- `port`: HTTP server port
-- `status`: Instance status (starting, running, stopping, stopped)
-- `pid`: Process identifier
-- `started_at`: Instance start timestamp
-- `memory_usage`: Current memory consumption
-- `request_count`: Total requests served
+
+- `tenant_id`: Tenant identifier
+- `active_snapshot_id`: Current active configuration snapshot
+- `database_path`: SQLite file path
+- `connection_pool_size`: Current pool size
+- `worker_quota`: Scheduler or worker allocation
+- `active_http_requests`: In-flight HTTP operations
+- `active_websocket_sessions`: Active subscription session count
+- `status`: Starting, Running, Reconfiguring, Degraded, Stopped
 
 **Relationships**:
-- Belongs-to Tenant
-- Uses ConfigurationScript
-- One-to-many with RequestLog (request history)
 
-**State Transitions**:
-- Starting → Running → Stopping → Stopped
-- Running → Restarting → Running (for configuration updates)
+- One-to-one with active GraphQL Schema
+- One-to-many with Subscription Session
+- One-to-many with Authentication Context
 
 ## Database Schema Considerations
 
-### Multi-Tenant Data Isolation
+### Tenant Isolation
 
-**Strategy**: Separate SQLite database files per tenant with shared schema structure.
+**Strategy**: Store tenant data and metadata in tenant-scoped SQLite files or clearly isolated tenant partitions, with separate configuration history and application data.
 
 **Benefits**:
-- Strong data isolation
-- Independent backup/restore per tenant
-- Simplified access control
 
-**File Structure**:
-```
-data/
-├── tenants/
-│   ├── {tenant_id_1}/
-│   │   ├── main.db          # Primary tenant data
-│   │   ├── config.db        # Configuration scripts
-│   │   └── sessions.db      # Authentication sessions
-│   └── {tenant_id_2}/
-│       └── ...
-└── system/
-    ├── organizations.db     # System-wide organization data
-    └── users.db            # User account information
-```
+- Easier recovery and backup per tenant
+- Clearer operational boundaries
+- Stronger protection against cross-tenant data leakage
 
-### ACID Transaction Requirements
+### Atomic Configuration Activation
 
-**Configuration Changes**: All schema modifications must be atomic.
-
-**Data Operations**: User data operations must support rollback.
-
-**Session Management**: Authentication state changes must be consistent.
+**Requirement**: Configuration snapshot writes, schema generation, migration decisions, and activation flags must occur as a transactionally consistent unit.
 
 ### Index Strategy
 
-**Performance Indexes**:
-- Users: email, tenant_id
-- ConfigurationScript: tenant_id, is_active
-- AuthenticationContext: user_id, expires_at
-- DataModel: config_script_id, name
+**Recommended indexes**:
 
-**Full-Text Search**: Enable FTS5 for searchable text fields in user-defined models.
+- Configuration Snapshot: `tenant_id`, `is_active`, `version`
+- Data Model Definition: `tenant_id`, `snapshot_id`, `name`
+- Authentication Context: `tenant_id`, `user_id`, `expires_at`
+- Subscription Session: `tenant_id`, `connected_at`
 
-## GraphQL Schema Generation
+## Schema Generation Rules
 
-### Automatic Type Generation
+### Type Generation
 
 **Process**:
-1. Parse DataModel field definitions
-2. Generate GraphQL object types
-3. Create Query/Mutation resolvers
-4. Build introspection schema
-5. Validate against GraphQL specification
 
-**Type Mapping**:
-- String → GraphQL String
-- Integer → GraphQL Int
-- Float → GraphQL Float
-- Boolean → GraphQL Boolean
-- Date → GraphQL DateTime (custom scalar)
-- JSON → GraphQL JSON (custom scalar)
-- Array → GraphQL List
-- Object → Nested GraphQL type
+1. Read active configuration snapshot
+2. Validate model definitions and resolver definitions
+3. Generate SDL fragments for model types, queries, mutations, and subscriptions
+4. Merge generated SDL with built-in schema
+5. Validate combined schema and publish it atomically
 
-### Query Complexity Analysis
+### Query Complexity Controls
 
 **Limits**:
-- Maximum query depth: 10 levels
-- Maximum field count: 100 fields
-- Maximum array size: 1000 items
-- Timeout: 30 seconds per query
 
-**Cost Calculation**: Based on field count, depth, and estimated database operations.
+- Maximum query depth: configurable per tenant
+- Maximum field count: configurable per tenant
+- Maximum subscription fan-out: configurable globally and per tenant
+- Execution timeout: configurable for query and subscription operations
 
 ## Error Handling
 
-### Configuration Script Errors
+### Configuration Errors
 
-**Syntax Errors**: Immediate validation failure with line number and error description.
-
-**Runtime Errors**: Graceful degradation with error logging and fallback to previous configuration.
-
-**Schema Conflicts**: Detailed conflict resolution guidance for developers.
-
-### Database Errors
-
-**Connection Failures**: Automatic retry with exponential backoff.
-
-**Constraint Violations**: User-friendly error messages with suggested corrections.
-
-**Disk Space**: Graceful handling with cleanup suggestions.
-
-### GraphQL Errors
-
-**Parse Errors**: Standard GraphQL error format with precise location information.
-
-**Validation Errors**: Detailed explanation of schema violations.
-
-**Execution Errors**: Field-level error reporting with partial results when possible.
-
-## C++ Implementation Classes
-
-### Core Backend Classes
-
-**Memory Management**: All classes follow C++ Core Guidelines with mandatory smart pointer usage - no raw pointers for ownership.
-
-**Documentation**: All public APIs documented with Doxygen comments, source code examples included in generated documentation.
-
-```cpp
-namespace isched::v0_0_1::backend {
-
-/// @brief Main server entry point for Universal Application Server Backend
-/// @details Manages tenant processes, HTTP server, and configuration lifecycle
-/// @example
-/// @code
-/// Server::Configuration config{.port = 8080, .host = "0.0.0.0"};
-/// Server server(config);
-/// server.start();
-/// @endcode
-class Server {
-public:
-    explicit Server(const Configuration& config);
-    void start();
-    void stop();
-    void reload_config();
-    
-private:
-    std::unique_ptr<TenantManager> tenant_manager_;
-    std::unique_ptr<RestbedService> http_server_;
-    Configuration config_;
-};
-
-// Multi-tenant process pool management
-class TenantManager {
-public:
-    void create_tenant(const TenantId& id, const TenantConfiguration& config);
-    void remove_tenant(const TenantId& id);
-    TenantSession& get_tenant_session(const TenantId& id);
-    
-private:
-    std::unordered_map<TenantId, std::unique_ptr<TenantSession>> tenant_sessions_;
-    std::shared_mutex sessions_mutex_;
-};
-
-// GraphQL execution engine with built-in schema support
-class GqlExecutor {
-public:
-    explicit GqlExecutor(std::shared_ptr<DatabaseManager> database);
-    
-    // Execute GraphQL query with result handling
-    ExecutionResult execute(const std::string& query);
-    
-    // Parse GraphQL query into AST
-    DocumentPtr parse(const std::string& query);
-    
-private:
-    std::shared_ptr<DatabaseManager> database_;
-    ResolverRegistry resolver_registry_;
-};
-
-// SQLite per-tenant database management
-class DatabaseManager {
-public:
-    explicit DatabaseManager(const Config& config);
-    
-    void initialize_tenant(const std::string& tenant_id);
-    DatabaseResult<QueryResult> execute_query(const std::string& tenant_id, 
-                                             const std::string& sql);
-    DatabaseTransaction begin_transaction(const std::string& tenant_id);
-    
-private:
-    std::unordered_map<std::string, std::unique_ptr<ConnectionPool>> tenant_pools_;
-    Config config_;
-};
-
-// Connection pooling for database access
-class ConnectionPool {
-public:
-    explicit ConnectionPool(const std::string& database_path, size_t pool_size);
-    
-    PooledConnection acquire();
-    void release(std::unique_ptr<sqlite3, SqliteDeleter> connection);
-    
-private:
-    std::queue<std::unique_ptr<sqlite3, SqliteDeleter>> available_connections_;
-    std::mutex pool_mutex_;
-};
-
-} // namespace isched::v0_0_1::backend
-};
-
-// SQLite per-tenant database management
-class DatabaseManager {
-public:
-    explicit DatabaseManager(const Config& config);
-    
-    void initialize_tenant(const std::string& tenant_id);
-    DatabaseResult<QueryResult> execute_query(const std::string& tenant_id, 
-                                             const std::string& sql);
-    DatabaseTransaction begin_transaction(const std::string& tenant_id);
-    
-private:
-    std::unordered_map<std::string, std::unique_ptr<ConnectionPool>> tenant_pools_;
-    Config config_;
-};
-
-// Built-in GraphQL schema for health monitoring and introspection
-class BuiltInSchema {
-public:
-    BuiltInSchema(std::shared_ptr<GqlExecutor> executor,
-                  std::shared_ptr<DatabaseManager> database);
-    
-    void register_resolvers(ResolverRegistry& registry);
-    nlohmann::json get_health_status() const;
-    nlohmann::json get_server_metrics() const;
-    
-private:
-    std::shared_ptr<GqlExecutor> executor_;
-    std::shared_ptr<DatabaseManager> database_;
-};
-
-// RESTful API handler using Restbed
-class RestbedService {
-public:
-    void start(const Server::Configuration& config);
-    void stop();
-    void register_graphql_endpoint();
-    void register_health_endpoint();
-    
-private:
-    std::shared_ptr<restbed::Service> service_;
-    std::shared_ptr<GqlExecutor> graphql_executor_;
-};
-
-} // namespace isched::v0_0_1::backend
-```
-
-### Data Model Mapping
-
-**SQLite Schema Generation**:
-```cpp
-class SchemaMigrator {
-public:
-    static DatabaseResult<void> migrate_to_version(DatabaseManager& db_manager,
-                                                   const std::string& tenant_id,
-                                                   int target_version);
-    static int get_current_version(const DatabaseManager& db_manager,
-                                  const std::string& tenant_id);
-    
-private:
-    struct Migration {
-        int version;
-        std::string description;
-        std::string up_sql;
-        std::string down_sql;
-    };
-    static std::vector<Migration> migrations_;
-};
-```
-
-**GraphQL Schema Generation**:
-```cpp
-class ResolverRegistry {
-public:
-    using ResolverFunction = std::function<nlohmann::json(const nlohmann::json&, 
-                                                        const nlohmann::json&)>;
-    
-    void register_resolver(const std::string& field_name, ResolverFunction resolver);
-    ResolverFunction get_resolver(const std::string& field_name) const;
-    
-private:
-    std::unordered_map<std::string, ResolverFunction> resolvers_;
-};
-```
-
-### Multi-Tenant Isolation
-
-**Tenant Session Management**:
-```cpp
-class TenantManager::TenantSession {
-public:
-    explicit TenantSession(const TenantId& id, ProcessId pid);
-    
-    // Execute operations within tenant context
-    template<typename Result, typename Request>
-    std::future<Result> execute(const Request& request);
-    
-    ProcessStatus get_status() const;
-    TimePoint get_last_activity() const;
-    
-private:
-    TenantId tenant_id_;
-    ProcessId process_id_;
-    ProcessStatus status_;
-    TimePoint last_activity_;
-};
-```
-
-**Database Connection Pooling**:
-```cpp
-class ConnectionPool {
-public:
-    explicit ConnectionPool(const std::string& database_path, size_t pool_size);
-    
-    PooledConnection acquire();
-    void release(std::unique_ptr<sqlite3, SqliteDeleter> connection);
-    
-private:
-    std::queue<std::unique_ptr<sqlite3, SqliteDeleter>> available_connections_;
-    std::mutex pool_mutex_;
-    std::condition_variable pool_condition_;
-    size_t max_connections_;
-};
-```
+- Validation failures reject the candidate snapshot and preserve the active snapshot
+- Migration failures reject activation and return structured GraphQL errors
+- Subscription delivery failures are isolated to the connection or subscription where practical

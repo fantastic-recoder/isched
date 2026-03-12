@@ -1,54 +1,72 @@
 # GraphQL Schema Contract
 
-**Purpose**: Defines the core GraphQL API contract for the Universal Application Server Backend.
-**Version**: 1.0.0
-**Compliance**: GraphQL Specification (https://spec.graphql.org/)
+**Purpose**: Defines the core GraphQL API contract for the Universal Application Server Backend.  
+**Version**: 2.0.0  
+**Compliance**: GraphQL specification and GraphQL over HTTP / `graphql-transport-ws` interoperability
 
 ## Core Schema
 
 ```graphql
-# Scalar Types
 scalar DateTime
 scalar JSON
 scalar UUID
 
-# Configuration Management
-type ConfigurationScript {
-  id: UUID!
-  language: ConfigurationLanguage!
-  content: String!
+type ServerInfo {
   version: String!
-  tenantId: UUID!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-  isActive: Boolean!
-  dataModels: [DataModel!]!
-  authRules: [AuthenticationRule!]!
+  startedAt: DateTime!
+  activeTenants: Int!
+  activeWebSocketSessions: Int!
+  transportModes: [String!]!
 }
 
-enum ConfigurationLanguage {
-  PYTHON
-  TYPESCRIPT
-}
-
-type DataModel {
-  id: UUID!
+type HealthComponent {
   name: String!
-  fields: JSON!
-  indexes: [String!]!
-  constraints: JSON!
-  configScriptId: UUID!
-  graphqlType: String!
-  sqlSchema: String!
+  status: String!
+  details: JSON
 }
 
-# User Management
+type HealthStatus {
+  status: String!
+  timestamp: DateTime!
+  components: [HealthComponent!]!
+}
+
+type ConfigurationSnapshot {
+  id: UUID!
+  tenantId: UUID!
+  version: String!
+  displayName: String!
+  settings: JSON!
+  schemaSdl: String!
+  createdAt: DateTime!
+  activatedAt: DateTime
+  isActive: Boolean!
+}
+
+type ModelFieldDefinition {
+  name: String!
+  type: String!
+  required: Boolean!
+  unique: Boolean!
+  defaultValue: JSON
+}
+
+type DataModelDefinition {
+  id: UUID!
+  tenantId: UUID!
+  snapshotId: UUID!
+  name: String!
+  fields: [ModelFieldDefinition!]!
+  indexes: JSON!
+  constraints: JSON!
+}
+
 type User {
   id: UUID!
   email: String!
   displayName: String!
-  tenantId: UUID!
-  oauthProviders: [String!]!
+  tenantIds: [UUID!]!
+  roles: [String!]!
   isActive: Boolean!
   createdAt: DateTime!
   lastLogin: DateTime
@@ -59,307 +77,291 @@ type Organization {
   name: String!
   domain: String
   subscriptionTier: String!
-  configurationLimit: Int!
   userLimit: Int!
   storageLimit: Int!
   createdAt: DateTime!
-  users: [User!]!
-  configurations: [ConfigurationScript!]!
 }
 
-# Authentication
-type AuthenticationContext {
-  id: UUID!
-  userId: UUID!
-  tenantId: UUID!
-  permissions: [String!]!
+type AuthPayload {
+  accessToken: String!
+  refreshToken: String!
   expiresAt: DateTime!
-  createdAt: DateTime!
-  lastActivity: DateTime!
+  user: User!
 }
 
-type AuthenticationRule {
-  id: UUID!
-  name: String!
-  type: AuthenticationType!
-  configuration: JSON!
-  isRequired: Boolean!
+type ConfigurationApplyResult {
+  configuration: ConfigurationSnapshot!
+  warnings: [String!]!
 }
 
-enum AuthenticationType {
-  OAUTH2
-  JWT
-  BASIC_AUTH
-  API_KEY
-}
-
-# Server Management
-type ServerInstance {
-  id: UUID!
+type ConfigurationEvent {
   tenantId: UUID!
-  configScriptId: UUID!
-  port: Int!
-  status: ServerStatus!
-  startedAt: DateTime!
-  memoryUsage: Int!
-  requestCount: Int!
+  version: String!
+  activatedAt: DateTime!
 }
 
-enum ServerStatus {
-  STARTING
-  RUNNING
-  STOPPING
-  STOPPED
-  RESTARTING
-}
-
-# Dynamic Schema Support
-type GeneratedSchema {
-  id: UUID!
-  tenantId: UUID!
-  schemaDefinition: String!
-  introspectionResult: JSON!
-  generatedAt: DateTime!
-  isCurrent: Boolean!
-}
-
-# Root Query Type
 type Query {
-  # Configuration Management
-  configurationScript(id: UUID!): ConfigurationScript
-  configurationScripts(tenantId: UUID!, isActive: Boolean): [ConfigurationScript!]!
-  
-  # User Management
+  hello: String!
+  version: String!
+  uptime: Int!
+  serverInfo: ServerInfo!
+  health: HealthStatus!
+
+  activeConfiguration(tenantId: UUID!): ConfigurationSnapshot
+  configurationHistory(tenantId: UUID!, limit: Int = 20): [ConfigurationSnapshot!]!
+  dataModels(tenantId: UUID!, snapshotId: UUID): [DataModelDefinition!]!
+
   currentUser: User
   user(id: UUID!): User
-  users(tenantId: UUID!, limit: Int = 10, offset: Int = 0): [User!]!
-  
-  # Organization Management
+  users(tenantId: UUID!, limit: Int = 20, offset: Int = 0): [User!]!
+
   organization(id: UUID!): Organization
-  organizations(limit: Int = 10, offset: Int = 0): [Organization!]!
-  
-  # Server Management
-  serverInstance(id: UUID!): ServerInstance
-  serverInstances(tenantId: UUID!): [ServerInstance!]!
-  
-  # Schema Introspection
-  generatedSchema(tenantId: UUID!): GeneratedSchema
-  
-  # Dynamic Data Queries (generated at runtime based on configuration)
-  # These will be dynamically added based on user-defined data models
+  organizations(limit: Int = 20, offset: Int = 0): [Organization!]!
 }
 
-# Root Mutation Type
 type Mutation {
-  # Configuration Management
-  createConfigurationScript(input: CreateConfigurationScriptInput!): ConfigurationScript!
-  updateConfigurationScript(id: UUID!, input: UpdateConfigurationScriptInput!): ConfigurationScript!
-  activateConfigurationScript(id: UUID!): ConfigurationScript!
-  deleteConfigurationScript(id: UUID!): Boolean!
-  
-  # User Management
-  createUser(input: CreateUserInput!): User!
-  updateUser(id: UUID!, input: UpdateUserInput!): User!
-  deleteUser(id: UUID!): Boolean!
-  
-  # Organization Management
-  createOrganization(input: CreateOrganizationInput!): Organization!
-  updateOrganization(id: UUID!, input: UpdateOrganizationInput!): Organization!
-  deleteOrganization(id: UUID!): Boolean!
-  
-  # Authentication
-  authenticate(input: AuthenticationInput!): AuthenticationContext!
-  refreshToken(refreshToken: String!): AuthenticationContext!
-  logout(sessionId: UUID!): Boolean!
-  
-  # Server Management
-  startServerInstance(input: StartServerInstanceInput!): ServerInstance!
-  stopServerInstance(id: UUID!): Boolean!
-  restartServerInstance(id: UUID!): ServerInstance!
-  
-  # Dynamic Data Mutations (generated at runtime based on configuration)
-  # These will be dynamically added based on user-defined data models
+  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationApplyResult!
+  activateConfiguration(snapshotId: UUID!): ConfigurationSnapshot!
+  rollbackConfiguration(tenantId: UUID!, targetSnapshotId: UUID!): ConfigurationSnapshot!
+
+  createDataModel(input: CreateDataModelInput!): DataModelDefinition!
+  updateDataModel(id: UUID!, input: UpdateDataModelInput!): DataModelDefinition!
+  deleteDataModel(id: UUID!): Boolean!
+
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  refreshToken(refreshToken: String!): AuthPayload!
+  logout: Boolean!
 }
 
-# Root Subscription Type
 type Subscription {
-  # Configuration Changes
-  configurationScriptUpdated(tenantId: UUID!): ConfigurationScript!
-  
-  # Server Status
-  serverInstanceStatusChanged(tenantId: UUID!): ServerInstance!
-  
-  # Real-time Data Updates (generated at runtime based on configuration)
-  # These will be dynamically added based on user-defined data models
+  configurationApplied(tenantId: UUID!): ConfigurationEvent!
+  healthStatusChanged(tenantId: UUID): HealthStatus!
+  modelChanged(tenantId: UUID!): DataModelDefinition!
 }
 
-# Input Types
-input CreateConfigurationScriptInput {
-  language: ConfigurationLanguage!
-  content: String!
+input ModelFieldInput {
+  name: String!
+  type: String!
+  required: Boolean = false
+  unique: Boolean = false
+  defaultValue: JSON
+}
+
+input DataModelInput {
+  name: String!
+  fields: [ModelFieldInput!]!
+  indexes: JSON = []
+  constraints: JSON = {}
+}
+
+input AuthConfigurationInput {
+  allowRegistration: Boolean = false
+  jwtIssuer: String
+  tokenLifetimeSeconds: Int = 3600
+}
+
+input ApplyConfigurationInput {
   tenantId: UUID!
+  displayName: String!
+  settings: JSON = {}
+  models: [DataModelInput!]!
+  auth: AuthConfigurationInput
 }
 
-input UpdateConfigurationScriptInput {
-  content: String
-  version: String
+input CreateDataModelInput {
+  tenantId: UUID!
+  snapshotId: UUID!
+  name: String!
+  fields: [ModelFieldInput!]!
+  indexes: JSON = []
+  constraints: JSON = {}
 }
 
-input CreateUserInput {
+input UpdateDataModelInput {
+  name: String
+  fields: [ModelFieldInput!]
+  indexes: JSON
+  constraints: JSON
+}
+
+input RegisterInput {
+  tenantId: UUID!
   email: String!
   password: String!
   displayName: String!
+}
+
+input LoginInput {
   tenantId: UUID!
+  email: String!
+  password: String!
 }
-
-input UpdateUserInput {
-  email: String
-  displayName: String
-  isActive: Boolean
-}
-
-input CreateOrganizationInput {
-  name: String!
-  domain: String
-  subscriptionTier: String!
-}
-
-input UpdateOrganizationInput {
-  name: String
-  domain: String
-  subscriptionTier: String
-  configurationLimit: Int
-  userLimit: Int
-  storageLimit: Int
-}
-
-input AuthenticationInput {
-  email: String
-  password: String
-  oauthToken: String
-  oauthProvider: String
-  tenantId: UUID!
-}
-
-input StartServerInstanceInput {
-  tenantId: UUID!
-  configScriptId: UUID!
-  port: Int = 8080
-}
-
-# Error Types
-type Error {
-  code: String!
-  message: String!
-  field: String
-  details: JSON
-}
-
-# Response wrapper for operations that can fail
-union ConfigurationScriptResult = ConfigurationScript | Error
-union UserResult = User | Error
-union OrganizationResult = Organization | Error
-union AuthenticationResult = AuthenticationContext | Error
-union ServerInstanceResult = ServerInstance | Error
 ```
 
-## Dynamic Schema Extension
+## GraphQL Introspection System
 
-The schema above represents the core management API. At runtime, additional types, queries, and mutations will be dynamically generated based on user configuration scripts:
+The server MUST implement the full GraphQL introspection system as specified in the GraphQL specification. All meta-types and meta-fields below are required and must reflect the **currently active schema**.
 
-### Dynamic Type Generation
+### Introspection meta-fields (available on root Query type)
 
 ```graphql
-# Example: If user defines a "Product" model in their configuration
-type Product {
-  id: UUID!
-  name: String!
-  price: Float!
+# Available on every query root — returns full schema description
+__schema: __Schema!
+
+# Returns the named type or null if not found
+__type(name: String!): __Type
+
+# Available on every object, interface, and union selection set
+__typename: String!
+```
+
+### Introspection meta-types
+
+```graphql
+type __Schema {
   description: String
-  categoryId: UUID!
-  createdAt: DateTime!
-  updatedAt: DateTime!
+  types: [__Type!]!
+  queryType: __Type!
+  mutationType: __Type
+  subscriptionType: __Type
+  directives: [__Directive!]!
 }
 
-# Corresponding queries would be added:
-extend type Query {
-  product(id: UUID!): Product
-  products(limit: Int = 10, offset: Int = 0, filter: ProductFilter): [Product!]!
+type __Type {
+  kind: __TypeKind!
+  name: String
+  description: String
+  # OBJECT and INTERFACE only
+  fields(includeDeprecated: Boolean = false): [__Field!]
+  # OBJECT only
+  interfaces: [__Type!]
+  # INTERFACE and UNION only
+  possibleTypes: [__Type!]
+  # ENUM only
+  enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
+  # INPUT_OBJECT only
+  inputFields(includeDeprecated: Boolean = false): [__InputValue!]
+  # NON_NULL and LIST only
+  ofType: __Type
+  # SCALAR only (for custom scalars with `@specifiedBy`)
+  specifiedByURL: String
 }
 
-# Corresponding mutations would be added:
-extend type Mutation {
-  createProduct(input: CreateProductInput!): Product!
-  updateProduct(id: UUID!, input: UpdateProductInput!): Product!
-  deleteProduct(id: UUID!): Boolean!
+enum __TypeKind {
+  SCALAR
+  OBJECT
+  INTERFACE
+  UNION
+  ENUM
+  INPUT_OBJECT
+  LIST
+  NON_NULL
+}
+
+type __Field {
+  name: String!
+  description: String
+  args(includeDeprecated: Boolean = false): [__InputValue!]!
+  type: __Type!
+  isDeprecated: Boolean!
+  deprecationReason: String
+}
+
+type __InputValue {
+  name: String!
+  description: String
+  type: __Type!
+  defaultValue: String
+  isDeprecated: Boolean!
+  deprecationReason: String
+}
+
+type __EnumValue {
+  name: String!
+  description: String
+  isDeprecated: Boolean!
+  deprecationReason: String
+}
+
+type __Directive {
+  name: String!
+  description: String
+  locations: [__DirectiveLocation!]!
+  args(includeDeprecated: Boolean = false): [__InputValue!]!
+  isRepeatable: Boolean!
+}
+
+enum __DirectiveLocation {
+  QUERY
+  MUTATION
+  SUBSCRIPTION
+  FIELD
+  FRAGMENT_DEFINITION
+  FRAGMENT_SPREAD
+  INLINE_FRAGMENT
+  VARIABLE_DEFINITION
+  SCHEMA
+  SCALAR
+  OBJECT
+  FIELD_DEFINITION
+  ARGUMENT_DEFINITION
+  INTERFACE
+  UNION
+  ENUM
+  ENUM_VALUE
+  INPUT_OBJECT
+  INPUT_FIELD_DEFINITION
 }
 ```
 
-### Configuration Script Interface
+### Built-in types always present in introspection
 
-Configuration scripts will use a standardized interface to define data models:
+The following types MUST appear in `__schema { types }` regardless of whether they are referenced in the active tenant schema:
 
-```python
-# Python configuration example
-from isched import define_model, define_auth
+| Type | Kind |
+|---|---|
+| `String` | `SCALAR` |
+| `Int` | `SCALAR` |
+| `Float` | `SCALAR` |
+| `Boolean` | `SCALAR` |
+| `ID` | `SCALAR` |
+| `__Schema` | `OBJECT` |
+| `__Type` | `OBJECT` |
+| `__TypeKind` | `ENUM` |
+| `__Field` | `OBJECT` |
+| `__InputValue` | `OBJECT` |
+| `__EnumValue` | `OBJECT` |
+| `__Directive` | `OBJECT` |
+| `__DirectiveLocation` | `ENUM` |
 
-# Define a data model
-Product = define_model('Product', {
-    'name': {'type': 'string', 'required': True},
-    'price': {'type': 'float', 'required': True, 'min': 0},
-    'description': {'type': 'string', 'max_length': 1000},
-    'category_id': {'type': 'uuid', 'required': True}
-})
+### Built-in directives always present in `__schema { directives }`
 
-# Define authentication rules
-define_auth({
-    'oauth_providers': ['google', 'github'],
-    'jwt_secret': 'auto-generated',
-    'session_timeout': 3600
-})
+| Directive | Locations | Args |
+|---|---|---|
+| `@skip` | `FIELD`, `FRAGMENT_SPREAD`, `INLINE_FRAGMENT` | `if: Boolean!` |
+| `@include` | `FIELD`, `FRAGMENT_SPREAD`, `INLINE_FRAGMENT` | `if: Boolean!` |
+| `@deprecated` | `FIELD_DEFINITION`, `ARGUMENT_DEFINITION`, `INPUT_FIELD_DEFINITION`, `ENUM_VALUE` | `reason: String` |
+| `@specifiedBy` | `SCALAR` | `url: String!` |
+
+### `ofType` chain for wrapped types
+
+A field declared as `[String!]!` MUST be represented via nested `ofType` as:
+
+```
+NON_NULL
+  ofType: LIST
+    ofType: NON_NULL
+      ofType: SCALAR (name: "String")
 ```
 
-```typescript
-// TypeScript configuration example
-import { defineModel, defineAuth } from 'isched';
+### Introspection accuracy requirement
 
-// Define a data model
-const Product = defineModel('Product', {
-  name: { type: 'string', required: true },
-  price: { type: 'number', required: true, min: 0 },
-  description: { type: 'string', maxLength: 1000 },
-  categoryId: { type: 'uuid', required: true }
-});
+Introspection results MUST be kept in sync with the active schema. When a configuration snapshot is activated and the schema changes, the next `__schema` query MUST reflect the updated type set.
 
-// Define authentication rules
-defineAuth({
-  oauthProviders: ['google', 'github'],
-  jwtSecret: 'auto-generated',
-  sessionTimeout: 3600
-});
-```
+## Contract Notes
 
-## Compliance Requirements
-
-### GraphQL Specification Compliance
-
-1. **Introspection**: Full introspection support as per GraphQL spec
-2. **Error Handling**: Standard GraphQL error format
-3. **Type System**: Proper scalar, object, interface, union, and enum types
-4. **Validation**: Query validation according to GraphQL rules
-5. **Execution**: Proper field resolution and execution order
-
-### Security Considerations
-
-1. **Query Depth Limiting**: Maximum 10 levels of nesting
-2. **Query Complexity Analysis**: Cost-based query analysis
-3. **Rate Limiting**: Configurable request rate limits
-4. **Authentication**: JWT-based authentication for protected fields
-5. **Authorization**: Field-level permission checking
-
-### Performance Requirements
-
-1. **Response Time**: < 100ms for simple queries, < 1s for complex queries
-2. **Concurrent Users**: Support 1000+ concurrent connections
-3. **Memory Usage**: Efficient memory usage for large result sets
-4. **Caching**: Intelligent caching of introspection results and frequent queries
+- Built-in operational concerns such as health and server info are modeled directly in GraphQL.
+- Configuration is mutation-driven and versioned; scripts are not part of the API contract.
+- WebSocket subscriptions are limited to GraphQL subscription semantics and do not expose a separate event API.
+- Full GraphQL introspection is required for standard tool interoperability (GraphiQL, Apollo Sandbox, Altair, codegen clients).

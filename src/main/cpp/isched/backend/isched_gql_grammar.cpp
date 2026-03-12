@@ -1,6 +1,13 @@
-//
-// Created by groby on 2026-01-03.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_gql_grammar.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Helper implementations for the PEGTL GraphQL grammar.
+ *
+ * Contains `ast_node_to_str()` and related utilities that convert PEGTL
+ * parse-tree nodes to string representations, used in tests and debugging.
+ */
 
 #include "isched_gql_grammar.hpp"
 

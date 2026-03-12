@@ -2,7 +2,7 @@
 <project version="4">
   <component name="CMakeSharedSettings">
     <configurations>
-      <configuration PROFILE_NAME="cmake-build-debug-fedora-x86_64" ENABLED="false" GENERATION_DIR="cmake-build-debug" CONFIG_NAME="Debug" TOOLCHAIN_NAME="fedora" GENERATION_OPTIONS="-DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/build/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Debug&quot; -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=&quot;conan_provider.cmake&quot;" NO_GENERATOR="true" />
+      <configuration PROFILE_NAME="cmake-build-debug-fedora-x86_64" ENABLED="false" GENERATION_DIR="cmake-build-debug" CONFIG_NAME="Debug" GENERATION_OPTIONS="-DCMAKE_TOOLCHAIN_FILE=cmake-build-debug/build/generators/conan_toolchain.cmake -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_BUILD_TYPE=Debug&quot; -DCMAKE_PROJECT_TOP_LEVEL_INCLUDES=&quot;conan_provider.cmake&quot;" NO_GENERATOR="true" />
     </configurations>
   </component>
 </project>

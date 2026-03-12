@@ -1,6 +1,13 @@
-//
-// Created by grobap on 3.2.2024.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_exception_base.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Abstract base class for all isched exceptions.
+ *
+ * Defines `ExceptionBase` with `what()` and `code()` virtual accessors,
+ * establishing the common interface for the isched exception hierarchy.
+ */
 
 #ifndef ISCHED_EXCEPTIONBASE_HPP
 #define ISCHED_EXCEPTIONBASE_HPP

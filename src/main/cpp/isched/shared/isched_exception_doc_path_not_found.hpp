@@ -1,6 +1,13 @@
-//
-// Created by grobap on 3.2.2024.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_exception_doc_path_not_found.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Exception thrown when a requested documentation path does not exist.
+ *
+ * `ExceptionDocPathNotFound` carries the missing filesystem path and an
+ * fmt-formatted error message.  Used by the legacy doc-root resolver layer.
+ */
 
 #ifndef ISCHED_DOCPATHNOTFOUND_HPP
 #define ISCHED_DOCPATHNOTFOUND_HPP

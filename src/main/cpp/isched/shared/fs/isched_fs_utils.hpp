@@ -1,3 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_fs_utils.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Filesystem utility functions: Unix-style glob, path helpers.
+ *
+ * Provides `glob()` for recursive pattern-based directory traversal and
+ * related helpers in `isched::v0_0_1::fsutils`.
+ */
+
 #pragma once
 
 #include <filesystem>

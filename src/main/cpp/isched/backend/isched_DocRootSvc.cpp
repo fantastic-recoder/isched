@@ -1,6 +1,12 @@
-//
-// Created by grobap on 3.2.2024.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_DocRootSvc.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Implementation of the doc-root static-file service integration (legacy).
+ *
+ * @deprecated Scheduled for removal in Phase 7 together with the REST transport layer.
+ */
 
 #include <fstream>
 #include <filesystem>

@@ -1,6 +1,13 @@
-//
-// Created by groby on 2026-01-07.
-//
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_log_result.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Logging helpers for `ExecutionResult` and string-vector formatting.
+ *
+ * Provides `log_result()` (emits data/errors via spdlog at error/debug level)
+ * and `concat_vector()` (joins elements of a vector into a delimited string).
+ */
 
 #ifndef ISCHED_LOG_RESULT_HPP
 #define ISCHED_LOG_RESULT_HPP

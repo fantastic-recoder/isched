@@ -1,3 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_multi_dim_map_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 tests for the `multi_dim_map` container.
+ *
+ * Exercises basic get/set operations, multi-level nesting, and edge cases
+ * of `isched::v0_0_1::backend::multi_dim_map`.
+ */
+
 #include <catch2/catch_test_macros.hpp>
 #include <isched/backend/isched_multi_dim_map.hpp>
 #include <string>

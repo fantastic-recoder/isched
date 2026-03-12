@@ -1,3 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_graphql_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 tests for `GqlExecutor` end-to-end query execution.
+ *
+ * Tests full query execution paths through `GqlExecutor` including
+ * resolver dispatch and result serialisation.
+ */
+
 #include <iostream>
 #include <catch2/catch_test_macros.hpp>
 #include <isched/backend/isched_GqlExecutor.hpp>

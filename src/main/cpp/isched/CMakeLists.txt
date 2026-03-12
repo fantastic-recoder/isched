@@ -35,8 +35,6 @@ add_library(isched
         backend/isched_AuthenticationMiddleware.hpp
         backend/isched_AuthenticationMiddleware.cpp
         backend/isched_gql_grammar.cpp
-        shared/ipc/isched_ipc.hpp
-        shared/ipc/isched_ipc.cpp
         shared/config/isched_config.hpp
         shared/config/isched_config.cpp
         shared/fs/isched_fs_utils.hpp
@@ -54,7 +52,7 @@ target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdl
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(isched_srv backend/isched_srv_main.cpp)
-target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog openssl::openssl)
+target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog Boost::url openssl::openssl)
 target_include_directories(isched_srv PRIVATE ${openssl_INCLUDE_DIRS})
 
 

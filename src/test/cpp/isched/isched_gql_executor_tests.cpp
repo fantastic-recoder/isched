@@ -1,4 +1,14 @@
-// Skeleton unit tests for GqlExecutor
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_gql_executor_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 unit tests for `GqlExecutor`.
+ *
+ * Covers built-in resolver dispatch (hello, version, uptime, serverInfo,
+ * health) and the `__schema` / `__type` introspection skeleton.
+ * Tests are extended as Phase 5b introspection tasks are completed.
+ */
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>

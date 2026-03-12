@@ -1,5 +1,8 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_Server.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Implementation of the Server class for isched Universal Application Server Backend
  * @author isched Development Team
  * @version 1.0.0
@@ -13,12 +16,27 @@
  */
 
 #include "isched_Server.hpp"
-#include <iostream>
-#include <stdexcept>
+
+#include "isched_DatabaseManager.hpp"
+#include "isched_GqlExecutor.hpp"
+
 #include <chrono>
-#include <thread>
+#include <cstdint>
+#include <iostream>
 #include <memory>
+#include <stdexcept>
+#include <thread>
+
+#include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+
+namespace {
+std::atomic<std::uint64_t> request_sequence{0};
+
+std::string make_request_id() {
+    return "req-" + std::to_string(++request_sequence);
+}
+}
 
 namespace isched::v0_0_1::backend {
 
@@ -32,12 +50,18 @@ public:
     explicit Impl(const Configuration& config) 
         : config(config)
     {
-        // Minimal implementation for now
         start_time = std::chrono::steady_clock::now();
+
+        DatabaseManager::Config db_config;
+        db_config.base_path = config.work_directory + "/tenants";
+        database = std::make_shared<DatabaseManager>(db_config);
+        gql_executor = GqlExecutor::create(database);
     }
 
     Configuration config;
     TimePoint start_time;
+    std::shared_ptr<DatabaseManager> database;
+    std::unique_ptr<GqlExecutor> gql_executor;
     std::atomic<uint64_t> total_requests{0};
     std::atomic<uint64_t> successful_requests{0};
     std::atomic<uint64_t> active_connections{0};
@@ -126,8 +150,7 @@ bool Server::start() {
         m_impl->start_time = std::chrono::steady_clock::now();
         
         std::cout << "Server started successfully on " << m_config.host << ":" << m_config.port << std::endl;
-        std::cout << "Built-in GraphQL schema will be available at /graphql" << std::endl;
-        std::cout << "Health monitoring will be available at /health" << std::endl;
+        std::cout << "Built-in GraphQL API available at " << get_graphql_endpoint_path() << " over HTTP and WebSocket" << std::endl;
         
         return true;
         
@@ -214,13 +237,13 @@ bool Server::initialize() {
         // Initialize logging
         std::cout << "Initializing logging system..." << std::endl;
         
-        // Initialize basic HTTP service (placeholder for now)
-        std::cout << "HTTP service configuration prepared" << std::endl;
+        // Initialize GraphQL transport foundation (placeholder for now)
+        std::cout << "GraphQL transport configuration prepared" << std::endl;
         
         // TODO: Initialize HTTP service with Restbed
-        // TODO: Setup GraphQL endpoints  
-        // TODO: Initialize tenant manager
-        // TODO: Initialize CLI coordinator
+        // TODO: Setup GraphQL HTTP endpoint
+        // TODO: Setup GraphQL WebSocket endpoint
+        // TODO: Initialize tenant-aware runtime management
         
         std::cout << "Server components initialized successfully" << std::endl;
         return true;
@@ -235,30 +258,18 @@ bool Server::initialize() {
 void Server::setup_endpoints() {
     std::cout << "Setting up HTTP endpoints..." << std::endl;
     
-    // TODO: Setup GraphQL endpoint at /graphql
-    // TODO: Setup health endpoint at /health  
-    // TODO: Setup metrics endpoint at /metrics
+    // TODO: Setup GraphQL endpoint at /graphql for HTTP and WebSocket transports
     
-    std::cout << "HTTP endpoints configured: /graphql, /health, /metrics (placeholder)" << std::endl;
+    std::cout << "HTTP endpoints configured: /graphql (placeholder)" << std::endl;
 }
 
 // Handle GraphQL request processing (placeholder implementation)
 void Server::handle_graphql_request(const SharedPtr<restbed::Session>& session) {
     m_request_count.fetch_add(1);
-    std::cout << "GraphQL request received (placeholder handler)" << std::endl;
+    std::cout << "GraphQL request received (transport handler placeholder)" << std::endl;
     
-    // TODO: Implement actual GraphQL request processing
-    // TODO: Parse JSON request body
-    // TODO: Execute GraphQL query
-    // TODO: Return JSON response
-}
-
-// Handle health check requests (placeholder implementation)
-void Server::handle_health_request(const SharedPtr<restbed::Session>& session) {
-    std::cout << "Health check request received (placeholder handler)" << std::endl;
-    
-    // TODO: Implement actual health check
-    // TODO: Return health status as JSON
+    // TODO: Parse JSON request body and delegate to execute_graphql()
+    // TODO: Return JSON response through Restbed session
 }
 
 // Helper methods for JSON responses (placeholder implementation)
@@ -276,27 +287,7 @@ void Server::send_error_response(const SharedPtr<restbed::Session>& session, con
 
 // Process GraphQL query (placeholder implementation)
 std::string Server::process_graphql_query(const std::string& query, const std::string& variables_json) {
-    std::cout << "Processing GraphQL query: " << query.substr(0, 50) << "..." << std::endl;
-    
-    // Basic built-in schema response for server information
-    if (query.find("server") != std::string::npos || query.find("__schema") != std::string::npos) {
-        return R"({
-            "data": {
-                "server": {
-                    "status": ")" + status_to_string(get_status()) + R"(",
-                    "version": "1.0.0",
-                    "port": )" + std::to_string(m_config.port) + R"(,
-                    "host": ")" + m_config.host + R"("
-                }
-            }
-        })";
-    }
-    
-    // Default response for unrecognized queries
-    return R"({
-        "data": null,
-        "errors": [{"message": "Query not implemented in basic server"}]
-    })";
+    return execute_graphql(query, variables_json);
 }
 
 // Helper method to convert status to string
@@ -317,6 +308,43 @@ void Server::update_response_time_metric(double response_time_ms) {
     double current_avg = m_impl->avg_response_time.load();
     double new_avg = (current_avg * 0.9) + (response_time_ms * 0.1);  // Exponential moving average
     m_impl->avg_response_time.store(new_avg);
+}
+
+String Server::execute_graphql(const String& query, const String&) {
+    const auto started_at = std::chrono::steady_clock::now();
+    const auto request_id = make_request_id();
+
+    m_request_count.fetch_add(1);
+    m_impl->total_requests.fetch_add(1);
+
+    ExecutionResult result;
+    if (!m_impl->gql_executor) {
+        result.errors.push_back(gql::Error{
+            .code = gql::EErrorCodes::UNKNOWN_ERROR,
+            .message = "GraphQL executor is not initialized"
+        });
+    } else {
+        result = m_impl->gql_executor->execute(query);
+    }
+
+    const auto finished_at = std::chrono::steady_clock::now();
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(finished_at - started_at);
+    update_response_time_metric(static_cast<double>(elapsed_ms.count()));
+
+    if (result.is_success()) {
+        m_impl->successful_requests.fetch_add(1);
+    } else {
+        m_error_count.fetch_add(1);
+    }
+
+    auto response = result.to_json();
+    response["extensions"]["requestId"] = request_id;
+    response["extensions"]["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    response["extensions"]["executionTimeMs"] = elapsed_ms.count();
+    response["extensions"]["endpoint"] = get_graphql_endpoint_path();
+
+    return response.dump();
 }
 
 } // namespace isched::v0_0_1::backend

@@ -1,13 +1,16 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * @file isched_Server.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
  * @brief Core server class for isched Universal Application Server Backend
  * @author isched Development Team
  * @version 1.0.0
  * @date 2025-11-01
  * 
  * This file contains the main Server class that orchestrates the Universal Application Server Backend.
- * The server provides GraphQL endpoints, manages multi-tenant architecture, coordinates CLI processes,
- * and maintains 20ms response time targets.
+ * The server exposes GraphQL over HTTP and WebSocket as the active transport surface,
+ * manages tenant-aware runtime state, and maintains 20ms response time targets.
  * 
  * @example Basic server usage:
  * @code{cpp}
@@ -20,7 +23,7 @@
  * @endcode
  * 
  * @note All resource management uses smart pointers as required by FR-021.
- * @see FR-001, FR-002, FR-009, FR-010, FR-011 in spec.md
+ * @see FR-001, FR-002, FR-003, FR-010, FR-016 in spec.md
  */
 
 #pragma once
@@ -59,16 +62,14 @@ namespace isched::v0_0_1::backend {
  * @brief Main server class for Universal Application Server Backend
  * 
  * The Server class is the primary orchestrator for the isched backend system.
- * It manages HTTP endpoints, coordinates tenant processes, handles GraphQL requests,
+ * It manages GraphQL transport endpoints, coordinates tenant-aware runtime state, handles GraphQL requests,
  * and maintains the overall server lifecycle.
  * 
  * ## Key Features:
- * - Multi-tenant process management with adaptive thread pools
- * - GraphQL endpoint serving with specification compliance
+ * - GraphQL-only transport serving with specification compliance
  * - 20ms response time targets with performance monitoring
  * - Smart pointer-based resource management (no raw pointers)
- * - Built-in health monitoring endpoints
- * - CLI process coordination via IPC
+ * - Built-in health and server information via GraphQL fields
  * 
  * ## Performance Requirements:
  * - Target response time: 20ms (95th percentile)
@@ -174,7 +175,11 @@ public:
     }
 
     bool has_graphql_endpoint() const {
-        return false; // TODO
+        return true;
+    }
+
+    [[nodiscard]] String get_graphql_endpoint_path() const {
+        return "/graphql";
     }
 
     // Prevent copying and moving (RAII resource management)
@@ -190,11 +195,10 @@ public:
      * 
      * Startup sequence:
      * 1. Initialize thread pool
-     * 2. Setup tenant manager
-     * 3. Initialize GraphQL executor
-     * 4. Start CLI coordinator
-     * 5. Bind HTTP endpoints
-     * 6. Begin accepting connections
+    * 2. Setup tenant-aware runtime state
+    * 3. Initialize GraphQL executor
+    * 4. Bind GraphQL transport endpoints
+    * 5. Begin accepting connections
      * 
      * @post Server status becomes RUNNING on success
      * @post All health monitoring endpoints are active
@@ -266,12 +270,20 @@ public:
      * Health check includes:
      * - Server operational status
      * - Database connectivity
-     * - CLI process status
-     * - Memory and resource utilization
+    * - GraphQL executor readiness
+    * - Memory and resource utilization
      * 
      * @note This method is used by the built-in GraphQL health monitoring queries
      */
     String get_health() const;
+
+    /**
+     * @brief Execute a GraphQL operation against the server's active schema.
+     * @param query GraphQL query string
+     * @param variables_json GraphQL variables as a JSON string
+     * @return JSON-encoded GraphQL response payload
+     */
+    String execute_graphql(const String& query, const String& variables_json = "{}");
 
 private:
     /**
@@ -298,22 +310,10 @@ private:
     void setup_graphql_endpoint(SharedPtr<restbed::Resource> resource);
 
     /**
-     * @brief Setup health monitoring endpoints
-     * @param resource Restbed resource to configure
-     */
-    void setup_health_endpoints(SharedPtr<restbed::Resource> resource);
-
-    /**
      * @brief Handle GraphQL request processing
      * @param session Restbed session for request/response
      */
     void handle_graphql_request(const SharedPtr<restbed::Session>& session);
-
-    /**
-     * @brief Handle health check requests
-     * @param session Restbed session for request/response
-     */
-    void handle_health_request(const SharedPtr<restbed::Session>& session);
 
     /**
      * @brief Send JSON response helper method

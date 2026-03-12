@@ -1,6 +1,17 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
+ * @file isched_rest_hello_world.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Legacy Restbed hello-world sanity test (legacy).
  *
+ * A minimal Restbed POST endpoint exercise, originally used to validate
+ * the REST transport layer.  Kept for reference; scheduled for removal
+ * in Phase 7 together with the REST transport.
+ *
+ * @deprecated REST layer is superseded by the GraphQL transport.
  */
+
 #include <memory>
 #include <cstdlib>
 #include <iostream>

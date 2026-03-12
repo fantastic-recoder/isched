@@ -1,3 +1,14 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_resolver_tests.cpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Catch2 tests for `GqlParser` resolver integration.
+ *
+ * Verifies that the `GqlParser` facade correctly parses resolver-shaped
+ * GraphQL queries and that result data is well-formed.
+ */
+
 #include <catch2/catch_test_macros.hpp>
 #include <isched/isched.hpp>
 
