@@ -74,7 +74,7 @@ Each task implementation MUST verify:
 
 - [x] T-GQL-020 [P] Remove `isched_GqlParser.hpp` and `isched_GqlParser.cpp` — `GqlExecutor` owns PEGTL grammar invocation directly via `isched_gql_grammar.hpp`; also remove `IGdlParserTree` if it is only referenced by `GqlParser`
 - ~~T-GQL-021~~ **Eliminated** — `GqlExecutor` already calls PEGTL directly; no separate `GqlParser` integration layer is needed
-- [ ] T-GQL-022 [P] Verify parse-error conversion in `GqlExecutor`: PEGTL parse errors MUST become standards-compliant GraphQL error objects with `message` and `locations` before reaching transport (no `GqlParser` layer required)
+- [x] T-GQL-022 [P] Verify parse-error conversion in `GqlExecutor`: PEGTL parse errors MUST become standards-compliant GraphQL error objects with `message` and `locations` before reaching transport (no `GqlParser` layer required)
 - [ ] T-GQL-023 [P] Use `GqlExecutor`'s PEGTL grammar for SDL schema validation in the configuration snapshot subsystem (not a regex or string-match approach)
 
 ### Grammar test coverage
@@ -94,15 +94,15 @@ Each task implementation MUST verify:
 
 ### Fix Sub-Resolver Dispatch
 
-- [ ] T-EXEC-001 [P] Extend `resolve_field_selection_details()` to accept a `const json& p_parent` parameter and forward it to every resolver call — replace the `json::object()` placeholder with the actual resolved parent value
-- [ ] T-EXEC-002 [P] Fix sub-selection result placement: after resolving a field to `my_result`, create `p_result[fieldName]` as the container and write sub-field results into it, so `{ a { b } }` produces `{"a": {"b": ...}}` rather than `{"a": ..., "b": ...}`; update `process_field_sub_selections()` and `process_sub_selection()` accordingly
-- [ ] T-EXEC-003 [P] Implement the **default field resolver**: when `ResolverRegistry::get_resolver()` finds no explicit resolver for a sub-field and `parent_value` is a JSON object containing the field's key, return `parent_value[field_name]`; when the key is absent and there is no explicit resolver, emit `MISSING_GQL_RESOLVER`
-- [ ] T-EXEC-004 [P] Remove the `json my_args=json::object(); //<TODO` placeholder in `process_sub_selection()` and implement proper argument extraction for each sub-field before dispatch into `process_field_selection()`
-- [ ] T-EXEC-005 [P] Thread `p_parent` consistently through the full call chain: `process_field_selection(p_parent, ...) → resolve_field_selection_details(..., p_parent, ...) → resolver(p_parent, args, ctx)` — no step in the chain may silently drop the parent value
+- [x] T-EXEC-001 [P] Extend `resolve_field_selection_details()` to accept a `const json& p_parent` parameter and forward it to every resolver call — replace the `json::object()` placeholder with the actual resolved parent value
+- [x] T-EXEC-002 [P] Fix sub-selection result placement: after resolving a field to `my_result`, create `p_result[fieldName]` as the container and write sub-field results into it, so `{ a { b } }` produces `{"a": {"b": ...}}` rather than `{"a": ..., "b": ...}`; update `process_field_sub_selections()` and `process_sub_selection()` accordingly
+- [x] T-EXEC-003 [P] Implement the **default field resolver**: when `ResolverRegistry::get_resolver()` finds no explicit resolver for a sub-field and `parent_value` is a JSON object containing the field's key, return `parent_value[field_name]`; when the key is absent and there is no explicit resolver, emit `MISSING_GQL_RESOLVER`
+- [x] T-EXEC-004 [P] Remove the `json my_args=json::object(); //<TODO` placeholder in `process_sub_selection()` and implement proper argument extraction for each sub-field before dispatch into `process_field_selection()`
+- [x] T-EXEC-005 [P] Thread `p_parent` consistently through the full call chain: `process_field_selection(p_parent, ...) → resolve_field_selection_details(..., p_parent, ...) → resolver(p_parent, args, ctx)` — no step in the chain may silently drop the parent value
 
 ### Sub-Resolver Unit Tests
 
-- [ ] T-EXEC-006 [P] Add unit tests to `isched_gql_executor_tests.cpp` covering all cases required by FR-EXEC-006:
+- [x] T-EXEC-006 [P] Add unit tests to `isched_gql_executor_tests.cpp` covering all cases required by FR-EXEC-006:
   - Flat query (existing coverage, must remain green)
   - Single-level nested sub-selection with an explicit sub-resolver receiving the correct parent value
   - Default field resolver: parent resolver returns `{version:"1.0"}`, `version` sub-field is extracted without any explicit resolver registered

@@ -547,23 +547,24 @@ namespace isched::v0_0_1::backend {
     }
 
     void GqlExecutor::process_sub_selection(const json& p_parent_result, const ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
-        json my_args=json::object(); //<TODO
+        // Arguments nodes are already extracted by process_argument_field before sub-selections run.
         if (node->type == "isched::v0_0_1::gql::Arguments") {
-            my_args=process_arguments(node, p_errors);
-        } else {
-            if (node->type != "isched::v0_0_1::gql::SelectionSet") {
+            return;
+        }
+        if (node->type != "isched::v0_0_1::gql::SelectionSet") {
+            p_errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR,.message=format(
+                "Expected a selection set while processing sub selection, got a {}.", node->type)});
+            return;
+        }
+        for (const auto &my_selection: node->children) {
+            if (my_selection->type != "isched::v0_0_1::gql::Selection") {
                 p_errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR,.message=format(
-                    "Expected a arguments or selection set while processing sub selection, got a {}.", node->type)});
-                return;
+                    "Expected a selection, got a {}.", my_selection->type)});
+                continue;
             }
-            for (const auto &my_selection_set: node->children) {
-                if (my_selection_set->type != "isched::v0_0_1::gql::Selection") {
-                    p_errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR,.message=format(
-                        "Expected a selection, got a {}.", my_selection_set->type)});
-                    continue;
-                }
-                for (const auto &my_field: my_selection_set->children) {
-                    process_field_selection(p_parent_result,p_path, my_field, p_result, p_errors);
+            for (const auto &my_field: my_selection->children) {
+                if (my_field->type == "isched::v0_0_1::gql::Field") {
+                    resolve_field_selection_details(p_parent_result, p_path, my_field, p_result, p_errors);
                 }
             }
         }
@@ -585,7 +586,7 @@ namespace isched::v0_0_1::backend {
         }
     }
 
-    bool GqlExecutor::resolve_field_selection_details(const ResolverPath& p_path,const TAstNodePtr &p_field_node, json &p_result, gql::TErrorVector& p_error) const {
+    bool GqlExecutor::resolve_field_selection_details(const json& p_parent, const ResolverPath& p_path,const TAstNodePtr &p_field_node, json &p_result, gql::TErrorVector& p_error) const {
         if (p_field_node->children.empty()) {
             p_error.push_back(
                 gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
@@ -593,25 +594,62 @@ namespace isched::v0_0_1::backend {
         }
         const std::string myFieldName = std::string(p_field_node->children[0]->string_view());
         spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
+        // Build path element for error reporting
+        ResolverPath my_field_path = p_path;
+        my_field_path.push_back(myFieldName);
+        if (p_result.empty()) {
+            p_result = json::object();
+        }
         if (!m_resolvers.has_resolver(p_path,myFieldName)) {
-            p_error.push_back(gql::Error{
-                .code=gql::EErrorCodes::MISSING_GQL_RESOLVER,
-                .message = std::format("Missing resolver for field {}.{} in Query type", concat_vector(p_path, "."),
-                                       myFieldName)
-            });
-        } else {
-            if (p_result.empty()) {
-                p_result = json::object();
+            // Default field resolver: extract from parent when key is present
+            if (p_parent.is_object() && p_parent.contains(myFieldName)) {
+                p_result[myFieldName] = p_parent.at(myFieldName);
+            } else {
+                gql::ErrorPath ep;
+                for (const auto& s : my_field_path) ep.push_back(s);
+                p_error.push_back(gql::Error{
+                    .code    = gql::EErrorCodes::MISSING_GQL_RESOLVER,
+                    .message = std::format("Missing resolver for field {} in Query type",
+                                           concat_vector(my_field_path, ".")),
+                    .path    = std::move(ep),
+                });
             }
-            ResolverCtx my_ctx ={};
+        } else {
+            ResolverCtx my_ctx = {};
             json my_args = process_argument_field(p_field_node, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
-            json my_result = my_found_resolver(json::object(),my_args, my_ctx);
-            p_result[myFieldName] = my_result;
+            json my_result;
+            try {
+                my_result = my_found_resolver(p_parent, my_args, my_ctx);
+            } catch (const std::exception& ex) {
+                gql::ErrorPath ep;
+                for (const auto& s : my_field_path) ep.push_back(s);
+                p_error.push_back(gql::Error{
+                    .code    = gql::EErrorCodes::UNKNOWN_ERROR,
+                    .message = std::format("Resolver for field {} threw: {}",
+                                           concat_vector(my_field_path, "."), ex.what()),
+                    .path    = std::move(ep),
+                });
+                p_result[myFieldName] = nullptr;
+                return false;
+            }
             spdlog::debug("Got result: '{}' for field '{}' in Query type, going to process sub selections.",
                 p_result.dump(4,'.'), myFieldName);
-            process_field_sub_selections(my_result,p_path, p_field_node, p_result, p_error, myFieldName);
+            // Detect sub-selection set in Field node children (index > 0)
+            bool has_sub_sel = false;
+            for (size_t i = 1; i < p_field_node->children.size(); ++i) {
+                if (p_field_node->children[i]->type == "isched::v0_0_1::gql::SelectionSet") {
+                    has_sub_sel = true;
+                    break;
+                }
+            }
+            if (has_sub_sel) {
+                p_result[myFieldName] = json::object();
+                process_field_sub_selections(my_result, p_path, p_field_node, p_result[myFieldName], p_error, myFieldName);
+            } else {
+                p_result[myFieldName] = std::move(my_result);
+            }
         }
         return false;
     }
@@ -636,7 +674,7 @@ namespace isched::v0_0_1::backend {
                     });
                     continue;
                 }
-                resolve_field_selection_details(p_path, myField,p_result, p_errors);
+                resolve_field_selection_details(p_parent_result, p_path, myField,p_result, p_errors);
             } else if (mySelection->type == "isched::v0_0_1::gql::Name") {
                 spdlog::debug("Skipping node name while processing field children");
             } else {
@@ -731,7 +769,7 @@ namespace isched::v0_0_1::backend {
         const auto p = e.positions().front();
         const int line   = static_cast<int>(p.line);
         const int column = static_cast<int>(p.column);
-        spdlog::error("Parse error: {} at {}:{}", e.what(), line, column);
+        spdlog::error("Parse error: {} at {}:{}: {}", e.what(), line, column, in.line_at(p));
         myResult.errors.push_back(gql::Error{
             .code      = gql::EErrorCodes::PARSE_ERROR,
             .message   = std::string(e.what()),
@@ -828,7 +866,7 @@ namespace isched::v0_0_1::backend {
                     return my_result;
                 }
                 for (const auto &myOperation: myChild->children) {
-                    process_operation_definitions(basic_json(),myOperation, my_result.data, my_result.errors);
+                    process_operation_definitions(json::object(),myOperation, my_result.data, my_result.errors);
                 }
             }
         } catch (const tao::pegtl::parse_error &e) {

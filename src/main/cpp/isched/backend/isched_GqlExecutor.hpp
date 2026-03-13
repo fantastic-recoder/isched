@@ -131,7 +131,8 @@ namespace isched::v0_0_1::backend {
                 }
                 current = &(it->second);
             }
-            return current->find(field_name) != current->end();
+            auto found = current->find(field_name);
+            return found != current->end() && found->second.has_value();
         }
 
         [[nodiscard]] const ResolverFunction & get_resolver(const ResolverPath& p_path, const std::string & p_name) const {
@@ -294,6 +295,7 @@ namespace isched::v0_0_1::backend {
         ) const;
 
         bool resolve_field_selection_details(
+            const nlohmann::json& p_parent,
             const ResolverPath &p_path,
             const gql::TAstNodePtr &p_field_node, nlohmann::json &p_result, gql::TErrorVector &p_error) const;
 

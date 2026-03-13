@@ -13,6 +13,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <variant>
 
 #include <isched/backend/isched_GqlExecutor.hpp>
 #include <isched/backend/isched_gql_grammar.hpp>
@@ -334,3 +335,170 @@ type MyType { field: String })", "Description with");
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// T-EXEC-006: Sub-resolver dispatch correctness tests (Phase 1c)
+// ---------------------------------------------------------------------------
+namespace isched::v0_0_1::backend {
+
+    TEST_CASE("Sub-resolver: explicit resolver receives parent value", "[gql][executor][sub-resolver]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        json captured_parent;
+        proc.register_resolver({}, "player", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"name", "Alice"}, {"age", 30}};
+        });
+        proc.register_resolver({"player"}, "name", [&captured_parent](const json& parent, const json&, const ResolverCtx&) -> json {
+            captured_parent = parent;
+            return parent.at("name");
+        });
+        proc.register_resolver({"player"}, "age", [](const json& parent, const json&, const ResolverCtx&) -> json {
+            return parent.at("age");
+        });
+        const auto load_res = proc.load_schema(
+            "type Query { player: PlayerType } type PlayerType { name: String age: Int }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ player { name age } }");
+        for (const auto& e : reply.errors) std::cerr << "[sub-resolver] error: " << e.message << "\n";
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["player"]["name"] == "Alice");
+        REQUIRE(reply.data["player"]["age"] == 30);
+        // Parent forwarded correctly
+        REQUIRE(captured_parent.value("name", "") == "Alice");
+        REQUIRE(captured_parent.value("age", -1) == 30);
+    }
+
+    TEST_CASE("Sub-resolver: default field resolver extracts from parent", "[gql][executor][sub-resolver][default-resolver]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "srv_info_test", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"version", "1.0"}, {"name", "isched"}};
+        });
+        // No explicit resolver for {"srv_info_test","version"} or {"srv_info_test","name"} — default resolver used
+
+        const auto load_res = proc.load_schema(
+            "type Query { srv_info_test: InfoType } type InfoType { version: String name: String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ srv_info_test { version name } }");
+        for (const auto& e : reply.errors) std::cerr << "[default-resolver] error: " << e.message << "\n";
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["srv_info_test"]["version"] == "1.0");
+        REQUIRE(reply.data["srv_info_test"]["name"] == "isched");
+    }
+
+    TEST_CASE("Sub-resolver: multi-level nesting produces correct JSON structure", "[gql][executor][sub-resolver][nesting]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        // Outer resolver returns nested object; default resolvers extract at every level
+        proc.register_resolver({}, "a", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"b", {{"c", "deep_value"}}}};
+        });
+
+        const auto load_res = proc.load_schema(
+            "type Query { a: AType } type AType { b: BType } type BType { c: String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ a { b { c } } }");
+        for (const auto& e : reply.errors) std::cerr << "[nesting] error: " << e.message << "\n";
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["a"]["b"]["c"] == "deep_value");
+    }
+
+    TEST_CASE("Sub-resolver: failing resolver nullifies field, siblings still resolve", "[gql][executor][sub-resolver][error-propagation]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "good", [](const json&, const json&, const ResolverCtx&) -> json {
+            return "good_value";
+        });
+        proc.register_resolver({}, "bad", [](const json&, const json&, const ResolverCtx&) -> json {
+            throw std::runtime_error("resolver failure");
+        });
+
+        const auto load_res = proc.load_schema(
+            "type Query { good: String bad: String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ good bad }");
+        REQUIRE_FALSE(reply.is_success());           // has errors
+        REQUIRE(reply.data["good"] == "good_value"); // sibling resolved
+        REQUIRE(reply.data["bad"].is_null());         // failed field is null
+        REQUIRE_FALSE(reply.errors.empty());
+        bool found = false;
+        for (const auto& e : reply.errors) {
+            if (e.message.find("threw") != std::string::npos) { found = true; break; }
+        }
+        REQUIRE(found);
+    }
+
+    TEST_CASE("Sub-resolver: arguments reach sub-resolver p_args", "[gql][executor][sub-resolver][arguments]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "container", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::object();
+        });
+        proc.register_resolver({"container"}, "greet", [](const json&, const json& args, const ResolverCtx&) -> json {
+            return "Hello, " + args.at("who").get<std::string>() + "!";
+        });
+
+        const auto load_res = proc.load_schema(
+            "type Query { container: ContainerType } type ContainerType { greet(who: String): String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(R"({ container { greet(who: "World") } })");
+        for (const auto& e : reply.errors) std::cerr << "[args] error: " << e.message << "\n";
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["container"]["greet"] == "Hello, World!");
+    }
+
+    TEST_CASE("Sub-resolver: missing resolver with absent parent key emits MISSING_GQL_RESOLVER", "[gql][executor][sub-resolver][missing]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "outer", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::object(); // empty — no "x" key
+        });
+        // No resolver for {"outer","x"} and parent has no "x" key
+
+        const auto load_res = proc.load_schema(
+            "type Query { outer: OuterType } type OuterType { x: String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ outer { x } }");
+        REQUIRE_FALSE(reply.is_success());
+        bool found_missing = false;
+        for (const auto& e : reply.errors) {
+            if (e.code == EErrorCodes::MISSING_GQL_RESOLVER) { found_missing = true; break; }
+        }
+        REQUIRE(found_missing);
+    }
+
+    TEST_CASE("Sub-resolver: error path contains field names as strings", "[gql][executor][sub-resolver][error-path]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "parent_field", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::object(); // no "missing" key
+        });
+        // No resolver for {"parent_field","missing"} and parent has no "missing" key
+
+        const auto load_res = proc.load_schema(
+            "type Query { parent_field: ParentType } type ParentType { missing: String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ parent_field { missing } }");
+        REQUIRE_FALSE(reply.is_success());
+        bool found = false;
+        for (const auto& e : reply.errors) {
+            if (e.code == EErrorCodes::MISSING_GQL_RESOLVER) {
+                REQUIRE_FALSE(e.path.empty());
+                // Last path element must be the string "missing"
+                REQUIRE(std::holds_alternative<std::string>(e.path.back()));
+                REQUIRE(std::get<std::string>(e.path.back()) == "missing");
+                found = true;
+                break;
+            }
+        }
+        REQUIRE(found);
+    }
+
+} // namespace isched::v0_0_1::backend
