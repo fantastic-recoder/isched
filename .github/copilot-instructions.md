@@ -1,6 +1,6 @@
 # isched Development Guidelines
 
-Updated: 2026-03-12
+Updated: 2026-03-13
 
 ## Active Technologies
 
@@ -87,10 +87,17 @@ cmake --build ./cmake-build-debug/ --target docs
 - **GraphQL-only transport**: no REST, no IPC, no scripting interfaces — all external access is via `/graphql`
 - C++ Core Guidelines enforced; `-Wall -Wextra -Wpedantic` enabled
 
+## Workflow Rules
+
+- **Commit after every task**: Once a task is complete and `ctest` is fully green, create a Git commit before moving to the next task. Never leave completed work uncommitted.
+- **Green before commit**: `ctest --output-on-failure` MUST pass 100% as a pre-commit gate. A commit with a failing test suite is not allowed.
+- **Commit message format**: `feat|fix|refactor|test(<scope>): <summary>` followed by a body listing which task IDs were addressed and any notable bugs fixed.
+
 ## Recent Changes
 
 - 001-universal-backend: Architecture pivoted to GraphQL-only HTTP/WebSocket, IPC/scripting removed
 - 001-universal-backend: Build commands documented from `configure.py`
+- 001-universal-backend: Commit-after-each-task rule added
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

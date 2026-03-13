@@ -199,6 +199,10 @@ cd cmake-build-debug && ctest --output-on-failure
 
 This is a hard gate at every task boundary, not only at phase checkpoints. If a task causes a regression, it MUST fix the broken test in the same change. Moving to the next task while any test is failing is not allowed.
 
+### Invariant: Commit After Every Task
+
+Once a task is complete and `ctest` is fully green, a Git commit MUST be created before moving to the next task. Completed work must never remain uncommitted when starting the next task. The commit message must reference the task ID(s) addressed and note any bugs fixed.
+
 ### Phase 0: Research Update
 
 - Remove scripting, IPC, and out-of-process execution assumptions
