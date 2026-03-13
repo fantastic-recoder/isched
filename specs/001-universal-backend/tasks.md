@@ -294,7 +294,7 @@ Each task implementation MUST verify:
 
 **Purpose**: Production hardening for the revised architecture.
 
-- [ ] T053 [P] Remove legacy REST transport files: `isched_BaseRestResolver.hpp/cpp`, `isched_DocRootRestResolver.hpp/cpp`, `isched_DocRootSvc.hpp/cpp`, `isched_EHttpMethods.hpp`, `isched_MainSvc.hpp/cpp`, `isched_SingleActionRestResolver.hpp/cpp` — and all CMakeLists.txt references to them
+- ~~T053~~ **Superseded by T006** — REST file deletion and CMakeLists.txt cleanup is fully covered by T006 in Phase 2
 - [ ] T054 [P] Remove legacy IPC files: `shared/ipc/isched_ipc.hpp/cpp`, `src/test/cpp/isched/isched_ipc_tests.cpp`, `src/test/cpp/isched/isched_rest_hello_world.cpp` — and all CMakeLists.txt references to them
 - [ ] T055 [P] Review docs and generated references for GraphQL-only terminology consistency
 - [ ] T056 [P] Add security hardening and vulnerability scanning integration

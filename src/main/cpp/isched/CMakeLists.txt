@@ -12,8 +12,6 @@ add_library(isched
         shared/isched_exception_doc_path_not_found.cpp
         shared/isched_exception_doc_path_not_found.hpp
         shared/isched_exception_unknown_enum_value.hpp
-        backend/isched_GqlParser.cpp
-        backend/isched_GqlParser.hpp
         backend/isched_DocRootRestResolver.cpp
         backend/isched_DocRootRestResolver.hpp
         backend/isched_MainSvc.cpp

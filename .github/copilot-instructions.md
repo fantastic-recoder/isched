@@ -8,7 +8,7 @@ Updated: 2026-03-12
 - **Build system**: CMake 3.22.6 (provided by Conan `[tool_requires]`) + Ninja 1.12.1
 - **Dependency manager**: Conan 2.x — `conanfile.txt` declares all dependencies
 - **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant
-- **Key runtime dependencies**: `restbed`, `taocpp-pegtl`, `nlohmann_json`, `spdlog`, `jwt-cpp`, `sqlite3`, `boost/1.84.0` (Boost.URL), `cpp-httplib`, `openssl`, `platformfolders`
+- **Key runtime dependencies**: `taocpp-pegtl`, `nlohmann_json`, `spdlog`, `jwt-cpp`, `sqlite3`, `boost/1.84.0` (Boost.URL), `cpp-httplib` (sole HTTP/WebSocket transport), `openssl`, `platformfolders`
 - **Testing**: Catch2 3.x
 
 ## Project Structure

@@ -14,7 +14,7 @@ Create a GraphQL-native application server that exposes only GraphQL over HTTP a
 **Language/Version**: C++23  
 **Build System**: CMake 3.22.6 + Ninja 1.12.1 (both provided via Conan `[tool_requires]`)  
 **Dependency Manager**: Conan 2.x — all dependencies declared in `conanfile.txt`; generators `CMakeDeps` + `CMakeToolchain`  
-**Primary Dependencies**: `restbed`, `taocpp-pegtl`, `nlohmann_json`, `spdlog`, `jwt-cpp`, `sqlite3`, `boost/1.84.0` (Boost.URL), `cpp-httplib`, `openssl`, `platformfolders`  
+**Primary Dependencies**: `taocpp-pegtl`, `nlohmann_json`, `spdlog`, `jwt-cpp`, `sqlite3`, `boost/1.84.0` (Boost.URL), `cpp-httplib` (sole HTTP/WebSocket transport), `openssl`, `platformfolders`  
 **Architecture**: Single-process, tenant-aware runtime with GraphQL over HTTP and WebSocket  
 **Storage**: SQLite per tenant with pooled connections and persisted configuration snapshots  
 **Memory Management**: Mandatory smart pointers (`std::unique_ptr`, `std::shared_ptr`)  
@@ -104,9 +104,9 @@ src/
 │   ├── isched.hpp                               # Top-level convenience include
 │   ├── backend/
 │   │   ├── isched_gql_grammar.hpp/cpp           # Custom PEGTL GraphQL grammar (mandatory)
-│   │   ├── isched_GqlParser.hpp/cpp             # Parser facade — wraps grammar for GqlExecutor
+│   │   ├── isched_GqlParser.hpp/cpp             # *(deleted in Phase 1b — T-GQL-020)*
 │   │   ├── isched_GqlExecutor.hpp/cpp           # Query/mutation executor + built-in resolvers
-│   │   ├── isched_Server.hpp/cpp                # GraphQL-only HTTP/WebSocket server (placeholder)
+│   │   ├── isched_Server.hpp/cpp                # GraphQL-only HTTP/WebSocket server (cpp-httplib)
 │   │   ├── isched_TenantManager.hpp/cpp         # Multi-tenant isolation manager (refactor pending)
 │   │   ├── isched_DatabaseManager.hpp/cpp       # Per-tenant SQLite storage + connection pooling
 │   │   ├── isched_AuthenticationMiddleware.hpp/cpp  # JWT auth (stub — Phase 2)
@@ -119,7 +119,7 @@ src/
 │   │   ├── isched_LogEnvLoader.hpp              # spdlog env-level loader (static init)
 │   │   ├── isched_srv_main.cpp                  # Server process entry point (main)
 │   │   │
-│   │   │   Legacy REST layer (Phase 7 removal):
+│   │   │   Legacy REST layer (deleted in Phase 2 — T006):
 │   │   ├── isched_BaseRestResolver.hpp/cpp      # Abstract REST resolver interface (legacy)
 │   │   ├── isched_DocRootRestResolver.hpp/cpp   # Static doc-root REST resolver (legacy)
 │   │   ├── isched_DocRootSvc.hpp/cpp            # Doc-root service integration (legacy)

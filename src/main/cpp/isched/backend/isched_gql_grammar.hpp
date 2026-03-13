@@ -311,21 +311,16 @@ namespace isched::v0_0_1::gql {
         opt<DirectivesConst>
     >{};
 
-    struct ImplementsInterfaces;
-
-    struct InterfaceStart: seq<
+    /// @see GraphQL Spec: "ImplementsInterfaces" — `implements &? NamedType (& NamedType)*`
+    struct ImplementsInterfaces : seq<
         TSeps,
-        ImplementsInterfaces,
+        string<'i','m','p','l','e','m','e','n','t','s'>,
         TSeps,
-        string<'&'>
-    >{};
-
-    struct ImplementsInterfaces :
-        SeqWithComments<
-            TSeps,
-            NamedType
-        >
-    {};
+        opt<one<'&'>>,
+        TSeps,
+        NamedType,
+        star<seq<TSeps, one<'&'>, TSeps, NamedType>>
+    > {};
 
     struct Type: sor<NonNullType, ListType, NamedType>{};
 
@@ -397,7 +392,7 @@ namespace isched::v0_0_1::gql {
         ObjectValue
     >{};
 
-    struct DefaultValue: Value {};
+    struct DefaultValue: seq<one<'='>, TSeps, Value> {};
 
     struct InputValueDefinition : SeqWithComments<
         TSeps,
@@ -436,12 +431,15 @@ namespace isched::v0_0_1::gql {
 
     struct Field;
     struct SelectionSet;
+    struct TypeCondition;
+    struct InlineFragment;
+    struct FragmentSpread;
 
     /// Alias := Name ':'
     struct Alias : seq< Name, one<':'>, TSeps > {};
 
-    /// Selection := Field | FragmentSpread (failure) | InlineFragment (failure)
-    struct Selection : sor< Field > {};
+    /// Selection := InlineFragment | FragmentSpread | Field (per GraphQL spec §2.4)
+    struct Selection : sor< InlineFragment, FragmentSpread, Field > {};
 
     /** SelectionSet := '{' Selection* '}'
      *  Commas are Ignored tokens, so we use TSeps between selections.
@@ -477,6 +475,36 @@ namespace isched::v0_0_1::gql {
     };
     /** @} */
 
+    /// @see GraphQL Spec §2.8: "TypeCondition" — `on NamedType`
+    struct TypeCondition : seq<
+        TSeps,
+        string<'o','n'>,
+        TSeps,
+        NamedType
+    > {};
+
+    /// @see GraphQL Spec §2.8.2: "FragmentSpread" — `... FragmentName Directives?`
+    /// FragmentName is Name but not `on`.
+    struct FragmentSpread : seq<
+        TSeps,
+        Ellipsis,
+        TSeps,
+        not_at<seq<string<'o','n'>, not_at<NameContinue>>>,
+        Name,
+        opt<DirectivesConst>
+    > {};
+
+    /// @see GraphQL Spec §2.8.2: "InlineFragment" — `... TypeCondition? Directives? SelectionSet`
+    struct InlineFragment : seq<
+        TSeps,
+        Ellipsis,
+        TSeps,
+        opt<TypeCondition>,
+        opt<DirectivesConst>,
+        TSeps,
+        SelectionSet
+    > {};
+
     struct FieldDefinition : SeqWithComments<
         TSeps,
         opt<Description>,
@@ -504,10 +532,92 @@ namespace isched::v0_0_1::gql {
         FieldsDefinition
     > {};
 
+    /// @see GraphQL Spec §3.6: "InterfaceTypeDefinition"
+    struct InterfaceTypeDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        string<'i','n','t','e','r','f','a','c','e'>,
+        Name,
+        opt<ImplementsInterfaces>,
+        opt<DirectivesConst>,
+        opt<FieldsDefinition>
+    > {};
+
+    /// @see GraphQL Spec §3.7: "UnionMemberTypes" — `= |? NamedType (| NamedType)*`
+    struct UnionMemberTypes : seq<
+        TSeps,
+        one<'='>,
+        TSeps,
+        opt<seq<one<'|'>, TSeps>>,
+        NamedType,
+        star<seq<TSeps, one<'|'>, TSeps, NamedType>>
+    > {};
+
+    /// @see GraphQL Spec §3.7: "UnionTypeDefinition"
+    struct UnionTypeDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        string<'u','n','i','o','n'>,
+        Name,
+        opt<DirectivesConst>,
+        UnionMemberTypes
+    > {};
+
+    /// @see GraphQL Spec §3.8: "EnumValueDefinition" — `Description? EnumValue Directives?`
+    struct EnumValueDefinition : seq<
+        TSeps,
+        opt<Description>,
+        TSeps,
+        Name,
+        opt<DirectivesConst>
+    > {};
+
+    /// @see GraphQL Spec §3.8: "EnumValuesDefinition" — `{ EnumValueDefinition+ }`
+    struct EnumValuesDefinition : seq<
+        TSeps,
+        Beg,
+        TSeps,
+        plus<seq<EnumValueDefinition, TSeps>>,
+        End
+    > {};
+
+    /// @see GraphQL Spec §3.8: "EnumTypeDefinition"
+    struct EnumTypeDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        string<'e','n','u','m'>,
+        Name,
+        opt<DirectivesConst>,
+        EnumValuesDefinition
+    > {};
+
+    /// @see GraphQL Spec §3.10: "InputFieldsDefinition" — `{ InputValueDefinition* }`
+    struct InputFieldsDefinition : seq<
+        TSeps,
+        Beg,
+        TSeps,
+        star<seq<InputValueDefinition, TSeps>>,
+        End
+    > {};
+
+    /// @see GraphQL Spec §3.10: "InputObjectTypeDefinition"
+    struct InputObjectTypeDefinition : SeqWithComments<
+        TSeps,
+        opt<Description>,
+        string<'i','n','p','u','t'>,
+        Name,
+        opt<DirectivesConst>,
+        InputFieldsDefinition
+    > {};
+
     /// TypeDefinition (demo): 'type' Name '{' Field+ '}' with separators.
     struct TypeDefinition : sor<
         ScalarTypeDefinition,
-        ObjectTypeDefinition
+        ObjectTypeDefinition,
+        InterfaceTypeDefinition,
+        UnionTypeDefinition,
+        EnumTypeDefinition,
+        InputObjectTypeDefinition
     >{};
     /** @} */
 
@@ -539,8 +649,8 @@ namespace isched::v0_0_1::gql {
     // SelectionSet is already defined above at line 494
     // struct SelectionSet : GqlSubQuery {};
 
-    // Placeholders for future expansion (optional in places used)
-    struct VariablesDefinition : seq<> {};
+    // VariablesDefinition delegates to VariableDefinitions (the real rule)
+    struct VariablesDefinition : VariableDefinitions {};
 
     /** @defgroup gql_directives GraphQL directives (const) and values
      *  @brief Directive syntax used in schema/type-system positions and const values.
@@ -587,8 +697,20 @@ namespace isched::v0_0_1::gql {
     /** @} */
     // @see GraphQL Spec: "Description"
     struct Description : StringValue {};
-    // Placeholder disabled to prevent empty matches that could cause non-consuming loops in Document
-    struct FragmentDefinition : failure {};
+    /// @see GraphQL Spec §2.8.1: "FragmentDefinition" — `fragment FragmentName on TypeCondition Directives? SelectionSet`
+    /// FragmentName is Name but not `on`.
+    struct FragmentDefinition : seq<
+        TSeps,
+        string<'f','r','a','g','m','e','n','t'>,
+        TSeps,
+        not_at<seq<string<'o','n'>, not_at<NameContinue>>>,
+        Name,
+        TSeps,
+        TypeCondition,
+        opt<DirectivesConst>,
+        TSeps,
+        SelectionSet
+    > {};
 
     /** @defgroup gql_schema GraphQL schema/type-system and operation definitions
      *  @brief SchemaDefinition and related rules (plus OperationDefinition used in tests).
@@ -654,7 +776,88 @@ namespace isched::v0_0_1::gql {
             opt<seq<TSeps, string<'o','n'>, TSeps, DirectiveLocations>>,
             TSeps
     > {};
-    struct TypeSystemExtension : failure {};
+    /// @see GraphQL Spec §3.2.1: \"ObjectTypeExtension\"
+    struct ObjectTypeExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'t','y','p','e'>,
+        Name,
+        opt<ImplementsInterfaces>,
+        opt<DirectivesConst>,
+        opt<FieldsDefinition>
+    > {};
+
+    /// @see GraphQL Spec §3.6.1: \"InterfaceTypeExtension\"
+    struct InterfaceTypeExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'i','n','t','e','r','f','a','c','e'>,
+        Name,
+        opt<ImplementsInterfaces>,
+        opt<DirectivesConst>,
+        opt<FieldsDefinition>
+    > {};
+
+    /// @see GraphQL Spec §3.7.1: \"UnionTypeExtension\"
+    struct UnionTypeExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'u','n','i','o','n'>,
+        Name,
+        opt<DirectivesConst>,
+        opt<UnionMemberTypes>
+    > {};
+
+    /// @see GraphQL Spec §3.8.1: \"EnumTypeExtension\"
+    struct EnumTypeExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'e','n','u','m'>,
+        Name,
+        opt<DirectivesConst>,
+        opt<EnumValuesDefinition>
+    > {};
+
+    /// @see GraphQL Spec §3.10.1: \"InputObjectTypeExtension\"
+    struct InputObjectTypeExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'i','n','p','u','t'>,
+        Name,
+        opt<DirectivesConst>,
+        opt<InputFieldsDefinition>
+    > {};
+
+    /// @see GraphQL Spec §3.4.1: \"ScalarTypeExtension\"
+    struct ScalarTypeExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'s','c','a','l','a','r'>,
+        Name,
+        DirectivesConst
+    > {};
+
+    /// @see GraphQL Spec §3.5.1: \"SchemaExtension\" — `extend schema Directives? { RootOperationTypeDefinition* }`
+    struct SchemaExtension : SeqWithComments<
+        TSeps,
+        string<'e','x','t','e','n','d'>,
+        string<'s','c','h','e','m','a'>,
+        opt<DirectivesConst>,
+        Beg,
+        star<seq<RootOperationTypeDefinition, TSeps>>,
+        End
+    > {};
+
+    /// @see GraphQL Spec §3.12–3.13: \"TypeSystemExtension\"
+    struct TypeSystemExtension : sor<
+        SchemaExtension,
+        ObjectTypeExtension,
+        InterfaceTypeExtension,
+        UnionTypeExtension,
+        EnumTypeExtension,
+        InputObjectTypeExtension,
+        ScalarTypeExtension
+    > {};
 
     /// @see GraphQL Spec: "SchemaDefinition"
     struct SchemaDefinition : SeqWithComments<
@@ -732,7 +935,19 @@ namespace isched::v0_0_1::gql {
             // String terminal
             StringValue,
             // Token
-            Token
+            Token,
+            // Fragment rules (T-GQL-011)
+            TypeCondition, FragmentSpread, InlineFragment, FragmentDefinition,
+            // Type-system definitions (T-GQL-012)
+            InterfaceTypeDefinition, UnionTypeDefinition, UnionMemberTypes,
+            EnumTypeDefinition, EnumValueDefinition, EnumValuesDefinition,
+            InputObjectTypeDefinition, InputFieldsDefinition,
+            // Type extensions (T-GQL-013)
+            ObjectTypeExtension, InterfaceTypeExtension, UnionTypeExtension,
+            EnumTypeExtension, InputObjectTypeExtension, ScalarTypeExtension,
+            SchemaExtension, TypeSystemExtension,
+            // Variable definitions
+            Variable, VariableDefinition, VariableDefinitions
         >
     >;
 

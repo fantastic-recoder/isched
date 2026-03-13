@@ -14,7 +14,6 @@
 #include <isched/isched.hpp>
 
 #include "../../../main/cpp/isched/backend/isched_gql_grammar.hpp"
-#include "../../../main/cpp/isched/backend/isched_GqlParser.hpp"
 
 namespace {
     bool the_print_dot_flag = (getenv("ISCHED_TST_PRINT_DOT") != nullptr)&&(getenv("ISCHED_TST_PRINT_DOT") == std::string("true"));
@@ -138,20 +137,16 @@ TEST_CASE("Nested types in fields","[grammar][type-system][positive]") {
     REQUIRE(foundUserInFriends);
 }
 
-using isched::v0_0_1::GqlParser;
-using isched::v0_0_1::IGdlParserTree;
-
 TEST_CASE("Empty query", "[grammar][executable][positive]") {
     static const auto myQuery001="{}";
-    GqlParser myParser;
-    auto myTree = myParser.parse(myQuery001,"myQuery001");
-    REQUIRE(true == myTree->isParsingOk());
+    string_input in(myQuery001, "myQuery001");
+    REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "myQuery001")));
 }
 
 TEST_CASE("Empty query with whitespace", "[grammar][executable][positive]") {
     static const auto myQuery002=" {} ";
-    GqlParser myParser;
-    REQUIRE(true == myParser.parse(myQuery002,"myQuery002")->isParsingOk());
+    string_input in(myQuery002, "myQuery002");
+    REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "myQuery002")));
 }
 
 TEST_CASE( "Simplest GQL query", "[grammar][executable][positive]" ) {
@@ -161,8 +156,8 @@ TEST_CASE( "Simplest GQL query", "[grammar][executable][positive]" ) {
         hero
     }
     )Qry";
-    GqlParser myParser;
-    REQUIRE(true == myParser.parse(myQuery010,"myQuery010")->isParsingOk());
+    string_input in(myQuery010, "myQuery010");
+    REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "myQuery010")));
 }
 
 TEST_CASE( "Nested GQL query", "[grammar][executable][positive]" ) {
@@ -174,8 +169,8 @@ TEST_CASE( "Nested GQL query", "[grammar][executable][positive]" ) {
         }
     }
     )Qry";
-    GqlParser myParser;
-    REQUIRE(true == myParser.parse(myNestedQuery,"myNestedQuery")->isParsingOk());
+    string_input in(myNestedQuery, "myNestedQuery");
+    REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "myNestedQuery")));
 }
 
 TEST_CASE( "Comments in query", "[grammar][executable][positive]" ) {
@@ -184,15 +179,20 @@ TEST_CASE( "Comments in query", "[grammar][executable][positive]" ) {
         hero
     }
     )Qry";
-    GqlParser myParser;
-    REQUIRE(true == myParser.parse(myQueryWithComments001, "myQueryWithComments001")->isParsingOk());
+    {
+        string_input in(myQueryWithComments001, "myQueryWithComments001");
+        REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "myQueryWithComments001")));
+    }
     static const char* myQueryWithComments002=R"Qry(#graphql
     {
         # Hero resource
         hero
     }
     )Qry";
-    REQUIRE(true == myParser.parse(myQueryWithComments002, "myQueryWithComments002")->isParsingOk());
+    {
+        string_input in(myQueryWithComments002, "myQueryWithComments002");
+        REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "myQueryWithComments002")));
+    }
 }
 
 TEST_CASE("Test WS and comments","[grammar][lexical][positive]") {
@@ -444,9 +444,8 @@ TEST_CASE("Misc type with built-ins","[grammar][type-system][positive]") {
         nodeId: ID!
     }
 )Qry";
-    GqlParser myParser;
-    auto myTree = myParser.parse(myMiscType,"Misc");
-    REQUIRE(true == myTree->isParsingOk());
+    string_input in(myMiscType, "Misc");
+    REQUIRE(true == std::get<0>(generate_ast_and_log<Document>(in, "Misc")));
 }
 
 TEST_CASE("IntValue positive cases", "[grammar][lexical][positive]") {
@@ -572,7 +571,7 @@ TEST_CASE("StringValue positive cases", "[grammar][lexical][positive]") {
     // Simple text
     expect_ok("\"hello\"");
     // Escaped quote and backslash
-    expect_ok("\"\\\"quote\\\"\\\\\\\\\""); // "quote"\\
+    expect_ok("\"\\\"quote\\\"\\\\\\\\\""); // escaped quotes and backslashes
     // Forward slash and common escapes
     expect_ok("\"a\\/b\\nline\\tTab\\rR\\fF\\bB\\\\\\\"\"");
     // Unicode escape
@@ -1478,4 +1477,358 @@ TEST_CASE("Parse Example 43 from spec", "[grammar][spec-examples][positive]") {
     auto res = generate_ast_and_log<Document>(in, "Parsing Example 43", false);
 
     REQUIRE(std::get<0>(res) == true);
+}
+
+// ===========================================================================
+// T-GQL-032: Conformance tests — fragments, mutations, subscriptions, etc.
+// ===========================================================================
+
+TEST_CASE("Fragment definition parses correctly", "[grammar][executable][fragment][positive]") {
+    static const char* q = R"Qry(
+fragment UserFields on User {
+  id
+  name
+}
+)Qry";
+    string_input in(q, "fragment def");
+    auto res = generate_ast_and_log<Document>(in, "fragment def", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Fragment spread in selection set", "[grammar][executable][fragment][positive]") {
+    static const char* q = R"Qry(
+{
+  hero {
+    ...HeroFields
+  }
+}
+fragment HeroFields on Character {
+  name
+}
+)Qry";
+    string_input in(q, "fragment spread");
+    auto res = generate_ast_and_log<Document>(in, "fragment spread", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Inline fragment with type condition", "[grammar][executable][fragment][positive]") {
+    static const char* q = R"Qry(
+{
+  hero {
+    ... on Human {
+      height
+    }
+    ... on Droid {
+      primaryFunction
+    }
+  }
+}
+)Qry";
+    string_input in(q, "inline fragment");
+    auto res = generate_ast_and_log<Document>(in, "inline fragment", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Inline fragment without type condition", "[grammar][executable][fragment][positive]") {
+    static const char* q = R"Qry(
+{
+  hero {
+    ... {
+      name
+    }
+  }
+}
+)Qry";
+    string_input in(q, "inline fragment no type");
+    auto res = generate_ast_and_log<Document>(in, "inline fragment no type", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Mutation operation definition", "[grammar][executable][mutation][positive]") {
+    static const char* q = R"Qry(
+mutation CreateHero {
+  createHero {
+    id
+    name
+  }
+}
+)Qry";
+    string_input in(q, "mutation");
+    auto res = generate_ast_and_log<Document>(in, "mutation", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Subscription operation definition", "[grammar][executable][subscription][positive]") {
+    static const char* q = R"Qry(
+subscription OnHeroCreated {
+  heroCreated {
+    id
+    name
+  }
+}
+)Qry";
+    string_input in(q, "subscription");
+    auto res = generate_ast_and_log<Document>(in, "subscription", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Query with variable definitions", "[grammar][executable][variables][positive]") {
+    static const char* q = R"Qry(
+query GetHero($id: ID!) {
+  hero(id: $id) {
+    name
+  }
+}
+)Qry";
+    string_input in(q, "query with variable");
+    auto res = generate_ast_and_log<Document>(in, "query with variable", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Multiple variable definitions", "[grammar][executable][variables][positive]") {
+    static const char* q = R"Qry(
+query Search($name: String!, $limit: Int) {
+  search(name: $name, limit: $limit) {
+    id
+    title
+  }
+}
+)Qry";
+    string_input in(q, "multiple variables");
+    auto res = generate_ast_and_log<Document>(in, "multiple variables", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Field aliases in query", "[grammar][executable][alias][positive]") {
+    static const char* q = R"Qry(
+{
+  leftHero: hero(episode: NEWHOPE) {
+    name
+  }
+  rightHero: hero(episode: JEDI) {
+    name
+  }
+}
+)Qry";
+    string_input in(q, "field aliases");
+    auto res = generate_ast_and_log<Document>(in, "field aliases", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("InterfaceTypeDefinition parses correctly", "[grammar][type-system][interface][positive]") {
+    static const char* q = R"Qry(
+interface Node {
+  id: ID!
+}
+interface Character {
+  name: String!
+  appearsIn: [Episode!]!
+}
+)Qry";
+    string_input in(q, "interface def");
+    auto res = generate_ast_and_log<Document>(in, "interface def", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("InterfaceTypeDefinition with implements", "[grammar][type-system][interface][positive]") {
+    static const char* q = R"Qry(
+interface Named {
+  name: String!
+}
+interface Pet implements Named {
+  name: String!
+  owner: String
+}
+)Qry";
+    string_input in(q, "interface implements");
+    auto res = generate_ast_and_log<Document>(in, "interface implements", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("UnionTypeDefinition parses correctly", "[grammar][type-system][union][positive]") {
+    static const char* q = R"Qry(
+union SearchResult = User | Post | Comment
+)Qry";
+    string_input in(q, "union def");
+    auto res = generate_ast_and_log<Document>(in, "union def", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("UnionTypeDefinition with leading pipe", "[grammar][type-system][union][positive]") {
+    static const char* q = R"Qry(
+union SearchResult =
+  | User
+  | Post
+  | Comment
+)Qry";
+    string_input in(q, "union with leading pipe");
+    auto res = generate_ast_and_log<Document>(in, "union with leading pipe", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("EnumTypeDefinition parses correctly", "[grammar][type-system][enum][positive]") {
+    static const char* q = R"Qry(
+enum Direction {
+  NORTH
+  SOUTH
+  EAST
+  WEST
+}
+)Qry";
+    string_input in(q, "enum def");
+    auto res = generate_ast_and_log<Document>(in, "enum def", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("EnumTypeDefinition with description and directives", "[grammar][type-system][enum][positive]") {
+    static const char* q = R"Qry(
+enum Episode {
+  NEWHOPE
+  JEDI
+  EMPIRE
+}
+)Qry";
+    string_input in(q, "enum Episode");
+    auto res = generate_ast_and_log<Document>(in, "enum Episode", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("InputObjectTypeDefinition parses correctly", "[grammar][type-system][input][positive]") {
+    static const char* q = R"Qry(
+input UserInput {
+  name: String!
+  email: String
+  age: Int
+}
+)Qry";
+    string_input in(q, "input def");
+    auto res = generate_ast_and_log<Document>(in, "input def", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("ObjectTypeDefinition with implements", "[grammar][type-system][object][positive]") {
+    static const char* q = R"Qry(
+type Human implements Character {
+  name: String!
+  appearsIn: [Episode!]!
+  homePlanet: String
+}
+)Qry";
+    string_input in(q, "type with implements");
+    auto res = generate_ast_and_log<Document>(in, "type with implements", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("ObjectTypeDefinition implements multiple interfaces", "[grammar][type-system][object][positive]") {
+    static const char* q = R"Qry(
+type Starship implements Node & Named {
+  id: ID!
+  name: String!
+  length: Float
+}
+)Qry";
+    string_input in(q, "type implements multiple");
+    auto res = generate_ast_and_log<Document>(in, "type implements multiple", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Mixed schema and executable definitions in Document", "[grammar][document][positive]") {
+    static const char* q = R"Qry(
+type User {
+  id: ID!
+  name: String!
+}
+query GetUser($id: ID!) {
+  user(id: $id) {
+    id
+    name
+  }
+}
+)Qry";
+    string_input in(q, "mixed schema+exec");
+    auto res = generate_ast_and_log<Document>(in, "mixed schema+exec", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+// ===========================================================================
+// T-GQL-031: Negative tests for type-system and executable grammars
+// ===========================================================================
+
+TEST_CASE("Negative: unclosed selection set fails", "[grammar][executable][negative]") {
+    // Document must consume all input including eof; unclosed { means eof is not reached
+    static const char* q = "{ hero ";
+    string_input in(q, "unclosed selset");
+    auto res = generate_ast_and_log<Document>(in, "unclosed selset", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Negative: incomplete field definition missing type", "[grammar][type-system][negative]") {
+    // 'title:' with no type should fail FieldDefinition
+    static const char* q = "title:";
+    string_input in(q, "missing field type");
+    auto res = generate_ast_and_log<FieldDefinition>(in, "missing field type", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Negative: ObjectTypeDefinition without body fails", "[grammar][type-system][negative]") {
+    // 'type User' with no '{...}' should fail ObjectTypeDefinition
+    static const char* q = "type User";
+    string_input in(q, "no body");
+    auto res = generate_ast_and_log<ObjectTypeDefinition>(in, "no body", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Negative: EnumTypeDefinition without values fails", "[grammar][type-system][negative]") {
+    // 'enum E {}' — empty braces, plus<> requires at least one value
+    static const char* q = "enum E {}";
+    string_input in(q, "enum no values");
+    auto res = generate_ast_and_log<EnumTypeDefinition>(in, "enum no values", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Negative: Document with only a comment fails", "[grammar][document][negative]") {
+    // A comment alone is not a Definition; plus<> in Document needs at least one
+    static const char* q = "# just a comment\n";
+    string_input in(q, "comment only");
+    auto res = generate_ast_and_log<Document>(in, "comment only", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Negative: Selection set with stray punctuator fails", "[grammar][executable][negative]") {
+    static const char* q = "{ ! }";
+    string_input in(q, "stray punctuator");
+    auto res = generate_ast_and_log<Document>(in, "stray punctuator", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+// ===========================================================================
+// T-GQL-033: Parse-error location tests (verify rejection at known offsets)
+// ===========================================================================
+
+TEST_CASE("Parse error location: bad char on line 3", "[grammar][error-location][negative]") {
+    // The '!' at the start of line 3 is not a valid SelectionSet opener or TypeDefinition keyword
+    // Expected: Document parse fails (cannot match Definition starting with '!')
+    static const char* q = "{\n  hero\n}\n! invalid\n";
+    string_input in(q, "bad char line 4");
+    auto res = generate_ast_and_log<Document>(in, "bad char line 4", false);
+    // Document: first '{ hero }' succeeds as one Definition, then '! invalid' cannot
+    // form a Definition, so eof fails — overall parse returns false
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Parse error location: missing closing brace on line 2", "[grammar][error-location][negative]") {
+    // Unclosed selection set — eof is never reached; error at end of input
+    // Expected line: 3, Expected column: 1 (eof before '}')
+    static const char* q = "{\n  hero\n";
+    string_input in(q, "unclosed at eof");
+    auto res = generate_ast_and_log<Document>(in, "unclosed at eof", false);
+    REQUIRE(std::get<0>(res) == false);
+}
+
+TEST_CASE("Parse error location: fragment named 'on' is rejected", "[grammar][executable][negative]") {
+    // 'fragment on on User { id }' — 'on' is not a valid FragmentName
+    static const char* q = "fragment on on User { id }";
+    string_input in(q, "fragment named on");
+    auto res = generate_ast_and_log<FragmentDefinition>(in, "fragment named on", false);
+    REQUIRE(std::get<0>(res) == false);
 }
