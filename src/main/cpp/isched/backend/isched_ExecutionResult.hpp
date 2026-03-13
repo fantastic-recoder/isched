@@ -15,6 +15,7 @@
 
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <variant>
 #include <vector>
 
 #include "isched_gql_error.hpp"
@@ -24,10 +25,25 @@ namespace isched::v0_0_1::backend {
     inline nlohmann::json ec_to_json(const gql::TErrorVector& pErrors) {
         nlohmann::json result = nlohmann::json::array();
         for (const auto& error : pErrors) {
-            result.push_back(nlohmann::json{
+            nlohmann::json err{
                 {"message", error.message},
                 {"code", static_cast<int>(error.code)}
-            });
+            };
+            if (!error.locations.empty()) {
+                auto locs = nlohmann::json::array();
+                for (const auto& loc : error.locations) {
+                    locs.push_back({{"line", loc.line}, {"column", loc.column}});
+                }
+                err["locations"] = std::move(locs);
+            }
+            if (!error.path.empty()) {
+                auto path_arr = nlohmann::json::array();
+                for (const auto& elem : error.path) {
+                    std::visit([&path_arr](const auto& v) { path_arr.push_back(v); }, elem);
+                }
+                err["path"] = std::move(path_arr);
+            }
+            result.push_back(std::move(err));
         }
         return result;
     }

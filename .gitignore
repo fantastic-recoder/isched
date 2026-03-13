@@ -65,3 +65,4 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 /.output.txt
+nohup.out

@@ -65,14 +65,14 @@ Each task implementation MUST verify:
 - [x] T-GQL-008 [P] Implement executable definition rules: `OperationType`, `SelectionSet`, `Field`, `Alias`, `Arguments`, `GqlQuery`, `VariableDefinitions`, `VariableDefinition`
 - [x] T-GQL-009 [P] Implement schema definition rules: `SchemaDefinition`, `RootOperationTypeDefinition`
 - [x] T-GQL-010 [P] Implement top-level `Document` entry point
-- [ ] T-GQL-011 [P] Implement fragment rules: `FragmentDefinition`, `FragmentSpread`, `InlineFragment`, `TypeCondition`
-- [ ] T-GQL-012 [P] Implement remaining type-system definitions: `InterfaceTypeDefinition`, `UnionTypeDefinition`, `EnumTypeDefinition`, `InputObjectTypeDefinition`
-- [ ] T-GQL-013 [P] Implement type extension rules: `ObjectTypeExtension`, `InterfaceTypeExtension`, `UnionTypeExtension`, `EnumTypeExtension`, `InputObjectTypeExtension`, `ScalarTypeExtension`
-- [ ] T-GQL-014 [P] Ensure `Selection` rule matches all three variants: `Field`, `FragmentSpread`, `InlineFragment`
+- [x] T-GQL-011 [P] Implement fragment rules: `FragmentDefinition`, `FragmentSpread`, `InlineFragment`, `TypeCondition`
+- [x] T-GQL-012 [P] Implement remaining type-system definitions: `InterfaceTypeDefinition`, `UnionTypeDefinition`, `EnumTypeDefinition`, `InputObjectTypeDefinition`
+- [x] T-GQL-013 [P] Implement type extension rules: `ObjectTypeExtension`, `InterfaceTypeExtension`, `UnionTypeExtension`, `EnumTypeExtension`, `InputObjectTypeExtension`, `ScalarTypeExtension`
+- [x] T-GQL-014 [P] Ensure `Selection` rule matches all three variants: `Field`, `FragmentSpread`, `InlineFragment`
 
 ### Parser integration
 
-- [ ] T-GQL-020 [P] Remove `isched_GqlParser.hpp` and `isched_GqlParser.cpp` — `GqlExecutor` owns PEGTL grammar invocation directly via `isched_gql_grammar.hpp`; also remove `IGdlParserTree` if it is only referenced by `GqlParser`
+- [x] T-GQL-020 [P] Remove `isched_GqlParser.hpp` and `isched_GqlParser.cpp` — `GqlExecutor` owns PEGTL grammar invocation directly via `isched_gql_grammar.hpp`; also remove `IGdlParserTree` if it is only referenced by `GqlParser`
 - ~~T-GQL-021~~ **Eliminated** — `GqlExecutor` already calls PEGTL directly; no separate `GqlParser` integration layer is needed
 - [ ] T-GQL-022 [P] Verify parse-error conversion in `GqlExecutor`: PEGTL parse errors MUST become standards-compliant GraphQL error objects with `message` and `locations` before reaching transport (no `GqlParser` layer required)
 - [ ] T-GQL-023 [P] Use `GqlExecutor`'s PEGTL grammar for SDL schema validation in the configuration snapshot subsystem (not a regex or string-match approach)
@@ -80,9 +80,9 @@ Each task implementation MUST verify:
 ### Grammar test coverage
 
 - [x] T-GQL-030 Maintain positive-case grammar tests in `isched_grammar_tests.cpp` for: lexical elements, numeric literals, string literals, type system, executable queries, schema documents
-- [ ] T-GQL-031 [P] Add negative/rejection tests for every major grammar group (invalid tokens, malformed strings, bad numeric formats, unclosed braces)
-- [ ] T-GQL-032 [P] Add spec-derived conformance tests: multi-level selection sets, inline fragments, named fragments, mutations, subscriptions, operation variables, aliases
-- [ ] T-GQL-033 [P] Add parse-error-message tests: verify location information (`line`, `column`) and message text in `IGdlParserTree` rejection results
+- [x] T-GQL-031 [P] Add negative/rejection tests for every major grammar group (invalid tokens, malformed strings, bad numeric formats, unclosed braces)
+- [x] T-GQL-032 [P] Add spec-derived conformance tests: multi-level selection sets, inline fragments, named fragments, mutations, subscriptions, operation variables, aliases
+- [x] T-GQL-033 [P] Add parse-error-message tests: verify location information (`line`, `column`) and message text in `IGdlParserTree` rejection results
 
 **Checkpoint**: Custom PEGTL parser is complete, owned directly by `GqlExecutor`, `GqlParser` facade removed, standards-compliant parse errors verified, grammar conformance tests pass. `ctest` MUST be green before moving to Phase 1c.
 

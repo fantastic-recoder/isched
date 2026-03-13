@@ -729,11 +729,13 @@ namespace isched::v0_0_1::backend {
     void GqlExecutor::log_parse_error_exception(const tao::pegtl::string_input<> &in, ExecutionResult &myResult,
                                                 const tao::pegtl::parse_error &e) const {
         const auto p = e.positions().front();
-        spdlog::error("Parse error: {} at {}:{}", e.what(), in.line_at(p), p.column);
+        const int line   = static_cast<int>(p.line);
+        const int column = static_cast<int>(p.column);
+        spdlog::error("Parse error: {} at {}:{}", e.what(), line, column);
         myResult.errors.push_back(gql::Error{
-            gql::EErrorCodes::PARSE_ERROR,
-            std::format("Error parsing schema: message={}, line={} column={}.",
-                        e.what(), in.line_at(p), p.column)
+            .code      = gql::EErrorCodes::PARSE_ERROR,
+            .message   = std::string(e.what()),
+            .locations = {{line, column}},
         });
     }
 

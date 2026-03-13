@@ -14,6 +14,7 @@
 #define ISCHED_E_ERROR_CODES_HPP
 
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace isched::v0_0_1::gql {
@@ -23,9 +24,20 @@ namespace isched::v0_0_1::gql {
         MISSING_GQL_RESOLVER = 2, PARSE_ERROR = 3, EXECUTABLE_DEF_NOT_ALLOWED =4, ARGUMENT_ERROR
     };
 
+    /// Source location used in GraphQL error objects (per GraphQL over HTTP spec).
+    struct ErrorLocation {
+        int line{0};
+        int column{0};
+    };
+
+    /// Path element is either a field name (string) or a list index (int).
+    using ErrorPath = std::vector<std::variant<std::string, int>>;
+
     struct Error {
         EErrorCodes code = EErrorCodes::UNKNOWN_ERROR;
         std::string message{};
+        std::vector<ErrorLocation> locations{};
+        ErrorPath path{};
     };
 
     using TErrorVector = std::vector<Error>;

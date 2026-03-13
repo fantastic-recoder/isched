@@ -12,7 +12,6 @@
  * implementation (`__schema`, `__type`).
  *
  * @see isched_gql_grammar.hpp  PEGTL grammar consumed by this class.
- * @see isched_GqlParser.hpp    Parser facade.
  */
 
 #ifndef ISCHED_GQL_PROCESSOR_HPP
