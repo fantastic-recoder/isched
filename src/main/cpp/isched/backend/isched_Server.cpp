@@ -410,6 +410,12 @@ public:
         DatabaseManager::Config db_config;
         db_config.base_path = config.work_directory + "/tenants";
         database = std::make_shared<DatabaseManager>(db_config);
+
+        // T047-000: create / open platform-level system database on startup
+        if (auto res = database->ensure_system_db(); !res) {
+            spdlog::warn("Server::Impl: ensure_system_db failed (will retry on next request)");
+        }
+
         gql_executor = GqlExecutor::create(database);
         subscription_broker = SubscriptionBroker::create();
         gql_executor->set_subscription_broker(subscription_broker.get());

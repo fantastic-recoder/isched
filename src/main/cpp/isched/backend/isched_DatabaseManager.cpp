@@ -990,4 +990,104 @@ DatabaseManager::get_config_snapshot(const std::string& snapshot_id) const
     return DatabaseResult<std::optional<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
 }
 
+// ============================================================================
+// System database (T047-000)
+// ============================================================================
+
+DatabaseResult<void> DatabaseManager::ensure_system_db() {
+    std::lock_guard<std::mutex> lock(system_db_mutex_);
+
+    if (system_db_initialized_) {
+        return DatabaseResult<void>{};
+    }
+
+    // Determine path: <DataHome>/isched/isched_system.db
+    const std::string system_db_dir  = getDataHome() + "/isched";
+    const std::string system_db_path = system_db_dir + "/isched_system.db";
+
+    // Ensure the directory exists
+    std::error_code ec;
+    std::filesystem::create_directories(system_db_dir, ec);
+    if (ec) {
+        spdlog::error("ensure_system_db: cannot create directory '{}': {}", system_db_dir, ec.message());
+        return DatabaseError::ConnectionFailed;
+    }
+
+    // Open/create the SQLite file
+    sqlite3* raw_db = nullptr;
+    int rc = sqlite3_open_v2(
+        system_db_path.c_str(), &raw_db,
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+        nullptr);
+    if (rc != SQLITE_OK) {
+        if (raw_db) { sqlite3_close_v2(raw_db); }
+        spdlog::error("ensure_system_db: sqlite3_open_v2 failed for '{}'", system_db_path);
+        return DatabaseError::ConnectionFailed;
+    }
+    system_db_ = SqliteConnection{raw_db};
+
+    // Apply pragmas for durability and concurrency
+    const char* pragmas =
+        "PRAGMA journal_mode=WAL;"
+        "PRAGMA synchronous=NORMAL;"
+        "PRAGMA foreign_keys=ON;";
+    sqlite3_exec(system_db_.get(), pragmas, nullptr, nullptr, nullptr);
+
+    // Create platform tables (idempotent)
+    const char* ddl = R"sql(
+        CREATE TABLE IF NOT EXISTS platform_admins (
+            id            TEXT PRIMARY KEY,
+            email         TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            display_name  TEXT NOT NULL DEFAULT '',
+            is_active     INTEGER NOT NULL DEFAULT 1,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            last_login    TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS platform_roles (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL UNIQUE,
+            description TEXT NOT NULL DEFAULT '',
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS organizations (
+            id                TEXT PRIMARY KEY,
+            name              TEXT NOT NULL,
+            domain            TEXT,
+            subscription_tier TEXT NOT NULL DEFAULT 'free',
+            user_limit        INTEGER NOT NULL DEFAULT 10,
+            storage_limit     INTEGER NOT NULL DEFAULT 1073741824,
+            created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    )sql";
+
+    rc = sqlite3_exec(system_db_.get(), ddl, nullptr, nullptr, nullptr);
+    if (rc != SQLITE_OK) {
+        spdlog::error("ensure_system_db: DDL failed: {}", sqlite3_errmsg(system_db_.get()));
+        system_db_.reset();
+        return DatabaseError::SchemaValidationFailed;
+    }
+
+    // Seed the four built-in platform roles (idempotent via INSERT OR IGNORE)
+    const char* seed_sql = R"sql(
+        INSERT OR IGNORE INTO platform_roles (id, name, description) VALUES
+            ('role_platform_admin', 'platform_admin', 'Full platform administration access'),
+            ('role_tenant_admin',   'tenant_admin',   'Administration access for a single organization'),
+            ('role_user',           'user',           'Standard authenticated user'),
+            ('role_service',        'service',        'Machine-to-machine service account');
+    )sql";
+
+    rc = sqlite3_exec(system_db_.get(), seed_sql, nullptr, nullptr, nullptr);
+    if (rc != SQLITE_OK) {
+        // Non-fatal: roles may already exist or the insert was partially applied
+        spdlog::warn("ensure_system_db: role seeding warning: {}", sqlite3_errmsg(system_db_.get()));
+    }
+
+    system_db_initialized_ = true;
+    spdlog::info("System database ready at: {}", system_db_path);
+    return DatabaseResult<void>{};
+}
+
 } // namespace isched::v0_0_1::backend

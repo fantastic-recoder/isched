@@ -609,6 +609,21 @@ public:
     [[nodiscard]] DatabaseResult<std::optional<ConfigurationSnapshot>>
     get_config_snapshot(const std::string& snapshot_id) const;
 
+    // -------------------------------------------------------------------------
+    // System database (T047-000)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Open (or create) the platform-level @c isched_system.db.
+     *
+     * Creates three tables on first call (idempotent via @c CREATE TABLE IF NOT
+     * EXISTS) and seeds the four built-in @c platform_roles rows.  Must be
+     * called once at server startup before any RBAC or organisation operation.
+     *
+     * Path: @c <DataHome>/isched/isched_system.db
+     */
+    [[nodiscard]] DatabaseResult<void> ensure_system_db();
+
 private:
     /**
      * @brief Get connection pool for tenant
@@ -644,7 +659,12 @@ private:
     bool config_store_initialized_{false};
 
     [[nodiscard]] DatabaseResult<sqlite3*> get_config_db() const;
-    
+
+    // System database — isched_system.db for platform-level entities
+    mutable std::mutex system_db_mutex_;
+    SqliteConnection system_db_;   ///< Opened/created by ensure_system_db()
+    bool system_db_initialized_{false};
+
     // Performance monitoring
     mutable std::atomic<std::size_t> total_queries_{0};
     mutable std::atomic<std::size_t> total_transactions_{0};

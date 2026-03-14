@@ -1006,6 +1006,36 @@ namespace isched::v0_0_1::backend {
                 return evt;
             });
 
+        // ---------------------------------------------------------------
+        // Phase 6 stub resolvers (T047-000a)
+        // Full implementations added in T047-009, T047-015, T047-016.
+        // ---------------------------------------------------------------
+        register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx&) -> json {
+            return nullptr; // not yet authenticated — implemented in T047-016
+        });
+        register_resolver({}, "user", [](const json&, const json&, const ResolverCtx&) -> json {
+            return nullptr; // implemented in T047-015
+        });
+        register_resolver({}, "users", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::array(); // implemented in T047-015
+        });
+        register_resolver({}, "organization", [](const json&, const json&, const ResolverCtx&) -> json {
+            return nullptr; // implemented in T047-009
+        });
+        register_resolver({}, "organizations", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::array(); // implemented in T047-009
+        });
+        register_resolver({}, "login", [](const json&, const json&, const ResolverCtx&) -> json {
+            // Stub: returns a shaped-but-empty AuthPayload until T047-016 is implemented.
+            json payload;
+            payload["token"]     = "";
+            payload["expiresAt"] = "";
+            return payload;
+        });
+        register_resolver({}, "logout", [](const json&, const json&, const ResolverCtx&) -> json {
+            return true; // stub — session revocation implemented in T049-003
+        });
+
         load_schema(BUILTIN_SCHEMA);
     }
 

@@ -172,6 +172,16 @@ type Query {
   activeConfiguration(tenantId: String!): SnapshotRecord
   """Full configuration history for a tenant"""
   configurationHistory(tenantId: String!): [SnapshotRecord!]!
+  """Currently authenticated user (null if unauthenticated)"""
+  currentUser: User
+  """Look up a user by ID (tenant_admin or platform_admin only)"""
+  user(id: ID!): User
+  """List all users in the caller's organization (tenant_admin or platform_admin only)"""
+  users: [User!]!
+  """Look up an organization by ID"""
+  organization(id: ID!): Organization
+  """List organizations (platform_admin sees all; tenant_admin sees own org)"""
+  organizations: [Organization!]!
 }
 
 """Root mutation type"""
@@ -184,6 +194,10 @@ type Mutation {
   activateSnapshot(id: String!): ConfigurationResult!
   """Roll back to the previous active snapshot for a tenant"""
   rollbackConfiguration(tenantId: String!): ConfigurationResult!
+  """Authenticate and receive a signed JWT"""
+  login(email: String!, password: String!, organizationId: ID): AuthPayload!
+  """Revoke the caller's current session"""
+  logout: Boolean!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -264,4 +278,85 @@ type ServerMetrics {
   memoryUsage: String
   """Active thread count"""
   threadCount: Int
+}
+
+# ---------------------------------------------------------------------------
+# Phase 6 — RBAC and User/Org types (T047-000a)
+# ---------------------------------------------------------------------------
+
+"""An authenticated user within an organization"""
+type User {
+  """Unique user identifier"""
+  id: ID!
+  """User email address"""
+  email: String!
+  """Display name"""
+  displayName: String!
+  """Assigned roles"""
+  roles: [String!]!
+  """Whether the account is enabled"""
+  isActive: Boolean!
+  """ISO-8601 creation timestamp"""
+  createdAt: String!
+  """ISO-8601 timestamp of last login (null if never)"""
+  lastLogin: String
+}
+
+"""A tenant organization"""
+type Organization {
+  """Unique organization identifier"""
+  id: ID!
+  """Display name"""
+  name: String!
+  """Optional domain name"""
+  domain: String
+  """Subscription tier (e.g. 'free', 'pro')"""
+  subscriptionTier: String!
+  """Maximum number of users"""
+  userLimit: Int!
+  """Storage limit in bytes"""
+  storageLimit: Int!
+  """ISO-8601 creation timestamp"""
+  createdAt: String!
+}
+
+"""Returned by the login mutation"""
+type AuthPayload {
+  """Signed JWT to include in subsequent Authorization: Bearer headers"""
+  token: String!
+  """ISO-8601 expiry time of the token"""
+  expiresAt: String!
+}
+
+"""Input for creating a new user"""
+input CreateUserInput {
+  email: String!
+  password: String!
+  displayName: String
+  roles: [String!]
+}
+
+"""Input for updating an existing user"""
+input UpdateUserInput {
+  displayName: String
+  roles: [String!]
+  isActive: Boolean
+}
+
+"""Input for creating a new organization"""
+input CreateOrganizationInput {
+  name: String!
+  domain: String
+  subscriptionTier: String
+  userLimit: Int
+  storageLimit: Int
+}
+
+"""Input for updating an existing organization"""
+input UpdateOrganizationInput {
+  name: String
+  domain: String
+  subscriptionTier: String
+  userLimit: Int
+  storageLimit: Int
 }

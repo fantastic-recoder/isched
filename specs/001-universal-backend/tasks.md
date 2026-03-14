@@ -281,12 +281,156 @@ Each task implementation MUST verify:
 
 **Purpose**: Cross-cutting capabilities required after the GraphQL-only baseline is functional.
 
-- [ ] T047 [P] Implement full tenant-scoped user and organization persistence
-- [ ] T048 [P] Implement outbound HTTP integration resolvers while preserving GraphQL as the only client-facing interface
-- [ ] T049 [P] Complete per-tenant session management and revocation in `isched_AuthenticationMiddleware.cpp`
-- [ ] T050 [P] Add adaptive worker-thread and subscription resource controls in `isched_TenantManager.cpp`
-- [ ] T051 [P] Add performance metrics surfaced through GraphQL queries or subscriptions
-- [ ] T052 [P] Add performance benchmark coverage in `src/test/cpp/performance/benchmark_suite.cpp` *(to be created)*
+---
+
+### T047: Tenant-scoped RBAC, User and Organization Persistence
+
+**Decisions recorded (2026-03-14)**:
+- Four built-in roles: `platform_admin`, `tenant_admin`, `user`, `service`; both `*_admin` roles may create additional custom roles scoped to their level (platform or tenant)
+- RBAC is enforced at the Query/Mutation operation level; `ResolverCtx` carries `user_id`, `user_name`, and `roles`
+- `Organization` is the partition boundary; all users/admins for an org live in that org's own SQLite file — no shared user table; a user in multiple orgs has separate per-partition records
+- All mutations require prior authentication; `Organization` create is `platform_admin`-only; update/delete by `tenant_admin` of that org
+- Password hashing: Argon2id via OpenSSL 3.x `EVP_KDF` — no new Conan dependency
+- Login: `login(email: String!, password: String!, organizationId: ID)` → `{ token: String!, expiresAt: String! }`; omitting `organizationId` signals platform-level login
+- **System DB (2026-03-14)**: a single `isched_system.db` SQLite file (path via `platformfolders`, owned by `DatabaseManager`) holds `platform_admins`, `platform_roles`, and `organizations`; created on first startup, never deleted; writable only by `platform_admin`
+
+#### System database
+
+- [x] T047-000 Define and create the `isched_system.db` bootstrap database in `DatabaseManager`: opened/created at server startup using the platform data directory (`platformfolders`); contains tables `platform_admins` (`id`, `email`, `password_hash`, `display_name`, `is_active`, `created_at`, `last_login`), `platform_roles` (`id`, `name`, `description`, `created_at`), and `organizations` (`id`, `name`, `domain`, `subscription_tier`, `user_limit`, `storage_limit`, `created_at`); document schema and lifecycle in `specs/001-universal-backend/data-model.md`; all writes require `platform_admin` role
+
+#### SDL schema additions for Phase 6 core types
+
+- [x] T047-000a [P] Add Phase 6 SDL type definitions to `isched_builtin_server_schema.graphql` before any Phase 6 resolver is implemented — this task is a prerequisite for T047-004 through T047-018; add: `type User { id: ID!, email: String!, displayName: String!, roles: [String!]!, isActive: Boolean!, createdAt: String!, lastLogin: String }`, `type Organization { id: ID!, name: String!, domain: String, subscriptionTier: String!, userLimit: Int!, storageLimit: Int!, createdAt: String! }`, `type AuthPayload { token: String!, expiresAt: String! }` (per T047 decision, not the 4-field variant in the old contract), mutations `login(email: String!, password: String!, organizationId: ID): AuthPayload!`, `logout: Boolean!`; input types `CreateUserInput`, `UpdateUserInput`, `CreateOrganizationInput`, `UpdateOrganizationInput`; verify the resulting SDL parses cleanly through `GqlExecutor` before proceeding
+
+#### Role infrastructure
+
+- [ ] T047-001 [P] Add `Role` enum (or string-based open enum) to `isched_AuthenticationMiddleware.hpp` representing `platform_admin`, `tenant_admin`, `user`, `service`; add storage for custom platform roles in `isched_system.db` (`platform_roles` table) and custom tenant roles in each tenant's SQLite schema
+- [ ] T047-002 [P] Extend `ResolverCtx` in `isched_GqlExecutor.hpp` with `user_id: std::string`, `user_name: std::string`, and `roles: std::vector<std::string>`; populate these fields from the validated JWT in `isched_Server.cpp` request dispatch
+- [ ] T047-003 [P] Implement operation-level RBAC gate in `isched_GqlExecutor.cpp`: before dispatching any Query or Mutation, evaluate `ResolverCtx::roles` against a per-operation `required_roles` annotation; reject with a GraphQL `FORBIDDEN` error if the caller lacks a required role
+- [ ] T047-004 [P] Add `createRole` and `deleteRole` mutations (scoped: `platform_admin` creates platform-scope roles; `tenant_admin` creates tenant-scope roles)
+
+#### Organization persistence
+
+- [ ] T047-005 [P] *(schema created by T047-000)* Implement `DatabaseManager` helper methods for CRUD on `organizations`, `platform_admins`, and `platform_roles` tables in `isched_system.db`; enforce `platform_admin`-only write access at the method level
+- [ ] T047-006 [P] Implement `createOrganization(name: String!, domain: String, subscriptionTier: String, userLimit: Int, storageLimit: Int)` mutation — `platform_admin` only; creates the org record and provisions the tenant SQLite file
+- [ ] T047-007 [P] Implement `updateOrganization(id: ID!, ...)` mutation — `tenant_admin` of that org; `platform_admin` may also update any org
+- [ ] T047-008 [P] Implement `deleteOrganization(id: ID!)` mutation — `tenant_admin` of that org (self-delete) or `platform_admin`; cascades to deprovisioning the tenant SQLite file
+- [ ] T047-009 [P] Implement `organization(id: ID!)` and `organizations` Query fields — `platform_admin` sees all; `tenant_admin` sees own org only
+
+#### User persistence
+
+- [ ] T047-010 [P] Create SQLite schema for `users` table in each tenant DB: `id`, `email`, `password_hash` (Argon2id), `display_name`, `roles` (JSON array), `is_active`, `created_at`, `last_login`
+- [ ] T047-011 [P] Pin `openssl/[>=3.2.0]` in `conanfile.txt` (RISK-002: `EVP_KDF_fetch("ARGON2ID")` requires OpenSSL ≥ 3.2); then implement Argon2id hashing helper using OpenSSL `EVP_KDF` in `isched_AuthenticationMiddleware.cpp`; function signatures: `hash_password(plaintext) → hash_string` and `verify_password(plaintext, hash) → bool`
+  > **Note**: `conanfile.txt` already pins `openssl/3.5.0` (> 3.2) — version constraint satisfied.
+- [ ] T047-012 [P] Implement `createUser(email: String!, password: String!, displayName: String, roles: [String!])` mutation — `tenant_admin` or `platform_admin` only
+- [ ] T047-013 [P] Implement `updateUser(id: ID!, displayName: String, roles: [String!], isActive: Boolean)` mutation — `tenant_admin` (own tenant) or `platform_admin`
+- [ ] T047-014 [P] Implement `deleteUser(id: ID!)` mutation — `tenant_admin` or `platform_admin`
+- [ ] T047-015 [P] Implement `user(id: ID!)` and `users` Query fields — `tenant_admin` sees own-tenant users; `platform_admin` sees all
+- [ ] T047-016 [P] Implement `login(email: String!, password: String!, organizationId: ID)` mutation: look up user in appropriate tenant DB (or `isched_system.db` if no `organizationId`), verify Argon2id hash, issue JWT with `user_id`, `user_name`, `roles`, `tenant_id`; call `AuthenticationMiddleware::create_session()` (defined in T049-002) to persist the session; return `{ token: String!, expiresAt: String! }` — **depends on T049-001 and T049-002**
+
+#### Tests
+
+- [ ] T047-017 [P] Add unit tests in `src/test/cpp/isched/isched_auth_tests.cpp` *(extend or create)*: Argon2id hash+verify round-trip; wrong password rejected; role-gate allows/denies correct roles
+- [ ] T047-018 [P] Add integration tests in `src/test/cpp/integration/test_user_management.cpp` *(to be created)*: full CRUD for User and Organization over GraphQL; login returns valid JWT; RBAC rejects unauthorized mutations
+- [ ] T047-019 [P] Update `specs/001-universal-backend/data-model.md` with all Phase 6 entity definitions that live in tenant SQLite files: `users` table (from T047-010), `sessions` table (from T049-001), `data_sources` table (from T048-001); cross-reference `isched_system.db` tables already documented by T047-000; mark each entity with its owning DB, write access role, and created-by task
+
+---
+
+### T048: Outbound HTTP Integration Resolvers (RESTDataSource pattern)
+
+**Decisions recorded (2026-03-14)**:
+- Apollo `RESTDataSource` pattern: data sources configured via mutations, stored in tenant DB; resolvers call them at runtime
+- JSON response auto-coerced to GraphQL return type by key-name matching (default field resolver)
+- Auth forwarding: bearer-token pass-through or static API key — selected per data source, stored in tenant DB, configured via mutations
+- Upstream errors return a structured `HttpError` type as the field value (not null + GraphQL error)
+
+#### Data source configuration
+
+- [ ] T048-001 [P] Create SQLite schema for `data_sources` table in each tenant DB: `id`, `name`, `base_url`, `auth_kind` (`none`|`bearer_passthrough`|`api_key`), `api_key_header`, `api_key_value_encrypted` (AES-256-GCM ciphertext + nonce, base64-encoded), `timeout_ms`, `created_at` — **depends on T047-006**; `api_key_value` MUST NOT be stored in plaintext (FR-SEC-002)
+- [ ] T048-001a [P] Implement an `isched_CryptoUtils.hpp/.cpp` helper providing `encrypt_secret(plaintext, tenant_key) → base64_ciphertext` and `decrypt_secret(base64_ciphertext, tenant_key) → plaintext` using AES-256-GCM via OpenSSL `EVP_AEAD`; derive the per-tenant key from a server-level master secret + tenant ID using HKDF (OpenSSL — no new dependency); use this helper in `RestDataSource` when reading `api_key_value`
+- [ ] T048-002 [P] Implement `createDataSource(name: String!, baseUrl: String!, authKind: String, ...)` mutation — `tenant_admin` only
+- [ ] T048-003 [P] Implement `updateDataSource(id: ID!, ...)` and `deleteDataSource(id: ID!)` mutations — `tenant_admin` only
+- [ ] T048-004 [P] Implement `dataSources` Query field — returns all data sources for the caller's tenant
+
+#### Resolver binding
+
+- [ ] T048-005 [P] Create `isched_RestDataSource.hpp/.cpp` *(to be created)* implementing `fetch(path, method, body, ctx) → json` using `cpp-httplib` as the HTTP client; apply auth forwarding based on `auth_kind`; return structured `HttpError` JSON on timeout or 4xx/5xx
+- [ ] T048-006 [P] Add `HttpError` type to the built-in GraphQL schema in `isched_builtin_server_schema.graphql`: `type HttpError { statusCode: Int!, message: String!, url: String }`
+- [ ] T048-007 [P] Wire `RestDataSource` into `ResolverDefinition` dispatch: when `resolver_kind == "outbound_http"`, load data source config from tenant DB and invoke `RestDataSource::fetch`; map JSON response through default field resolver
+
+#### Tests
+
+- [ ] T048-008 [P] Add unit tests in `src/test/cpp/isched/isched_rest_datasource_tests.cpp` *(to be created)*: bearer passthrough sets correct `Authorization` header; api_key sets configured header; 404 upstream returns `HttpError`; timeout returns `HttpError`
+
+---
+
+### T049: Per-Tenant Session Management and Revocation
+
+**Decisions recorded (2026-03-14)**:
+- Revocation list persisted in tenant's SQLite DB
+- Mutations: `logout`, `revokeSession(sessionId: ID!)`, `revokeAllSessions(userId: ID!)`, `terminateAllSessions(organizationId: ID!)` (`platform_admin` only — closes all non-`platform_admin` sessions)
+- Active WebSocket connections are forcibly closed immediately upon revocation
+- `last_activity` updated only on session create and explicit close/revoke (not on every request)
+
+- [ ] T049-001 [P] Create SQLite schema for `sessions` table in each tenant DB: `id`, `user_id`, `access_token_id`, `permissions` (JSON array), `roles` (JSON array — populated at login time, required so `terminateAllSessions` can filter out `platform_admin` sessions without a cross-table join; RISK-003), `issued_at`, `expires_at`, `last_activity`, `transport_scope`, `is_revoked`
+- [ ] T049-002 [P] Implement `AuthenticationMiddleware::create_session()`: writes a new session record to the tenant's `sessions` table (or `isched_system.db` for platform-level logins); also implement `validate_token()` to load and check revocation status on every request — session creation is owned exclusively here; the `login` resolver (T047-016) delegates to this method
+- [ ] T049-003 [P] Implement `logout` mutation: mark caller's session `is_revoked = true`; update `last_activity`; signal `SubscriptionBroker` to close any matching WebSocket connection
+- [ ] T049-004 [P] Implement `revokeSession(sessionId: ID!)` mutation — `tenant_admin` only; same revocation + WebSocket close flow
+- [ ] T049-005 [P] Implement `revokeAllSessions(userId: ID!)` mutation — `tenant_admin` only; revokes all sessions for the given user in the tenant
+- [ ] T049-006 [P] Implement `terminateAllSessions(organizationId: ID!)` mutation — `platform_admin` only; revokes all non-`platform_admin` sessions for the entire org
+- [ ] T049-007 [P] Add a revocation-check hook in `SubscriptionBroker`: when a session is revoked, look up any open WebSocket connections for that `session_id` and send a `connection_terminate` message then close the socket — **depends on T042** (WebSocket session model and connection registry must exist)
+- [ ] T049-008 [P] Add integration tests in `src/test/cpp/integration/test_session_revocation.cpp` *(to be created)*: logout invalidates token; revoked token is rejected on next request; WebSocket is closed after revocation; `terminateAllSessions` does not close `platform_admin` sessions
+
+---
+
+### T050: Adaptive Worker-Thread and Subscription Resource Controls
+
+**Decisions recorded (2026-03-14, revised 2026-03-14)**:
+- Adaptation signal: total active subscription count across all tenants
+- Single global thread pool (cpp-httplib's pool); per-tenant `min_threads`/`max_threads` are advisory quotas stored in `TenantConfig` for intent and future enforcement, but the enforced pool size is global
+- Global pool size adapts based on aggregate active subscriptions; overflow requests queued globally
+- Rationale: `cpp-httplib::Server::set_thread_pool_size()` is a global API with no per-tenant granularity; a separate per-tenant dispatch layer is deferred
+
+- [ ] T050-001 [P] Add advisory `min_threads` and `max_threads` fields to `TenantManager::TenantConfig`; expose `updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int)` mutation — `platform_admin` only; store in tenant DB for future enforcement
+- [ ] T050-002 [P] In `TenantManager`, track `total_active_subscription_count` as an atomic global counter (increment on any tenant subscription start, decrement on disconnect)
+- [ ] T050-003 [P] Implement global adaptation logic: when `total_active_subscription_count` crosses a configurable threshold (default: current pool size × 0.75), call `httplib::Server::set_thread_pool_size()` to grow the global pool up to a system-wide `max_global_threads` limit; scale down when count drops below threshold with a cooldown period (default: 30 s)
+- [ ] T050-004 [P] Implement global request queuing: when in-flight requests exceed the current pool size, enqueue new requests in a global `std::queue` protected by a mutex; drain as threads become free
+- [ ] T050-005 [P] Add unit tests verifying global pool adaptation triggers at correct subscription thresholds and the queue drains correctly after threads free up
+
+---
+
+### T051: Performance Metrics via GraphQL
+
+**Decisions recorded (2026-03-14)**:
+- Metrics (revised 2026-03-14): interval-window counters `requestsInInterval: Int!`, `errorsInInterval: Int!` (reset at each interval boundary); cumulative-since-startup counters `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`, `tenantCount: Int!` (on `ServerMetrics` only)
+- Exposed as both `Query` field and `Subscription` (live updates)
+- Per-tenant scope (auth: `tenant_admin`) and aggregate system scope (auth: `platform_admin`), both auth-gated
+- Interval window default = 60 minutes (configurable); resets automatically at boundary; cumulative counters never reset
+
+- [ ] T051-001 [P] Add `ServerMetrics` and `TenantMetrics` types to `isched_builtin_server_schema.graphql`: interval-window fields `requestsInInterval: Int!`, `errorsInInterval: Int!`; cumulative fields `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`; `tenantCount: Int!` on `ServerMetrics` only
+- [ ] T051-002 [P] Implement an in-memory `MetricsCollector` class (dedicated `isched_MetricsCollector.hpp/.cpp`): atomic interval-window counters (reset at boundary) and separate never-resetting cumulative counters per tenant; record request start/end timestamps for `avgResponseTimeMs`
+- [ ] T051-003 [P] Add `metricsInterval` config field (default 60 minutes) settable via `updateTenantConfig` for per-tenant scope and a system-level config mutation for global scope
+- [ ] T051-004 [P] Implement `serverMetrics: ServerMetrics` Query resolver — `platform_admin` only; returns aggregate across all tenants — **depends on T047-002** (roles in `ResolverCtx`)
+- [ ] T051-005 [P] Implement `tenantMetrics(organizationId: ID): TenantMetrics` Query resolver — `tenant_admin` sees their own org; `platform_admin` may specify any `organizationId` — **depends on T047-002**
+- [ ] T051-006 [P] Implement `subscription { serverMetricsUpdated: ServerMetrics }` — `platform_admin` only; publishes via `SubscriptionBroker` at each interval boundary — **depends on T047-002**
+- [ ] T051-007 [P] Implement `subscription { tenantMetricsUpdated: TenantMetrics }` — `tenant_admin` sees own org; publishes at each interval boundary — **depends on T047-002**
+- [ ] T051-008 [P] Add unit tests verifying counter increments, interval reset, and auth gating on both Query and Subscription resolvers
+
+---
+
+### T052: Performance Benchmark Suite
+
+**Decisions recorded (2026-03-14)**:
+- Framework: Catch2 `BENCHMARK` macro — no new Conan dependency
+- Pass/fail thresholds: `hello` query ≥ 1000 req/s single-tenant; ≥ 100 concurrent GraphQL POST clients without error; ≥ 50 simultaneous WebSocket subscribers; introspection ≤ 100 ms at 10 concurrent requests
+
+- [ ] T052-001 [P] Create `src/test/cpp/performance/benchmark_suite.cpp` with a Catch2 test executable registered in `CMakeLists.txt`
+- [ ] T052-002 [P] Add benchmark: `hello` query throughput — spin up server in-process, measure sequential request rate over 5 seconds, assert ≥ 1000 req/s
+- [ ] T052-003 [P] Add benchmark: concurrent GraphQL POST — launch 100 threads each sending 10 `{ version }` queries, assert 0 errors and completion within 10 seconds
+- [ ] T052-004 [P] Add benchmark: WebSocket subscription fan-out — open 50 simultaneous WebSocket connections, subscribe each, broadcast one event, assert all 50 receive it within 500 ms
+- [ ] T052-005 [P] Add benchmark: introspection under load — 10 concurrent `__schema { types }` requests, assert each completes within 100 ms
+- [ ] T052-006 [P] Add benchmark: p95 latency ≤ 20ms (FR-012) — send 1000 sequential `{ version }` queries in-process, record per-request wall time, assert p95 ≤ 20 ms
+- [ ] T052-007 Record measured benchmark results (req/s, p95 latency, fan-out timing) in `docs/performance.md` after the benchmark suite passes; update with each release (FR-PERF-003)
 
 ---
 
@@ -296,9 +440,42 @@ Each task implementation MUST verify:
 
 - ~~T053~~ **Superseded by T006** — REST file deletion and CMakeLists.txt cleanup is fully covered by T006 in Phase 2
 - [x] T054 [P] Remove legacy IPC files: `shared/ipc/isched_ipc.hpp/cpp`, `src/test/cpp/isched/isched_ipc_tests.cpp`, `src/test/cpp/isched/isched_rest_hello_world.cpp` — and all CMakeLists.txt references to them
-- [ ] T055 [P] Review docs and generated references for GraphQL-only terminology consistency
-- [ ] T056 [P] Add security hardening and vulnerability scanning integration
-- [ ] T057 [P] Add deployment documentation for HTTP and WebSocket operation
+
+---
+
+### T055: GraphQL-Only Terminology Review
+
+**Decisions recorded (2026-03-14)**:
+- Scope: all documents — `README.md`, `docs/`, `specs/`, and source-file comments
+- Acceptance: manual review; no automated gate
+
+- [ ] T055-001 Search all documents and source comments for legacy terminology: "REST endpoint", "REST API", "IPC", "script", "CLI executable", "restbed", "process management" — replace with GraphQL-only equivalents
+- [ ] T055-002 Review `README.md` for accurate startup, query, and transport instructions; remove any REST or IPC references
+- [ ] T055-003 Review `docs/` generated output and `specs/` planning documents; update any outdated architecture descriptions
+- [ ] T055-004 Review source-file header comments in `src/main/cpp/` for obsolete descriptions; update to reflect GraphQL-only transport
+- [ ] T055-005 Document all non-standard `extensions` fields (`code`, `timestamp`, `requestId`) in `specs/001-universal-backend/contracts/http-api.md` with example error response shapes (FR-GQL-003)- [ ] T055-006 [P] Update `specs/001-universal-backend/contracts/graphql-schema.md` with all Phase 6 additions and reconcile existing discrepancies:
+  - **Reconcile login**: replace `login(input: LoginInput!)` with `login(email: String!, password: String!, organizationId: ID): AuthPayload!` per T047 decision; update `LoginInput` or remove if unused
+  - **Reconcile AuthPayload**: replace 4-field `{ accessToken, refreshToken, expiresAt, user }` with 2-field `{ token: String!, expiresAt: String! }` per T047 decision; remove `register` and `refreshToken` mutations if not in scope
+  - **Add**: `HttpError` type (T048-006), `ServerMetrics` / `TenantMetrics` types (T051-001), data source types and mutations (`DataSource`, `createDataSource`, `updateDataSource`, `deleteDataSource`, `dataSources`) (T048), session revocation mutations (`revokeSession`, `revokeAllSessions`, `terminateAllSessions`) (T049), RBAC mutations (`createRole`, `deleteRole`) (T047-004), metrics subscriptions (`serverMetricsUpdated`, `tenantMetricsUpdated`) (T051), thread pool config mutation (`updateTenantConfig`) (T050-001)
+---
+
+### T056: Security Hardening — clang-tidy CMake Target
+
+**Decisions recorded (2026-03-14)**:
+- Tool: clang-tidy (already partially configured); additional scanners deferred to a later release
+- Integration: CMake target `security_scan` (does not block the default build; run explicitly)
+
+- [ ] T056-001 [P] Add a `security_scan` CMake custom target in `CMakeLists.txt` that runs `clang-tidy` with a security-focused `.clang-tidy` config (enable `cert-*`, `bugprone-*`, `cppcoreguidelines-*`, `clang-analyzer-security.*` checks) over all library sources in `src/main/cpp/`
+- [ ] T056-002 [P] Create or update `.clang-tidy` at the repo root to include the security checks listed above; suppress only checks that conflict with intentional design decisions (document each suppression)
+- [ ] T056-003 [P] Verify `cmake --build ./cmake-build-debug/ --target security_scan` runs without new errors on the current codebase; fix any findings before marking done
+- [ ] T056-004 [P] Document the `security_scan` target in `README.md` under a "Security" section
+
+---
+
+### T057: Deployment Documentation
+
+- [ ] T057-001 Add deployment documentation for HTTP and WebSocket operation covering: TLS configuration with `cpp-httplib`, port and bind-address settings, multi-tenant bootstrap, and graceful shutdown
+- [ ] T057-002 Add embedded/Raspberry Pi deployment guidance in `docs/deployment.md` (FR-PERF-002): minimum RAM/storage requirements, recommended SQLite page-cache sizing, reducing thread counts via `TenantConfig`, and ARM/Linux build instructions using the standard Conan + CMake toolchain — no special compiler flags required
 
 ---
 
