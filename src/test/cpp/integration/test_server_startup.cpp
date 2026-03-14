@@ -24,6 +24,9 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "httplib.h"
+
 #include <isched/backend/isched_common.hpp>
 #include <isched/backend/isched_Server.hpp>
 
@@ -174,5 +177,72 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "Configuration validation", "[integra
         const auto& retrieved_config = prod_server->get_configuration();
         REQUIRE(retrieved_config.port == 80);
         REQUIRE(retrieved_config.max_threads == 16);
+    }
+}
+
+TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct responses", "[integration][http][us1]") {
+    SECTION("POST /graphql returns hello and version via real HTTP") {
+        REQUIRE(server->start());
+
+        httplib::Client client("localhost", 8888);
+        client.set_connection_timeout(2);
+        client.set_read_timeout(5);
+
+        nlohmann::json body = {{"query", "{ hello version }"}};
+        auto res = client.Post("/graphql", body.dump(), "application/json");
+
+        REQUIRE(res != nullptr);
+        REQUIRE(res->status == 200);
+
+        auto json = nlohmann::json::parse(res->body);
+        REQUIRE(json.contains("data"));
+        REQUIRE(json["data"]["hello"] == "Hello, GraphQL!");
+        REQUIRE(json["data"]["version"] == "0.0.1");
+        REQUIRE(json["extensions"]["endpoint"] == "/graphql");
+        REQUIRE(json["extensions"].contains("requestId"));
+
+        server->stop();
+    }
+
+    SECTION("POST /graphql with invalid JSON returns 400") {
+        REQUIRE(server->start());
+
+        httplib::Client client("localhost", 8888);
+        client.set_connection_timeout(2);
+        auto res = client.Post("/graphql", "not-valid-json", "application/json");
+
+        REQUIRE(res != nullptr);
+        REQUIRE(res->status == 400);
+
+        server->stop();
+    }
+
+    SECTION("POST /graphql with missing query field returns 400") {
+        REQUIRE(server->start());
+
+        httplib::Client client("localhost", 8888);
+        client.set_connection_timeout(2);
+        nlohmann::json body = {{"not_a_query", "hello"}};
+        auto res = client.Post("/graphql", body.dump(), "application/json");
+
+        REQUIRE(res != nullptr);
+        REQUIRE(res->status == 400);
+
+        server->stop();
+    }
+
+    SECTION("Response Content-Type is application/json") {
+        REQUIRE(server->start());
+
+        httplib::Client client("localhost", 8888);
+        client.set_connection_timeout(2);
+        nlohmann::json body = {{"query", "{ hello }"}};
+        auto res = client.Post("/graphql", body.dump(), "application/json");
+
+        REQUIRE(res != nullptr);
+        REQUIRE(res->status == 200);
+        REQUIRE(res->get_header_value("Content-Type").find("application/json") != std::string::npos);
+
+        server->stop();
     }
 }

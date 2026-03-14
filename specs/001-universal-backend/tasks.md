@@ -148,19 +148,19 @@ Each task implementation MUST verify:
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Add integration test for server startup and `/graphql` availability in `src/test/cpp/integration/test_server_startup.cpp` *(exists — extend with real transport assertions)*
-- [ ] T017 [P] [US1] Add integration test for built-in GraphQL queries in `src/test/cpp/integration/test_builtin_schema.cpp` *(to be created)*
-- [ ] T018 [P] [US1] Add integration test for GraphQL-based health and server info queries in `src/test/cpp/integration/test_health_queries.cpp` *(to be created)*
+- [x] T016 [P] [US1] Add integration test for server startup and `/graphql` availability in `src/test/cpp/integration/test_server_startup.cpp` *(exists — extend with real transport assertions)*
+- [x] T017 [P] [US1] Add integration test for built-in GraphQL queries in `src/test/cpp/integration/test_builtin_schema.cpp` *(to be created)*
+- [x] T018 [P] [US1] Add integration test for GraphQL-based health and server info queries in `src/test/cpp/integration/test_health_queries.cpp` *(to be created)*
 
 ### Implementation for User Story 1
 
-- [ ] T019 [P] [US1] Implement built-in GraphQL schema and resolvers for `hello`, `version`, `uptime`, `serverInfo`, and `health`
-- [ ] T020 [P] [US1] Route HTTP GraphQL requests through the real executor in `isched_Server.cpp`
-- [ ] T021 [US1] Enforce GraphQL as the only external interface in server routing and documentation
-- [ ] T022 [US1] Remove or disable REST-style health and management endpoint expectations from the runtime
-- [ ] T023 [US1] Implement GraphQL over HTTP request parsing, validation, and serialization
-- [ ] T024 [US1] Implement enhanced GraphQL error formatting with request IDs and extensions
-- [ ] T025 [US1] Document startup and built-in query behavior in user-facing docs
+- [x] T019 [P] [US1] Implement built-in GraphQL schema and resolvers for `hello`, `version`, `uptime`, `serverInfo`, and `health`
+- [x] T020 [P] [US1] Route HTTP GraphQL requests through the real executor in `isched_Server.cpp`
+- [x] T021 [US1] Enforce GraphQL as the only external interface in server routing and documentation
+- [x] T022 [US1] Remove or disable REST-style health and management endpoint expectations from the runtime
+- [x] T023 [US1] Implement GraphQL over HTTP request parsing, validation, and serialization
+- [x] T024 [US1] Implement enhanced GraphQL error formatting with request IDs and extensions
+- [x] T025 [US1] Document startup and built-in query behavior in user-facing docs
 
 **Checkpoint**: User Story 1 is independently testable over HTTP. `ctest` MUST be green before moving to Phase 4.
 

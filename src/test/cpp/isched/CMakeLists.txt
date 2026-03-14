@@ -53,8 +53,16 @@ add_test(NAME isched_config_tests COMMAND isched_config_tests)
 
 # Integration tests for User Story 1 - Frontend Developer Setup
 add_executable(test_server_startup ../integration/test_server_startup.cpp)
-target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain Boost::url spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url)
+target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain Boost::url spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url httplib::httplib openssl::openssl)
 add_test(NAME test_server_startup COMMAND test_server_startup)
+
+add_executable(test_builtin_schema ../integration/test_builtin_schema.cpp)
+target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl Boost::url)
+add_test(NAME test_builtin_schema COMMAND test_builtin_schema)
+
+add_executable(test_health_queries ../integration/test_health_queries.cpp)
+target_link_libraries(test_health_queries PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl Boost::url)
+add_test(NAME test_health_queries COMMAND test_health_queries)
 
 add_executable(isched_fs_utils_tests isched_fs_utils_tests.cpp)
 target_link_libraries(isched_fs_utils_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
