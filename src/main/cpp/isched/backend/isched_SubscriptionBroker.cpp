@@ -37,6 +37,12 @@ struct SubscriptionRecord {
     SubscriptionHandler handler;
 };
 
+/// Auth-session → WebSocket-session connection record (T049-007).
+struct AuthSessionRecord {
+    std::string ws_session_id;
+    std::function<void()> close_callback;
+};
+
 struct SubscriptionBroker::Impl {
     mutable std::shared_mutex mutex;
 
@@ -45,6 +51,12 @@ struct SubscriptionBroker::Impl {
 
     // Secondary index: session_id → set of subscription_ids (for fast disconnect)
     std::unordered_map<std::string, std::vector<std::string>> session_index;
+
+    // Auth-session tracking (T049-007):
+    //   auth_session_id → AuthSessionRecord
+    std::unordered_map<std::string, AuthSessionRecord> auth_sessions;
+    //   ws_session_id → auth_session_id  (reverse lookup for cleanup)
+    std::unordered_map<std::string, std::string> ws_to_auth;
 };
 
 // ---------------------------------------------------------------------------
@@ -170,6 +182,65 @@ std::size_t SubscriptionBroker::get_subscriber_count(const std::string& topic) c
         }
     }
     return count;
+}
+
+// ---------------------------------------------------------------------------
+// Auth-session tracking (T049-007)
+// ---------------------------------------------------------------------------
+
+void SubscriptionBroker::register_auth_session(const std::string& auth_session_id,
+                                                const std::string& ws_session_id,
+                                                std::function<void()> close_callback) {
+    std::unique_lock lock(m_impl->mutex);
+    // Remove any previous registration for this ws_session_id first.
+    auto rev_it = m_impl->ws_to_auth.find(ws_session_id);
+    if (rev_it != m_impl->ws_to_auth.end()) {
+        m_impl->auth_sessions.erase(rev_it->second);
+        m_impl->ws_to_auth.erase(rev_it);
+    }
+    m_impl->auth_sessions[auth_session_id] = {ws_session_id, std::move(close_callback)};
+    m_impl->ws_to_auth[ws_session_id]      = auth_session_id;
+    spdlog::debug("SubscriptionBroker: registered auth session {} for WS session {}",
+                  auth_session_id, ws_session_id);
+}
+
+void SubscriptionBroker::unregister_auth_session(const std::string& ws_session_id) {
+    std::unique_lock lock(m_impl->mutex);
+    auto rev_it = m_impl->ws_to_auth.find(ws_session_id);
+    if (rev_it == m_impl->ws_to_auth.end()) return;
+    m_impl->auth_sessions.erase(rev_it->second);
+    m_impl->ws_to_auth.erase(rev_it);
+}
+
+void SubscriptionBroker::revoke_auth_session(const std::string& auth_session_id) {
+    // Extract the record under the lock, then call the close callback outside.
+    std::string ws_session_id;
+    std::function<void()> close_cb;
+    {
+        std::unique_lock lock(m_impl->mutex);
+        auto it = m_impl->auth_sessions.find(auth_session_id);
+        if (it == m_impl->auth_sessions.end()) return;
+        ws_session_id = it->second.ws_session_id;
+        close_cb      = std::move(it->second.close_callback);
+        m_impl->auth_sessions.erase(it);
+        m_impl->ws_to_auth.erase(ws_session_id);
+    }
+    // Disconnect all subscriptions for this WS session.
+    disconnect_session(ws_session_id);
+    // Fire the close callback (sends connection_terminate and closes socket).
+    if (close_cb) {
+        try {
+            close_cb();
+        } catch (const std::exception& e) {
+            spdlog::error("SubscriptionBroker: close callback threw for auth session {}: {}",
+                          auth_session_id, e.what());
+        } catch (...) {
+            spdlog::error("SubscriptionBroker: close callback threw unknown exception for auth session {}",
+                          auth_session_id);
+        }
+    }
+    spdlog::info("SubscriptionBroker: revoked auth session {} (WS {})",
+                 auth_session_id, ws_session_id);
 }
 
 } // namespace isched::v0_0_1::backend

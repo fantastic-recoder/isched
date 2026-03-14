@@ -53,6 +53,7 @@ namespace isched::v0_0_1::gql {
 
 namespace isched::v0_0_1::backend {
     class DatabaseManager;
+    class AuthenticationMiddleware;        ///< Forward declaration for login resolver
     class SubscriptionBroker;              ///< Forward declaration for event publishing
     using DocumentPtr = std::shared_ptr<gql::Document>;
 
@@ -71,6 +72,7 @@ namespace isched::v0_0_1::backend {
         std::string current_user_id;                    ///< Authenticated user identifier (empty = anonymous)
         std::string user_name;                          ///< Human-readable display name (empty = anonymous)
         std::vector<std::string> roles;                 ///< Granted roles (e.g. "role_platform_admin")
+        std::string session_id;                         ///< JWT @c jti claim for the current request; empty if unauthenticated
     };
 
     /**
@@ -335,6 +337,17 @@ namespace isched::v0_0_1::backend {
             m_broker = broker;
         }
 
+        /**
+         * @brief Wire an AuthenticationMiddleware so the login resolver can issue JWTs.
+         *
+         * Must be called before the first request if the @c login mutation is used.
+         * The executor holds a non-owning shared reference; the caller (Server) is
+         * responsible for ensuring the middleware outlives the executor.
+         */
+        void set_auth_middleware(std::shared_ptr<AuthenticationMiddleware> auth) {
+            m_auth = std::move(auth);
+        }
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -357,6 +370,9 @@ namespace isched::v0_0_1::backend {
 
         // Subscription broker for publishing events from resolvers (T046); not owned.
         SubscriptionBroker* m_broker{nullptr};
+
+        // Authentication middleware for the login resolver (T047-016); shared ownership.
+        std::shared_ptr<AuthenticationMiddleware> m_auth;
 
         /// Execution configuration stored at construction time.
         Config m_config;

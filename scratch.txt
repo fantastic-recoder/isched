@@ -4,11 +4,12 @@ the service is running and ready to accept requests. Angular UI is a simple HTML
 submit the login form. Angular is in the newest version, currently 21.0.1. The UI should use DaisyUI, a Tailwind CSS
 framework. The UI should be responsive and work well on both desktop and mobile devices.
 
-Feature: Seed mode
+Feature: Seed mode.
 Scenario: Check initial Isched functionality
 Given I start the isched_srv
-When I open the URL http://<host>:<port>/isched, which is being printed out on standard output, then I expect to get a simple Angular UI, that indicates the service is running and ready to accept requests. Angular UI
-is a simple HTML page with a login form and a button to submit the login form.
+When I open the URL http://<host>:<port>/isched with browser, which is being printed out on standard output, then I expect to get 
+a simple Angular UI, that indicates the service is running and ready to accept requests. Angular UI is a simple HTML 
+page with a login form and a button to submit the login form.
 
 Feature: Create platform admin in seed mode.
 Scenario: Create platform admin in seed mode
@@ -17,5 +18,9 @@ and there are no users configured, the service switches to seed mode where I am 
 Upon successful platform admin creation on the form submission, the service switches to normal mode
 
 Feature: RBAC 
-Scenario:
-Then I expect to get a simple Angular UI,
+Scenario: When Isched service is not running in seed mode, after login, I expect to get a simple Angular DaisyUI UI,
+where I can edit the RBAC related data like users, organizations and roles.
+Given I start the isched_srv, I open the URL http://<host>:<port>/isched with browser, which is being printed out on 
+standard output, then I expect to get a simple Angular UI, which allows to edit RBAC infos like users, Organizations
+and roles.
+

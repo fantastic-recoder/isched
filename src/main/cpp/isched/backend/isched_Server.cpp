@@ -14,6 +14,7 @@
 
 #include "isched_DatabaseManager.hpp"
 #include "isched_GqlExecutor.hpp"
+#include "isched_AuthenticationMiddleware.hpp"
 #include "isched_SubscriptionBroker.hpp"
 
 #include <boost/beast/core.hpp>
@@ -34,6 +35,9 @@
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+#include <openssl/rand.h>
+#include <sstream>
+#include <iomanip>
 
 namespace beast     = boost::beast;
 namespace websocket = beast::websocket;
@@ -62,16 +66,21 @@ public:
     WsSession(tcp::socket socket,
               net::io_context& ioc,
               GqlExecutor*       executor,
-              SubscriptionBroker* broker)
+              SubscriptionBroker* broker,
+              AuthenticationMiddleware* auth = nullptr)
         : strand_(net::make_strand(ioc))
         , ws_(std::move(socket))
         , executor_(executor)
         , broker_(broker)
+        , auth_(auth)
         , session_id_("ws-" + std::to_string(++session_counter_))
     {}
 
     ~WsSession() {
-        if (broker_) broker_->disconnect_session(session_id_);
+        if (broker_) {
+            broker_->unregister_auth_session(session_id_);
+            broker_->disconnect_session(session_id_);
+        }
     }
 
     // Begin the WebSocket handshake; then enter the read loop.
@@ -134,7 +143,24 @@ private:
         const std::string type = j.value("type", "");
 
         if (type == "connection_init") {
-            // T045: auth payload could be validated here; currently permissive.
+            // T045 / T049-007: validate Bearer token from payload if present.
+            const auto& payload = j.value("payload", nlohmann::json::object());
+            if (payload.is_object() && auth_ && broker_) {
+                const std::string bearer = payload.value("Authorization", "");
+                if (!bearer.empty()) {
+                    std::unordered_map<std::string, std::string> hdrs{{"Authorization", bearer}};
+                    const auto ar = auth_->validate_request(hdrs, "");
+                    if (ar.is_authenticated && !ar.session_id.empty()) {
+                        // Register so revoke_auth_session() can close this WS.
+                        broker_->register_auth_session(
+                            ar.session_id, session_id_,
+                            [weak = weak_from_this()]() {
+                                if (auto self = weak.lock())
+                                    self->close_terminate();
+                            });
+                    }
+                }
+            }
             initialized_ = true;
             enqueue("connection_ack", nlohmann::json::object(), "");
         } else if (type == "ping") {
@@ -244,6 +270,18 @@ private:
 
     // ---- Topic routing ----
 
+    /** Send a connection_terminate frame and close the WebSocket (T049-007). */
+    void close_terminate() {
+        net::post(strand_, [self = shared_from_this()]() {
+            // Send connection_terminate message per graphql-transport-ws spec.
+            nlohmann::json msg = {{"type", "connection_terminate"}};
+            self->enqueue_raw(msg.dump());
+            self->ws_.async_close(websocket::close_code::normal,
+                net::bind_executor(self->strand_,
+                    [](beast::error_code) { /* ignore close errors */ }));
+        });
+    }
+
     static std::string derive_topic(const std::string& query,
                                     const nlohmann::json& payload) {
         if (query.find("healthChanged") != std::string::npos) return "health";
@@ -276,6 +314,7 @@ private:
     beast::flat_buffer                          buf_;
     GqlExecutor*                                executor_{nullptr};
     SubscriptionBroker*                         broker_{nullptr};
+    AuthenticationMiddleware*                   auth_{nullptr};
     std::string                                 session_id_;
     bool                                        initialized_{false};
     bool                                        writing_{false};
@@ -291,12 +330,14 @@ private:
 class WsConn : public std::enable_shared_from_this<WsConn> {
 public:
     WsConn(tcp::socket socket, net::io_context& ioc,
-           GqlExecutor* executor, SubscriptionBroker* broker)
+           GqlExecutor* executor, SubscriptionBroker* broker,
+           AuthenticationMiddleware* auth = nullptr)
         : strand_(net::make_strand(ioc))
         , stream_(std::move(socket))
         , ioc_(ioc)
         , executor_(executor)
         , broker_(broker)
+        , auth_(auth)
     {}
 
     void run() {
@@ -327,7 +368,7 @@ private:
         }
         // Hand the socket to a WsSession
         auto session = std::make_shared<WsSession>(
-            stream_.release_socket(), ioc_, executor_, broker_);
+            stream_.release_socket(), ioc_, executor_, broker_, auth_);
         session->run(std::move(req_));
     }
 
@@ -338,6 +379,7 @@ private:
     net::io_context&                                    ioc_;
     GqlExecutor*                                        executor_{nullptr};
     SubscriptionBroker*                                 broker_{nullptr};
+    AuthenticationMiddleware*                           auth_{nullptr};
 };
 
 // ---------------------------------------------------------------------------
@@ -346,11 +388,13 @@ private:
 class WsListener : public std::enable_shared_from_this<WsListener> {
 public:
     WsListener(net::io_context& ioc, tcp::endpoint endpoint,
-               GqlExecutor* executor, SubscriptionBroker* broker)
+               GqlExecutor* executor, SubscriptionBroker* broker,
+               AuthenticationMiddleware* auth = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , executor_(executor)
         , broker_(broker)
+        , auth_(auth)
     {
         beast::error_code ec;
         acceptor_.open(endpoint.protocol(), ec);
@@ -376,7 +420,7 @@ private:
     void on_accept(beast::error_code ec, tcp::socket socket) {
         if (!ec) {
             auto conn = std::make_shared<WsConn>(
-                std::move(socket), ioc_, executor_, broker_);
+                std::move(socket), ioc_, executor_, broker_, auth_);
             conn->run();
         } else if (!stopped_) {
             spdlog::warn("WsListener accept error: {}", ec.message());
@@ -388,6 +432,7 @@ private:
     tcp::acceptor    acceptor_;
     GqlExecutor*     executor_{nullptr};
     SubscriptionBroker* broker_{nullptr};
+    AuthenticationMiddleware* auth_{nullptr};
     bool             stopped_{false};
 };
 
@@ -420,6 +465,25 @@ public:
         subscription_broker = SubscriptionBroker::create();
         gql_executor->set_subscription_broker(subscription_broker.get());
 
+        // Wire AuthenticationMiddleware for the login resolver (T047-016).
+        // Use the configured JWT secret; generate a random one if empty (dev mode).
+        auth = AuthenticationMiddleware::create();
+        std::string secret = config.jwt_secret_key;
+        if (secret.empty()) {
+            // Generate a random 32-byte hex secret for this server instance.
+            unsigned char buf[16];
+            if (RAND_bytes(buf, sizeof(buf)) == 1) {
+                std::ostringstream oss;
+                for (auto b : buf) oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(b);
+                secret = oss.str();
+            } else {
+                secret = "default-isched-dev-secret-change-me!";
+            }
+            spdlog::warn("Server: jwt_secret_key not configured — using auto-generated ephemeral secret");
+        }
+        auth->configure_jwt_secret(secret);
+        gql_executor->set_auth_middleware(auth); // share, keep reference in Impl
+
         http_server = std::make_unique<httplib::Server>();
     }
 
@@ -435,6 +499,7 @@ public:
     Configuration config;
     TimePoint start_time;
     std::shared_ptr<DatabaseManager> database;
+    std::shared_ptr<AuthenticationMiddleware> auth;  ///< Shared with GqlExecutor (T049)
     std::unique_ptr<GqlExecutor> gql_executor;
     std::unique_ptr<httplib::Server> http_server;
     std::thread http_thread;
@@ -558,7 +623,9 @@ bool Server::start() {
                 return;
             }
 
-            const std::string response_body = execute_graphql(query, variables_json);
+            const std::string response_body = execute_graphql(
+                query, variables_json,
+                req.get_header_value("Authorization"));
             res.set_content(response_body, "application/json");
 
             const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -600,7 +667,8 @@ bool Server::start() {
             m_impl->ws_listener = std::make_shared<WsListener>(
                 *m_impl->ws_ioc, ws_endpoint,
                 m_impl->gql_executor.get(),
-                m_impl->subscription_broker.get());
+                m_impl->subscription_broker.get(),
+                m_impl->auth.get());
             m_impl->ws_listener->run();
             m_impl->ws_thread = std::thread([this]() {
                 m_impl->ws_ioc->run();
@@ -749,12 +817,29 @@ void Server::update_response_time_metric(double response_time_ms) {
 // GraphQL execution (in-process)
 // ---------------------------------------------------------------------------
 
-String Server::execute_graphql(const String& query, const String& variables_json) {
+String Server::execute_graphql(const String& query, const String& variables_json,
+                               const String& authorization_header) {
     const auto started_at = std::chrono::steady_clock::now();
     const auto request_id = make_request_id();
 
     m_request_count.fetch_add(1);
     m_impl->total_requests.fetch_add(1);
+
+    // Build auth context from the supplied Authorization header (best-effort;
+    // unauthenticated requests are allowed for public queries such as `login`).
+    ResolverCtx ctx;
+    if (!authorization_header.empty() && m_impl->auth) {
+        std::unordered_map<std::string, std::string> hdrs{{"Authorization", authorization_header}};
+        const auto ar = m_impl->auth->validate_request(hdrs, "");
+        if (ar.is_authenticated) {
+            ctx.current_user_id = ar.user_id;
+            ctx.user_name       = ar.user_name;
+            ctx.tenant_id       = ar.tenant_id;
+            ctx.roles           = ar.roles;
+            ctx.session_id      = ar.session_id;
+            ctx.db              = m_impl->database;
+        }
+    }
 
     ExecutionResult result;
     if (!m_impl->gql_executor) {
@@ -763,7 +848,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
             .message = "GraphQL executor is not initialized"
         });
     } else {
-        result = m_impl->gql_executor->execute(query, variables_json);
+        result = m_impl->gql_executor->execute(query, variables_json, std::move(ctx));
 
         // T034: Apply any schema change queued by activateSnapshot / rollbackConfiguration
         auto pending = m_impl->gql_executor->get_pending_schema_change();

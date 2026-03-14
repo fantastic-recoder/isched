@@ -198,6 +198,12 @@ type Mutation {
   login(email: String!, password: String!, organizationId: ID): AuthPayload!
   """Revoke the caller's current session"""
   logout: Boolean!
+  """Revoke a specific session by its ID (tenant_admin only)"""
+  revokeSession(sessionId: ID!): Boolean!
+  """Revoke all sessions for a user (tenant_admin only)"""
+  revokeAllSessions(userId: ID!): Boolean!
+  """Terminate all non-platform-admin sessions in an organization (platform_admin only)"""
+  terminateAllSessions(organizationId: ID!): Boolean!
   """Create a new custom role (platform_admin for platform scope; tenant_admin for tenant scope)"""
   createRole(input: CreateRoleInput!): Boolean!
   """Delete a custom role by id (built-in roles cannot be deleted)"""

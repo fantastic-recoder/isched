@@ -501,12 +501,127 @@ TEST_CASE("User: list users returns array for tenant_admin",
 }
 
 // ============================================================================
-// Login placeholder (depends on T047-016 / T049-001 / T049-002)
+// Login mutation tests (T047-016)
 // ============================================================================
 
-// TODO(T047-016): Add login mutation integration tests once sessions table
-// (T049-001) and AuthenticationMiddleware::create_session() (T049-002) are
-// implemented. Tests should cover:
-//   • login with valid credentials returns { token, expiresAt }
-//   • login with wrong password returns error (not FORBIDDEN, but UNAUTHORIZED)
-//   • token can be decoded and contains correct user_id, roles, tenant_id
+/// Create an executor that has AuthenticationMiddleware wired so the `login`
+/// mutation can create and validate JWT sessions.
+static std::pair<std::shared_ptr<DatabaseManager>, std::shared_ptr<GqlExecutor>>
+make_executor_with_auth() {
+    auto [db, exec] = make_executor();
+    auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
+    auth->configure_jwt_secret("test-login-jwt-secret-at-least-32-bytes!");
+    exec->set_auth_middleware(auth);
+    return {db, exec};
+}
+
+TEST_CASE("Login: valid tenant-user credentials return token and expiresAt",
+          "[integration][login][T047-016]") {
+    auto [db, exec] = make_executor_with_auth();
+
+    // --- create org ---
+    const std::string org_name = "LoginOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    auto org_res = exec->execute(
+        R"(mutation($n:String!){createOrganization(input:{name:$n subscriptionTier:"free"
+             userLimit:10 storageLimit:1073741824}){id}})",
+        json{{"n", org_name}}.dump(),
+        platform_admin_ctx());
+    require_success(org_res, "create org for login test");
+    const std::string org_id = org_res.data["createOrganization"]["id"].get<std::string>();
+
+    // --- create user ---
+    const std::string email    = "bob_" + g_run_suffix + "@example.com";
+    const std::string password = "Bob$ecret99";
+    auto cu_res = exec->execute(
+        R"(mutation($o:ID!,$e:String!,$p:String!){
+             createUser(organizationId:$o input:{email:$e password:$p displayName:"Bob"}){id}
+           })",
+        json{{"o", org_id}, {"e", email}, {"p", password}}.dump(),
+        tenant_admin_ctx(org_id));
+    require_success(cu_res, "create user for login test");
+
+    // --- call login mutation ---
+    const auto login_vars = json{
+        {"email",          email},
+        {"password",       password},
+        {"organizationId", org_id}
+    };
+    auto result = exec->execute(
+        R"(mutation($email:String!,$password:String!,$organizationId:ID){
+             login(email:$email password:$password organizationId:$organizationId){
+               token
+               expiresAt
+             }
+           })",
+        login_vars.dump(),
+        anonymous_ctx());
+
+    require_success(result, "login");
+    const auto& payload = result.data["login"];
+    REQUIRE(payload.contains("token"));
+    REQUIRE(payload.contains("expiresAt"));
+    REQUIRE(!payload["token"].get<std::string>().empty());
+    REQUIRE(!payload["expiresAt"].get<std::string>().empty());
+}
+
+TEST_CASE("Login: wrong password returns error, not FORBIDDEN",
+          "[integration][login][T047-016]") {
+    auto [db, exec] = make_executor_with_auth();
+
+    const std::string org_name = "LoginOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    auto org_res = exec->execute(
+        R"(mutation($n:String!){createOrganization(input:{name:$n subscriptionTier:"free"
+             userLimit:10 storageLimit:1073741824}){id}})",
+        json{{"n", org_name}}.dump(),
+        platform_admin_ctx());
+    require_success(org_res, "create org (wrong-pw test)");
+    const std::string org_id = org_res.data["createOrganization"]["id"].get<std::string>();
+
+    const std::string email = "carol_" + g_run_suffix + "@example.com";
+    auto cu_res = exec->execute(
+        R"(mutation($o:ID!,$e:String!,$p:String!){
+             createUser(organizationId:$o input:{email:$e password:$p displayName:"Carol"}){id}
+           })",
+        json{{"o", org_id}, {"e", email}, {"p", "CorrectPass1!"}}.dump(),
+        tenant_admin_ctx(org_id));
+    require_success(cu_res, "create user (wrong-pw test)");
+
+    // Attempt login with wrong password
+    auto result = exec->execute(
+        R"(mutation($e:String!,$p:String!,$o:ID){
+             login(email:$e password:$p organizationId:$o){token expiresAt}
+           })",
+        json{{"e", email}, {"p", "WrongPassword!"}, {"o", org_id}}.dump(),
+        anonymous_ctx());
+
+    // Must fail — never succeed
+    REQUIRE(!result.is_success());
+    // Must NOT be an RBAC/FORBIDDEN error — password errors map to UNKNOWN_ERROR
+    REQUIRE(!result.errors.empty());
+    REQUIRE(result.errors[0].code != EErrorCodes::FORBIDDEN);
+}
+
+TEST_CASE("Login: unknown email returns error",
+          "[integration][login][T047-016]") {
+    auto [db, exec] = make_executor_with_auth();
+
+    const std::string org_name = "LoginOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    auto org_res = exec->execute(
+        R"(mutation($n:String!){createOrganization(input:{name:$n subscriptionTier:"free"
+             userLimit:10 storageLimit:1073741824}){id}})",
+        json{{"n", org_name}}.dump(),
+        platform_admin_ctx());
+    require_success(org_res, "create org (unknown-email test)");
+    const std::string org_id = org_res.data["createOrganization"]["id"].get<std::string>();
+
+    auto result = exec->execute(
+        R"(mutation($e:String!,$p:String!,$o:ID){
+             login(email:$e password:$p organizationId:$o){token expiresAt}
+           })",
+        json{{"e", "nobody@nowhere.com"}, {"p", "any"}, {"o", org_id}}.dump(),
+        anonymous_ctx());
+
+    REQUIRE(!result.is_success());
+    REQUIRE(!result.errors.empty());
+}
+

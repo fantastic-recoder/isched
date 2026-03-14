@@ -61,6 +61,7 @@ struct AuthenticationResult {
     std::vector<std::string> roles;           ///< Role snapshot (from JWT @c roles claim)
     std::string error_message;
     std::chrono::system_clock::time_point expires_at;
+    std::string session_id;           ///< JWT @c jti claim; empty for legacy tokens without jti
     
     /// @brief Check if authentication is valid and not expired
     bool is_valid() const noexcept {

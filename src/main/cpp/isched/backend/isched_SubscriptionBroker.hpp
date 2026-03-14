@@ -110,6 +110,39 @@ public:
      */
     void disconnect_session(const std::string& session_id);
 
+    // ----- Auth-session tracking (T049-007) ------------------------------
+
+    /**
+     * @brief Register an association between an auth session (JWT jti) and a
+     *        WebSocket session, together with a close callback invoked on
+     *        revocation.
+     *
+     * Called by WsSession when the client authenticates during connection_init.
+     * If a registration for @p ws_session_id already exists it is replaced.
+     */
+    void register_auth_session(const std::string& auth_session_id,
+                               const std::string& ws_session_id,
+                               std::function<void()> close_callback);
+
+    /**
+     * @brief Remove the auth-session registration for a WebSocket session.
+     *
+     * Should be called from WsSession's destructor so stale entries are
+     * cleaned up even when no explicit revocation occurred.
+     */
+    void unregister_auth_session(const std::string& ws_session_id);
+
+    /**
+     * @brief Revoke all WebSocket connections that used the given auth session.
+     *
+     * Calls the registered close callback (which should send a
+     * @c connection_terminate frame and close the socket), then removes all
+     * subscriptions via @c disconnect_session().
+     *
+     * No-op if @p auth_session_id is not registered.
+     */
+    void revoke_auth_session(const std::string& auth_session_id);
+
     // ----- Event delivery -------------------------------------------------
 
     /**

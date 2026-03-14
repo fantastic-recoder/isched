@@ -122,3 +122,10 @@ target_link_libraries(test_user_management PRIVATE isched Catch2::Catch2WithMain
     taocpp::pegtl openssl::openssl)
 add_test(NAME test_user_management COMMAND test_user_management)
 
+# Phase 6b: Session revocation integration tests (T049-008)
+add_executable(test_session_revocation ../integration/test_session_revocation.cpp)
+target_link_libraries(test_session_revocation PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl)
+add_test(NAME test_session_revocation COMMAND test_session_revocation)
+

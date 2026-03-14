@@ -1074,16 +1074,101 @@ namespace isched::v0_0_1::backend {
         require_roles("users", {std::string(Role::PLATFORM_ADMIN),
                                 std::string(Role::TENANT_ADMIN)});
         // organization / organizations — real implementations added in T047-009 below
-        register_resolver({}, "login", [](const json&, const json&, const ResolverCtx&) -> json {
-            // Stub: returns a shaped-but-empty AuthPayload until T047-016 is implemented.
-            json payload;
-            payload["token"]     = "";
-            payload["expiresAt"] = "";
-            return payload;
-        });
-        register_resolver({}, "logout", [](const json&, const json&, const ResolverCtx&) -> json {
-            return true; // stub — session revocation implemented in T049-003
-        });
+
+        // ---------------------------------------------------------------
+        // T049-003: logout mutation — revoke the caller's current session
+        // ---------------------------------------------------------------
+        register_resolver({}, "logout",
+            [this](const json&, const json&, const ResolverCtx& ctx) -> json
+            {
+                if (ctx.session_id.empty())
+                    return true; // unauthenticated caller — no session to revoke
+
+                auto db_ptr = ctx.db.lock();
+                if (!db_ptr)
+                    throw std::runtime_error("logout: database not available");
+
+                std::ignore = db_ptr->revoke_session(ctx.tenant_id, ctx.session_id);
+
+                // Signal subscription broker to close any open WebSocket for this session.
+                if (m_broker)
+                    m_broker->revoke_auth_session(ctx.session_id);
+
+                return true;
+            });
+        // logout is available to any authenticated caller — no require_roles gate.
+
+        // ---------------------------------------------------------------
+        // T049-004: revokeSession mutation — tenant_admin only
+        // ---------------------------------------------------------------
+        register_resolver({}, "revokeSession",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
+            {
+                const std::string session_id = args.value("sessionId", "");
+                if (session_id.empty())
+                    throw std::invalid_argument("revokeSession: sessionId is required");
+
+                auto db_ptr = ctx.db.lock();
+                if (!db_ptr)
+                    throw std::runtime_error("revokeSession: database not available");
+
+                if (auto r = db_ptr->revoke_session(ctx.tenant_id, session_id); !r) {
+                    if (r.error() == DatabaseError::NotFound)
+                        throw std::runtime_error("Session not found");
+                    throw std::runtime_error("revokeSession: database error");
+                }
+
+                if (m_broker)
+                    m_broker->revoke_auth_session(session_id);
+
+                return true;
+            });
+        require_roles("revokeSession", {std::string(Role::TENANT_ADMIN),
+                                        std::string(Role::PLATFORM_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T049-005: revokeAllSessions mutation — tenant_admin only
+        // ---------------------------------------------------------------
+        register_resolver({}, "revokeAllSessions",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
+            {
+                const std::string user_id = args.value("userId", "");
+                if (user_id.empty())
+                    throw std::invalid_argument("revokeAllSessions: userId is required");
+
+                auto db_ptr = ctx.db.lock();
+                if (!db_ptr)
+                    throw std::runtime_error("revokeAllSessions: database not available");
+
+                std::ignore = db_ptr->revoke_all_sessions_for_user(ctx.tenant_id, user_id);
+                // We don't have individual session IDs here; the broker's revocation is
+                // best-effort for auth sessions that were registered.  A later poll by
+                // validate_token will reject revoked sessions anyway.
+                return true;
+            });
+        require_roles("revokeAllSessions", {std::string(Role::TENANT_ADMIN),
+                                            std::string(Role::PLATFORM_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T049-006: terminateAllSessions mutation — platform_admin only
+        // ---------------------------------------------------------------
+        register_resolver({}, "terminateAllSessions",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
+            {
+                const std::string org_id = args.value("organizationId", "");
+                if (org_id.empty())
+                    throw std::invalid_argument("terminateAllSessions: organizationId is required");
+
+                auto db_ptr = ctx.db.lock();
+                if (!db_ptr)
+                    throw std::runtime_error("terminateAllSessions: database not available");
+
+                // Revoke all sessions except platform_admin sessions (RISK-003).
+                std::ignore = db_ptr->revoke_all_sessions_for_org(
+                    org_id, std::string(Role::PLATFORM_ADMIN));
+                return true;
+            });
+        require_roles("terminateAllSessions", {std::string(Role::PLATFORM_ADMIN)});
 
         // ---------------------------------------------------------------
         // T047-004: createRole / deleteRole mutations
@@ -1454,6 +1539,73 @@ namespace isched::v0_0_1::backend {
             });
         require_roles("deleteUser", {std::string(Role::PLATFORM_ADMIN),
                                      std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-016: login mutation
+        // Unauthenticated — any caller may attempt; no require_roles() gate.
+        // ---------------------------------------------------------------
+        register_resolver({}, "login",
+            [this](const json&, const json& args, const ResolverCtx&) -> json
+            {
+                const std::string email    = args.value("email", "");
+                const std::string password = args.value("password", "");
+                // organizationId may be JSON null or absent
+                std::string org_id;
+                if (args.contains("organizationId") && !args["organizationId"].is_null())
+                    org_id = args["organizationId"].get<std::string>();
+
+                if (email.empty() || password.empty())
+                    throw std::invalid_argument("login: email and password are required");
+                if (!m_auth)
+                    throw std::runtime_error("login: authentication middleware not configured");
+
+                auto& db = *m_database;
+
+                // --- locate user and stored hash ----------------------------
+                std::string user_id, user_name, stored_hash, tenant_id;
+                std::vector<std::string> roles;
+
+                if (org_id.empty()) {
+                    // Platform-level login — look up in isched_system.db
+                    auto res = db.get_platform_admin_by_email(email);
+                    if (!res)
+                        throw std::runtime_error("Invalid credentials");
+                    const auto& admin = res.value();
+                    if (!admin.is_active)
+                        throw std::runtime_error("Account is disabled");
+                    user_id     = admin.id;
+                    user_name   = admin.display_name;
+                    stored_hash = admin.password_hash;
+                    roles       = {std::string(Role::PLATFORM_ADMIN)};
+                    tenant_id   = "platform";
+                } else {
+                    // Tenant user login — look up in per-org DB
+                    auto res = db.get_user_by_email(org_id, email);
+                    if (!res)
+                        throw std::runtime_error("Invalid credentials");
+                    const auto& u = res.value();
+                    if (!u.is_active)
+                        throw std::runtime_error("Account is disabled");
+                    user_id     = u.id;
+                    user_name   = u.display_name;
+                    stored_hash = u.password_hash;
+                    roles       = u.roles;
+                    tenant_id   = org_id;
+                }
+
+                // --- verify Argon2id password hash --------------------------
+                if (!verify_password(password, stored_hash))
+                    throw std::runtime_error("Invalid credentials");
+
+                // --- issue JWT + persist session ----------------------------
+                // Session creation is owned by AuthenticationMiddleware (T049-002).
+                // Failures are non-fatal (token is still valid without a DB record).
+                const LoginSession sess = m_auth->create_session(
+                    db, user_id, user_name, tenant_id, roles);
+
+                return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
+            });
+        // login is intentionally NOT gated by require_roles().
 
         load_schema(BUILTIN_SCHEMA);
     }

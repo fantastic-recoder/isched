@@ -82,6 +82,9 @@ public:
         String work_directory;                   ///< Working directory for tenant data
         bool enable_introspection;               ///< Enable GraphQL introspection
         size_t max_query_complexity;             ///< Maximum GraphQL query complexity
+        /// Secret key used for signing/verifying JWTs.
+        /// Must be at least 32 bytes; a random default is generated at startup if empty.
+        String jwt_secret_key;
         
         /**
          * @brief Default constructor with sensible defaults
@@ -263,9 +266,11 @@ public:
      * @brief Execute a GraphQL operation against the server's active schema.
      * @param query GraphQL query string
      * @param variables_json GraphQL variables as a JSON string
+     * @param authorization_header Value of the HTTP Authorization header (optional)
      * @return JSON-encoded GraphQL response payload
      */
-    String execute_graphql(const String& query, const String& variables_json = "{}");
+    String execute_graphql(const String& query, const String& variables_json = "{}",
+                           const String& authorization_header = "");
 
 private:
     /**

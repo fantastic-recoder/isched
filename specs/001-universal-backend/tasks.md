@@ -326,7 +326,7 @@ Each task implementation MUST verify:
 - [x] T047-013 [P] Implement `updateUser(id: ID!, displayName: String, roles: [String!], isActive: Boolean)` mutation — `tenant_admin` (own tenant) or `platform_admin`
 - [x] T047-014 [P] Implement `deleteUser(id: ID!)` mutation — `tenant_admin` or `platform_admin`
 - [x] T047-015 [P] Implement `user(id: ID!)` and `users` Query fields — `tenant_admin` sees own-tenant users; `platform_admin` sees all
-- [ ] T047-016 [P] Implement `login(email: String!, password: String!, organizationId: ID)` mutation: look up user in appropriate tenant DB (or `isched_system.db` if no `organizationId`), verify Argon2id hash, issue JWT with `user_id`, `user_name`, `roles`, `tenant_id`; call `AuthenticationMiddleware::create_session()` (defined in T049-002) to persist the session; return `{ token: String!, expiresAt: String! }` — **depends on T049-001 and T049-002**
+- [x] T047-016 [P] Implement `login(email: String!, password: String!, organizationId: ID)` mutation: look up user in appropriate tenant DB (or `isched_system.db` if no `organizationId`), verify Argon2id hash, issue JWT with `user_id`, `user_name`, `roles`, `tenant_id`; call `AuthenticationMiddleware::create_session()` (defined in T049-002) to persist the session; return `{ token: String!, expiresAt: String! }` — **depends on T049-001 and T049-002**
 
 #### Tests
 
@@ -374,12 +374,12 @@ Each task implementation MUST verify:
 
 - [x] T049-001 [P] Create SQLite schema for `sessions` table in each tenant DB: `id`, `user_id`, `access_token_id`, `permissions` (JSON array), `roles` (JSON array — populated at login time, required so `terminateAllSessions` can filter out `platform_admin` sessions without a cross-table join; RISK-003), `issued_at`, `expires_at`, `last_activity`, `transport_scope`, `is_revoked`
 - [x] T049-002 [P] Implement `AuthenticationMiddleware::create_session()`: writes a new session record to the tenant's `sessions` table (or `isched_system.db` for platform-level logins); also implement `validate_token()` to load and check revocation status on every request — session creation is owned exclusively here; the `login` resolver (T047-016) delegates to this method
-- [ ] T049-003 [P] Implement `logout` mutation: mark caller's session `is_revoked = true`; update `last_activity`; signal `SubscriptionBroker` to close any matching WebSocket connection
-- [ ] T049-004 [P] Implement `revokeSession(sessionId: ID!)` mutation — `tenant_admin` only; same revocation + WebSocket close flow
-- [ ] T049-005 [P] Implement `revokeAllSessions(userId: ID!)` mutation — `tenant_admin` only; revokes all sessions for the given user in the tenant
-- [ ] T049-006 [P] Implement `terminateAllSessions(organizationId: ID!)` mutation — `platform_admin` only; revokes all non-`platform_admin` sessions for the entire org
-- [ ] T049-007 [P] Add a revocation-check hook in `SubscriptionBroker`: when a session is revoked, look up any open WebSocket connections for that `session_id` and send a `connection_terminate` message then close the socket — **depends on T042** (WebSocket session model and connection registry must exist)
-- [ ] T049-008 [P] Add integration tests in `src/test/cpp/integration/test_session_revocation.cpp` *(to be created)*: logout invalidates token; revoked token is rejected on next request; WebSocket is closed after revocation; `terminateAllSessions` does not close `platform_admin` sessions
+- [x] T049-003 [P] Implement `logout` mutation: mark caller's session `is_revoked = true`; update `last_activity`; signal `SubscriptionBroker` to close any matching WebSocket connection
+- [x] T049-004 [P] Implement `revokeSession(sessionId: ID!)` mutation — `tenant_admin` only; same revocation + WebSocket close flow
+- [x] T049-005 [P] Implement `revokeAllSessions(userId: ID!)` mutation — `tenant_admin` only; revokes all sessions for the given user in the tenant
+- [x] T049-006 [P] Implement `terminateAllSessions(organizationId: ID!)` mutation — `platform_admin` only; revokes all non-`platform_admin` sessions for the entire org
+- [x] T049-007 [P] Add a revocation-check hook in `SubscriptionBroker`: when a session is revoked, look up any open WebSocket connections for that `session_id` and send a `connection_terminate` message then close the socket — **depends on T042** (WebSocket session model and connection registry must exist)
+- [x] T049-008 [P] Add integration tests in `src/test/cpp/integration/test_session_revocation.cpp` *(to be created)*: logout invalidates token; revoked token is rejected on next request; WebSocket is closed after revocation; `terminateAllSessions` does not close `platform_admin` sessions
 
 ---
 

@@ -53,13 +53,13 @@ public:
         auto auth_it = headers.find("Authorization");
         if (auth_it == headers.end()) {
             ++failed_auths_;
-            return {false, "", "", "", {}, {}, "Missing Authorization header", {}};
+            return {false, "", "", "", {}, {}, "Missing Authorization header", {}, ""};
         }
         
         std::string token = extract_jwt_token(auth_it->second);
         if (token.empty()) {
             ++failed_auths_;
-            return {false, "", "", "", {}, {}, "Invalid Authorization header format", {}};
+            return {false, "", "", "", {}, {}, "Invalid Authorization header format", {}, ""};
         }
 
         try {
@@ -70,7 +70,7 @@ public:
             }
             if (secret.empty()) {
                 ++failed_auths_;
-                return {false, "", "", "", {}, {}, "JWT secret not configured", {}};
+                return {false, "", "", "", {}, {}, "JWT secret not configured", {}, ""};
             }
 
             auto decoded = jwt::decode(token);
@@ -86,7 +86,7 @@ public:
             }
             if (!tenant_id.empty() && token_tenant_id != tenant_id) {
                 ++failed_auths_;
-                return {false, "", "", "", {}, {}, "Token tenant mismatch", {}};
+                return {false, "", "", "", {}, {}, "Token tenant mismatch", {}, ""};
             }
 
             std::vector<std::string> permissions;
@@ -115,12 +115,17 @@ public:
                 expires_at = std::chrono::system_clock::now() + std::chrono::hours(1);
             }
 
+            std::string jti;
+            if (decoded.has_id()) {
+                jti = decoded.get_id();
+            }
+
             ++successful_auths_;
-            return {true, user_id, tok_user_name, token_tenant_id, permissions, roles, "", expires_at};
+            return {true, user_id, tok_user_name, token_tenant_id, permissions, roles, "", expires_at, jti};
 
         } catch (const std::exception& e) {
             ++failed_auths_;
-            return {false, "", "", "", {}, {}, std::string("JWT validation failed: ") + e.what(), {}};
+            return {false, "", "", "", {}, {}, std::string("JWT validation failed: ") + e.what(), {}, ""};
         }
     }
     
@@ -303,7 +308,7 @@ public:
             }
             if (sess_res.value().is_revoked) {
                 ++failed_auths_;
-                return {false, "", "", "", {}, {}, "Session has been revoked", {}};
+                return {false, "", "", "", {}, {}, "Session has been revoked", {}, ""};
             }
             // Touch last_activity (best-effort).
             std::ignore = db.update_session_activity(tenant_id, jti);
