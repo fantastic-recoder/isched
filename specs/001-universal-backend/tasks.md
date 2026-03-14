@@ -304,9 +304,9 @@ Each task implementation MUST verify:
 
 #### Role infrastructure
 
-- [ ] T047-001 [P] Add `Role` enum (or string-based open enum) to `isched_AuthenticationMiddleware.hpp` representing `platform_admin`, `tenant_admin`, `user`, `service`; add storage for custom platform roles in `isched_system.db` (`platform_roles` table) and custom tenant roles in each tenant's SQLite schema
-- [ ] T047-002 [P] Extend `ResolverCtx` in `isched_GqlExecutor.hpp` with `user_id: std::string`, `user_name: std::string`, and `roles: std::vector<std::string>`; populate these fields from the validated JWT in `isched_Server.cpp` request dispatch
-- [ ] T047-003 [P] Implement operation-level RBAC gate in `isched_GqlExecutor.cpp`: before dispatching any Query or Mutation, evaluate `ResolverCtx::roles` against a per-operation `required_roles` annotation; reject with a GraphQL `FORBIDDEN` error if the caller lacks a required role
+- [x] T047-001 [P] Add `Role` enum (or string-based open enum) to `isched_AuthenticationMiddleware.hpp` representing `platform_admin`, `tenant_admin`, `user`, `service`; add storage for custom platform roles in `isched_system.db` (`platform_roles` table) and custom tenant roles in each tenant's SQLite schema
+- [x] T047-002 [P] Extend `ResolverCtx` in `isched_GqlExecutor.hpp` with `user_id: std::string`, `user_name: std::string`, and `roles: std::vector<std::string>`; populate these fields from the validated JWT in `isched_Server.cpp` request dispatch
+- [x] T047-003 [P] Implement operation-level RBAC gate in `isched_GqlExecutor.cpp`: before dispatching any Query or Mutation, evaluate `ResolverCtx::roles` against a per-operation `required_roles` annotation; reject with a GraphQL `FORBIDDEN` error if the caller lacks a required role
 - [ ] T047-004 [P] Add `createRole` and `deleteRole` mutations (scoped: `platform_admin` creates platform-scope roles; `tenant_admin` creates tenant-scope roles)
 
 #### Organization persistence

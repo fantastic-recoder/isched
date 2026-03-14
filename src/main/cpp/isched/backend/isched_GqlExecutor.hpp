@@ -61,11 +61,16 @@ namespace isched::v0_0_1::backend {
     /**
      * Resolver context for GraphQL field resolution; provides access to the
      * current tenant, database connection, and authenticated user.
+     *
+     * Populated per-request by Server::execute_graphql() (or set directly in
+     * tests) and threaded to every resolver via a thread-local slot.
      */
     struct ResolverCtx {
         std::string tenant_id;                          ///< Active tenant identifier
         std::weak_ptr<DatabaseManager> db;              ///< Non-owning handle to the tenant DB
         std::string current_user_id;                    ///< Authenticated user identifier (empty = anonymous)
+        std::string user_name;                          ///< Human-readable display name (empty = anonymous)
+        std::vector<std::string> roles;                 ///< Granted roles (e.g. "role_platform_admin")
     };
 
     /**
@@ -230,6 +235,23 @@ namespace isched::v0_0_1::backend {
                                               bool p_print_dot = false) const;
 
         /**
+         * @brief Execute GraphQL query with an authenticated resolver context.
+         *
+         * Sets the thread-local resolver context (user id, roles, tenant) before
+         * dispatching so that all resolvers invoked during this call see the
+         * caller's authentication state.
+         *
+         * @param p_query           Query string
+         * @param p_variables_json  Variables JSON object string
+         * @param p_ctx             Populated auth/tenant context
+         * @param p_print_dot       Verbose AST-dot flag
+         */
+        [[nodiscard]] ExecutionResult execute(std::string_view p_query,
+                                              std::string_view p_variables_json,
+                                              ResolverCtx p_ctx,
+                                              bool p_print_dot = false) const;
+
+        /**
          *
          * @param pSchemaDocument input schema definition, it will be consumed
          *
@@ -253,6 +275,24 @@ namespace isched::v0_0_1::backend {
                     concat_vector(path,"."),field_name));
             };
             m_resolvers.register_resolver(path, field_name, std::move(resolver));
+        }
+
+        /**
+         * @brief Declare which roles are required to call a top-level field.
+         *
+         * The check is OR-based: the caller must hold **at least one** of the
+         * listed roles.  Registering an empty vector removes any prior gate.
+         *
+         * @param field_name  Top-level Query or Mutation field name.
+         * @param roles       Allowed role strings (e.g. Role::PLATFORM_ADMIN).
+         */
+        void require_roles(const std::string& field_name,
+                           std::vector<std::string> roles) {
+            if (roles.empty()) {
+                m_required_roles.erase(field_name);
+            } else {
+                m_required_roles[field_name] = std::move(roles);
+            }
         }
 
         // ---------------------------------------------------------------
@@ -307,6 +347,9 @@ namespace isched::v0_0_1::backend {
         TAstNodeMap m_type_map;
         TAstNodeMap m_directives;
         std::vector<TSchemaDocPtr> m_schema_documents;
+
+        /// Per-field RBAC gates: field_name → list of permitted roles (OR logic).
+        std::unordered_map<std::string, std::vector<std::string>> m_required_roles;
 
         // Pending schema change set by activateSnapshot resolver; consumed by Server.
         mutable std::mutex m_pending_change_mutex;

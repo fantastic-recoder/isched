@@ -21,7 +21,8 @@ namespace isched::v0_0_1::gql {
     enum class EErrorCodes {
         OK = 0,
         UNKNOWN_ERROR = 1,
-        MISSING_GQL_RESOLVER = 2, PARSE_ERROR = 3, EXECUTABLE_DEF_NOT_ALLOWED =4, ARGUMENT_ERROR
+        MISSING_GQL_RESOLVER = 2, PARSE_ERROR = 3, EXECUTABLE_DEF_NOT_ALLOWED = 4, ARGUMENT_ERROR = 5,
+        FORBIDDEN = 6   ///< Caller lacks a required role for this operation
     };
 
     /// Source location used in GraphQL error objects (per GraphQL over HTTP spec).

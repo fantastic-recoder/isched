@@ -31,6 +31,9 @@ namespace {
 // Per-request GraphQL variables context (thread-safe: one entry per executing thread)
 thread_local nlohmann::json tl_gql_variables = nlohmann::json::object();
 
+// Per-request resolver context (auth info populated by execute() overload that accepts ctx)
+thread_local isched::v0_0_1::backend::ResolverCtx tl_resolver_ctx;
+
 // ---------------------------------------------------------------------------
 // Phase 5b: GraphQL Introspection helpers (T-INTRO-001 … T-INTRO-031)
 // ---------------------------------------------------------------------------
@@ -1464,7 +1467,44 @@ namespace isched::v0_0_1::backend {
                 });
             }
         } else {
-            ResolverCtx my_ctx = {};
+            ResolverCtx my_ctx = tl_resolver_ctx;  // copy thread-local auth context for this field
+
+            // T047-003: RBAC gate — check if the caller holds at least one required role.
+            // Only enforced at the top level (p_path is empty).
+            if (p_path.empty()) {
+                auto gate_it = m_required_roles.find(myFieldName);
+                if (gate_it != m_required_roles.end() && !gate_it->second.empty()) {
+                    const auto& required = gate_it->second;
+                    const auto& caller_roles = my_ctx.roles;
+                    const bool has_role = std::any_of(required.begin(), required.end(),
+                        [&caller_roles](const std::string& r) {
+                            return std::find(caller_roles.begin(), caller_roles.end(), r)
+                                   != caller_roles.end();
+                        });
+                    if (!has_role) {
+                        gql::ErrorPath ep;
+                        for (const auto& s : my_field_path) ep.push_back(s);
+                        p_error.push_back(gql::Error{
+                            .code    = gql::EErrorCodes::FORBIDDEN,
+                            .message = std::format(
+                                "Access denied: field '{}' requires one of [{}]",
+                                myFieldName,
+                                [&]() {
+                                    std::string joined;
+                                    for (std::size_t i = 0; i < required.size(); ++i) {
+                                        if (i) joined += ", ";
+                                        joined += required[i];
+                                    }
+                                    return joined;
+                                }()),
+                            .path = std::move(ep),
+                        });
+                        p_result[myFieldName] = nullptr;
+                        return false;
+                    }
+                }
+            }
+
             json my_args = process_argument_field(p_field_node, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
@@ -1817,6 +1857,20 @@ namespace isched::v0_0_1::backend {
             log_parse_error_exception(in, my_result, e);
         }
         return my_result;
+    }
+
+    ExecutionResult GqlExecutor::execute(
+        const std::string_view p_query,
+        const std::string_view p_variables_json,
+        ResolverCtx p_ctx,
+        const bool p_print_dot
+    ) const {
+        // Install the caller-supplied context into the thread-local slot so that
+        // all resolvers dispatched by the inner execute() call can read it.
+        tl_resolver_ctx = std::move(p_ctx);
+        // Delegate to the base overload; tl_resolver_ctx will be picked up in
+        // resolve_field_selection_details().
+        return execute(p_query, p_variables_json, p_print_dot);
     }
 
 

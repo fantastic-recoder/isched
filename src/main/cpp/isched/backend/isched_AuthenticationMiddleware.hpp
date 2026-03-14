@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <chrono>
 #include <optional>
@@ -29,6 +30,20 @@
 #include <vector>
 
 namespace isched::v0_0_1::backend {
+
+/**
+ * @brief Built-in platform role name constants.
+ *
+ * Roles are represented as open strings in JWTs and resolver contexts
+ * so that operators can define custom roles without recompiling.  These
+ * constants cover the four built-in roles seeded in `isched_system.db`.
+ */
+namespace Role {
+    inline constexpr std::string_view PLATFORM_ADMIN = "role_platform_admin";
+    inline constexpr std::string_view TENANT_ADMIN   = "role_tenant_admin";
+    inline constexpr std::string_view USER           = "role_user";
+    inline constexpr std::string_view SERVICE        = "role_service";
+} // namespace Role
 
 /**
  * @brief Authentication result containing user context and validation status
