@@ -273,31 +273,25 @@ type MyType { field: String })", "Description with");
             const auto reply = proc.execute("query { __schema { types { name description fields { name description type { name } } } } }","{}",true);
             log_result(reply);
             REQUIRE(reply.is_success());
-/*
+
+            // T-INTRO-040: un-commented assertions
             json types = reply.data["__schema"]["types"];
-            std::cout << "Types: " << types.dump(4) << std::endl << std::flush;
             bool foundUser = false;
             for (const auto& type : types) {
                 if (type["name"] == "User") {
                     foundUser = true;
-                    if (!type["description"].is_null()) {
-                        std::cout << "Description for User: " << type["description"].dump() << std::endl;
-                    } else {
-                        std::cout << "Description for User is null" << std::endl;
-                    }
                     REQUIRE(type["fields"].is_array());
                     bool foundName = false;
                     for (const auto& field : type["fields"]) {
                         if (field["name"] == "name") {
                             foundName = true;
-                            // REQUIRE(field["description"] == "\"User name\"");
                             REQUIRE(field["type"]["name"] == "String");
                         }
                     }
                     REQUIRE(foundName);
                 }
             }
-            REQUIRE(foundUser);*/
+            REQUIRE(foundUser);
         }
 
         SECTION("Introspection with directives") {
@@ -599,6 +593,393 @@ namespace isched::v0_0_1::backend {
             R"({"n":21})");
         REQUIRE(reply.is_success());
         REQUIRE(reply.data["doubly"] == 42);
+    }
+
+} // namespace isched::v0_0_1::backend
+
+// ---------------------------------------------------------------------------
+// Phase 5b: Introspection completeness tests (T-INTRO-041 … T-INTRO-051)
+// ---------------------------------------------------------------------------
+namespace isched::v0_0_1::backend {
+
+    // T-INTRO-041: __schema { types } contains all five built-in scalars
+    TEST_CASE("Introspection: __schema types contains all built-in scalars",
+              "[gql][introspection][T-INTRO-041]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute(
+            "query { __schema { types { name kind } } }");
+        REQUIRE(reply.is_success());
+        const json& types = reply.data["__schema"]["types"];
+        REQUIRE(types.is_array());
+        const std::vector<std::string> builtins{"String","Int","Float","Boolean","ID"};
+        for (const auto& bname : builtins) {
+            bool found = false;
+            for (const auto& t : types) {
+                if (t["name"] == bname) {
+                    found = true;
+                    REQUIRE(t["kind"] == "SCALAR");
+                    break;
+                }
+            }
+            INFO("Built-in scalar not found: " << bname);
+            REQUIRE(found);
+        }
+    }
+
+    // T-INTRO-042: __schema types contains user-defined OBJECT with fields
+    TEST_CASE("Introspection: user-defined OBJECT type in __schema types",
+              "[gql][introspection][T-INTRO-042]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "me", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::object();
+        });
+        const auto load_res = proc.load_schema(R"(
+            "A user in the system"
+            type User { id: ID name: String }
+            type Query { me: User }
+        )");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(
+            "query { __schema { types { name kind description fields { name type { name kind } } } } }");
+        REQUIRE(reply.is_success());
+
+        const json& types = reply.data["__schema"]["types"];
+        bool found = false;
+        for (const auto& t : types) {
+            if (t["name"] == "User") {
+                found = true;
+                REQUIRE(t["kind"] == "OBJECT");
+                REQUIRE(t["fields"].is_array());
+                bool found_id = false, found_name = false;
+                for (const auto& f : t["fields"]) {
+                    if (f["name"] == "id")   { found_id = true;   REQUIRE(f["type"]["name"] == "ID"); }
+                    if (f["name"] == "name") { found_name = true; REQUIRE(f["type"]["name"] == "String"); }
+                }
+                REQUIRE(found_id);
+                REQUIRE(found_name);
+            }
+        }
+        REQUIRE(found);
+    }
+
+    // T-INTRO-043: __schema types contains user-defined INPUT_OBJECT with inputFields
+    TEST_CASE("Introspection: INPUT_OBJECT type has inputFields in __schema",
+              "[gql][introspection][T-INTRO-043]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "createUser", [](const json&, const json&, const ResolverCtx&) -> json {
+            return "ok";
+        });
+        const auto load_res = proc.load_schema(R"(
+            input CreateUserInput { name: String email: String }
+            type Query  { hello: String }
+            type Mutation { createUser(input: CreateUserInput): String }
+        )");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(
+            "query { __schema { types { name kind inputFields { name type { name } } } } }");
+        REQUIRE(reply.is_success());
+
+        bool found = false;
+        for (const auto& t : reply.data["__schema"]["types"]) {
+            if (t["name"] == "CreateUserInput") {
+                found = true;
+                REQUIRE(t["kind"] == "INPUT_OBJECT");
+                REQUIRE(t["inputFields"].is_array());
+                bool found_name = false, found_email = false;
+                for (const auto& f : t["inputFields"]) {
+                    if (f["name"] == "name")  found_name  = true;
+                    if (f["name"] == "email") found_email = true;
+                }
+                REQUIRE(found_name);
+                REQUIRE(found_email);
+            }
+        }
+        REQUIRE(found);
+    }
+
+    // T-INTRO-044: __schema types contains user-defined ENUM with enumValues
+    TEST_CASE("Introspection: ENUM type has enumValues in __schema",
+              "[gql][introspection][T-INTRO-044]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "status", [](const json&, const json&, const ResolverCtx&) -> json {
+            return "ACTIVE";
+        });
+        const auto load_res = proc.load_schema(R"(
+            enum UserStatus { ACTIVE INACTIVE SUSPENDED }
+            type Query { status: UserStatus }
+        )");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(
+            "query { __schema { types { name kind enumValues { name } } } }");
+        REQUIRE(reply.is_success());
+
+        bool found = false;
+        for (const auto& t : reply.data["__schema"]["types"]) {
+            if (t["name"] == "UserStatus") {
+                found = true;
+                REQUIRE(t["kind"] == "ENUM");
+                REQUIRE(t["enumValues"].is_array());
+                std::vector<std::string> vals;
+                for (const auto& ev : t["enumValues"]) vals.push_back(ev["name"].get<std::string>());
+                REQUIRE(std::find(vals.begin(), vals.end(), "ACTIVE")    != vals.end());
+                REQUIRE(std::find(vals.begin(), vals.end(), "INACTIVE")  != vals.end());
+                REQUIRE(std::find(vals.begin(), vals.end(), "SUSPENDED") != vals.end());
+            }
+        }
+        REQUIRE(found);
+    }
+
+    // T-INTRO-045: __type(name: "User") returns correct __Type
+    TEST_CASE("Introspection: __type(name:) returns correct type for known object",
+              "[gql][introspection][T-INTRO-045]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "me", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::object();
+        });
+        const auto load_res = proc.load_schema(R"(
+            type User { id: ID name: String }
+            type Query { me: User }
+        )");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(
+            R"(query { __type(name: "User") { name kind fields { name } } })");
+        REQUIRE(reply.is_success());
+        REQUIRE(!reply.data["__type"].is_null());
+        REQUIRE(reply.data["__type"]["name"] == "User");
+        REQUIRE(reply.data["__type"]["kind"] == "OBJECT");
+        REQUIRE(reply.data["__type"]["fields"].is_array());
+    }
+
+    // T-INTRO-046: __type(name: "NonExistent") returns null without error
+    TEST_CASE("Introspection: __type(name:) returns null for unknown type",
+              "[gql][introspection][T-INTRO-046]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute(
+            R"(query { __type(name: "DoesNotExist") { name kind } })");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["__type"].is_null());
+    }
+
+    // T-INTRO-047: field typed [String!]! produces NON_NULL → LIST → NON_NULL → SCALAR chain
+    TEST_CASE("Introspection: list-of-non-null field produces correct ofType chain",
+              "[gql][introspection][T-INTRO-047]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "tags", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::array({"a","b"});
+        });
+        const auto load_res = proc.load_schema(R"(
+            type Query { tags: [String!]! }
+        )");
+        REQUIRE(load_res.is_success());
+
+        // Introspect to get the field type chain for Query.tags
+        const auto reply = proc.execute(R"(
+            query {
+                __type(name: "Query") {
+                    fields {
+                        name
+                        type {
+                            kind name
+                            ofType { kind name
+                                ofType { kind name
+                                    ofType { kind name ofType { kind name } }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )");
+        REQUIRE(reply.is_success());
+        REQUIRE(!reply.data["__type"].is_null());
+
+        // Find the "tags" field
+        const json& fields = reply.data["__type"]["fields"];
+        bool found = false;
+        for (const auto& f : fields) {
+            if (f["name"] == "tags") {
+                found = true;
+                // Outermost: NON_NULL
+                REQUIRE(f["type"]["kind"] == "NON_NULL");
+                // Next: LIST
+                REQUIRE(f["type"]["ofType"]["kind"] == "LIST");
+                // Next: NON_NULL (the String! part)
+                REQUIRE(f["type"]["ofType"]["ofType"]["kind"] == "NON_NULL");
+                // Innermost: SCALAR String
+                REQUIRE(f["type"]["ofType"]["ofType"]["ofType"]["kind"] == "SCALAR");
+                REQUIRE(f["type"]["ofType"]["ofType"]["ofType"]["name"] == "String");
+            }
+        }
+        REQUIRE(found);
+    }
+
+    // T-INTRO-048: __typename in nested selection set returns runtime type name
+    TEST_CASE("Introspection: __typename in nested selection set returns type name",
+              "[gql][introspection][T-INTRO-048]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "player", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"name","Alice"}};
+        });
+        const auto load_res = proc.load_schema(R"(
+            type PlayerType { name: String }
+            type Query { player: PlayerType }
+        )");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ player { __typename name } }");
+        for (const auto& e : reply.errors) std::cerr << "[__typename] error: " << e.message << "\n";
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["player"]["__typename"] == "PlayerType");
+        REQUIRE(reply.data["player"]["name"] == "Alice");
+    }
+
+    // T-INTRO-049: __schema { directives } contains @skip, @include, @deprecated
+    TEST_CASE("Introspection: __schema directives include skip, include, deprecated",
+              "[gql][introspection][T-INTRO-049]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute(R"(
+            query { __schema { directives { name locations args { name type { kind name ofType { kind name } } } } } }
+        )");
+        REQUIRE(reply.is_success());
+        const json& directives = reply.data["__schema"]["directives"];
+        REQUIRE(directives.is_array());
+
+        auto find_dir = [&](const std::string& name) -> const json* {
+            for (const auto& d : directives)
+                if (d["name"] == name) return &d;
+            return nullptr;
+        };
+
+        // @skip
+        const json* skip = find_dir("skip");
+        REQUIRE(skip != nullptr);
+        REQUIRE((*skip)["locations"].is_array());
+        bool has_field_loc = false;
+        for (const auto& loc : (*skip)["locations"])
+            if (loc == "FIELD") has_field_loc = true;
+        REQUIRE(has_field_loc);
+        REQUIRE((*skip)["args"].is_array());
+        REQUIRE((*skip)["args"].size() >= 1);
+        REQUIRE((*skip)["args"][0]["name"] == "if");
+
+        // @include
+        REQUIRE(find_dir("include") != nullptr);
+
+        // @deprecated
+        const json* depr = find_dir("deprecated");
+        REQUIRE(depr != nullptr);
+        REQUIRE((*depr)["args"].is_array());
+        REQUIRE((*depr)["args"].size() >= 1);
+        REQUIRE((*depr)["args"][0]["name"] == "reason");
+    }
+
+    // T-INTRO-050: @deprecated on a field sets isDeprecated and deprecationReason
+    TEST_CASE("Introspection: @deprecated directive sets isDeprecated and reason",
+              "[gql][introspection][T-INTRO-050]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "me", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"old","x"},{"newField","y"}};
+        });
+        const auto load_res = proc.load_schema(R"(
+            type User {
+                old:      String @deprecated(reason: "Use newField instead")
+                newField: String
+            }
+            type Query { me: User }
+        )");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(R"(
+            query { __schema { types { name fields { name isDeprecated deprecationReason } } } }
+        )");
+        REQUIRE(reply.is_success());
+
+        for (const auto& t : reply.data["__schema"]["types"]) {
+            if (t["name"] == "User") {
+                for (const auto& f : t["fields"]) {
+                    if (f["name"] == "old") {
+                        REQUIRE(f["isDeprecated"] == true);
+                        REQUIRE(!f["deprecationReason"].is_null());
+                        std::string reason = f["deprecationReason"].get<std::string>();
+                        REQUIRE(reason.find("newField") != std::string::npos);
+                    }
+                    if (f["name"] == "newField") {
+                        REQUIRE(f["isDeprecated"] == false);
+                    }
+                }
+            }
+        }
+    }
+
+    // T-INTRO-051: __schema { queryType { name } } returns "Query"
+    TEST_CASE("Introspection: __schema queryType name is Query",
+              "[gql][introspection][T-INTRO-051]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute(
+            "query { __schema { queryType { name } } }");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["__schema"]["queryType"]["name"] == "Query");
+    }
+
+} // namespace isched::v0_0_1::backend
+
+// ---------------------------------------------------------------------------
+// T041: Query complexity and depth analysis tests
+// ---------------------------------------------------------------------------
+namespace isched::v0_0_1::backend {
+
+    TEST_CASE("T041: simple query within limits succeeds", "[gql][executor][T041][complexity]") {
+        GqlExecutor::Config cfg;
+        cfg.max_depth       = 5;
+        cfg.max_complexity  = 20;
+        GqlExecutor proc(std::make_shared<DatabaseManager>(), cfg);
+        const auto reply = proc.execute("{ hello }");
+        REQUIRE(reply.is_success());
+    }
+
+    TEST_CASE("T041: query exceeding max_depth is rejected", "[gql][executor][T041][complexity]") {
+        GqlExecutor::Config cfg;
+        cfg.max_depth = 1; // depth-1: only root-level SelectionSet allowed
+        GqlExecutor proc(std::make_shared<DatabaseManager>(), cfg);
+        proc.register_resolver({}, "a", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"b","v"}};
+        });
+        const auto load_res = proc.load_schema(
+            "type Query { a: AType } type AType { b: String }");
+        REQUIRE(load_res.is_success());
+
+        // Depth-2 query: { a { b } } — exceeds max_depth=1
+        const auto reply = proc.execute("{ a { b } }");
+        REQUIRE_FALSE(reply.is_success());
+        bool found = false;
+        for (const auto& e : reply.errors)
+            if (e.message.find("depth") != std::string::npos) { found = true; break; }
+        REQUIRE(found);
+    }
+
+    TEST_CASE("T041: query exceeding max_complexity is rejected", "[gql][executor][T041][complexity]") {
+        GqlExecutor::Config cfg;
+        cfg.max_complexity = 2; // only 2 fields allowed
+        GqlExecutor proc(std::make_shared<DatabaseManager>(), cfg);
+
+        // Three-field query — exceeds max_complexity=2
+        const auto reply = proc.execute("{ hello version uptime }");
+        REQUIRE_FALSE(reply.is_success());
+        bool found = false;
+        for (const auto& e : reply.errors)
+            if (e.message.find("complexity") != std::string::npos) { found = true; break; }
+        REQUIRE(found);
+    }
+
+    TEST_CASE("T041: unlimited (0) depth/complexity imposes no restriction", "[gql][executor][T041][complexity]") {
+        // Default config has max_depth=0, max_complexity=0 (unlimited)
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute("{ hello version uptime }");
+        REQUIRE(reply.is_success());
     }
 
 } // namespace isched::v0_0_1::backend

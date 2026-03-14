@@ -197,19 +197,19 @@ Each task implementation MUST verify:
 
 ### Tests for User Story 3
 
-- [ ] T037 [P] [US3] Add WebSocket integration test for `graphql-transport-ws` connection lifecycle in `src/test/cpp/integration/test_graphql_websocket.cpp` *(to be created)*
-- [ ] T038 [P] [US3] Add integration test for configuration and health subscriptions in `src/test/cpp/integration/test_graphql_subscriptions.cpp` *(to be created)*
-- [ ] T039 [P] [US3] Add interoperability test for GraphQL HTTP plus WebSocket clients in `src/test/cpp/integration/test_client_compatibility.cpp` *(to be created)*
+- [x] T037 [P] [US3] Add WebSocket integration test for `graphql-transport-ws` connection lifecycle in `src/test/cpp/integration/test_graphql_websocket.cpp` *(to be created)*
+- [x] T038 [P] [US3] Add integration test for configuration and health subscriptions in `src/test/cpp/integration/test_graphql_subscriptions.cpp` *(to be created)*
+- [x] T039 [P] [US3] Add interoperability test for GraphQL HTTP plus WebSocket clients in `src/test/cpp/integration/test_client_compatibility.cpp` *(to be created)*
 
 ### Implementation for User Story 3
 
-- [ ] T040 [P] [US3] Implement complete GraphQL introspection in `isched_GqlExecutor.cpp` — see Phase 5b below for detailed breakdown
-- [ ] T041 [P] [US3] Add GraphQL query complexity and depth analysis
-- [ ] T042 [P] [US3] Implement WebSocket `/graphql` endpoint and subscription session lifecycle
-- [ ] T043 [P] [US3] Implement subscription broker fan-out and disconnect cleanup
-- [ ] T044 [US3] Add GraphQL compliance validation for HTTP and WebSocket transport behavior
-- [ ] T045 [US3] Implement authentication during WebSocket `connection_init`
-- [ ] T046 [US3] Add subscription event types for configuration and health changes
+- [x] T040 [P] [US3] Implement complete GraphQL introspection in `isched_GqlExecutor.cpp` — see Phase 5b below for detailed breakdown
+- [x] T041 [P] [US3] Add GraphQL query complexity and depth analysis
+- [x] T042 [P] [US3] Implement WebSocket `/graphql` endpoint and subscription session lifecycle
+- [x] T043 [P] [US3] Implement subscription broker fan-out and disconnect cleanup
+- [x] T044 [US3] Add GraphQL compliance validation for HTTP and WebSocket transport behavior
+- [x] T045 [US3] Implement authentication during WebSocket `connection_init`
+- [x] T046 [US3] Add subscription event types for configuration and health changes
 
 **Checkpoint**: User Story 3 is independently testable over WebSocket. `ctest` MUST be green before moving to Phase 6.
 
@@ -225,53 +225,53 @@ Each task implementation MUST verify:
 
 ### Introspection data model
 
-- [ ] T-INTRO-001 Define an internal `IntrospectionType` struct (or equivalent) in `GqlExecutor` that holds `kind`, `name`, `description`, `fields`, `interfaces`, `possibleTypes`, `enumValues`, `inputFields`, and `ofType` — populated from the active schema parse tree during `load_schema()` / `update_type_map()`
-- [ ] T-INTRO-002 Populate built-in scalar types (`String`, `Int`, `Float`, `Boolean`, `ID`) unconditionally in the introspection model regardless of whether they appear in the active schema
-- [ ] T-INTRO-003 Represent wrapped types (`LIST`, `NON_NULL`) as recursive `ofType` chains rather than flattened strings; ensure a field typed `[String!]!` resolves to `NON_NULL → LIST → NON_NULL → SCALAR(String)`
-- [ ] T-INTRO-004 Populate introspection meta-types themselves (`__Schema`, `__Type`, `__TypeKind`, `__Field`, `__InputValue`, `__EnumValue`, `__Directive`, `__DirectiveLocation`) in the types list
-- [ ] T-INTRO-005 Refresh the introspection model whenever a configuration snapshot is activated so `__schema` results reflect the current live schema
+- [x] T-INTRO-001 Define an internal `IntrospectionType` struct (or equivalent) in `GqlExecutor` that holds `kind`, `name`, `description`, `fields`, `interfaces`, `possibleTypes`, `enumValues`, `inputFields`, and `ofType` — populated from the active schema parse tree during `load_schema()` / `update_type_map()`
+- [x] T-INTRO-002 Populate built-in scalar types (`String`, `Int`, `Float`, `Boolean`, `ID`) unconditionally in the introspection model regardless of whether they appear in the active schema
+- [x] T-INTRO-003 Represent wrapped types (`LIST`, `NON_NULL`) as recursive `ofType` chains rather than flattened strings; ensure a field typed `[String!]!` resolves to `NON_NULL → LIST → NON_NULL → SCALAR(String)`
+- [x] T-INTRO-004 Populate introspection meta-types themselves (`__Schema`, `__Type`, `__TypeKind`, `__Field`, `__InputValue`, `__EnumValue`, `__Directive`, `__DirectiveLocation`) in the types list
+- [x] T-INTRO-005 Refresh the introspection model whenever a configuration snapshot is activated so `__schema` results reflect the current live schema
 
 ### `__schema` root field
 
-- [ ] T-INTRO-010 Emit correct `queryType`, `mutationType`, `subscriptionType` names (not always `null`) based on the loaded schema's schema definition
-- [ ] T-INTRO-011 Emit all types (user-defined + built-in scalars + meta-types) in `__schema { types }`
-- [ ] T-INTRO-012 Emit correct `kind` for each type: `OBJECT`, `SCALAR`, `INTERFACE`, `UNION`, `ENUM`, `INPUT_OBJECT`, `LIST`, `NON_NULL` — remove the hard-coded `"OBJECT"` default
-- [ ] T-INTRO-013 Populate `fields` correctly for `OBJECT` and `INTERFACE` types; return `null` for other kinds
-- [ ] T-INTRO-014 Populate `inputFields` for `INPUT_OBJECT` types; return `null` for other kinds
-- [ ] T-INTRO-015 Populate `enumValues` for `ENUM` types; return `null` for other kinds
-- [ ] T-INTRO-016 Populate `interfaces` for `OBJECT` types; return `null` or empty for other kinds
-- [ ] T-INTRO-017 Populate `possibleTypes` for `INTERFACE` and `UNION` types; return `null` for other kinds
-- [ ] T-INTRO-018 Populate `isDeprecated` and `deprecationReason` on `__Field`, `__InputValue`, and `__EnumValue` (derive from `@deprecated` directive on the definition node)
+- [x] T-INTRO-010 Emit correct `queryType`, `mutationType`, `subscriptionType` names (not always `null`) based on the loaded schema's schema definition
+- [x] T-INTRO-011 Emit all types (user-defined + built-in scalars + meta-types) in `__schema { types }`
+- [x] T-INTRO-012 Emit correct `kind` for each type: `OBJECT`, `SCALAR`, `INTERFACE`, `UNION`, `ENUM`, `INPUT_OBJECT`, `LIST`, `NON_NULL` — remove the hard-coded `"OBJECT"` default
+- [x] T-INTRO-013 Populate `fields` correctly for `OBJECT` and `INTERFACE` types; return `null` for other kinds
+- [x] T-INTRO-014 Populate `inputFields` for `INPUT_OBJECT` types; return `null` for other kinds
+- [x] T-INTRO-015 Populate `enumValues` for `ENUM` types; return `null` for other kinds
+- [x] T-INTRO-016 Populate `interfaces` for `OBJECT` types; return `null` or empty for other kinds
+- [x] T-INTRO-017 Populate `possibleTypes` for `INTERFACE` and `UNION` types; return `null` for other kinds
+- [x] T-INTRO-018 Populate `isDeprecated` and `deprecationReason` on `__Field`, `__InputValue`, and `__EnumValue` (derive from `@deprecated` directive on the definition node)
 
 ### `__type(name:)` root field
 
-- [ ] T-INTRO-020 Implement the `__type(name: String!)` root field in the execution dispatch path
-- [ ] T-INTRO-021 Return `null` for unknown type names without raising an execution error
+- [x] T-INTRO-020 Implement the `__type(name: String!)` root field in the execution dispatch path
+- [x] T-INTRO-021 Return `null` for unknown type names without raising an execution error
 
 ### `__typename` meta-field
 
-- [ ] T-INTRO-025 Dispatch `__typename` as a special field in the selection-set executor; return the runtime type name of the current object
-- [ ] T-INTRO-026 Support `__typename` in nested selection sets, not only at the query root
+- [x] T-INTRO-025 Dispatch `__typename` as a special field in the selection-set executor; return the runtime type name of the current object
+- [x] T-INTRO-026 Support `__typename` in nested selection sets, not only at the query root
 
 ### Built-in directives
 
-- [ ] T-INTRO-030 Include `@skip`, `@include`, `@deprecated`, and `@specifiedBy` in the `directives` array returned by `__schema`; populate correct `locations` and `args` for each
-- [ ] T-INTRO-031 Populate `isRepeatable` on `__Directive` objects
+- [x] T-INTRO-030 Include `@skip`, `@include`, `@deprecated`, and `@specifiedBy` in the `directives` array returned by `__schema`; populate correct `locations` and `args` for each
+- [x] T-INTRO-031 Populate `isRepeatable` on `__Directive` objects
 
 ### Test coverage (un-comment and extend `isched_gql_executor_tests.cpp`)
 
-- [ ] T-INTRO-040 Un-comment all commented-out assertions in the existing "GraphQL Introspection" `TEST_CASE`; every assertion MUST pass
-- [ ] T-INTRO-041 [P] Add test: `__schema { types }` contains all five built-in scalars by name and kind `SCALAR`
-- [ ] T-INTRO-042 [P] Add test: `__schema { types }` contains user-defined `OBJECT` type with correct `fields`, `name`, and `description`
-- [ ] T-INTRO-043 [P] Add test: `__schema { types }` contains user-defined `INPUT_OBJECT` type with correct `inputFields`
-- [ ] T-INTRO-044 [P] Add test: `__schema { types }` contains user-defined `ENUM` type with correct `enumValues`
-- [ ] T-INTRO-045 [P] Add test: `__type(name: "User")` returns correct `__Type` for a user-defined object type
-- [ ] T-INTRO-046 [P] Add test: `__type(name: "NonExistent")` returns `null` without error
-- [ ] T-INTRO-047 [P] Add test: field of type `[String!]!` produces `ofType` chain `NON_NULL → LIST → NON_NULL → SCALAR`
-- [ ] T-INTRO-048 [P] Add test: `__typename` returns correct type name in a nested selection set
-- [ ] T-INTRO-049 [P] Add test: `__schema { directives }` contains `@skip`, `@include`, `@deprecated` with correct `locations` and `args`
-- [ ] T-INTRO-050 [P] Add test: `@deprecated` on a field sets `isDeprecated: true` and `deprecationReason` in introspection
-- [ ] T-INTRO-051 [P] Add test: `__schema { queryType { name } }` returns `"Query"` when a `Query` type is defined
+- [x] T-INTRO-040 Un-comment all commented-out assertions in the existing "GraphQL Introspection" `TEST_CASE`; every assertion MUST pass
+- [x] T-INTRO-041 [P] Add test: `__schema { types }` contains all five built-in scalars by name and kind `SCALAR`
+- [x] T-INTRO-042 [P] Add test: `__schema { types }` contains user-defined `OBJECT` type with correct `fields`, `name`, and `description`
+- [x] T-INTRO-043 [P] Add test: `__schema { types }` contains user-defined `INPUT_OBJECT` type with correct `inputFields`
+- [x] T-INTRO-044 [P] Add test: `__schema { types }` contains user-defined `ENUM` type with correct `enumValues`
+- [x] T-INTRO-045 [P] Add test: `__type(name: "User")` returns correct `__Type` for a user-defined object type
+- [x] T-INTRO-046 [P] Add test: `__type(name: "NonExistent")` returns `null` without error
+- [x] T-INTRO-047 [P] Add test: field of type `[String!]!` produces `ofType` chain `NON_NULL → LIST → NON_NULL → SCALAR`
+- [x] T-INTRO-048 [P] Add test: `__typename` returns correct type name in a nested selection set
+- [x] T-INTRO-049 [P] Add test: `__schema { directives }` contains `@skip`, `@include`, `@deprecated` with correct `locations` and `args`
+- [x] T-INTRO-050 [P] Add test: `@deprecated` on a field sets `isDeprecated: true` and `deprecationReason` in introspection
+- [x] T-INTRO-051 [P] Add test: `__schema { queryType { name } }` returns `"Query"` when a `Query` type is defined
 
 **Checkpoint**: Standard GraphQL tools (GraphiQL, Altair, Apollo Sandbox) can connect to the server, load and browse the full schema, and auto-complete queries without errors. `ctest` MUST be green before closing Phase 5b.
 

@@ -30,15 +30,440 @@
 namespace {
 // Per-request GraphQL variables context (thread-safe: one entry per executing thread)
 thread_local nlohmann::json tl_gql_variables = nlohmann::json::object();
+
+// ---------------------------------------------------------------------------
+// Phase 5b: GraphQL Introspection helpers (T-INTRO-001 … T-INTRO-031)
+// ---------------------------------------------------------------------------
+using nlohmann::json;
+using isched::v0_0_1::gql::TAstNodePtr;
+using TAstNodeMap = std::map<std::string, const TAstNodePtr*>;
+
+/// Strip surrounding ("…") or ("""…""") from a Description raw string.
+static std::string strip_description(std::string_view raw) {
+    if (raw.size() >= 6 && raw.substr(0, 3) == R"(""")" && raw.substr(raw.size()-3) == R"(""")") {
+        return std::string(raw.substr(3, raw.size()-6));
+    }
+    if (raw.size() >= 2 && raw.front() == '"' && raw.back() == '"') {
+        return std::string(raw.substr(1, raw.size()-2));
+    }
+    return std::string(raw);
 }
+
+/// Return the description JSON value (null if absent) from the immediate
+/// children of the given AST node.
+static json extract_description(const TAstNodePtr& node) {
+    if (!node) return nullptr;
+    for (const auto& c : node->children) {
+        if (c->type.ends_with("gql::Description")) {
+            return strip_description(c->string_view());
+        }
+    }
+    return nullptr;
+}
+
+/// Return true if `name` is one of the five built-in scalar types.
+static bool is_builtin_scalar(const std::string& name) {
+    return name == "String" || name == "Int" || name == "Float" ||
+           name == "Boolean" || name == "ID";
+}
+
+/// Determine the __TypeKind string for the type stored in the type-map.
+/// The stored node may be TypeDefinition (for OBJECT) or a specific
+/// definition node (SCALAR, INTERFACE, UNION, ENUM, INPUT_OBJECT).
+static std::string get_type_kind_for_node(const TAstNodePtr& node) {
+    const auto t = node->type;
+    if (t.ends_with("ScalarTypeDefinition"))      return "SCALAR";
+    if (t.ends_with("InterfaceTypeDefinition"))   return "INTERFACE";
+    if (t.ends_with("UnionTypeDefinition"))       return "UNION";
+    if (t.ends_with("EnumTypeDefinition"))        return "ENUM";
+    if (t.ends_with("InputObjectTypeDefinition")) return "INPUT_OBJECT";
+    // TypeDefinition without a specific child  → ObjectTypeDefinition bubbled up
+    if (t.ends_with("gql::TypeDefinition")) {
+        for (const auto& c : node->children) {
+            const auto ct = c->type;
+            if (ct.ends_with("ScalarTypeDefinition"))      return "SCALAR";
+            if (ct.ends_with("InterfaceTypeDefinition"))   return "INTERFACE";
+            if (ct.ends_with("UnionTypeDefinition"))       return "UNION";
+            if (ct.ends_with("EnumTypeDefinition"))        return "ENUM";
+            if (ct.ends_with("InputObjectTypeDefinition")) return "INPUT_OBJECT";
+        }
+        return "OBJECT";
+    }
+    return "OBJECT";
+}
+
+/// Resolve the __TypeKind for a named type.
+static std::string named_type_kind(const std::string& name, const TAstNodeMap& type_map) {
+    if (is_builtin_scalar(name)) return "SCALAR";
+    auto it = type_map.find(name);
+    if (it != type_map.end()) return get_type_kind_for_node(*it->second);
+    return "OBJECT";
+}
+
+/// Recursively build the { kind, name, ofType } chain for a Type AST node.
+static json build_type_ref_json(const TAstNodePtr& node, const TAstNodeMap& type_map) {
+    if (!node) return nullptr;
+    const auto t = node->type;
+
+    if (t.ends_with("NonNullType")) {
+        json inner = nullptr;
+        for (const auto& c : node->children) inner = build_type_ref_json(c, type_map);
+        return json{{"kind","NON_NULL"},{"name",nullptr},{"ofType",inner}};
+    }
+    if (t.ends_with("ListType")) {
+        json inner = nullptr;
+        for (const auto& c : node->children) {
+            const auto& ct = c->type;
+            if (ct.ends_with("NonNullType") || ct.ends_with("NamedType") ||
+                ct.ends_with("ListType") || ct.ends_with("gql::Type")) {
+                inner = build_type_ref_json(c, type_map);
+                break;
+            }
+        }
+        return json{{"kind","LIST"},{"name",nullptr},{"ofType",inner}};
+    }
+    if (t.ends_with("NamedType")) {
+        std::string name;
+        if (node->has_content()) {
+            name = std::string(node->string_view());
+        } else {
+            for (const auto& c : node->children)
+                if (c->has_content()) { name = std::string(c->string_view()); break; }
+        }
+        return json{{"kind", named_type_kind(name, type_map)},{"name",name},{"ofType",nullptr}};
+    }
+    if (t.ends_with("gql::Type")) {
+        // Generic Type wrapper — recurse into its first relevant child
+        for (const auto& c : node->children) return build_type_ref_json(c, type_map);
+    }
+    return nullptr;
+}
+
+/// Return { isDeprecated, deprecationReason } by scanning DirectivesConst children.
+static std::pair<bool, json> check_deprecated(const TAstNodePtr& node) {
+    for (const auto& c : node->children) {
+        const auto& ct = c->type;
+        if (!ct.ends_with("DirectivesConst") && !ct.ends_with("DirectiveConst")) continue;
+        for (const auto& dir : c->children) {
+            const auto& dt = dir->type;
+            if (!dt.ends_with("DirectiveConst") && !dt.ends_with("gql::Directive")) continue;
+            // First Name child = directive name
+            std::string dir_name;
+            for (const auto& dc : dir->children) {
+                if (dc->type.ends_with("gql::Name") && dc->has_content()) {
+                    dir_name = std::string(dc->string_view()); break;
+                }
+            }
+            if (dir_name != "deprecated") continue;
+            // Found @deprecated — look for reason argument
+            json reason = nullptr;
+            for (const auto& ac : dir->children) {
+                const auto& act = ac->type;
+                if (!act.ends_with("ArgumentsConst") && !act.ends_with("gql::Arguments")) continue;
+                for (const auto& arg : ac->children) {
+                    std::string arg_name;
+                    json arg_val = nullptr;
+                    for (const auto& av : arg->children) {
+                        if (av->type.ends_with("gql::Name") && av->has_content())
+                            arg_name = std::string(av->string_view());
+                        else if (av->type.ends_with("StringValue") || av->type.ends_with("ValueConst")) {
+                            auto s = std::string(av->string_view());
+                            arg_val = (s.size() >= 2 && s.front() == '"')
+                                      ? json(s.substr(1, s.size()-2)) : json(s);
+                        }
+                    }
+                    if (arg_name == "reason") reason = arg_val;
+                }
+            }
+            return {true, reason};
+        }
+    }
+    return {false, nullptr};
+}
+
+/// Build a __InputValue JSON object from an InputValueDefinition node.
+static json build_input_value_json(const TAstNodePtr& node, const TAstNodeMap& type_map) {
+    json iv{{"name",nullptr},{"description",nullptr},{"type",nullptr},
+             {"defaultValue",nullptr},{"isDeprecated",false},{"deprecationReason",nullptr}};
+    for (const auto& c : node->children) {
+        const auto& ct = c->type;
+        if (ct.ends_with("gql::Description")) {
+            iv["description"] = strip_description(c->string_view());
+        } else if (ct.ends_with("gql::Name") && c->has_content()) {
+            if (iv["name"].is_null()) iv["name"] = std::string(c->string_view());
+        } else if (ct.ends_with("gql::Type") || ct.ends_with("NamedType") ||
+                   ct.ends_with("NonNullType") || ct.ends_with("ListType")) {
+            iv["type"] = build_type_ref_json(c, type_map);
+        } else if (ct.ends_with("DefaultValue")) {
+            auto s = isched::v0_0_1::gql::ast_node_to_str(c);
+            iv["defaultValue"] = s ? json(*s) : json(nullptr);
+        }
+    }
+    auto [depr, reason] = check_deprecated(node);
+    iv["isDeprecated"] = depr;
+    iv["deprecationReason"] = reason;
+    return iv;
+}
+
+/// Build a __EnumValue JSON object from an EnumValueDefinition node.
+static json build_enum_value_json(const TAstNodePtr& node) {
+    json ev{{"name",nullptr},{"description",nullptr},
+             {"isDeprecated",false},{"deprecationReason",nullptr}};
+    for (const auto& c : node->children) {
+        const auto& ct = c->type;
+        if (ct.ends_with("gql::Description")) {
+            ev["description"] = strip_description(c->string_view());
+        } else if (ct.ends_with("gql::Name") && c->has_content()) {
+            if (ev["name"].is_null()) ev["name"] = std::string(c->string_view());
+        }
+    }
+    auto [depr, reason] = check_deprecated(node);
+    ev["isDeprecated"] = depr;
+    ev["deprecationReason"] = reason;
+    return ev;
+}
+
+/// Build a __Field JSON object from a FieldDefinition node.
+static json build_field_json(const TAstNodePtr& node, const TAstNodeMap& type_map) {
+    json f{{"name",nullptr},{"description",nullptr},{"args",json::array()},
+            {"type",nullptr},{"isDeprecated",false},{"deprecationReason",nullptr}};
+    for (const auto& c : node->children) {
+        const auto& ct = c->type;
+        if (ct.ends_with("gql::Description")) {
+            f["description"] = strip_description(c->string_view());
+        } else if (ct.ends_with("gql::Name") && c->has_content()) {
+            if (f["name"].is_null()) f["name"] = std::string(c->string_view());
+        } else if (ct.ends_with("gql::Type") || ct.ends_with("NamedType") ||
+                   ct.ends_with("NonNullType") || ct.ends_with("ListType")) {
+            f["type"] = build_type_ref_json(c, type_map);
+        } else if (ct.ends_with("ArgumentsDefinition")) {
+            for (const auto& arg : c->children)
+                if (arg->type.ends_with("InputValueDefinition"))
+                    f["args"].push_back(build_input_value_json(arg, type_map));
+        }
+    }
+    auto [depr, reason] = check_deprecated(node);
+    f["isDeprecated"] = depr;
+    f["deprecationReason"] = reason;
+    return f;
+}
+
+/// Collect all FieldDefinition descendants of a type node.
+static json collect_fields(const TAstNodePtr& type_node, const TAstNodeMap& type_map) {
+    json fields = json::array();
+    std::function<void(const TAstNodePtr&)> walk = [&](const TAstNodePtr& n) {
+        if (!n) return;
+        if (n->type.ends_with("FieldDefinition")) {
+            fields.push_back(build_field_json(n, type_map));
+            return; // don't recurse inside a FieldDefinition
+        }
+        for (const auto& c : n->children) walk(c);
+    };
+    // Walk only the type-specific sub-node (not the TypeDefinition wrapper)
+    // to avoid picking up nested type definitions' fields.
+    if (type_node->type.ends_with("gql::TypeDefinition")) {
+        for (const auto& c : type_node->children) walk(c);
+    } else {
+        walk(type_node);
+    }
+    return fields;
+}
+
+/// Resolve the base type name from a Type/NonNullType/ListType/NamedType node.
+static std::string base_type_name(const TAstNodePtr& node) {
+    if (!node) return {};
+    if (node->type.ends_with("NamedType")) {
+        if (node->has_content()) return std::string(node->string_view());
+        for (const auto& c : node->children)
+            if (c->has_content()) return std::string(c->string_view());
+    }
+    for (const auto& c : node->children) {
+        auto n = base_type_name(c);
+        if (!n.empty()) return n;
+    }
+    return {};
+}
+
+/// Get the declared field return-type base name from the type node.
+/// Walks FieldDefinition children looking for a field whose Name matches.
+static std::string field_return_type(const TAstNodePtr& type_node,
+                                      const std::string& field_name) {
+    std::string result;
+    std::function<void(const TAstNodePtr&)> walk = [&](const TAstNodePtr& n) {
+        if (!n || !result.empty()) return;
+        if (n->type.ends_with("FieldDefinition")) {
+            // Find the field's name
+            std::string fname;
+            const TAstNodePtr* type_ptr = nullptr;
+            for (const auto& c : n->children) {
+                if (c->type.ends_with("gql::Name") && c->has_content() && fname.empty())
+                    fname = std::string(c->string_view());
+                if (c->type.ends_with("gql::Type") || c->type.ends_with("NamedType") ||
+                    c->type.ends_with("NonNullType") || c->type.ends_with("ListType"))
+                    type_ptr = &c;
+            }
+            if (fname == field_name && type_ptr)
+                result = base_type_name(*type_ptr);
+            return; // don't recurse into FieldDefinition
+        }
+        for (const auto& c : n->children) walk(c);
+    };
+    walk(type_node);
+    return result;
+}
+
+/// Build a single __Type JSON object for use in __type(name:) responses.
+static json build_type_json(const std::string& type_name, const TAstNodePtr& node,
+                             const TAstNodeMap& type_map) {
+    json t;
+    std::string kind = get_type_kind_for_node(node);
+    t["kind"]        = kind;
+    t["name"]        = type_name;
+    t["description"] = extract_description(node);
+    t["ofType"]      = nullptr;
+
+    // fields (OBJECT, INTERFACE)
+    if (kind == "OBJECT" || kind == "INTERFACE") {
+        t["fields"] = collect_fields(node, type_map);
+    } else {
+        t["fields"] = nullptr;
+    }
+
+    // interfaces (OBJECT)
+    if (kind == "OBJECT") {
+        json ifaces = json::array();
+        auto& n = node;
+        // Direct NamedType children of TypeDefinition are interface names
+        // (they bubble up from ImplementsInterfaces which is not selected)
+        for (const auto& c : n->children) {
+            if (c->type.ends_with("NamedType")) {
+                std::string iname;
+                if (c->has_content()) iname = std::string(c->string_view());
+                else if (!c->children.empty() && c->children[0]->has_content())
+                    iname = std::string(c->children[0]->string_view());
+                if (!iname.empty()) ifaces.push_back({{"name", iname}});
+            }
+        }
+        t["interfaces"] = std::move(ifaces);
+    } else {
+        t["interfaces"] = nullptr;
+    }
+
+    // possibleTypes (INTERFACE: objects implementing it; UNION: member types)
+    if (kind == "UNION" || kind == "INTERFACE") {
+        json possible = json::array();
+        if (kind == "UNION") {
+            std::function<void(const TAstNodePtr&)> find_members = [&](const TAstNodePtr& n) {
+                if (n->type.ends_with("UnionMemberTypes")) {
+                    for (const auto& c : n->children)
+                        if (c->type.ends_with("NamedType")) {
+                            std::string nm;
+                            if (c->has_content()) nm = std::string(c->string_view());
+                            else if (!c->children.empty()) nm = std::string(c->children[0]->string_view());
+                            if (!nm.empty()) possible.push_back({{"name", nm}});
+                        }
+                    return;
+                }
+                for (const auto& c : n->children) find_members(c);
+            };
+            find_members(node);
+        } else {
+            // INTERFACE: scan all OBJECT types for ones that implement this interface
+            for (const auto& [oname, optr] : type_map) {
+                if (get_type_kind_for_node(*optr) != "OBJECT") continue;
+                for (const auto& c : (*optr)->children) {
+                    if (c->type.ends_with("NamedType")) {
+                        std::string iname;
+                        if (c->has_content()) iname = std::string(c->string_view());
+                        if (iname == type_name) { possible.push_back({{"name", oname}}); break; }
+                    }
+                }
+            }
+        }
+        t["possibleTypes"] = std::move(possible);
+    } else {
+        t["possibleTypes"] = nullptr;
+    }
+
+    // enumValues (ENUM)
+    if (kind == "ENUM") {
+        json ev = json::array();
+        std::function<void(const TAstNodePtr&)> walk_enum = [&](const TAstNodePtr& n) {
+            if (n->type.ends_with("EnumValueDefinition")) {
+                ev.push_back(build_enum_value_json(n)); return;
+            }
+            for (const auto& c : n->children) walk_enum(c);
+        };
+        walk_enum(node);
+        t["enumValues"] = std::move(ev);
+    } else {
+        t["enumValues"] = nullptr;
+    }
+
+    // inputFields (INPUT_OBJECT)
+    if (kind == "INPUT_OBJECT") {
+        json iv = json::array();
+        std::function<void(const TAstNodePtr&)> walk_iv = [&](const TAstNodePtr& n) {
+            if (n->type.ends_with("InputValueDefinition")) {
+                iv.push_back(build_input_value_json(n, type_map)); return;
+            }
+            for (const auto& c : n->children) walk_iv(c);
+        };
+        walk_iv(node);
+        t["inputFields"] = std::move(iv);
+    } else {
+        t["inputFields"] = nullptr;
+    }
+
+    return t;
+}
+
+} // anonymous namespace
+
+// ---------------------------------------------------------------------------
+// T041: Query complexity and depth analysis
+// ---------------------------------------------------------------------------
+namespace {
+
+/// Walk the parsed query AST and compute the total number of Field nodes
+/// (complexity) and the maximum SelectionSet nesting depth.
+struct QueryAnalysis {
+    uint32_t depth      = 0;
+    uint32_t complexity = 0;
+};
+
+static QueryAnalysis analyse_query_complexity(const isched::v0_0_1::gql::TAstNodePtr& root) {
+    QueryAnalysis result{};
+    if (!root) return result;
+
+    std::function<void(const isched::v0_0_1::gql::TAstNodePtr&, uint32_t)> walk =
+        [&](const isched::v0_0_1::gql::TAstNodePtr& node, uint32_t cur_depth) {
+            if (!node) return;
+            const auto& t = node->type;
+            if (t.ends_with("gql::Field")) {
+                ++result.complexity;
+            }
+            if (t.ends_with("gql::SelectionSet")) {
+                const uint32_t next = cur_depth + 1;
+                if (next > result.depth) result.depth = next;
+                for (const auto& child : node->children) walk(child, next);
+                return;
+            }
+            for (const auto& child : node->children) walk(child, cur_depth);
+        };
+    walk(root, 0);
+    return result;
+}
+
+} // anonymous namespace
 
 namespace isched::v0_0_1::backend {
     using nlohmann::json;
     using nlohmann::basic_json;
     using gql::TAstNodePtr;
 
-    GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> p_database, Config)
-        : m_database(std::move(p_database)) {
+    GqlExecutor::GqlExecutor(std::shared_ptr<DatabaseManager> p_database, Config config)
+        : m_database(std::move(p_database)), m_config(std::move(config)) {
         setup_builtin_resolvers();
     }
 
@@ -246,31 +671,24 @@ namespace isched::v0_0_1::backend {
             };
         });
 
-        // Enhanced schema introspection resolver
+        // Enhanced schema introspection resolver (T-INTRO-010 … T-INTRO-018)
         register_resolver({},"__schema", [this](const json &, const json &, const ResolverCtx&) -> json {
-            json my_ret_val = generate_schema_introspection();
-            return my_ret_val;
+            return generate_schema_introspection();
         });
-        register_resolver({"__schema"},"name", [this](const json &p_args, const json &, const ResolverCtx&) -> json {
-            return basic_json("res1");
-        });
-        register_resolver({"__schema"},"description", [this](const json &, const json &, const ResolverCtx&) -> json {
-            return basic_json("res2");
-        });
-        register_resolver({"__schema"},"fields", [](const json & , const json &, const ResolverCtx&) -> json {
-            return basic_json("res3");
-        });
-        register_resolver({"__schema"},"args", [](const json &, const json &, const ResolverCtx&) -> json {
-            return basic_json("res-schema-args");
-        });
-        register_resolver({"__schema","args"},"name", [](const json &, const json &, const ResolverCtx&) -> json {
-            return basic_json("res-schema-args");
-        });
-        register_resolver({"__schema","fields"},"name", [](const json &, const json &, const ResolverCtx&) -> json {
-            return basic_json("res4");
-        });
-        register_resolver({"__schema","types","fields"},"description", [](const json &, const json &, const ResolverCtx&) -> json {
-            return basic_json("res5");
+
+        // __type(name:) root field (T-INTRO-020, T-INTRO-021)
+        register_resolver({},"__type", [this](const json &, const json & args, const ResolverCtx&) -> json {
+            if (!args.contains("name") || !args["name"].is_string()) return nullptr;
+            const std::string name = args["name"].get<std::string>();
+            // Built-in scalars
+            if (is_builtin_scalar(name)) {
+                return json{{"kind","SCALAR"},{"name",name},{"description",nullptr},
+                            {"fields",nullptr},{"interfaces",nullptr},{"possibleTypes",nullptr},
+                            {"enumValues",nullptr},{"inputFields",nullptr},{"ofType",nullptr}};
+            }
+            auto it = m_type_map.find(name);
+            if (it == m_type_map.end()) return nullptr; // T-INTRO-021: null for unknown names
+            return build_type_json(name, *it->second, m_type_map);
         });
 
         // Built-in mutation resolvers
@@ -591,107 +1009,154 @@ namespace isched::v0_0_1::backend {
         load_schema(BUILTIN_SCHEMA);
     }
 
+    // -------------------------------------------------------------------------
+    // generate_directives_introspection  (T-INTRO-030, T-INTRO-031)
+    // Returns the directives array for __schema { directives }.
+    // Includes the four built-in directives plus any user-defined ones from
+    // the loaded schema.
+    // -------------------------------------------------------------------------
     basic_json<> GqlExecutor::generate_directives_introspection() {
-        json my_ret_val = basic_json<>::array();
-        static std::string their_null_str = "Unknown";
-        for (const auto &[dirName, dirNodePtr]: m_directives) {
-            const auto &dirNode = *dirNodePtr;
-            json dirObj;
-            dirObj["name"] = dirName;
-            dirObj["description"] = nullptr;
-            dirObj["locations"] = json::array();
-            dirObj["args"] = json::array();
+        json result = json::array();
 
-            for (const auto &child: dirNode->children) {
-                if (child->type == "isched::v0_0_1::gql::Description") {
-                    dirObj["description"] = child->string_view();
-                } else if (child->type == "isched::v0_0_1::gql::ArgumentsDefinition") {
-                    for (const auto &argChild: child->children) {
-                        if (argChild->type == "isched::v0_0_1::gql::InputValueDefinition") {
-                            json argObj;
-                            for (const auto &ivChild: argChild->children) {
-                                if (ivChild->type == "isched::v0_0_1::gql::Name") {
-                                    argObj["name"] = ivChild->string_view();
-                                } else if (ivChild->type == "isched::v0_0_1::gql::Type") {
-                                    auto typeStr = gql::ast_node_to_str(ivChild);
-                                    argObj["type"] = {{"name", typeStr ? *typeStr : "Unknown"}};
-                                }
-                            }
-                            dirObj["args"].push_back(argObj);
-                        }
-                    }
+        // Helper: build one directive entry
+        auto make_directive = [](const std::string& name,
+                                  const std::string& description,
+                                  json locations,
+                                  json args,
+                                  bool isRepeatable = false) -> json {
+            return json{{"name", name}, {"description", description},
+                        {"locations", std::move(locations)},
+                        {"args", std::move(args)},
+                        {"isRepeatable", isRepeatable}};
+        };
+
+        // Built-in scalar type ref helper
+        auto scalar_ref = [](const std::string& n) -> json {
+            return json{{"kind","SCALAR"},{"name",n},{"ofType",nullptr}};
+        };
+
+        // @skip(if: Boolean!)
+        result.push_back(make_directive(
+            "skip",
+            "Directs the executor to skip this field or fragment when the 'if' argument is true.",
+            json::array({"FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"}),
+            json::array({json{{"name","if"},{"description","Skipped when true."},
+                              {"type", json{{"kind","NON_NULL"},{"name",nullptr},
+                                            {"ofType", scalar_ref("Boolean")}}},
+                              {"defaultValue",nullptr},
+                              {"isDeprecated",false},{"deprecationReason",nullptr}}})
+        ));
+
+        // @include(if: Boolean!)
+        result.push_back(make_directive(
+            "include",
+            "Directs the executor to include this field or fragment only when the 'if' argument is true.",
+            json::array({"FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"}),
+            json::array({json{{"name","if"},{"description","Included when true."},
+                              {"type", json{{"kind","NON_NULL"},{"name",nullptr},
+                                            {"ofType", scalar_ref("Boolean")}}},
+                              {"defaultValue",nullptr},
+                              {"isDeprecated",false},{"deprecationReason",nullptr}}})
+        ));
+
+        // @deprecated(reason: String)
+        result.push_back(make_directive(
+            "deprecated",
+            "Marks an element of a GraphQL schema as no longer supported.",
+            json::array({"FIELD_DEFINITION","ARGUMENT_DEFINITION",
+                         "INPUT_FIELD_DEFINITION","ENUM_VALUE"}),
+            json::array({json{{"name","reason"},
+                              {"description","Explains why this element was deprecated, usually also including a suggestion for how to access supported similar data. Formatted using the Markdown syntax, as specified by [CommonMark](https://commonmark.org/)."},
+                              {"type", scalar_ref("String")},
+                              {"defaultValue","\"No longer supported\""},
+                              {"isDeprecated",false},{"deprecationReason",nullptr}}})
+        ));
+
+        // @specifiedBy(url: String!)
+        result.push_back(make_directive(
+            "specifiedBy",
+            "Exposes a URL that specifies the behavior of this scalar.",
+            json::array({"SCALAR"}),
+            json::array({json{{"name","url"},
+                              {"description","The URL that specifies the behavior of this scalar."},
+                              {"type", json{{"kind","NON_NULL"},{"name",nullptr},
+                                            {"ofType", scalar_ref("String")}}},
+                              {"defaultValue",nullptr},
+                              {"isDeprecated",false},{"deprecationReason",nullptr}}})
+        ));
+
+        // User-defined directives from the loaded schema
+        for (const auto& [dirName, dirNodePtr] : m_directives) {
+            const auto& dirNode = *dirNodePtr;
+            json dirObj;
+            dirObj["name"]        = dirName;
+            dirObj["description"] = extract_description(dirNode);
+            dirObj["locations"]   = json::array();
+            dirObj["isRepeatable"] = false;
+            dirObj["args"]        = json::array();
+
+            for (const auto& child : dirNode->children) {
+                if (child->type.ends_with("ArgumentsDefinition")) {
+                    for (const auto& arg : child->children)
+                        if (arg->type.ends_with("InputValueDefinition"))
+                            dirObj["args"].push_back(build_input_value_json(arg, m_type_map));
                 }
+                // TODO: extract DirectiveLocations if grammar captures them
             }
-            // For locations, we'd need more logic if we want to extract them properly from our simplified grammar
-            // For now, let's just put a placeholder if needed, or leave it empty.
-            
-            my_ret_val.push_back(dirObj);
+            result.push_back(std::move(dirObj));
         }
-        return my_ret_val;
+        return result;
     }
 
+    // -------------------------------------------------------------------------
+    // generate_schema_introspection  (T-INTRO-002 … T-INTRO-018)
+    // Returns the full __schema response object.
+    // -------------------------------------------------------------------------
     json GqlExecutor::generate_schema_introspection() {
-        json schema=json::object();
+        json schema = json::object();
 
-        // Default query type is "Query"
-        schema["queryType"] = {
-            {"name", "Query"}
-        };
-        schema["mutationType"] = m_type_map.count("Mutation") ? json{{"name", "Mutation"}} : json(nullptr);
-        schema["subscriptionType"] = nullptr;
+        // --- queryType / mutationType / subscriptionType (T-INTRO-010) ---
+        schema["queryType"]        = m_type_map.count("Query")
+                                     ? json{{"name","Query"}} : json(nullptr);
+        schema["mutationType"]     = m_type_map.count("Mutation")
+                                     ? json{{"name","Mutation"}} : json(nullptr);
+        schema["subscriptionType"] = m_type_map.count("Subscription")
+                                     ? json{{"name","Subscription"}} : json(nullptr);
 
-        auto types = json::array();
+        json all_types = json::array();
 
-        for (const auto &[typeName, typeNodePtr]: m_type_map) {
-            const auto &typeNode = *typeNodePtr;
-            json typeObj;
-            typeObj["name"] = typeName;
-            typeObj["kind"] = "OBJECT"; // Simplified for now
-
-            // Extract description if present
-            for (const auto &child: typeNode->children) {
-                if (child->type == "isched::v0_0_1::gql::Description") {
-                    typeObj["description"] = child->string_view();
-                }
-            }
-
-            // Extract fields
-            auto fieldsArray = json::array();
-            // Helper to find fields recursively within the type node
-             std::function<void(const TAstNodePtr &)> findFieldsRecursive;
-             findFieldsRecursive = [&](const TAstNodePtr &node) {
-                 if (!node) return;
-                 if (node->type == "isched::v0_0_1::gql::FieldDefinition") {
-                     json fieldObj;
-                     for (const auto &fieldChild: node->children) {
-                         // should we check for TypeName as well?
-                         if (fieldChild->type == "isched::v0_0_1::gql::Name") {
-                             fieldObj["name"] = fieldChild->string_view();
-                             break;
-                         }
-                     }
-                     for (const auto &fieldChild: node->children) {
-                         if (fieldChild->type == "isched::v0_0_1::gql::Description") {
-                             fieldObj["description"] = fieldChild->string_view();
-                         } else if (fieldChild->type == "isched::v0_0_1::gql::Type") {
-                             auto typeStr = gql::ast_node_to_str(fieldChild);
-                             fieldObj["type"] = {{"name", typeStr ? *typeStr : "Unknown"}};
-                         }
-                     }
-                     fieldsArray.push_back(fieldObj);
-                 } else {
-                     for (const auto &child: node->children) {
-                         findFieldsRecursive(child);
-                     }
-                 }
-            };
-            findFieldsRecursive(typeNode);
-            typeObj["fields"] = fieldsArray;
-            types.push_back(typeObj);
+        // Built-in scalar types (T-INTRO-002)
+        for (const char* name : {"String","Int","Float","Boolean","ID"}) {
+            all_types.push_back(json{{"kind","SCALAR"},{"name",name},
+                {"description",nullptr},{"fields",nullptr},{"interfaces",nullptr},
+                {"possibleTypes",nullptr},{"enumValues",nullptr},
+                {"inputFields",nullptr},{"ofType",nullptr}});
         }
-        schema["types"] = types;
-        schema["directives"] = generate_directives_introspection();
 
+        // Introspection meta-types (T-INTRO-004)
+        static const char* const k_meta_objects[] = {
+            "__Schema","__Type","__Field","__InputValue","__EnumValue","__Directive"};
+        for (const char* name : k_meta_objects) {
+            all_types.push_back(json{{"kind","OBJECT"},{"name",name},
+                {"description",nullptr},{"fields",nullptr},{"interfaces",json::array()},
+                {"possibleTypes",nullptr},{"enumValues",nullptr},
+                {"inputFields",nullptr},{"ofType",nullptr}});
+        }
+        static const char* const k_meta_enums[] = {"__TypeKind","__DirectiveLocation"};
+        for (const char* name : k_meta_enums) {
+            all_types.push_back(json{{"kind","ENUM"},{"name",name},
+                {"description",nullptr},{"fields",nullptr},{"interfaces",nullptr},
+                {"possibleTypes",nullptr},{"enumValues",json::array()},
+                {"inputFields",nullptr},{"ofType",nullptr}});
+        }
+
+        // User-defined types (T-INTRO-011 … T-INTRO-018)
+        for (const auto& [type_name, type_node_ptr] : m_type_map) {
+            all_types.push_back(build_type_json(type_name, *type_node_ptr, m_type_map));
+        }
+
+        schema["types"]      = std::move(all_types);
+        schema["directives"] = generate_directives_introspection();
         return schema;
     }
 
@@ -931,6 +1396,29 @@ namespace isched::v0_0_1::backend {
         if (p_result.empty()) {
             p_result = json::object();
         }
+
+        // ---- __typename meta-field (T-INTRO-025, T-INTRO-026) ----
+        if (myFieldName == "__typename") {
+            // Derive the declared type at the current path by walking the schema.
+            // Walk: root="Query"/"Mutation"/"Subscription", then follow each
+            // element of p_path through FieldDefinition return types.
+            std::string current_type;
+            // Determine root operation type from p_path context (best-effort: use "Query")
+            if (m_type_map.count("Query"))      current_type = "Query";
+            else if (!m_type_map.empty())       current_type = m_type_map.begin()->first;
+
+            for (const auto& seg : p_path) {
+                auto it = m_type_map.find(current_type);
+                if (it == m_type_map.end()) { current_type.clear(); break; }
+                current_type = field_return_type(*it->second, seg);
+                if (current_type.empty()) break;
+            }
+            if (current_type.empty() && p_parent.is_object() && p_parent.contains("__typename"))
+                current_type = p_parent["__typename"].get<std::string>();
+            p_result[myFieldName] = current_type.empty() ? json(nullptr) : json(current_type);
+            return false;
+        }
+
         if (!m_resolvers.has_resolver(p_path,myFieldName)) {
             // Default field resolver: extract from parent when key is present
             if (p_parent.is_object() && p_parent.contains(myFieldName)) {
@@ -1259,6 +1747,30 @@ namespace isched::v0_0_1::backend {
                 my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Empty document"});
                 return my_result;
             }
+
+            // T041: query complexity and depth enforcement
+            if (m_config.max_depth > 0 || m_config.max_complexity > 0) {
+                const auto qa = analyse_query_complexity(aRoot);
+                if (m_config.max_depth > 0 && qa.depth > m_config.max_depth) {
+                    my_result.errors.push_back(gql::Error{
+                        .code    = gql::EErrorCodes::ARGUMENT_ERROR,
+                        .message = std::format(
+                            "Query depth {} exceeds maximum allowed depth {}",
+                            qa.depth, m_config.max_depth)
+                    });
+                    return my_result;
+                }
+                if (m_config.max_complexity > 0 && qa.complexity > m_config.max_complexity) {
+                    my_result.errors.push_back(gql::Error{
+                        .code    = gql::EErrorCodes::ARGUMENT_ERROR,
+                        .message = std::format(
+                            "Query complexity {} exceeds maximum allowed complexity {}",
+                            qa.complexity, m_config.max_complexity)
+                    });
+                    return my_result;
+                }
+            }
+
             for (const auto &myChild: myDoc->children) {
                 if (myChild->type != "isched::v0_0_1::gql::ExecutableDefinition") {
                     my_result.errors.push_back(gql::Error{

@@ -178,6 +178,8 @@ namespace isched::v0_0_1::backend {
             std::chrono::milliseconds timeout = std::chrono::milliseconds{5000};     ///< Execution timeout
             bool enable_introspection = true;            ///< Enable schema introspection
             uint32_t max_query_length = 100000;          ///< Maximum query string length
+            uint32_t max_depth       = 0;                ///< Max nesting depth (0 = unlimited, T041)
+            uint32_t max_complexity  = 0;                ///< Max field count (0 = unlimited, T041)
         };
 
         static std::unique_ptr<GqlExecutor> create(std::shared_ptr<DatabaseManager> database);
@@ -312,6 +314,9 @@ namespace isched::v0_0_1::backend {
 
         // Subscription broker for publishing events from resolvers (T046); not owned.
         SubscriptionBroker* m_broker{nullptr};
+
+        /// Execution configuration stored at construction time.
+        Config m_config;
 
         using TTime = std::chrono::time_point<std::chrono::system_clock>;
 
