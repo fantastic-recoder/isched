@@ -115,3 +115,10 @@ add_executable(test_client_compatibility ../integration/test_client_compatibilit
 target_link_libraries(test_client_compatibility PRIVATE ${_ws_common_libs})
 add_test(NAME test_client_compatibility COMMAND test_client_compatibility)
 
+# Phase 6: User/Organization management integration tests (T047-018)
+add_executable(test_user_management ../integration/test_user_management.cpp)
+target_link_libraries(test_user_management PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl)
+add_test(NAME test_user_management COMMAND test_user_management)
+

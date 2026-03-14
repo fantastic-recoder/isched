@@ -331,7 +331,7 @@ Each task implementation MUST verify:
 #### Tests
 
 - [x] T047-017 [P] Add unit tests in `src/test/cpp/isched/isched_auth_tests.cpp` *(extend or create)*: Argon2id hash+verify round-trip; wrong password rejected; role-gate allows/denies correct roles
-- [ ] T047-018 [P] Add integration tests in `src/test/cpp/integration/test_user_management.cpp` *(to be created)*: full CRUD for User and Organization over GraphQL; login returns valid JWT; RBAC rejects unauthorized mutations
+- [x] T047-018 [P] Add integration tests in `src/test/cpp/integration/test_user_management.cpp` *(to be created)*: full CRUD for User and Organization over GraphQL; login returns valid JWT; RBAC rejects unauthorized mutations
 - [ ] T047-019 [P] Update `specs/001-universal-backend/data-model.md` with all Phase 6 entity definitions that live in tenant SQLite files: `users` table (from T047-010), `sessions` table (from T049-001), `data_sources` table (from T048-001); cross-reference `isched_system.db` tables already documented by T047-000; mark each entity with its owning DB, write access role, and created-by task
 
 ---
