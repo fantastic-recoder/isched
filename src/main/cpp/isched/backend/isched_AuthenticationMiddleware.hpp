@@ -207,3 +207,36 @@ protected:
 };
 
 } // namespace isched::v0_0_1::backend
+
+// =============================================================================
+// T047-011: Argon2id password hashing helpers (OpenSSL 3.x EVP_KDF)
+// =============================================================================
+namespace isched::v0_0_1::backend {
+
+/**
+ * @brief Hash a plaintext password with Argon2id using OpenSSL 3.x EVP_KDF.
+ *
+ * A random 16-byte salt is generated internally.  The returned string is a
+ * self-contained encoding that includes algorithm parameters and the salt so
+ * that @c verify_password can operate without any external state:
+ * @code
+ *   argon2id:t=3:m=65536:p=1:<salt_hex>:<hash_hex>
+ * @endcode
+ *
+ * @param plaintext  UTF-8 password string, must not be empty.
+ * @return Opaque hash string suitable for storage in the @c password_hash column.
+ * @throws std::runtime_error if hashing fails (EVP_KDF not available or OOM).
+ */
+[[nodiscard]] std::string hash_password(const std::string& plaintext);
+
+/**
+ * @brief Verify a plaintext password against a stored Argon2id hash.
+ *
+ * @param plaintext  Password candidate.
+ * @param stored_hash  Value previously returned by @c hash_password.
+ * @return @c true if the password is correct, @c false otherwise.
+ */
+[[nodiscard]] bool verify_password(const std::string& plaintext,
+                                   const std::string& stored_hash);
+
+} // namespace isched::v0_0_1::backend

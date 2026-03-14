@@ -1017,12 +1017,62 @@ namespace isched::v0_0_1::backend {
         register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx&) -> json {
             return nullptr; // not yet authenticated — implemented in T047-016
         });
-        register_resolver({}, "user", [](const json&, const json&, const ResolverCtx&) -> json {
-            return nullptr; // implemented in T047-015
-        });
-        register_resolver({}, "users", [](const json&, const json&, const ResolverCtx&) -> json {
-            return json::array(); // implemented in T047-015
-        });
+        // ---------------------------------------------------------------
+        // T047-015: user / users query resolvers
+        // ---------------------------------------------------------------
+        register_resolver({}, "user",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const std::string id     = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("user: id is required");
+                }
+                auto res = m_database->get_user_by_id(org_id, id);
+                if (!res) {
+                    if (res.error() == DatabaseError::NotFound) { return nullptr; }
+                    throw std::runtime_error("Failed to fetch user");
+                }
+                const auto& r = res.value();
+                json roles_arr = json::array();
+                for (const auto& role : r.roles) { roles_arr.push_back(role); }
+                return json{
+                    {"id",          r.id},
+                    {"email",       r.email},
+                    {"displayName", r.display_name},
+                    {"roles",       roles_arr},
+                    {"isActive",    r.is_active},
+                    {"createdAt",   r.created_at},
+                    {"lastLogin",   r.last_login.empty() ? json(nullptr) : json(r.last_login)}
+                };
+            });
+        require_roles("user", {std::string(Role::PLATFORM_ADMIN),
+                               std::string(Role::TENANT_ADMIN)});
+
+        register_resolver({}, "users",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                auto res = m_database->list_users(org_id);
+                if (!res) {
+                    throw std::runtime_error("Failed to list users");
+                }
+                json arr = json::array();
+                for (const auto& r : res.value()) {
+                    json roles_arr = json::array();
+                    for (const auto& role : r.roles) { roles_arr.push_back(role); }
+                    arr.push_back(json{
+                        {"id",          r.id},
+                        {"email",       r.email},
+                        {"displayName", r.display_name},
+                        {"roles",       roles_arr},
+                        {"isActive",    r.is_active},
+                        {"createdAt",   r.created_at},
+                        {"lastLogin",   r.last_login.empty() ? json(nullptr) : json(r.last_login)}
+                    });
+                }
+                return arr;
+            });
+        require_roles("users", {std::string(Role::PLATFORM_ADMIN),
+                                std::string(Role::TENANT_ADMIN)});
         // organization / organizations — real implementations added in T047-009 below
         register_resolver({}, "login", [](const json&, const json&, const ResolverCtx&) -> json {
             // Stub: returns a shaped-but-empty AuthPayload until T047-016 is implemented.
@@ -1276,6 +1326,134 @@ namespace isched::v0_0_1::backend {
             });
         require_roles("organizations", {std::string(Role::PLATFORM_ADMIN),
                                         std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-012: createUser mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "createUser",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const auto& input = args.value("input", json::object());
+                const std::string email    = input.value("email",    "");
+                const std::string password = input.value("password", "");
+                if (email.empty() || password.empty()) {
+                    throw std::invalid_argument("createUser: email and password are required");
+                }
+                const std::string display_name = input.value("displayName", "");
+
+                // Build roles JSON array
+                json roles_arr = json::array();
+                if (input.contains("roles") && input["roles"].is_array()) {
+                    roles_arr = input["roles"];
+                }
+                const std::string roles_json = roles_arr.dump();
+
+                const std::string hash = hash_password(password);
+
+                // Generate a user id
+                const std::string uid = "usr_" + std::to_string(
+                    std::hash<std::string>{}(org_id + email));
+
+                if (auto res = m_database->create_user(
+                        org_id, uid, email, hash, display_name, roles_json);
+                    !res)
+                {
+                    switch (res.error()) {
+                        case DatabaseError::DuplicateKey:
+                            throw std::runtime_error("User with email '" + email + "' already exists");
+                        default:
+                            throw std::runtime_error("Failed to create user");
+                    }
+                }
+                auto rec_result = m_database->get_user_by_id(org_id, uid);
+                if (!rec_result) {
+                    throw std::runtime_error("User created but could not be fetched");
+                }
+                const auto& r = rec_result.value();
+                json out_roles = json::array();
+                for (const auto& role : r.roles) { out_roles.push_back(role); }
+                return json{
+                    {"id",          r.id},
+                    {"email",       r.email},
+                    {"displayName", r.display_name},
+                    {"roles",       out_roles},
+                    {"isActive",    r.is_active},
+                    {"createdAt",   r.created_at},
+                    {"lastLogin",   json(nullptr)}
+                };
+            });
+        require_roles("createUser", {std::string(Role::PLATFORM_ADMIN),
+                                     std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-013: updateUser mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "updateUser",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const std::string id     = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("updateUser: id is required");
+                }
+                const auto& input = args.value("input", json::object());
+
+                std::optional<std::string> display_name;
+                std::optional<std::string> roles_json;
+                std::optional<bool>        is_active;
+
+                if (input.contains("displayName") && !input["displayName"].is_null())
+                    display_name = input["displayName"].get<std::string>();
+                if (input.contains("roles") && input["roles"].is_array())
+                    roles_json = input["roles"].dump();
+                if (input.contains("isActive") && !input["isActive"].is_null())
+                    is_active = input["isActive"].get<bool>();
+
+                if (auto res = m_database->update_user(org_id, id, display_name, roles_json, is_active);
+                    !res)
+                {
+                    if (res.error() == DatabaseError::NotFound)
+                        throw std::runtime_error("User '" + id + "' not found");
+                    throw std::runtime_error("Failed to update user");
+                }
+                auto rec_result = m_database->get_user_by_id(org_id, id);
+                if (!rec_result) {
+                    throw std::runtime_error("User updated but could not be fetched");
+                }
+                const auto& r = rec_result.value();
+                json out_roles = json::array();
+                for (const auto& role : r.roles) { out_roles.push_back(role); }
+                return json{
+                    {"id",          r.id},
+                    {"email",       r.email},
+                    {"displayName", r.display_name},
+                    {"roles",       out_roles},
+                    {"isActive",    r.is_active},
+                    {"createdAt",   r.created_at},
+                    {"lastLogin",   r.last_login.empty() ? json(nullptr) : json(r.last_login)}
+                };
+            });
+        require_roles("updateUser", {std::string(Role::PLATFORM_ADMIN),
+                                     std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-014: deleteUser mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "deleteUser",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const std::string id     = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("deleteUser: id is required");
+                }
+                if (auto res = m_database->delete_user(org_id, id); !res) {
+                    if (res.error() == DatabaseError::NotFound)
+                        throw std::runtime_error("User '" + id + "' not found");
+                    throw std::runtime_error("Failed to delete user");
+                }
+                return true;
+            });
+        require_roles("deleteUser", {std::string(Role::PLATFORM_ADMIN),
+                                     std::string(Role::TENANT_ADMIN)});
 
         load_schema(BUILTIN_SCHEMA);
     }

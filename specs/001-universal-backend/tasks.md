@@ -319,13 +319,13 @@ Each task implementation MUST verify:
 
 #### User persistence
 
-- [ ] T047-010 [P] Create SQLite schema for `users` table in each tenant DB: `id`, `email`, `password_hash` (Argon2id), `display_name`, `roles` (JSON array), `is_active`, `created_at`, `last_login`
-- [ ] T047-011 [P] Pin `openssl/[>=3.2.0]` in `conanfile.txt` (RISK-002: `EVP_KDF_fetch("ARGON2ID")` requires OpenSSL ≥ 3.2); then implement Argon2id hashing helper using OpenSSL `EVP_KDF` in `isched_AuthenticationMiddleware.cpp`; function signatures: `hash_password(plaintext) → hash_string` and `verify_password(plaintext, hash) → bool`
+- [x] T047-010 [P] Create SQLite schema for `users` table in each tenant DB: `id`, `email`, `password_hash` (Argon2id), `display_name`, `roles` (JSON array), `is_active`, `created_at`, `last_login`
+- [x] T047-011 [P] Pin `openssl/[>=3.2.0]` in `conanfile.txt` (RISK-002: `EVP_KDF_fetch("ARGON2ID")` requires OpenSSL ≥ 3.2); then implement Argon2id hashing helper using OpenSSL `EVP_KDF` in `isched_AuthenticationMiddleware.cpp`; function signatures: `hash_password(plaintext) → hash_string` and `verify_password(plaintext, hash) → bool`
   > **Note**: `conanfile.txt` already pins `openssl/3.5.0` (> 3.2) — version constraint satisfied.
-- [ ] T047-012 [P] Implement `createUser(email: String!, password: String!, displayName: String, roles: [String!])` mutation — `tenant_admin` or `platform_admin` only
-- [ ] T047-013 [P] Implement `updateUser(id: ID!, displayName: String, roles: [String!], isActive: Boolean)` mutation — `tenant_admin` (own tenant) or `platform_admin`
-- [ ] T047-014 [P] Implement `deleteUser(id: ID!)` mutation — `tenant_admin` or `platform_admin`
-- [ ] T047-015 [P] Implement `user(id: ID!)` and `users` Query fields — `tenant_admin` sees own-tenant users; `platform_admin` sees all
+- [x] T047-012 [P] Implement `createUser(email: String!, password: String!, displayName: String, roles: [String!])` mutation — `tenant_admin` or `platform_admin` only
+- [x] T047-013 [P] Implement `updateUser(id: ID!, displayName: String, roles: [String!], isActive: Boolean)` mutation — `tenant_admin` (own tenant) or `platform_admin`
+- [x] T047-014 [P] Implement `deleteUser(id: ID!)` mutation — `tenant_admin` or `platform_admin`
+- [x] T047-015 [P] Implement `user(id: ID!)` and `users` Query fields — `tenant_admin` sees own-tenant users; `platform_admin` sees all
 - [ ] T047-016 [P] Implement `login(email: String!, password: String!, organizationId: ID)` mutation: look up user in appropriate tenant DB (or `isched_system.db` if no `organizationId`), verify Argon2id hash, issue JWT with `user_id`, `user_name`, `roles`, `tenant_id`; call `AuthenticationMiddleware::create_session()` (defined in T049-002) to persist the session; return `{ token: String!, expiresAt: String! }` — **depends on T049-001 and T049-002**
 
 #### Tests

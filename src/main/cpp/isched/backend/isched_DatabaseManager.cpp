@@ -517,6 +517,13 @@ DatabaseResult<void> DatabaseManager::initialize_tenant(const std::string& tenan
     }
     
     spdlog::info("Initialized database for tenant: {}", tenant_id);
+
+    // Ensure the users table exists (T047-010)
+    auto users_res = ensure_users_table(tenant_id);
+    if (!users_res) {
+        spdlog::warn("initialize_tenant: ensure_users_table failed for tenant '{}'", tenant_id);
+    }
+
     return DatabaseResult<void>{};
 }
 
@@ -1707,6 +1714,298 @@ DatabaseResult<void> DatabaseManager::delete_platform_admin(const std::string& i
 
     if (rc != SQLITE_DONE) {
         spdlog::error("delete_platform_admin: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+// =============================================================================
+// T047-010 / T047-012..015 — Tenant user CRUD
+// =============================================================================
+
+DatabaseResult<void> DatabaseManager::ensure_users_table(const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* ddl = R"sql(
+        CREATE TABLE IF NOT EXISTS users (
+            id            TEXT PRIMARY KEY,
+            email         TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            display_name  TEXT NOT NULL DEFAULT '',
+            roles         TEXT NOT NULL DEFAULT '[]',
+            is_active     INTEGER NOT NULL DEFAULT 1,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+            last_login    TEXT
+        );
+    )sql";
+
+    if (sqlite3_exec(conn.get(), ddl, nullptr, nullptr, nullptr) != SQLITE_OK) {
+        spdlog::error("ensure_users_table: DDL failed for tenant '{}'", tenant_id);
+        return DatabaseError::SchemaValidationFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::create_user(
+    const std::string& tenant_id,
+    const std::string& id,
+    const std::string& email,
+    const std::string& password_hash,
+    const std::string& display_name,
+    const std::string& roles_json)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "INSERT INTO users (id, email, password_hash, display_name, roles)"
+        " VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(),            -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, email.c_str(),         -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, password_hash.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, display_name.c_str(),  -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, roles_json.c_str(),    -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_CONSTRAINT) { return DatabaseError::DuplicateKey; }
+    if (rc != SQLITE_DONE) {
+        spdlog::error("create_user: sqlite3_step error {} for tenant='{}' id='{}'", rc, tenant_id, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+// Internal: parse a UserRecord from a row (columns: id, email, password_hash,
+// display_name, roles JSON, is_active, created_at, last_login).
+static UserRecord parse_user_row(sqlite3_stmt* stmt, bool include_hash)
+{
+    using isched::v0_0_1::backend::UserRecord;
+    UserRecord rec;
+    rec.id           = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    rec.email        = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    if (include_hash) {
+        auto* h = sqlite3_column_text(stmt, 2);
+        rec.password_hash = h ? reinterpret_cast<const char*>(h) : "";
+    }
+    auto* dn = sqlite3_column_text(stmt, 3);
+    rec.display_name = dn ? reinterpret_cast<const char*>(dn) : "";
+    auto* rj = sqlite3_column_text(stmt, 4);
+    if (rj) {
+        try {
+            auto j = nlohmann::json::parse(reinterpret_cast<const char*>(rj));
+            if (j.is_array()) {
+                for (const auto& v : j) {
+                    rec.roles.push_back(v.get<std::string>());
+                }
+            }
+        } catch (...) { /* ignore malformed JSON */ }
+    }
+    rec.is_active    = (sqlite3_column_int(stmt, 5) != 0);
+    auto* ca = sqlite3_column_text(stmt, 6);
+    rec.created_at   = ca ? reinterpret_cast<const char*>(ca) : "";
+    auto* ll = sqlite3_column_text(stmt, 7);
+    rec.last_login   = ll ? reinterpret_cast<const char*>(ll) : "";
+    return rec;
+}
+
+DatabaseResult<UserRecord> DatabaseManager::get_user_by_id(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "SELECT id, email, password_hash, display_name, roles, is_active, created_at, last_login"
+        " FROM users WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    bool found = false;
+    UserRecord rec;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        rec = parse_user_row(stmt, /*include_hash=*/true);
+    }
+    sqlite3_finalize(stmt);
+    if (!found) { return DatabaseError::NotFound; }
+    return rec;
+}
+
+DatabaseResult<UserRecord> DatabaseManager::get_user_by_email(
+    const std::string& tenant_id,
+    const std::string& email)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "SELECT id, email, password_hash, display_name, roles, is_active, created_at, last_login"
+        " FROM users WHERE email = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, email.c_str(), -1, SQLITE_TRANSIENT);
+    bool found = false;
+    UserRecord rec;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        rec = parse_user_row(stmt, /*include_hash=*/true);
+    }
+    sqlite3_finalize(stmt);
+    if (!found) { return DatabaseError::NotFound; }
+    return rec;
+}
+
+DatabaseResult<std::vector<UserRecord>> DatabaseManager::list_users(
+    const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // password_hash placeholder as empty string to keep column indices consistent
+    const char* sql =
+        "SELECT id, email, '' AS password_hash, display_name, roles, is_active, created_at, last_login"
+        " FROM users ORDER BY created_at;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    std::vector<UserRecord> rows;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        rows.push_back(parse_user_row(stmt, /*include_hash=*/false));
+    }
+    sqlite3_finalize(stmt);
+    return rows;
+}
+
+DatabaseResult<void> DatabaseManager::update_user(
+    const std::string&         tenant_id,
+    const std::string&         id,
+    std::optional<std::string> display_name,
+    std::optional<std::string> roles_json,
+    std::optional<bool>        is_active)
+{
+    std::string set_clause;
+    std::vector<std::string> text_vals;
+    std::vector<int>         int_vals;
+
+    auto append_text = [&](const char* col, const std::optional<std::string>& val) {
+        if (val) {
+            if (!set_clause.empty()) { set_clause += ", "; }
+            set_clause += std::string(col) + " = ?";
+            text_vals.push_back(*val);
+        }
+    };
+    if (display_name) { append_text("display_name", display_name); }
+    if (roles_json)   { append_text("roles",         roles_json); }
+    if (is_active) {
+        if (!set_clause.empty()) { set_clause += ", "; }
+        set_clause += "is_active = ?";
+        int_vals.push_back(*is_active ? 1 : 0);
+    }
+    if (set_clause.empty()) { return DatabaseResult<void>{}; }
+
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // Verify existence
+    {
+        const char* check = "SELECT COUNT(*) FROM users WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(conn.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
+        sqlite3_finalize(cs);
+        if (count == 0) { return DatabaseError::NotFound; }
+    }
+
+    const std::string sql = "UPDATE users SET " + set_clause + " WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    int bind_idx = 1;
+    for (const auto& v : text_vals) {
+        sqlite3_bind_text(stmt, bind_idx++, v.c_str(), -1, SQLITE_TRANSIENT);
+    }
+    for (const auto& v : int_vals) {
+        sqlite3_bind_int(stmt, bind_idx++, v);
+    }
+    sqlite3_bind_text(stmt, bind_idx, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        spdlog::error("update_user: error {} tenant='{}' id='{}'", rc, tenant_id, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::delete_user(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // Verify existence
+    {
+        const char* check = "SELECT COUNT(*) FROM users WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(conn.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
+        sqlite3_finalize(cs);
+        if (count == 0) { return DatabaseError::NotFound; }
+    }
+
+    const char* sql = "DELETE FROM users WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        spdlog::error("delete_user: error {} tenant='{}' id='{}'", rc, tenant_id, id);
         return DatabaseError::QueryFailed;
     }
     return DatabaseResult<void>{};

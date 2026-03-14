@@ -667,13 +667,13 @@ namespace isched::v0_0_1::backend {
     TEST_CASE("Introspection: INPUT_OBJECT type has inputFields in __schema",
               "[gql][introspection][T-INTRO-043]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
-        proc.register_resolver({}, "createUser", [](const json&, const json&, const ResolverCtx&) -> json {
+        proc.register_resolver({}, "addUser", [](const json&, const json&, const ResolverCtx&) -> json {
             return "ok";
         });
         const auto load_res = proc.load_schema(R"(
             input CreateUserInput { name: String email: String }
             type Query  { hello: String }
-            type Mutation { createUser(input: CreateUserInput): String }
+            type Mutation { addUser(input: CreateUserInput): String }
         )");
         REQUIRE(load_res.is_success());
 

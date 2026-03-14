@@ -208,6 +208,12 @@ type Mutation {
   updateOrganization(id: ID!, input: UpdateOrganizationInput!): Organization!
   """Delete an organization and deprovision its tenant database (tenant_admin self-delete or platform_admin)"""
   deleteOrganization(id: ID!): Boolean!
+  """Create a new user in the organization's tenant database (tenant_admin or platform_admin)"""
+  createUser(organizationId: ID!, input: CreateUserInput!): User!
+  """Update an existing user (tenant_admin of own org or platform_admin)"""
+  updateUser(organizationId: ID!, id: ID!, input: UpdateUserInput!): User!
+  """Delete a user (tenant_admin or platform_admin)"""
+  deleteUser(organizationId: ID!, id: ID!): Boolean!
 }
 
 """Event payload when a configuration snapshot is activated"""

@@ -235,6 +235,19 @@ struct PlatformRoleRecord {
     std::string created_at;
 };
 
+/// A row from the @c users table in a tenant SQLite DB (T047-010).
+/// @c password_hash is only populated by the @c get_user* helpers used for login.
+struct UserRecord {
+    std::string id;
+    std::string email;
+    std::string password_hash;   ///< Argon2id hash; excluded from list endpoints
+    std::string display_name;
+    std::vector<std::string> roles;  ///< Deserialized from JSON array column
+    bool        is_active{true};
+    std::string created_at;
+    std::string last_login;      ///< May be empty
+};
+
 /**
  * @brief Custom deleter for SQLite database connections
  * 
@@ -764,6 +777,55 @@ public:
 
     /// Delete a platform admin by @p id; returns @c NotFound if absent.
     [[nodiscard]] DatabaseResult<void> delete_platform_admin(const std::string& id);
+
+    // -------------------------------------------------------------------------
+    // Tenant user CRUD (T047-010, T047-012..015)
+    // -------------------------------------------------------------------------
+
+    /// Ensure the @c users table exists in the given tenant DB (idempotent).
+    /// Called automatically by @c initialize_tenant().
+    [[nodiscard]] DatabaseResult<void> ensure_users_table(const std::string& tenant_id);
+
+    /// Insert a new user into the tenant's @c users table.
+    /// @p roles_json must be a JSON array string, e.g. @c "[\"role_user\"]".
+    /// Returns @c DuplicateKey if @p id or @p email already exists.
+    [[nodiscard]] DatabaseResult<void> create_user(
+        const std::string& tenant_id,
+        const std::string& id,
+        const std::string& email,
+        const std::string& password_hash,
+        const std::string& display_name,
+        const std::string& roles_json);
+
+    /// Fetch a single user by @p id; returns @c NotFound if absent.
+    /// @c password_hash is populated.
+    [[nodiscard]] DatabaseResult<UserRecord> get_user_by_id(
+        const std::string& tenant_id,
+        const std::string& id);
+
+    /// Fetch a single user by @p email; returns @c NotFound if absent.
+    /// @c password_hash is populated (needed for login).
+    [[nodiscard]] DatabaseResult<UserRecord> get_user_by_email(
+        const std::string& tenant_id,
+        const std::string& email);
+
+    /// Return all user records for the tenant (password_hash excluded).
+    [[nodiscard]] DatabaseResult<std::vector<UserRecord>> list_users(
+        const std::string& tenant_id);
+
+    /// Partially update a user; only non-null optionals are written.
+    /// Returns @c NotFound if @p id does not exist.
+    [[nodiscard]] DatabaseResult<void> update_user(
+        const std::string& tenant_id,
+        const std::string& id,
+        std::optional<std::string> display_name,
+        std::optional<std::string> roles_json,
+        std::optional<bool>        is_active);
+
+    /// Delete a user by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<void> delete_user(
+        const std::string& tenant_id,
+        const std::string& id);
 
 private:
     /**

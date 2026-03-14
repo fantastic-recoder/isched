@@ -11,8 +11,14 @@
 
 #include "isched_AuthenticationMiddleware.hpp"
 #include <jwt-cpp/traits/nlohmann-json/defaults.h>
+#include <openssl/evp.h>
+#include <openssl/kdf.h>
+#include <openssl/rand.h>
+#include <openssl/params.h>
+#include <openssl/core_names.h>
 #include <random>
 #include <sstream>
+#include <iomanip>
 #include <stdexcept>
 
 namespace isched::v0_0_1::backend {
@@ -260,6 +266,160 @@ private:
 // Factory method implementation
 std::unique_ptr<AuthenticationMiddleware> AuthenticationMiddleware::create() {
     return std::make_unique<AuthenticationMiddlewareImpl>();
+}
+
+// =============================================================================
+// T047-011: Argon2id helpers — OpenSSL 3.x EVP_KDF
+// =============================================================================
+
+namespace {
+
+// Custom deleter for EVP_KDF_CTX
+struct EvpKdfCtxDeleter {
+    void operator()(EVP_KDF_CTX* p) const noexcept { if (p) EVP_KDF_CTX_free(p); }
+};
+using EvpKdfCtxPtr = std::unique_ptr<EVP_KDF_CTX, EvpKdfCtxDeleter>;
+
+struct EvpKdfDeleter {
+    void operator()(EVP_KDF* p) const noexcept { if (p) EVP_KDF_free(p); }
+};
+using EvpKdfPtr = std::unique_ptr<EVP_KDF, EvpKdfDeleter>;
+
+constexpr uint32_t kArgonT    = 3;       ///< iterations
+constexpr uint32_t kArgonM    = 65536;   ///< memory in KiB (64 MiB)
+constexpr uint32_t kArgonP    = 1;       ///< parallelism
+constexpr std::size_t kSaltLen = 16;     ///< bytes
+constexpr std::size_t kHashLen = 32;     ///< bytes
+
+std::string bytes_to_hex(const unsigned char* data, std::size_t len)
+{
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0');
+    for (std::size_t i = 0; i < len; ++i) {
+        oss << std::setw(2) << static_cast<unsigned>(data[i]);
+    }
+    return oss.str();
+}
+
+std::vector<unsigned char> hex_to_bytes(const std::string& hex)
+{
+    if (hex.size() % 2 != 0) {
+        throw std::runtime_error("verify_password: invalid hex string length");
+    }
+    std::vector<unsigned char> out;
+    out.reserve(hex.size() / 2);
+    for (std::size_t i = 0; i < hex.size(); i += 2) {
+        out.push_back(static_cast<unsigned char>(std::stoul(hex.substr(i, 2), nullptr, 16)));
+    }
+    return out;
+}
+
+std::vector<unsigned char> argon2id_derive(
+    const std::string& password,
+    const unsigned char* salt, std::size_t salt_len,
+    uint32_t t, uint32_t m, uint32_t p)
+{
+    EvpKdfPtr kdf{EVP_KDF_fetch(nullptr, "ARGON2ID", nullptr)};
+    if (!kdf) {
+        throw std::runtime_error("hash_password: EVP_KDF_fetch(ARGON2ID) failed — OpenSSL ≥ 3.2 required");
+    }
+    EvpKdfCtxPtr ctx{EVP_KDF_CTX_new(kdf.get())};
+    if (!ctx) {
+        throw std::runtime_error("hash_password: EVP_KDF_CTX_new failed");
+    }
+
+    OSSL_PARAM params[6];
+    int idx = 0;
+    params[idx++] = OSSL_PARAM_construct_octet_string(
+        OSSL_KDF_PARAM_PASSWORD,
+        const_cast<char*>(password.data()),
+        password.size());
+    params[idx++] = OSSL_PARAM_construct_octet_string(
+        OSSL_KDF_PARAM_SALT,
+        const_cast<unsigned char*>(salt),
+        salt_len);
+    params[idx++] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_ITER, &t);
+    params[idx++] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_ARGON2_MEMCOST, &m);
+    params[idx++] = OSSL_PARAM_construct_uint32(OSSL_KDF_PARAM_THREADS, &p);
+    params[idx]   = OSSL_PARAM_END;
+
+    std::vector<unsigned char> out(kHashLen);
+    if (EVP_KDF_derive(ctx.get(), out.data(), out.size(), params) != 1) {
+        throw std::runtime_error("hash_password: EVP_KDF_derive failed");
+    }
+    return out;
+}
+
+} // anonymous namespace
+
+std::string hash_password(const std::string& plaintext)
+{
+    if (plaintext.empty()) {
+        throw std::invalid_argument("hash_password: plaintext must not be empty");
+    }
+
+    unsigned char salt[kSaltLen];
+    if (RAND_bytes(salt, static_cast<int>(kSaltLen)) != 1) {
+        throw std::runtime_error("hash_password: RAND_bytes failed");
+    }
+
+    const auto hash = argon2id_derive(plaintext, salt, kSaltLen, kArgonT, kArgonM, kArgonP);
+
+    // Format: argon2id:t=<T>:m=<M>:p=<P>:<salt_hex>:<hash_hex>
+    return "argon2id:t=" + std::to_string(kArgonT)
+         + ":m=" + std::to_string(kArgonM)
+         + ":p=" + std::to_string(kArgonP)
+         + ":" + bytes_to_hex(salt, kSaltLen)
+         + ":" + bytes_to_hex(hash.data(), hash.size());
+}
+
+bool verify_password(const std::string& plaintext, const std::string& stored_hash)
+{
+    // Parse: argon2id:t=<T>:m=<M>:p=<P>:<salt_hex>:<hash_hex>
+    // Split by ':'
+    std::vector<std::string> parts;
+    {
+        std::istringstream ss(stored_hash);
+        std::string tok;
+        while (std::getline(ss, tok, ':')) {
+            parts.push_back(tok);
+        }
+    }
+    if (parts.size() != 6 || parts[0] != "argon2id") {
+        return false;
+    }
+
+    uint32_t t = 0, m = 0, p = 0;
+    try {
+        // parts[1] = "t=N", parts[2] = "m=N", parts[3] = "p=N"
+        t = static_cast<uint32_t>(std::stoul(parts[1].substr(2)));
+        m = static_cast<uint32_t>(std::stoul(parts[2].substr(2)));
+        p = static_cast<uint32_t>(std::stoul(parts[3].substr(2)));
+    } catch (...) {
+        return false;
+    }
+
+    std::vector<unsigned char> salt;
+    std::vector<unsigned char> expected_hash;
+    try {
+        salt          = hex_to_bytes(parts[4]);
+        expected_hash = hex_to_bytes(parts[5]);
+    } catch (...) {
+        return false;
+    }
+
+    try {
+        const auto computed = argon2id_derive(plaintext, salt.data(), salt.size(), t, m, p);
+        if (computed.size() != expected_hash.size()) { return false; }
+        // Constant-time comparison
+        unsigned char diff = 0;
+        for (std::size_t i = 0; i < computed.size(); ++i) {
+            diff |= (computed[i] ^ expected_hash[i]);
+        }
+        return diff == 0;
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace isched::v0_0_1::backend
