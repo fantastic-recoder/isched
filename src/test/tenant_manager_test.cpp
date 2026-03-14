@@ -3,10 +3,10 @@
  * @file tenant_manager_test.cpp
  * @copyright Copyright (c) 2024-2026 isched contributors
  * @see LICENSE.md — Mozilla Public License 2.0
- * @brief Basic test for the TenantManager implementation
+ * @brief Basic smoke-test for the refactored in-process TenantManager
  * @author isched Development Team
- * @version 1.0.0
- * @date 2025-11-02
+ * @version 2.0.0
+ * @date 2026-03-13
  */
 
 #include <iostream>
@@ -21,176 +21,149 @@ int main() {
     std::cout << "=== iSched Tenant Manager Test ===" << std::endl;
     
     try {
-        // Create tenant manager configuration
-        TenantManager::PoolConfiguration config;
-        config.min_processes = 2;
-        config.max_processes = 5;
-        config.database_root_path = "./test_tenant_data";
-        config.max_tenants_per_process = 3;
+        TenantManager::Configuration config;
+        config.database_root_path = "/tmp/isched_tenant_test_" + std::to_string(std::time(nullptr));
+        config.max_tenants = 100;
         
         std::cout << "Creating TenantManager with configuration:" << std::endl;
-        std::cout << "  Process pool: " << config.min_processes << "-" << config.max_processes << std::endl;
-        std::cout << "  Database root: " << config.database_root_path << std::endl;
-        std::cout << "  Max tenants per process: " << config.max_tenants_per_process << std::endl;
+        std::cout << "  database_root: " << config.database_root_path << std::endl;
+        std::cout << "  max_tenants:   " << config.max_tenants << std::endl;
         
-        // Create tenant manager instance
         auto manager = TenantManager::create(config);
-        std::cout << "✓ TenantManager created successfully" << std::endl;
+        std::cout << "✓ TenantManager created" << std::endl;
         
-        // Test configuration
-        const auto& manager_config = manager->get_pool_configuration();
-        if (manager_config.min_processes == 2) {
-            std::cout << "✓ Configuration validation passed" << std::endl;
+        // Configuration getter
+        const auto& stored = manager->get_configuration();
+        if (stored.database_root_path == config.database_root_path) {
+            std::cout << "✓ Configuration getter OK" << std::endl;
         } else {
-            std::cout << "✗ Configuration validation failed" << std::endl;
+            std::cout << "✗ Configuration getter failed" << std::endl;
             return 1;
         }
         
-        // Test status
+        // Initial status
         if (manager->get_status() == TenantManager::Status::STOPPED) {
-            std::cout << "✓ Initial status is STOPPED" << std::endl;
+            std::cout << "✓ Initial status STOPPED" << std::endl;
         } else {
             std::cout << "✗ Initial status check failed" << std::endl;
             return 1;
         }
         
-        // Test start
-        std::cout << "Starting TenantManager..." << std::endl;
+        // Start
         if (manager->start()) {
-            std::cout << "✓ TenantManager started successfully" << std::endl;
+            std::cout << "✓ TenantManager started" << std::endl;
         } else {
             std::cout << "✗ TenantManager start failed" << std::endl;
             return 1;
         }
         
-        // Test running status
         if (manager->get_status() == TenantManager::Status::RUNNING) {
-            std::cout << "✓ TenantManager status is RUNNING" << std::endl;
+            std::cout << "✓ Status RUNNING" << std::endl;
         } else {
-            std::cout << "✗ TenantManager status check failed" << std::endl;
+            std::cout << "✗ Status RUNNING check failed" << std::endl;
             return 1;
         }
         
-        // Test tenant creation
-        TenantManager::TenantConfiguration tenant_config;
-        tenant_config.organization_name = "Test Organization";
-        tenant_config.user_limit = 50;
-        tenant_config.storage_limit_mb = 512;
+        // Create tenants
+        TenantManager::TenantConfiguration tenant_cfg;
+        tenant_cfg.organization_name = "Test Org";
+        tenant_cfg.user_limit = 50;
         
-        std::cout << "Creating test tenant..." << std::endl;
-        if (manager->create_tenant("test-tenant-1", tenant_config)) {
-            std::cout << "✓ Tenant created successfully" << std::endl;
+        if (manager->create_tenant("tenant-01", tenant_cfg)) {
+            std::cout << "✓ Tenant created" << std::endl;
         } else {
             std::cout << "✗ Tenant creation failed" << std::endl;
             return 1;
         }
         
-        // Test tenant list
-        auto tenant_list = manager->get_tenant_list();
-        if (tenant_list.size() == 1 && tenant_list[0] == "test-tenant-1") {
-            std::cout << "✓ Tenant list validation passed" << std::endl;
+        // Tenant list
+        auto list = manager->get_tenant_list();
+        if (list.size() == 1 && list[0] == "tenant-01") {
+            std::cout << "✓ Tenant list OK" << std::endl;
         } else {
-            std::cout << "✗ Tenant list validation failed" << std::endl;
+            std::cout << "✗ Tenant list failed" << std::endl;
             return 1;
         }
         
-        // Test tenant session creation
-        std::cout << "Creating tenant session..." << std::endl;
-        auto session = manager->get_tenant_session("test-tenant-1");
-        if (session && session->tenant_id == "test-tenant-1") {
-            std::cout << "✓ Tenant session created successfully" << std::endl;
+        // Session
+        auto session = manager->get_tenant_session("tenant-01");
+        if (session && session->tenant_id == "tenant-01" && session->database) {
+            std::cout << "✓ Tenant session OK (has typed DatabaseManager)" << std::endl;
         } else {
-            std::cout << "✗ Tenant session creation failed" << std::endl;
+            std::cout << "✗ Tenant session failed" << std::endl;
             return 1;
         }
         
-        // Test session release
         manager->release_tenant_session(session);
-        std::cout << "✓ Tenant session released successfully" << std::endl;
+        std::cout << "✓ Session released" << std::endl;
         
-        // Test multiple tenant creation
-        std::cout << "Creating additional tenants..." << std::endl;
+        // Multiple tenants
         for (int i = 2; i <= 4; ++i) {
-            std::string tenant_id = "test-tenant-" + std::to_string(i);
-            if (manager->create_tenant(tenant_id, tenant_config)) {
-                std::cout << "✓ Created tenant: " << tenant_id << std::endl;
-            } else {
-                std::cout << "✗ Failed to create tenant: " << tenant_id << std::endl;
+            std::string id = "tenant-0" + std::to_string(i);
+            if (!manager->create_tenant(id, tenant_cfg)) {
+                std::cout << "✗ Failed to create " << id << std::endl;
                 return 1;
             }
         }
-        
-        // Test tenant list with multiple tenants
-        tenant_list = manager->get_tenant_list();
-        if (tenant_list.size() == 4) {
-            std::cout << "✓ Multiple tenant creation successful" << std::endl;
+        list = manager->get_tenant_list();
+        if (list.size() == 4) {
+            std::cout << "✓ 4 tenants registered" << std::endl;
         } else {
-            std::cout << "✗ Multiple tenant creation failed (expected 4, got " << tenant_list.size() << ")" << std::endl;
+            std::cout << "✗ Expected 4 tenants, got " << list.size() << std::endl;
             return 1;
         }
         
-        // Test metrics
+        // Metrics
         auto metrics = manager->get_metrics();
-        if (!metrics.empty() && metrics.find("active_tenants") != std::string::npos) {
-            std::cout << "✓ Metrics available: " << metrics.substr(0, 100) << "..." << std::endl;
+        if (metrics.find("active_tenants") != std::string::npos) {
+            std::cout << "✓ Metrics: " << metrics.substr(0, 80) << "..." << std::endl;
         } else {
             std::cout << "✗ Metrics not available" << std::endl;
             return 1;
         }
         
-        // Test health check
+        // Health
         auto health = manager->get_health();
-        if (!health.empty() && health.find("UP") != std::string::npos) {
-            std::cout << "✓ Health check available: " << health.substr(0, 100) << "..." << std::endl;
+        if (health.find("UP") != std::string::npos) {
+            std::cout << "✓ Health: " << health.substr(0, 80) << "..." << std::endl;
         } else {
-            std::cout << "✗ Health check not available" << std::endl;
+            std::cout << "✗ Health check failed" << std::endl;
             return 1;
         }
         
-        // Let manager run briefly to test maintenance thread
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        
-        // Test tenant removal
-        std::cout << "Removing test tenant..." << std::endl;
-        if (manager->remove_tenant("test-tenant-4")) {
-            std::cout << "✓ Tenant removed successfully" << std::endl;
-        } else {
+        // Remove
+        if (!manager->remove_tenant("tenant-04")) {
             std::cout << "✗ Tenant removal failed" << std::endl;
             return 1;
         }
-        
-        // Verify tenant list after removal
-        tenant_list = manager->get_tenant_list();
-        if (tenant_list.size() == 3) {
-            std::cout << "✓ Tenant removal validation passed" << std::endl;
+        list = manager->get_tenant_list();
+        if (list.size() == 3) {
+            std::cout << "✓ Tenant removed, 3 remain" << std::endl;
         } else {
-            std::cout << "✗ Tenant removal validation failed" << std::endl;
+            std::cout << "✗ Post-removal count wrong" << std::endl;
             return 1;
         }
         
-        // Test stop
-        std::cout << "Stopping TenantManager..." << std::endl;
+        // Stop
         if (manager->stop()) {
-            std::cout << "✓ TenantManager stopped successfully" << std::endl;
+            std::cout << "✓ TenantManager stopped" << std::endl;
         } else {
             std::cout << "✗ TenantManager stop failed" << std::endl;
             return 1;
         }
         
-        // Test stopped status
         if (manager->get_status() == TenantManager::Status::STOPPED) {
-            std::cout << "✓ Final status is STOPPED" << std::endl;
+            std::cout << "✓ Final status STOPPED" << std::endl;
         } else {
             std::cout << "✗ Final status check failed" << std::endl;
             return 1;
         }
         
-        std::cout << "\n=== All tenant manager tests passed! ===" << std::endl;
-        std::cout << "Tenant management system is working correctly." << std::endl;
+        std::cout << "\n=== All tests passed! ===" << std::endl;
         return 0;
         
     } catch (const std::exception& e) {
-        std::cout << "✗ Test failed with exception: " << e.what() << std::endl;
+        std::cout << "✗ Exception: " << e.what() << std::endl;
         return 1;
     }
 }

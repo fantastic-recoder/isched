@@ -35,6 +35,7 @@
 #include <memory>
 #include <queue>
 #include <mutex>
+#include <condition_variable>
 #include <string>
 #include <vector>
 #include <chrono>
@@ -349,6 +350,7 @@ private:
     const std::string database_path_;
     const std::size_t max_connections_;
     mutable std::mutex pool_mutex_;
+    std::condition_variable pool_cv_;            ///< Notified when a connection is returned
     std::queue<SqliteConnection> available_connections_;
     std::size_t active_connections_;
     std::size_t total_created_;

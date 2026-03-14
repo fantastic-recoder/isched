@@ -25,7 +25,7 @@ target_link_libraries(basic_server_test PRIVATE isched spdlog::spdlog  Boost::ur
 add_test(NAME basic_server_test COMMAND basic_server_test)
 
 add_executable(tenant_manager_test ../../tenant_manager_test.cpp)
-target_link_libraries(tenant_manager_test PRIVATE isched spdlog::spdlog)
+target_link_libraries(tenant_manager_test PRIVATE isched spdlog::spdlog SQLite::SQLite3 nlohmann_json::nlohmann_json)
 add_test(NAME tenant_manager_test COMMAND tenant_manager_test)
 
 add_executable(isched_resolver_tests isched_resolver_tests.cpp)

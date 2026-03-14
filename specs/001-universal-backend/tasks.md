@@ -128,9 +128,9 @@ Each task implementation MUST verify:
   - Replace `isched_MainSvc.hpp/cpp` with a minimal cpp-httplib bootstrap (or delete if `isched_Server` absorbs the role)
   - Populate `ResolverCtx` with `tenant_id` (string), `db` (pointer to tenant DB connection), and `current_user_id` (string); update all resolver call sites
   - Verify `ctest` is green after removal
-- [ ] T007 [P] Refactor `isched_TenantManager.hpp/cpp` for in-process tenant isolation rather than process management
-- [ ] T008 [P] Complete `isched_DatabaseManager.hpp/cpp` for tenant-scoped SQLite storage and connection pooling
-- [ ] T009 [P] Complete `ConnectionPool` behavior in `isched_DatabaseManager.hpp/cpp`
+- [x] T007 [P] Refactor `isched_TenantManager.hpp/cpp` for in-process tenant isolation rather than process management
+- [x] T008 [P] Complete `isched_DatabaseManager.hpp/cpp` for tenant-scoped SQLite storage and connection pooling
+- [x] T009 [P] Complete `ConnectionPool` behavior in `isched_DatabaseManager.hpp/cpp`
 - [ ] T010 [P] Complete `isched_GqlExecutor.hpp/cpp` for query, mutation, and schema execution
 - [ ] T011 [P] Complete `isched_AuthenticationMiddleware.hpp/cpp` for real JWT validation and session handling
 - [ ] T012 [P] Add a subscription broker implementation in `src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp/.cpp` *(to be created)* for WebSocket subscriptions

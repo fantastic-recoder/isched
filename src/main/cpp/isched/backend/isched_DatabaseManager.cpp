@@ -117,12 +117,13 @@ DatabaseResult<ConnectionPool::PooledConnection> ConnectionPool::acquire(
     
     auto deadline = std::chrono::steady_clock::now() + timeout_ms;
     
-    while (available_connections_.empty() && active_connections_ >= max_connections_) {
-        // Wait for a connection to become available or timeout
-        std::condition_variable cv;
-        if (cv.wait_until(lock, deadline) == std::cv_status::timeout) {
-            return DatabaseError::PoolExhausted;
-        }
+    // Wait until a connection is available or we can create a new one
+    bool ok = pool_cv_.wait_until(lock, deadline, [this]() {
+        return !available_connections_.empty() || active_connections_ < max_connections_;
+    });
+    
+    if (!ok) {
+        return DatabaseError::PoolExhausted;
     }
     
     SqliteConnection connection;
@@ -148,16 +149,19 @@ DatabaseResult<ConnectionPool::PooledConnection> ConnectionPool::acquire(
 }
 
 void ConnectionPool::return_connection(SqliteConnection connection) noexcept {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
-    
-    if (active_connections_ > 0) {
-        active_connections_--;
+    {
+        std::lock_guard<std::mutex> lock(pool_mutex_);
+        
+        if (active_connections_ > 0) {
+            active_connections_--;
+        }
+        
+        if (available_connections_.size() < max_connections_) {
+            available_connections_.push(std::move(connection));
+        }
+        // If pool is full, connection is destroyed on scope exit
     }
-    
-    if (available_connections_.size() < max_connections_) {
-        available_connections_.push(std::move(connection));
-    }
-    // If pool is full, connection will be destroyed automatically
+    pool_cv_.notify_one();
 }
 
 DatabaseResult<SqliteConnection> ConnectionPool::create_connection() {
