@@ -19,6 +19,7 @@
 #include <tao/pegtl/parse_error.hpp>
 #include <tao/pegtl/string_input.hpp>
 
+#include "isched_AuthenticationMiddleware.hpp"
 #include "isched_ExecutionResult.hpp"
 #include "isched_gql_error.hpp"
 #include "isched_gql_grammar.hpp"
@@ -1038,6 +1039,56 @@ namespace isched::v0_0_1::backend {
         register_resolver({}, "logout", [](const json&, const json&, const ResolverCtx&) -> json {
             return true; // stub — session revocation implemented in T049-003
         });
+
+        // ---------------------------------------------------------------
+        // T047-004: createRole / deleteRole mutations
+        // ---------------------------------------------------------------
+        register_resolver({}, "createRole",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const auto& input = args.value("input", json::object());
+                const std::string id    = input.value("id",          "");
+                const std::string name  = input.value("name",        "");
+                const std::string desc  = input.value("description", "");
+                const std::string scope = input.value("scope",       "");
+
+                if (id.empty() || name.empty() || scope.empty()) {
+                    throw std::invalid_argument("createRole: id, name, and scope are required");
+                }
+                if (scope == "platform") {
+                    if (auto res = m_database->create_platform_role(id, name, desc); !res) {
+                        switch (res.error()) {
+                            case DatabaseError::DuplicateKey:
+                                throw std::runtime_error("Role '" + id + "' already exists");
+                            default:
+                                throw std::runtime_error("Failed to create platform role");
+                        }
+                    }
+                }
+                // tenant-scope roles will be implemented in T047-010 (per-tenant users table)
+                return true;
+            });
+        require_roles("createRole", {std::string(Role::PLATFORM_ADMIN),
+                                     std::string(Role::TENANT_ADMIN)});
+
+        register_resolver({}, "deleteRole",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const std::string id = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("deleteRole: id is required");
+                }
+                if (auto res = m_database->delete_platform_role(id); !res) {
+                    switch (res.error()) {
+                        case DatabaseError::NotFound:
+                            throw std::runtime_error("Role '" + id + "' not found");
+                        case DatabaseError::AccessDenied:
+                            throw std::runtime_error("Built-in roles cannot be deleted");
+                        default:
+                            throw std::runtime_error("Failed to delete role");
+                    }
+                }
+                return true;
+            });
+        require_roles("deleteRole", {std::string(Role::PLATFORM_ADMIN)});
 
         load_schema(BUILTIN_SCHEMA);
     }

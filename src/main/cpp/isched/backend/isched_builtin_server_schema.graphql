@@ -198,6 +198,10 @@ type Mutation {
   login(email: String!, password: String!, organizationId: ID): AuthPayload!
   """Revoke the caller's current session"""
   logout: Boolean!
+  """Create a new custom role (platform_admin for platform scope; tenant_admin for tenant scope)"""
+  createRole(input: CreateRoleInput!): Boolean!
+  """Delete a custom role by id (built-in roles cannot be deleted)"""
+  deleteRole(id: ID!): Boolean!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -359,4 +363,16 @@ input UpdateOrganizationInput {
   subscriptionTier: String
   userLimit: Int
   storageLimit: Int
+}
+
+"""Input for creating a new custom role"""
+input CreateRoleInput {
+  """Role identifier (e.g. 'role_billing_admin'); must be unique"""
+  id: String!
+  """Human-readable role name"""
+  name: String!
+  """Optional description"""
+  description: String
+  """Scope: 'platform' (requires platform_admin) or 'tenant' (requires tenant_admin)"""
+  scope: String!
 }

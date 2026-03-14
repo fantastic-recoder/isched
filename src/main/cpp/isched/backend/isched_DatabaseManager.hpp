@@ -61,7 +61,10 @@ enum class DatabaseError {
     TenantNotFound,
     MigrationFailed,
     BackupFailed,
-    PoolExhausted
+    PoolExhausted,
+    NotFound,       ///< Requested record does not exist
+    DuplicateKey,   ///< INSERT failed due to UNIQUE constraint
+    AccessDenied    ///< Operation refused (e.g. deleting a built-in role)
 };
 
 /**
@@ -623,6 +626,36 @@ public:
      * Path: @c <DataHome>/isched/isched_system.db
      */
     [[nodiscard]] DatabaseResult<void> ensure_system_db();
+
+    /**
+     * @brief Insert a custom platform-scope role into @c platform_roles.
+     *
+     * The four built-in roles (role_platform_admin … role_service) cannot be
+     * replaced because the table uses @c INSERT OR IGNORE semantics.
+     *
+     * @param id          Unique role identifier (e.g. "role_billing_admin").
+     * @param name        Human-readable name.
+     * @param description Optional description.
+     * @return @c DatabaseResult<void>; @c DatabaseError::DuplicateKey if @p id
+     *         already exists.
+     */
+    [[nodiscard]] DatabaseResult<void> create_platform_role(
+        const std::string& id,
+        const std::string& name,
+        const std::string& description);
+
+    /**
+     * @brief Remove a custom platform-scope role from @c platform_roles.
+     *
+     * Built-in roles (those seeded by @c ensure_system_db) are protected: if
+     * the caller attempts to delete one of them, the method returns
+     * @c DatabaseError::AccessDenied.
+     *
+     * @param id  Role identifier to remove.
+     * @return @c DatabaseResult<void>; @c DatabaseError::NotFound if @p id does
+     *         not exist; @c DatabaseError::AccessDenied for built-in roles.
+     */
+    [[nodiscard]] DatabaseResult<void> delete_platform_role(const std::string& id);
 
 private:
     /**

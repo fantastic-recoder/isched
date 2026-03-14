@@ -11,6 +11,8 @@
 
 #include "isched_DatabaseManager.hpp"
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -1087,6 +1089,88 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
 
     system_db_initialized_ = true;
     spdlog::info("System database ready at: {}", system_db_path);
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::create_platform_role(
+    const std::string& id,
+    const std::string& name,
+    const std::string& description)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "INSERT INTO platform_roles (id, name, description) VALUES (?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(),          -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, name.c_str(),        -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, description.c_str(), -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc == SQLITE_CONSTRAINT) {
+        return DatabaseError::DuplicateKey;
+    }
+    if (rc != SQLITE_DONE) {
+        spdlog::error("create_platform_role: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::delete_platform_role(const std::string& id)
+{
+    // Protect built-in roles
+    static constexpr std::array<std::string_view, 4> kBuiltIn = {
+        "role_platform_admin", "role_tenant_admin", "role_user", "role_service"
+    };
+    if (std::find(kBuiltIn.begin(), kBuiltIn.end(), id) != kBuiltIn.end()) {
+        return DatabaseError::AccessDenied;
+    }
+
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    // Verify existence first
+    {
+        const char* check_sql = "SELECT COUNT(*) FROM platform_roles WHERE id = ?;";
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check_sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            count = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+        if (count == 0) {
+            return DatabaseError::NotFound;
+        }
+    }
+
+    const char* sql = "DELETE FROM platform_roles WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        spdlog::error("delete_platform_role: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
     return DatabaseResult<void>{};
 }
 
