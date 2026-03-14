@@ -202,6 +202,12 @@ type Mutation {
   createRole(input: CreateRoleInput!): Boolean!
   """Delete a custom role by id (built-in roles cannot be deleted)"""
   deleteRole(id: ID!): Boolean!
+  """Create a new organization and provision its tenant database (platform_admin only)"""
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  """Update an existing organization (tenant_admin of that org or platform_admin)"""
+  updateOrganization(id: ID!, input: UpdateOrganizationInput!): Organization!
+  """Delete an organization and deprovision its tenant database (tenant_admin self-delete or platform_admin)"""
+  deleteOrganization(id: ID!): Boolean!
 }
 
 """Event payload when a configuration snapshot is activated"""

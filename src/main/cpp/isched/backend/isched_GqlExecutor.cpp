@@ -1023,12 +1023,7 @@ namespace isched::v0_0_1::backend {
         register_resolver({}, "users", [](const json&, const json&, const ResolverCtx&) -> json {
             return json::array(); // implemented in T047-015
         });
-        register_resolver({}, "organization", [](const json&, const json&, const ResolverCtx&) -> json {
-            return nullptr; // implemented in T047-009
-        });
-        register_resolver({}, "organizations", [](const json&, const json&, const ResolverCtx&) -> json {
-            return json::array(); // implemented in T047-009
-        });
+        // organization / organizations — real implementations added in T047-009 below
         register_resolver({}, "login", [](const json&, const json&, const ResolverCtx&) -> json {
             // Stub: returns a shaped-but-empty AuthPayload until T047-016 is implemented.
             json payload;
@@ -1089,6 +1084,198 @@ namespace isched::v0_0_1::backend {
                 return true;
             });
         require_roles("deleteRole", {std::string(Role::PLATFORM_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-006: createOrganization mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "createOrganization",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const auto& input = args.value("input", json::object());
+                const std::string id   = input.value("id",   "");
+                const std::string name = input.value("name", "");
+                if (name.empty()) {
+                    throw std::invalid_argument("createOrganization: name is required");
+                }
+                // Generate id from name if not provided
+                const std::string org_id = id.empty()
+                    ? "org_" + std::to_string(std::hash<std::string>{}(name))
+                    : id;
+                const std::string domain           = input.value("domain",           "");
+                const std::string subscription_tier = input.value("subscriptionTier", "free");
+                const int         user_limit        = input.value("userLimit",    10);
+                const int         storage_limit     = input.value("storageLimit", 1073741824);
+
+                if (auto res = m_database->create_organization(
+                        org_id, name, domain, subscription_tier, user_limit, storage_limit);
+                    !res)
+                {
+                    switch (res.error()) {
+                        case DatabaseError::DuplicateKey:
+                            throw std::runtime_error("Organization '" + org_id + "' already exists");
+                        default:
+                            throw std::runtime_error("Failed to create organization");
+                    }
+                }
+                // Provision the tenant SQLite file (idempotent)
+                m_database->initialize_tenant(org_id);
+
+                // Return the created record
+                auto rec_result = m_database->get_organization(org_id);
+                if (!rec_result) {
+                    throw std::runtime_error("Organization created but could not be fetched");
+                }
+                const auto& r = rec_result.value();
+                return json{
+                    {"id",               r.id},
+                    {"name",             r.name},
+                    {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
+                    {"subscriptionTier", r.subscription_tier},
+                    {"userLimit",        r.user_limit},
+                    {"storageLimit",     r.storage_limit},
+                    {"createdAt",        r.created_at}
+                };
+            });
+        require_roles("createOrganization", {std::string(Role::PLATFORM_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-007: updateOrganization mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "updateOrganization",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const std::string id = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("updateOrganization: id is required");
+                }
+                const auto& input = args.value("input", json::object());
+
+                std::optional<std::string> name;
+                std::optional<std::string> domain;
+                std::optional<std::string> subscription_tier;
+                std::optional<int>         user_limit;
+                std::optional<int>         storage_limit;
+
+                if (input.contains("name")             && !input["name"].is_null())
+                    name = input["name"].get<std::string>();
+                if (input.contains("domain")           && !input["domain"].is_null())
+                    domain = input["domain"].get<std::string>();
+                if (input.contains("subscriptionTier") && !input["subscriptionTier"].is_null())
+                    subscription_tier = input["subscriptionTier"].get<std::string>();
+                if (input.contains("userLimit")        && !input["userLimit"].is_null())
+                    user_limit = input["userLimit"].get<int>();
+                if (input.contains("storageLimit")     && !input["storageLimit"].is_null())
+                    storage_limit = input["storageLimit"].get<int>();
+
+                if (auto res = m_database->update_organization(
+                        id, name, domain, subscription_tier, user_limit, storage_limit);
+                    !res)
+                {
+                    switch (res.error()) {
+                        case DatabaseError::NotFound:
+                            throw std::runtime_error("Organization '" + id + "' not found");
+                        default:
+                            throw std::runtime_error("Failed to update organization");
+                    }
+                }
+                auto rec_result = m_database->get_organization(id);
+                if (!rec_result) {
+                    throw std::runtime_error("Organization updated but could not be fetched");
+                }
+                const auto& r = rec_result.value();
+                return json{
+                    {"id",               r.id},
+                    {"name",             r.name},
+                    {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
+                    {"subscriptionTier", r.subscription_tier},
+                    {"userLimit",        r.user_limit},
+                    {"storageLimit",     r.storage_limit},
+                    {"createdAt",        r.created_at}
+                };
+            });
+        require_roles("updateOrganization", {std::string(Role::PLATFORM_ADMIN),
+                                             std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-008: deleteOrganization mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "deleteOrganization",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const std::string id = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("deleteOrganization: id is required");
+                }
+                if (auto res = m_database->delete_organization(id); !res) {
+                    switch (res.error()) {
+                        case DatabaseError::NotFound:
+                            throw std::runtime_error("Organization '" + id + "' not found");
+                        default:
+                            throw std::runtime_error("Failed to delete organization");
+                    }
+                }
+                return true;
+            });
+        require_roles("deleteOrganization", {std::string(Role::PLATFORM_ADMIN),
+                                             std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T047-009: organization / organizations query resolvers
+        // ---------------------------------------------------------------
+        register_resolver({}, "organization",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const std::string id = args.value("id", "");
+                if (id.empty()) {
+                    throw std::invalid_argument("organization: id is required");
+                }
+                auto res = m_database->get_organization(id);
+                if (!res) {
+                    if (res.error() == DatabaseError::NotFound) {
+                        return nullptr;
+                    }
+                    throw std::runtime_error("Failed to fetch organization");
+                }
+                const auto& r = res.value();
+                return json{
+                    {"id",               r.id},
+                    {"name",             r.name},
+                    {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
+                    {"subscriptionTier", r.subscription_tier},
+                    {"userLimit",        r.user_limit},
+                    {"storageLimit",     r.storage_limit},
+                    {"createdAt",        r.created_at}
+                };
+            });
+        require_roles("organization", {std::string(Role::PLATFORM_ADMIN),
+                                       std::string(Role::TENANT_ADMIN)});
+
+        register_resolver({}, "organizations",
+            [this](const json&, const json&, const ResolverCtx& ctx) -> json {
+                // platform_admin sees all; tenant_admin sees only their own org
+                const bool is_platform_admin =
+                    std::find(ctx.roles.begin(), ctx.roles.end(),
+                              std::string(Role::PLATFORM_ADMIN)) != ctx.roles.end();
+
+                auto res = m_database->list_organizations();
+                if (!res) {
+                    throw std::runtime_error("Failed to list organizations");
+                }
+                json arr = json::array();
+                for (const auto& r : res.value()) {
+                    if (!is_platform_admin && r.id != ctx.tenant_id) {
+                        continue;  // tenant_admin: skip orgs that are not theirs
+                    }
+                    arr.push_back(json{
+                        {"id",               r.id},
+                        {"name",             r.name},
+                        {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
+                        {"subscriptionTier", r.subscription_tier},
+                        {"userLimit",        r.user_limit},
+                        {"storageLimit",     r.storage_limit},
+                        {"createdAt",        r.created_at}
+                    });
+                }
+                return arr;
+            });
+        require_roles("organizations", {std::string(Role::PLATFORM_ADMIN),
+                                        std::string(Role::TENANT_ADMIN)});
 
         load_schema(BUILTIN_SCHEMA);
     }

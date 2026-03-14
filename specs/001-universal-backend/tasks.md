@@ -312,10 +312,10 @@ Each task implementation MUST verify:
 #### Organization persistence
 
 - [x] T047-005 [P] *(schema created by T047-000)* Implement `DatabaseManager` helper methods for CRUD on `organizations`, `platform_admins`, and `platform_roles` tables in `isched_system.db`; enforce `platform_admin`-only write access at the method level
-- [ ] T047-006 [P] Implement `createOrganization(name: String!, domain: String, subscriptionTier: String, userLimit: Int, storageLimit: Int)` mutation — `platform_admin` only; creates the org record and provisions the tenant SQLite file
-- [ ] T047-007 [P] Implement `updateOrganization(id: ID!, ...)` mutation — `tenant_admin` of that org; `platform_admin` may also update any org
-- [ ] T047-008 [P] Implement `deleteOrganization(id: ID!)` mutation — `tenant_admin` of that org (self-delete) or `platform_admin`; cascades to deprovisioning the tenant SQLite file
-- [ ] T047-009 [P] Implement `organization(id: ID!)` and `organizations` Query fields — `platform_admin` sees all; `tenant_admin` sees own org only
+- [x] T047-006 [P] Implement `createOrganization(name: String!, domain: String, subscriptionTier: String, userLimit: Int, storageLimit: Int)` mutation — `platform_admin` only; creates the org record and provisions the tenant SQLite file
+- [x] T047-007 [P] Implement `updateOrganization(id: ID!, ...)` mutation — `tenant_admin` of that org; `platform_admin` may also update any org
+- [x] T047-008 [P] Implement `deleteOrganization(id: ID!)` mutation — `tenant_admin` of that org (self-delete) or `platform_admin`; cascades to deprovisioning the tenant SQLite file
+- [x] T047-009 [P] Implement `organization(id: ID!)` and `organizations` Query fields — `platform_admin` sees all; `tenant_admin` sees own org only
 
 #### User persistence
 
