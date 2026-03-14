@@ -121,7 +121,7 @@ Each task implementation MUST verify:
 
 **Purpose**: Core infrastructure that must exist before user stories can be completed.
 
-- [ ] T006 [P] Replace `restbed` with `cpp-httplib` as the sole HTTP/WebSocket library:
+- [x] T006 [P] Replace `restbed` with `cpp-httplib` as the sole HTTP/WebSocket library:
   - Rewrite `isched_Server.hpp/cpp` to use `httplib::Server` for HTTP POST `/graphql` and `httplib::Server::set_pre_routing_handler` / WebSocket upgrade for WebSocket connections to `/graphql`
   - Remove `restbed` from `conanfile.txt`
   - Delete `isched_BaseRestResolver.hpp/cpp`, `isched_DocRootRestResolver.hpp/cpp`, `isched_SingleActionRestResolver.hpp/cpp`, `isched_DocRootSvc.hpp/cpp`, `isched_EHttpMethods.hpp`
@@ -295,7 +295,7 @@ Each task implementation MUST verify:
 **Purpose**: Production hardening for the revised architecture.
 
 - ~~T053~~ **Superseded by T006** — REST file deletion and CMakeLists.txt cleanup is fully covered by T006 in Phase 2
-- [ ] T054 [P] Remove legacy IPC files: `shared/ipc/isched_ipc.hpp/cpp`, `src/test/cpp/isched/isched_ipc_tests.cpp`, `src/test/cpp/isched/isched_rest_hello_world.cpp` — and all CMakeLists.txt references to them
+- [x] T054 [P] Remove legacy IPC files: `shared/ipc/isched_ipc.hpp/cpp`, `src/test/cpp/isched/isched_ipc_tests.cpp`, `src/test/cpp/isched/isched_rest_hello_world.cpp` — and all CMakeLists.txt references to them
 - [ ] T055 [P] Review docs and generated references for GraphQL-only terminology consistency
 - [ ] T056 [P] Add security hardening and vulnerability scanning integration
 - [ ] T057 [P] Add deployment documentation for HTTP and WebSocket operation

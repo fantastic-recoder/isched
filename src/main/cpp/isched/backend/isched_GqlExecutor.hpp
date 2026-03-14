@@ -55,9 +55,13 @@ namespace isched::v0_0_1::backend {
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
 
     /**
-     * Resolver context for GraphQL field resolution; will provide access to the database and other resources
+     * Resolver context for GraphQL field resolution; provides access to the
+     * current tenant, database connection, and authenticated user.
      */
     struct ResolverCtx {
+        std::string tenant_id;                          ///< Active tenant identifier
+        std::weak_ptr<DatabaseManager> db;              ///< Non-owning handle to the tenant DB
+        std::string current_user_id;                    ///< Authenticated user identifier (empty = anonymous)
     };
 
     /**

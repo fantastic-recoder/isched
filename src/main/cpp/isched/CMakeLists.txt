@@ -12,15 +12,6 @@ add_library(isched
         shared/isched_exception_doc_path_not_found.cpp
         shared/isched_exception_doc_path_not_found.hpp
         shared/isched_exception_unknown_enum_value.hpp
-        backend/isched_DocRootRestResolver.cpp
-        backend/isched_DocRootRestResolver.hpp
-        backend/isched_MainSvc.cpp
-        backend/isched_MainSvc.hpp
-        backend/isched_SingleActionRestResolver.cpp
-        backend/isched_SingleActionRestResolver.hpp
-        backend/isched_BaseRestResolver.cpp
-        backend/isched_BaseRestResolver.hpp
-        backend/isched_EHttpMethods.hpp
         backend/isched_LogEnvLoader.hpp
         # Universal Application Server Backend components
         backend/isched_common.hpp
@@ -45,7 +36,7 @@ add_library(isched
         backend/isched_multi_dim_map.hpp
         backend/isched_gql_grammar.cpp
 )
-target_link_libraries(isched PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog nlohmann_json::nlohmann_json
+target_link_libraries(isched PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url sago::platform_folders)
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} "${CMAKE_CURRENT_BINARY_DIR}")
 

@@ -33,24 +33,6 @@
 #include <mutex>
 #include <boost/url.hpp>
 
-// Forward declarations for external dependencies
-namespace restbed {
-    class Service;
-    class Session;
-    class Resource;
-}
-
-namespace spdlog {
-    class logger;
-}
-
-// Forward declarations for external dependencies
-namespace restbed {
-    class Service;
-    class Resource;
-    class Session;
-}
-
 namespace spdlog {
     class logger;
 }
@@ -304,34 +286,6 @@ private:
     void setup_endpoints();
 
     /**
-     * @brief Setup GraphQL endpoint handler
-     * @param resource Restbed resource to configure
-     */
-    void setup_graphql_endpoint(SharedPtr<restbed::Resource> resource);
-
-    /**
-     * @brief Handle GraphQL request processing
-     * @param session Restbed session for request/response
-     */
-    void handle_graphql_request(const SharedPtr<restbed::Session>& session);
-
-    /**
-     * @brief Send JSON response helper method
-     * @param session Restbed session
-     * @param response JSON response string
-     * @param status_code HTTP status code (default 200)
-     */
-    void send_json_response(const SharedPtr<restbed::Session>& session, const std::string& response, int status_code = 200);
-
-    /**
-     * @brief Send error response helper method
-     * @param session Restbed session
-     * @param error_message Error message
-     * @param status_code HTTP status code (default 400)
-     */
-    void send_error_response(const SharedPtr<restbed::Session>& session, const std::string& error_message, int status_code = 400);
-
-    /**
      * @brief Process GraphQL query
      * @param query GraphQL query string
      * @param variables_json Query variables as JSON string
@@ -355,9 +309,7 @@ private:
     // Member variables (all managed via smart pointers)
     Configuration m_config;                                    ///< Server configuration
     std::atomic<Status> m_status{Status::STOPPED};           ///< Current server status
-    SharedPtr<restbed::Service> m_http_service;               ///< HTTP service instance
-    SharedPtr<spdlog::logger> m_logger;                      ///< Logging instance
-    
+
     // Core components (forward declared, defined in implementation)
     class Impl;                                               ///< PIMPL idiom for implementation details
     UniquePtr<Impl> m_impl;                                   ///< Implementation details

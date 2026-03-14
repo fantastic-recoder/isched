@@ -1,7 +1,7 @@
 configure_file(hello_world_schema.graphql hello_world_schema.graphql COPYONLY)
 
 add_executable(isched_grammar_tests isched_grammar_tests.cpp)
-target_link_libraries(isched_grammar_tests PRIVATE taocpp::pegtl restbed::restbed spdlog::spdlog isched Boost::url Catch2::Catch2WithMain)
+target_link_libraries(isched_grammar_tests PRIVATE taocpp::pegtl spdlog::spdlog isched Boost::url Catch2::Catch2WithMain)
 add_test(NAME isched_grammar_tests COMMAND isched_grammar_tests)
 
 add_executable(isched_graphql_tests isched_graphql_tests.cpp)
@@ -16,8 +16,8 @@ add_test(NAME isched_gql_executor_tests COMMAND isched_gql_executor_tests)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_executable(isched_srv_test isched_srv_tests.cpp
         ../../../main/cpp/isched/backend/isched_LogEnvLoader.hpp)
-target_link_libraries(isched_srv_test PRIVATE isched Boost::url Catch2::Catch2WithMain spdlog::spdlog httplib::httplib
-        nextsilicon-cpp-subprocess::nextsilicon-cpp-subprocess openssl::openssl)
+target_link_libraries(isched_srv_test PRIVATE isched Boost::url Catch2::Catch2WithMain spdlog::spdlog
+        httplib::httplib openssl::openssl nlohmann_json::nlohmann_json)
 add_test(NAME isched_srv_test COMMAND isched_srv_test)
 
 add_executable(basic_server_test ../../basic_server_test.cpp)
@@ -27,10 +27,6 @@ add_test(NAME basic_server_test COMMAND basic_server_test)
 add_executable(tenant_manager_test ../../tenant_manager_test.cpp)
 target_link_libraries(tenant_manager_test PRIVATE isched spdlog::spdlog)
 add_test(NAME tenant_manager_test COMMAND tenant_manager_test)
-
-add_executable(rest_hello_world isched_rest_hello_world.cpp
-        ../../../main/cpp/isched/backend/isched_LogEnvLoader.hpp)
-target_link_libraries(rest_hello_world restbed::restbed)
 
 add_executable(isched_resolver_tests isched_resolver_tests.cpp)
 target_link_libraries(isched_resolver_tests isched Boost::url Catch2::Catch2WithMain)
@@ -68,4 +64,3 @@ add_test(NAME isched_ast_node_tests COMMAND isched_ast_node_tests)
 add_executable(isched_multi_dim_map_tests isched_multi_dim_map_tests.cpp)
 target_link_libraries(isched_multi_dim_map_tests PRIVATE Catch2::Catch2WithMain)
 add_test(NAME isched_multi_dim_map_tests COMMAND isched_multi_dim_map_tests)
-
