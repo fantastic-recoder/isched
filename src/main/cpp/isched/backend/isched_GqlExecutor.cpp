@@ -336,6 +336,23 @@ namespace isched::v0_0_1::backend {
                     return result;
                 }
 
+                // Validate SDL using PEGTL grammar before persisting (T-GQL-023)
+                const std::string sdl = inp["schemaSdl"].get<std::string>();
+                try {
+                    tao::pegtl::string_input<> sdl_input(sdl, "SDL-validation");
+                    auto val_ret = gql::generate_ast_and_log<gql::Document>(
+                        sdl_input, "SDL-validation", false, false);
+                    if (!std::get<0>(val_ret)) {
+                        result["errors"].push_back(
+                            "Invalid schemaSdl: GraphQL SDL failed to parse");
+                        return result;
+                    }
+                } catch (const tao::pegtl::parse_error& e) {
+                    result["errors"].push_back(
+                        std::string("Invalid schemaSdl: ") + e.what());
+                    return result;
+                }
+
                 ConfigurationSnapshot snap;
                 static std::atomic<uint64_t> snap_counter{0};
                 auto now = std::chrono::system_clock::now();
@@ -344,7 +361,7 @@ namespace isched::v0_0_1::backend {
                 snap.id          = "snap-" + std::to_string(ms) + "-"
                                    + std::to_string(++snap_counter);
                 snap.tenant_id   = inp["tenantId"].get<std::string>();
-                snap.schema_sdl  = inp["schemaSdl"].get<std::string>();
+                snap.schema_sdl  = sdl;
                 snap.version     = inp.value("version", "1.0.0");
                 snap.display_name = inp.value("displayName", "");
                 snap.is_active   = false;

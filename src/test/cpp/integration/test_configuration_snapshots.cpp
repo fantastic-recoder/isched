@@ -193,3 +193,33 @@ TEST_CASE_METHOD(SnapshotTestFixture,
 
     server->stop();
 }
+
+TEST_CASE_METHOD(SnapshotTestFixture,
+    "applyConfiguration with invalid SDL returns an error — not stored (T-GQL-023)",
+    "[integration][config][us2][gql-023]")
+{
+    REQUIRE(server->start());
+
+    const std::string tenant = "inv-sdl-" + g_run_suffix;
+    // Deliberately broken SDL: unclosed brace
+    const std::string mutation =
+        "mutation { applyConfiguration(input: {"
+        "tenantId: \"" + tenant + "\" "
+        "schemaSdl: \"type Broken { id: String!\" "   // missing closing }
+        "version: \"1.0.0\""
+        "}) { success snapshotId errors } }";
+
+    auto resp = post_graphql(mutation);
+    REQUIRE(resp.contains("data"));
+    auto& result = resp["data"]["applyConfiguration"];
+    REQUIRE(result["success"] == false);
+    REQUIRE_FALSE(result["errors"].empty());
+
+    // Verify no snapshot was stored (history must be empty for this tenant)
+    auto hist = post_graphql(
+        "{ configurationHistory(tenantId: \"" + tenant + "\") { id } }");
+    REQUIRE(hist["data"]["configurationHistory"].is_array());
+    REQUIRE(hist["data"]["configurationHistory"].empty());
+
+    server->stop();
+}
