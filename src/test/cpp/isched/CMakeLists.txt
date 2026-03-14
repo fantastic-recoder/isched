@@ -40,7 +40,8 @@ add_test(NAME database_test COMMAND database_test)
 
 # New foundational component tests for Universal Application Server Backend
 add_executable(isched_auth_tests isched_auth_tests.cpp)
-target_link_libraries(isched_auth_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
+target_link_libraries(isched_auth_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog
+        nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders taocpp::pegtl)
 add_test(NAME isched_auth_tests COMMAND isched_auth_tests)
 
 add_executable(isched_subscription_broker_tests isched_subscription_broker_tests.cpp)
