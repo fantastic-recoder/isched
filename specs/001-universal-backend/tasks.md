@@ -373,7 +373,7 @@ Each task implementation MUST verify:
 - `last_activity` updated only on session create and explicit close/revoke (not on every request)
 
 - [x] T049-001 [P] Create SQLite schema for `sessions` table in each tenant DB: `id`, `user_id`, `access_token_id`, `permissions` (JSON array), `roles` (JSON array — populated at login time, required so `terminateAllSessions` can filter out `platform_admin` sessions without a cross-table join; RISK-003), `issued_at`, `expires_at`, `last_activity`, `transport_scope`, `is_revoked`
-- [ ] T049-002 [P] Implement `AuthenticationMiddleware::create_session()`: writes a new session record to the tenant's `sessions` table (or `isched_system.db` for platform-level logins); also implement `validate_token()` to load and check revocation status on every request — session creation is owned exclusively here; the `login` resolver (T047-016) delegates to this method
+- [x] T049-002 [P] Implement `AuthenticationMiddleware::create_session()`: writes a new session record to the tenant's `sessions` table (or `isched_system.db` for platform-level logins); also implement `validate_token()` to load and check revocation status on every request — session creation is owned exclusively here; the `login` resolver (T047-016) delegates to this method
 - [ ] T049-003 [P] Implement `logout` mutation: mark caller's session `is_revoked = true`; update `last_activity`; signal `SubscriptionBroker` to close any matching WebSocket connection
 - [ ] T049-004 [P] Implement `revokeSession(sessionId: ID!)` mutation — `tenant_admin` only; same revocation + WebSocket close flow
 - [ ] T049-005 [P] Implement `revokeAllSessions(userId: ID!)` mutation — `tenant_admin` only; revokes all sessions for the given user in the tenant

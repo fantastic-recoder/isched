@@ -29,6 +29,10 @@
 #include <atomic>
 #include <vector>
 
+// Forward-declare DatabaseManager to avoid a circular include; source files
+// that call the DB-backed session API must include isched_DatabaseManager.hpp.
+namespace isched::v0_0_1::backend { class DatabaseManager; }
+
 namespace isched::v0_0_1::backend {
 
 /**
@@ -51,8 +55,10 @@ namespace Role {
 struct AuthenticationResult {
     bool is_authenticated = false;
     std::string user_id;
+    std::string user_name;                    ///< Display name (from JWT @c name claim)
     std::string tenant_id;
     std::vector<std::string> permissions;
+    std::vector<std::string> roles;           ///< Role snapshot (from JWT @c roles claim)
     std::string error_message;
     std::chrono::system_clock::time_point expires_at;
     
@@ -78,6 +84,9 @@ struct OAuthConfig {
  * @brief Session information for authenticated users
  */
 struct SessionInfo {
+    /// JWT token generated during login (populated by create_session overload
+    /// that writes to DB; empty for legacy in-memory sessions).
+    std::string token;
     std::string session_id;
     std::string user_id;
     std::string tenant_id;
@@ -96,6 +105,15 @@ struct SessionInfo {
     void touch() noexcept {
         last_activity = std::chrono::system_clock::now();
     }
+};
+
+/**
+ * @brief Return value from the DB-backed create_session() (T049-002).
+ */
+struct LoginSession {
+    std::string token;       ///< Signed JWT token to hand back to the client
+    std::string session_id;  ///< DB sessions row PK (= JWT @c jti claim)
+    std::string expires_at;  ///< ISO-8601 UTC expiry
 };
 
 /**
@@ -154,30 +172,91 @@ public:
         const std::string& tenant_id) = 0;
     
     /**
-     * @brief Generate JWT token for authenticated user
-     * @param user_id User identifier
+     * @brief Generate JWT token for authenticated user.
+     * @param user_id User identifier (JWT @c sub)
      * @param tenant_id Tenant context
      * @param permissions User permissions array
      * @param expires_in_minutes Token expiration duration in minutes
-     * @return Generated JWT token string
+     * @param jti Optional JWT ID; embedded as the @c jti claim and used as
+     *            the sessions-table PK for revocation lookups.  Pass an empty
+     *            string to skip the claim.
+     * @param user_name Optional display name embedded as @c name claim.
+     * @param roles Optional role-snapshot array embedded as @c roles claim.
+     * @return Signed JWT token string
      */
     virtual std::string generate_jwt_token(
         const std::string& user_id,
         const std::string& tenant_id,
         const std::vector<std::string>& permissions,
-        int expires_in_minutes = 60) = 0;
+        int expires_in_minutes = 60,
+        const std::string& jti = "",
+        const std::string& user_name = "",
+        const std::vector<std::string>& roles = {}) = 0;
     
     /**
-     * @brief Create user session with in-memory caching
+     * @brief Create user session with in-memory caching (legacy, no DB).
+     * Kept for unit tests that do not have a DatabaseManager.
      * @param user_id User identifier
      * @param tenant_id Tenant context
      * @param permissions User permissions
-     * @return Session information
+     * @return Session information (token field is empty)
      */
     virtual SessionInfo create_session(
         const std::string& user_id,
         const std::string& tenant_id,
         const std::vector<std::string>& permissions) = 0;
+
+    /**
+     * @brief Create a DB-backed session and issue a signed JWT (T049-002).
+     *
+     * Generates a session ID, builds and signs a JWT containing @p user_id,
+     * @p user_name, @p tenant_id, and a snapshot of @p roles; then persists the
+     * session row to the tenant's @c sessions table via @p db.  The generated
+     * JWT embeds the session ID as the @c jti claim so that @c validate_token()
+     * can look up revocation status in one DB query.
+     *
+     * The caller (@c login resolver, T047-016) must supply a DatabaseManager
+     * that already has the tenant initialised (i.e. the sessions table exists).
+     *
+     * @param db           Live DatabaseManager; must already have the tenant
+     *                     initialised (sessions table exists).
+     * @param user_id      User identifier (stored + embedded in JWT).
+     * @param user_name    Display name (embedded in JWT @c name claim).
+     * @param tenant_id    Tenant owning the session.
+     * @param roles        Role snapshot at login time (RISK-003).
+     * @param transport_scope  'http' | 'websocket' | 'any' (default 'any').
+     * @param expires_in_minutes  Token lifetime (default 480 = 8 h).
+     * @return @c LoginSession with signed token, session ID, and expiry string.
+     * @throws std::runtime_error if JWT secret is not configured.
+     */
+    virtual LoginSession create_session(
+        DatabaseManager& db,
+        const std::string& user_id,
+        const std::string& user_name,
+        const std::string& tenant_id,
+        const std::vector<std::string>& roles,
+        const std::string& transport_scope = "any",
+        int expires_in_minutes = 480) = 0;
+
+    /**
+     * @brief Validate a JWT and check DB revocation status (T049-002).
+     *
+     * Verifies the JWT signature and expiry (same as @c validate_request),
+     * then looks up the @c jti claim in the tenant's @c sessions table to
+     * confirm the session has not been revoked.  If lookup fails (e.g. the
+     * sessions table does not exist) the method falls back to JWT-only validation
+     * and logs a warning.
+     *
+     * @param db        DatabaseManager to query.
+     * @param token     Raw JWT string (without "Bearer " prefix).
+     * @param tenant_id Expected tenant; pass empty to skip tenant check.
+     * @return @c AuthenticationResult; @c is_authenticated is false when the
+     *         token is invalid, expired, or its session has been revoked.
+     */
+    virtual AuthenticationResult validate_token(
+        DatabaseManager& db,
+        const std::string& token,
+        const std::string& tenant_id) = 0;
     
     /**
      * @brief Get session information by session ID
