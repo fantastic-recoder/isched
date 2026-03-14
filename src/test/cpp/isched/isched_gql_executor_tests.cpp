@@ -73,7 +73,7 @@ namespace isched::v0_0_1::backend {
         });
         const auto myResult2=proc.load_schema(schema_str);
         REQUIRE(myResult2.is_success());
-        const auto myReply= proc.execute(R"(query { hello_ping hello_who(who: "Josef") } )", true);
+        const auto myReply= proc.execute(R"(query { hello_ping hello_who(who: "Josef") } )", "{}", true);
         for (int myIdx=0;auto& err : myReply.errors) {
             std::cerr << "error "<< std::setw(3) << ++myIdx <<"   |" << err.message << "| code="  << std::endl;
         }
@@ -95,7 +95,7 @@ namespace isched::v0_0_1::backend {
         });
         const auto myResult=proc.load_schema("type Query { multi(p_i: Int): Int }");
         REQUIRE(myResult.is_success()==true);
-        const auto myReply= proc.execute(R"(query { multi(p_i: 2) } )", true);
+        const auto myReply= proc.execute(R"(query { multi(p_i: 2) } )", "{}", true);
         for (int myIdx=0;auto& err : myReply.errors) {
             std::cerr << "error "<< std::setw(3) << ++myIdx <<"   |" << err.message << "| code="  << std::endl << std::flush;
         }
@@ -117,47 +117,47 @@ namespace isched::v0_0_1::backend {
 
         // Simple query with each argument type separately to verify they work
         SECTION("IntValue") {
-            const auto reply = proc.execute("query { test_args(i: 123) }", true);
+            const auto reply = proc.execute("query { test_args(i: 123) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["i"] == 123);
         }
         SECTION("FloatValue") {
-            const auto reply = proc.execute("query { test_args(f: 123.456) }", true);
+            const auto reply = proc.execute("query { test_args(f: 123.456) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["f"] == 123.456);
         }
         SECTION("StringValue") {
-            const auto reply = proc.execute("query { test_args(s: \"hello\") }", true);
+            const auto reply = proc.execute("query { test_args(s: \"hello\") }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["s"] == "hello");
         }
         SECTION("BooleanValue") {
-            const auto reply = proc.execute("query { test_args(b: true) }", true);
+            const auto reply = proc.execute("query { test_args(b: true) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["b"] == true);
         }
         SECTION("NullValue") {
-            const auto reply = proc.execute("query { test_args(n: null) }", true);
+            const auto reply = proc.execute("query { test_args(n: null) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["n"].is_null());
         }
         SECTION("EnumValue") {
-            const auto reply = proc.execute("query { test_args(e: ENUM_VAL) }", true);
+            const auto reply = proc.execute("query { test_args(e: ENUM_VAL) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["e"] == "ENUM_VAL");
         }
         SECTION("ListValue") {
-            const auto reply = proc.execute("query { test_args(l: [1, 2]) }", true);
+            const auto reply = proc.execute("query { test_args(l: [1, 2]) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["l"] == json::array({1, 2}));
         }
         SECTION("ObjectValue") {
-            const auto reply = proc.execute("query { test_args(o: {a: 1}) }", true);
+            const auto reply = proc.execute("query { test_args(o: {a: 1}) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["o"]["a"] == 1);
         }
         SECTION("BlockString") {
-            const auto reply = proc.execute(R"(query { test_args(s: """line1""") } )", true);
+            const auto reply = proc.execute(R"(query { test_args(s: """line1""") } )", "{}", true);
             log_result(reply);
             REQUIRE(reply.is_success());
             REQUIRE(reply.data["test_args"]["s"].get<std::string>() == "line1");
@@ -175,7 +175,7 @@ namespace isched::v0_0_1::backend {
             return json{summator.sum}[0];
         });
         SECTION("Test stateful resolver") {
-            const auto reply=proc.execute("query { summ(i: 1) summ(i: 2) summ(i: 3) }", true);
+            const auto reply=proc.execute("query { summ(i: 1) summ(i: 2) summ(i: 3) }", "{}", true);
             REQUIRE(reply.is_success());
             REQUIRE(summator.sum == double{6.0});
             REQUIRE(reply.data["summ"].get<double>() == double{6.0});
@@ -270,7 +270,7 @@ type MyType { field: String })", "Description with");
             log_result(loadResult);
             REQUIRE(loadResult.is_success());
 
-            const auto reply = proc.execute("query { __schema { types { name description fields { name description type { name } } } } }",true);
+            const auto reply = proc.execute("query { __schema { types { name description fields { name description type { name } } } } }","{}",true);
             log_result(reply);
             REQUIRE(reply.is_success());
 /*
@@ -499,6 +499,106 @@ namespace isched::v0_0_1::backend {
             }
         }
         REQUIRE(found);
+    }
+
+} // namespace isched::v0_0_1::backend
+
+// ---------------------------------------------------------------------------
+// T010: Mutation operation dispatch tests
+// ---------------------------------------------------------------------------
+namespace isched::v0_0_1::backend {
+
+    TEST_CASE("Mutation operation: echo built-in mutation dispatches correctly", "[gql][executor][mutation]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute(R"(mutation { echo(message: "hello") })");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["echo"].is_string());
+        REQUIRE(reply.data["echo"] == "hello");
+    }
+
+    TEST_CASE("Mutation operation: echo with null arg returns null", "[gql][executor][mutation]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute(R"(mutation { echo })");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["echo"].is_null());
+    }
+
+    TEST_CASE("Mutation operation: custom mutation resolver", "[gql][executor][mutation]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        std::string captured_name;
+        proc.register_resolver({}, "createItem", [&](const json&, const json& args, const ResolverCtx&) -> json {
+            captured_name = args.value("name", std::string{});
+            return json{{"id", "item-1"}, {"name", captured_name}};
+        });
+        const auto load_res = proc.load_schema("type Query { hello: String } type Mutation { createItem(name: String): ItemResult } type ItemResult { id: String name: String }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(R"(mutation { createItem(name: "widget") { id name } })");
+        for (const auto& e : reply.errors) {
+            std::cerr << "  error: " << e.message << std::endl;
+        }
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["createItem"]["id"] == "item-1");
+        REQUIRE(reply.data["createItem"]["name"] == "widget");
+        REQUIRE(captured_name == "widget");
+    }
+
+    TEST_CASE("Schema introspection: mutationType name is present", "[gql][executor][introspection][mutation]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        const auto reply = proc.execute("query { __schema { mutationType { name } } }");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["__schema"]["mutationType"]["name"] == "Mutation");
+    }
+
+    TEST_CASE("Variables: query with string variable", "[gql][executor][variables]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "greetVar", [](const json&, const json& args, const auto&) -> json {
+            return "Hello, " + args.value("who", std::string{"world"}) + "!";
+        });
+        const auto load_res = proc.load_schema("type Query { greetVar(who: String): String }");
+        REQUIRE(load_res.is_success());
+
+        // Pass variable via the variables_json parameter
+        const std::string variables = R"({"name":"Alice"})";
+        const auto reply = proc.execute(
+            R"(query($name: String) { greetVar(who: $name) })",
+            variables);
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["greetVar"] == "Hello, Alice!");
+    }
+
+    TEST_CASE("Variables: missing variable resolves to null", "[gql][executor][variables]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "echoVar", [](const json&, const json& args, const auto&) -> json {
+            if (args.contains("msg") && !args["msg"].is_null()) {
+                return args["msg"].get<std::string>();
+            }
+            return nullptr;
+        });
+        const auto load_res = proc.load_schema("type Query { echoVar(msg: String): String }");
+        REQUIRE(load_res.is_success());
+
+        // Variables JSON doesn't contain the variable used in query
+        const auto reply = proc.execute(
+            R"(query($msg: String) { echoVar(msg: $msg) })",
+            "{}");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["echoVar"].is_null());
+    }
+
+    TEST_CASE("Variables: integer variable", "[gql][executor][variables]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+        proc.register_resolver({}, "doubly", [](const json&, const json& args, const auto&) -> json {
+            return args.value("n", 0) * 2;
+        });
+        const auto load_res = proc.load_schema("type Query { doubly(n: Int): Int }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute(
+            R"(query($n: Int) { doubly(n: $n) })",
+            R"({"n":21})");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["doubly"] == 42);
     }
 
 } // namespace isched::v0_0_1::backend

@@ -355,7 +355,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
             .message = "GraphQL executor is not initialized"
         });
     } else {
-        result = m_impl->gql_executor->execute(query);
+        result = m_impl->gql_executor->execute(query, variables_json);
     }
 
     const auto finished_at = std::chrono::steady_clock::now();

@@ -215,11 +215,13 @@ namespace isched::v0_0_1::backend {
         /**
          * @brief Execute GraphQL query
          * @param p_query Query string
-         * @param p_print_dot
+         * @param p_variables_json Variables JSON object string (optional)
          * @param p_print_dot
          * @return Execution result
          */
-        [[nodiscard]] ExecutionResult execute(std::string_view p_query, bool p_print_dot = false) const;
+        [[nodiscard]] ExecutionResult execute(std::string_view p_query,
+                                              std::string_view p_variables_json = "{}",
+                                              bool p_print_dot = false) const;
 
         /**
          *

@@ -131,12 +131,12 @@ Each task implementation MUST verify:
 - [x] T007 [P] Refactor `isched_TenantManager.hpp/cpp` for in-process tenant isolation rather than process management
 - [x] T008 [P] Complete `isched_DatabaseManager.hpp/cpp` for tenant-scoped SQLite storage and connection pooling
 - [x] T009 [P] Complete `ConnectionPool` behavior in `isched_DatabaseManager.hpp/cpp`
-- [ ] T010 [P] Complete `isched_GqlExecutor.hpp/cpp` for query, mutation, and schema execution
-- [ ] T011 [P] Complete `isched_AuthenticationMiddleware.hpp/cpp` for real JWT validation and session handling
-- [ ] T012 [P] Add a subscription broker implementation in `src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp/.cpp` *(to be created)* for WebSocket subscriptions
-- [ ] T013 [P] Implement GraphQL HTTP transport at `/graphql` and remove non-GraphQL transport assumptions
-- [ ] T014 [P] Refactor `src/main/cpp/isched/shared/config/` around configuration snapshots instead of scripts
-- [ ] T015 [P] Ensure Catch2 and transport-level test wiring is correct in `src/test/cpp/`
+- [x] T010 [P] Complete `isched_GqlExecutor.hpp/cpp` for query, mutation, and schema execution
+- [x] T011 [P] Complete `isched_AuthenticationMiddleware.hpp/cpp` for real JWT validation and session handling
+- [x] T012 [P] Add a subscription broker implementation in `src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp/.cpp` *(to be created)* for WebSocket subscriptions
+- [x] T013 [P] Implement GraphQL HTTP transport at `/graphql` and remove non-GraphQL transport assumptions
+- [x] T014 [P] Refactor `src/main/cpp/isched/shared/config/` around configuration snapshots instead of scripts
+- [x] T015 [P] Ensure Catch2 and transport-level test wiring is correct in `src/test/cpp/`
 
 **Checkpoint**: Foundation ready for HTTP queries, WebSocket subscriptions, auth, and configuration snapshots. `ctest` MUST be green before moving to Phase 3.
 

@@ -37,7 +37,7 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     }
 
     SECTION("Execute hello resolver with single query") {
-        auto result = executor.execute("{hello}",true);
+        auto result = executor.execute("{hello}","{}",true);
         REQUIRE(result.is_success());
         std::cout<< result.data.dump(4)<< std::flush;
         REQUIRE(result.data.contains("hello"));

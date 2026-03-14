@@ -99,26 +99,27 @@ struct TenantConfig {
     bool enable_file_uploads = true;
     bool enable_webhooks = false;
     
-    // CLI configuration
-    std::string python_cli_path = "isched-cli-python";
-    std::string typescript_cli_path = "isched-cli-typescript";
-    std::unordered_map<std::string, std::string> cli_environment;
-    
     // Custom settings
     std::unordered_map<std::string, ConfigValue> custom_settings;
 };
 
 /**
- * @brief IPC configuration settings
+ * @brief Versioned, persisted tenant configuration snapshot.
+ *
+ * A snapshot is the authoritative record of a tenant's active configuration.
+ * Only one snapshot is active per tenant at a time.  Full persistence to
+ * SQLite is implemented in Phase 4 (T029); this struct establishes the type.
  */
-struct IPCConfig {
-    std::string shared_memory_name = "isched_shm";
-    size_t shared_memory_size = 64UL * 1024UL * 1024UL; // 64MB
-    std::string message_queue_name = "isched_mq";
-    size_t max_message_size = 64UL * 1024UL; // 64KB
-    size_t max_messages = 1000;
-    std::chrono::milliseconds default_timeout{5000};
-    bool enable_compression = false;
+struct ConfigurationSnapshot {
+    std::string id;                ///< UUID identifying the snapshot
+    std::string tenant_id;         ///< Owning tenant
+    std::string version;           ///< Monotonic version label
+    std::string display_name;      ///< Human-readable label
+    std::string schema_sdl;        ///< Generated SDL fragment for tenant types
+    bool is_active = false;        ///< Whether this is the current active snapshot
+
+    std::chrono::system_clock::time_point created_at  = std::chrono::system_clock::now();
+    std::optional<std::chrono::system_clock::time_point> activated_at;
 };
 
 /**
@@ -257,12 +258,6 @@ public:
     std::optional<TenantConfig> get_tenant_config(const std::string& tenant_id) const;
     
     /**
-     * @brief Get IPC configuration
-     * @return IPC configuration structure
-     */
-    IPCConfig get_ipc_config() const;
-    
-    /**
      * @brief Add or update tenant configuration
      * @param config Tenant configuration to add/update
      */
@@ -333,6 +328,30 @@ public:
      * @return JSON string with configuration metrics
      */
     std::string get_metrics() const;
+
+    // -------------------------------------------------------------------------
+    // Configuration snapshot management (introduced T014)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Store an active configuration snapshot for a tenant.
+     *
+     * Replaces any previously stored snapshot for the same tenant.
+     */
+    void set_active_snapshot(const ConfigurationSnapshot& snapshot);
+
+    /**
+     * @brief Retrieve the active configuration snapshot for a tenant.
+     * @return The active snapshot, or std::nullopt if none is set.
+     */
+    [[nodiscard]] std::optional<ConfigurationSnapshot>
+    get_active_snapshot(const std::string& tenant_id) const;
+
+    /**
+     * @brief Remove the active snapshot for a tenant.
+     * @return true if a snapshot was removed, false if none existed.
+     */
+    bool remove_active_snapshot(const std::string& tenant_id);
 
 private:
     struct Impl;
@@ -469,12 +488,6 @@ ServerConfig create_default_server_config();
  * @return Default tenant configuration
  */
 TenantConfig create_default_tenant_config(const std::string& tenant_id);
-
-/**
- * @brief Create default IPC configuration
- * @return Default IPC configuration
- */
-IPCConfig create_default_ipc_config();
 
 /**
  * @brief Merge two configuration structures

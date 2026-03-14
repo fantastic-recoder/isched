@@ -25,6 +25,8 @@
 #include "isched_log_result.hpp"
 
 namespace {
+// Per-request GraphQL variables context (thread-safe: one entry per executing thread)
+thread_local nlohmann::json tl_gql_variables = nlohmann::json::object();
 }
 
 namespace isched::v0_0_1::backend {
@@ -264,6 +266,15 @@ namespace isched::v0_0_1::backend {
         register_resolver({"__schema","types","fields"},"description", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("res5");
         });
+
+        // Built-in mutation resolvers
+        register_resolver({}, "echo", [](const json&, const json& args, const ResolverCtx&) -> json {
+            if (args.contains("message") && args["message"].is_string()) {
+                return args["message"];
+            }
+            return nullptr;
+        });
+
         load_schema(BUILTIN_SCHEMA);
     }
 
@@ -313,7 +324,7 @@ namespace isched::v0_0_1::backend {
         schema["queryType"] = {
             {"name", "Query"}
         };
-        schema["mutationType"] = nullptr;
+        schema["mutationType"] = m_type_map.count("Mutation") ? json{{"name", "Mutation"}} : json(nullptr);
         schema["subscriptionType"] = nullptr;
 
         auto types = json::array();
@@ -443,7 +454,15 @@ namespace isched::v0_0_1::backend {
 
     json GqlExecutor::extract_argument_value(const TAstNodePtr &p_arg, gql::TErrorVector& p_errors) const {
         json my_ret_val;
-        if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
+        if (p_arg->type == "isched::v0_0_1::gql::Variable") {
+            // Strip leading '$' to get the variable name
+            const std::string var_sv(p_arg->string_view());
+            const std::string var_name = var_sv.starts_with('$') ? var_sv.substr(1) : var_sv;
+            if (tl_gql_variables.contains(var_name)) {
+                return tl_gql_variables[var_name];
+            }
+            return nullptr;
+        } else if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
             const std::string my_ret_val_str(p_arg->string_view());
             if (my_ret_val_str.starts_with(R"(""")")) {
                 my_ret_val = my_ret_val_str.substr(3, my_ret_val_str.length() - 6);
@@ -536,11 +555,10 @@ namespace isched::v0_0_1::backend {
         spdlog::debug("Will extract arguments out field: \n***\n{}\n***\n.", gql::dump_ast(p_field_node));
         json my_ret_val = json::object();
         for (const auto &my_arguments_node: p_field_node->children) {
-            if (my_arguments_node->type == "isched::v0_0_1::gql::Name") {
-                spdlog::debug("Skipping argument field: {}", std::string(my_arguments_node->string_view()));
-                continue;
+            if (my_arguments_node->type == "isched::v0_0_1::gql::Arguments") {
+                my_ret_val = process_arguments(my_arguments_node, p_errors);
+                break; // a field has at most one Arguments node
             }
-            my_ret_val=process_arguments(my_arguments_node, p_errors);
         }
         spdlog::debug("Got args: '{}' for field '{}'", my_ret_val.dump(4), std::string(p_field_node->children[0]->string_view()));
         return my_ret_val;
@@ -738,6 +756,11 @@ namespace isched::v0_0_1::backend {
                                 ResolverPath const my_path;
                                 process_field_definition(my_path, myResult, myDefNode, myIdx);
                             }
+                        } else if (myTypedefName == "Mutation") {
+                            for (size_t myIdx = 1; myIdx < myDefNode->children.size(); ++myIdx) {
+                                ResolverPath const my_path;
+                                process_field_definition(my_path, myResult, myDefNode, myIdx);
+                            }
                         }
                     } else if (myDefNode->type == "isched::v0_0_1::gql::DirectiveDefinition") {
                         spdlog::debug("Loaded directive definition: {}", myDefNode->children[0]->string_view());
@@ -797,12 +820,35 @@ namespace isched::v0_0_1::backend {
         ResolverPath const p_path;
         if (a_op_type == "query") {
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
-                if (myOperation->children[myIdx]->type == "isched::v0_0_1::gql::SelectionSet") {
-                    process_field_selection(p_parent_result, p_path,myOperation->children[myIdx], p_result, p_errors);
+                const auto& child = myOperation->children[myIdx];
+                if (child->type == "isched::v0_0_1::gql::SelectionSet") {
+                    process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
+                } else if (child->type == "isched::v0_0_1::gql::VariablesDefinition"
+                        || child->type == "isched::v0_0_1::gql::VariableDefinitions"
+                        || child->type == "isched::v0_0_1::gql::VariableDefinition"
+                        || child->type == "isched::v0_0_1::gql::Name") {
+                    // Variable declarations and operation names are metadata; skip.
                 } else {
                     p_errors.push_back(gql::Error{
                         .code=gql::EErrorCodes::PARSE_ERROR,
-                        .message=std::format("Expected with a selection set, got {}.", myOperation->children[myIdx]->type)
+                        .message=std::format("Expected a selection set in query, got {}.", child->type)
+                    });
+                }
+            }
+        } else if (a_op_type == "mutation") {
+            for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
+                const auto& child = myOperation->children[myIdx];
+                if (child->type == "isched::v0_0_1::gql::SelectionSet") {
+                    process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
+                } else if (child->type == "isched::v0_0_1::gql::VariablesDefinition"
+                        || child->type == "isched::v0_0_1::gql::VariableDefinitions"
+                        || child->type == "isched::v0_0_1::gql::VariableDefinition"
+                        || child->type == "isched::v0_0_1::gql::Name") {
+                    // Variable declarations and operation names are metadata; skip.
+                } else {
+                    p_errors.push_back(gql::Error{
+                        .code=gql::EErrorCodes::PARSE_ERROR,
+                        .message=std::format("Expected a selection set in mutation, got {}.", child->type)
                     });
                 }
             }
@@ -819,8 +865,14 @@ namespace isched::v0_0_1::backend {
 
     ExecutionResult GqlExecutor::execute(
         const std::string_view p_query,
+        const std::string_view p_variables_json,
         const bool p_print_dot
     ) const {
+        // Parse and install per-request variables (thread_local for thread safety)
+        tl_gql_variables = nlohmann::json::parse(p_variables_json, nullptr, /*exceptions=*/false);
+        if (tl_gql_variables.is_discarded() || !tl_gql_variables.is_object()) {
+            tl_gql_variables = nlohmann::json::object();
+        }
         static const std::string aName = "ExecutableDocument";
         ExecutionResult my_result;
         if (p_query.length() > 100000) {

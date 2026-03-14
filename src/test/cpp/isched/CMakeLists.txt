@@ -43,6 +43,10 @@ add_executable(isched_auth_tests isched_auth_tests.cpp)
 target_link_libraries(isched_auth_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
 add_test(NAME isched_auth_tests COMMAND isched_auth_tests)
 
+add_executable(isched_subscription_broker_tests isched_subscription_broker_tests.cpp)
+target_link_libraries(isched_subscription_broker_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json)
+add_test(NAME isched_subscription_broker_tests COMMAND isched_subscription_broker_tests)
+
 add_executable(isched_config_tests isched_config_tests.cpp isched_pattern_match_tests.cpp)
 target_link_libraries(isched_config_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
 add_test(NAME isched_config_tests COMMAND isched_config_tests)

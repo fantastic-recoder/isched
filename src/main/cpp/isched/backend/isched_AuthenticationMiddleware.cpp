@@ -10,6 +10,7 @@
  */
 
 #include "isched_AuthenticationMiddleware.hpp"
+#include <jwt-cpp/traits/nlohmann-json/defaults.h>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -51,20 +52,55 @@ public:
             ++failed_auths_;
             return {false, "", "", {}, "Invalid Authorization header format"};
         }
-        
-        // TODO: Implement JWT validation when jwt-cpp is properly configured
-        // For now, return a basic validation result
-        auto result = AuthenticationResult{
-            true, 
-            "test-user", 
-            tenant_id, 
-            {"read", "write"}, 
-            "",
-            std::chrono::system_clock::now() + std::chrono::hours(1)
-        };
-        
-        ++successful_auths_;
-        return result;
+
+        try {
+            std::string secret;
+            {
+                std::lock_guard<std::mutex> lock(jwt_mutex_);
+                secret = jwt_secret_;
+            }
+            if (secret.empty()) {
+                ++failed_auths_;
+                return {false, "", "", {}, "JWT secret not configured"};
+            }
+
+            auto decoded = jwt::decode(token);
+            auto verifier = jwt::verify()
+                .allow_algorithm(jwt::algorithm::hs256{secret});
+            verifier.verify(decoded);
+
+            const std::string user_id = decoded.get_subject();
+
+            std::string token_tenant_id;
+            if (decoded.has_payload_claim("tenant_id")) {
+                token_tenant_id = decoded.get_payload_claim("tenant_id").as_string();
+            }
+            if (!tenant_id.empty() && token_tenant_id != tenant_id) {
+                ++failed_auths_;
+                return {false, "", "", {}, "Token tenant mismatch"};
+            }
+
+            std::vector<std::string> permissions;
+            if (decoded.has_payload_claim("permissions")) {
+                for (const auto& p : decoded.get_payload_claim("permissions").as_array()) {
+                    permissions.push_back(p.get<std::string>());
+                }
+            }
+
+            std::chrono::system_clock::time_point expires_at;
+            if (decoded.has_expires_at()) {
+                expires_at = decoded.get_expires_at();
+            } else {
+                expires_at = std::chrono::system_clock::now() + std::chrono::hours(1);
+            }
+
+            ++successful_auths_;
+            return {true, user_id, token_tenant_id, permissions, "", expires_at};
+
+        } catch (const std::exception& e) {
+            ++failed_auths_;
+            return {false, "", "", {}, std::string("JWT validation failed: ") + e.what()};
+        }
     }
     
     std::string generate_jwt_token(
@@ -73,15 +109,31 @@ public:
         const std::vector<std::string>& permissions,
         int expires_in_minutes) override {
         
-        if (jwt_secret_.empty()) {
+        std::string secret;
+        {
+            std::lock_guard<std::mutex> lock(jwt_mutex_);
+            secret = jwt_secret_;
+        }
+        if (secret.empty()) {
             throw std::runtime_error("JWT secret not configured");
         }
-        
-        // TODO: Implement JWT generation when jwt-cpp is properly configured
-        // For now, return a placeholder token
-        std::ostringstream oss;
-        oss << "jwt:" << user_id << ":" << tenant_id << ":" << expires_in_minutes;
-        return oss.str();
+
+        auto now = std::chrono::system_clock::now();
+        auto expires_at = now + std::chrono::minutes(expires_in_minutes);
+
+        nlohmann::json::array_t perms_array;
+        perms_array.reserve(permissions.size());
+        for (const auto& p : permissions) {
+            perms_array.emplace_back(p);
+        }
+
+        return jwt::create()
+            .set_subject(user_id)
+            .set_payload_claim("tenant_id", jwt::claim(tenant_id))
+            .set_payload_claim("permissions", jwt::claim(perms_array))
+            .set_issued_at(now)
+            .set_expires_at(expires_at)
+            .sign(jwt::algorithm::hs256{secret});
     }
     
     SessionInfo create_session(

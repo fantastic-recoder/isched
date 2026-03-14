@@ -106,6 +106,12 @@ type Query {
   configprops: Configuration
 }
 
+"""Root mutation type"""
+type Mutation {
+  """Echo a message back; useful for connectivity testing"""
+  echo(message: String): String
+}
+
 """Health information for a specific system component"""
 type HealthComponent {
   """The name of the component (e.g., 'database', 'memory')"""

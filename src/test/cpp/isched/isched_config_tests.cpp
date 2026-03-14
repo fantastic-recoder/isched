@@ -61,13 +61,6 @@ TEST_CASE_METHOD(ConfigTestFixture, "ConfigManager creation and basic operations
         REQUIRE(server_config.max_connections == 1000);
         REQUIRE(server_config.log_level == "info");
     }
-    
-    SECTION("Default IPC configuration") {
-        auto ipc_config = config_manager->get_ipc_config();
-        REQUIRE(ipc_config.shared_memory_name == "isched_shm");
-        REQUIRE(ipc_config.message_queue_name == "isched_mq");
-        REQUIRE(ipc_config.max_messages == 1000);
-    }
 }
 
 TEST_CASE_METHOD(ConfigTestFixture, "Configuration providers", "[config][providers]") {
@@ -288,5 +281,73 @@ TEST_CASE_METHOD(ConfigTestFixture, "Configuration performance", "[config][perfo
         
         // Should set configuration values well under 20ms each (total under 2s is reasonable)
         REQUIRE(duration.count() < 2000);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// T014: Configuration snapshot management tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE_METHOD(ConfigTestFixture, "Configuration snapshot management", "[config][snapshot]") {
+    SECTION("Store and retrieve an active snapshot") {
+        ConfigurationSnapshot snap;
+        snap.id         = "snap-001";
+        snap.tenant_id  = "tenant-a";
+        snap.version    = "1";
+        snap.display_name = "Initial configuration";
+        snap.schema_sdl = "type Query { hello: String }";
+        snap.is_active  = true;
+
+        config_manager->set_active_snapshot(snap);
+
+        auto retrieved = config_manager->get_active_snapshot("tenant-a");
+        REQUIRE(retrieved.has_value());
+        REQUIRE(retrieved->id == "snap-001");
+        REQUIRE(retrieved->tenant_id == "tenant-a");
+        REQUIRE(retrieved->version == "1");
+        REQUIRE(retrieved->is_active == true);
+        REQUIRE(retrieved->schema_sdl == "type Query { hello: String }");
+    }
+
+    SECTION("Return nullopt for unknown tenant") {
+        REQUIRE_FALSE(config_manager->get_active_snapshot("no-such-tenant").has_value());
+    }
+
+    SECTION("Overwrite snapshot for same tenant") {
+        ConfigurationSnapshot v1;
+        v1.id = "snap-v1"; v1.tenant_id = "t"; v1.version = "1"; v1.is_active = true;
+        config_manager->set_active_snapshot(v1);
+
+        ConfigurationSnapshot v2;
+        v2.id = "snap-v2"; v2.tenant_id = "t"; v2.version = "2"; v2.is_active = true;
+        config_manager->set_active_snapshot(v2);
+
+        auto result = config_manager->get_active_snapshot("t");
+        REQUIRE(result.has_value());
+        REQUIRE(result->id == "snap-v2");
+        REQUIRE(result->version == "2");
+    }
+
+    SECTION("Remove active snapshot") {
+        ConfigurationSnapshot snap;
+        snap.id = "s"; snap.tenant_id = "tx"; snap.version = "1";
+        config_manager->set_active_snapshot(snap);
+        REQUIRE(config_manager->get_active_snapshot("tx").has_value());
+
+        REQUIRE(config_manager->remove_active_snapshot("tx") == true);
+        REQUIRE_FALSE(config_manager->get_active_snapshot("tx").has_value());
+
+        // Second removal returns false
+        REQUIRE(config_manager->remove_active_snapshot("tx") == false);
+    }
+
+    SECTION("Multiple tenants maintain independent snapshots") {
+        ConfigurationSnapshot s1; s1.id = "1"; s1.tenant_id = "ta"; s1.version = "A";
+        ConfigurationSnapshot s2; s2.id = "2"; s2.tenant_id = "tb"; s2.version = "B";
+        config_manager->set_active_snapshot(s1);
+        config_manager->set_active_snapshot(s2);
+
+        REQUIRE(config_manager->get_active_snapshot("ta")->id == "1");
+        REQUIRE(config_manager->get_active_snapshot("tb")->id == "2");
     }
 }

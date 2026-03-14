@@ -32,6 +32,8 @@ add_library(isched
         backend/isched_GqlExecutor.cpp
         backend/isched_GqlExecutor.hpp
         backend/isched_ExecutionResult.hpp
+        backend/isched_SubscriptionBroker.hpp
+        backend/isched_SubscriptionBroker.cpp
         backend/isched_gql_error.hpp
         backend/isched_multi_dim_map.hpp
         backend/isched_gql_grammar.cpp

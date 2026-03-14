@@ -28,6 +28,10 @@ struct ConfigManager::Impl {
     
     std::unordered_map<std::string, TenantConfig> tenant_configs_;
     mutable std::mutex tenant_configs_mutex_;
+
+    // Active configuration snapshots per tenant (tenant_id → snapshot)
+    std::unordered_map<std::string, ConfigurationSnapshot> active_snapshots_;
+    mutable std::mutex snapshots_mutex_;
     
     std::unordered_map<size_t, std::pair<std::string, ConfigChangeCallback>> change_callbacks_;
     std::atomic<size_t> next_callback_id_{1};
@@ -144,24 +148,6 @@ std::optional<TenantConfig> ConfigManager::get_tenant_config(const std::string& 
     }
     
     return std::nullopt;
-}
-
-IPCConfig ConfigManager::get_ipc_config() const {
-    auto config = config_utils::create_default_ipc_config();
-    
-    if (auto shared_memory_name = get("ipc.shared_memory_name")) {
-        if (std::holds_alternative<std::string>(*shared_memory_name)) {
-            config.shared_memory_name = std::get<std::string>(*shared_memory_name);
-        }
-    }
-    
-    if (auto message_queue_name = get("ipc.message_queue_name")) {
-        if (std::holds_alternative<std::string>(*message_queue_name)) {
-            config.message_queue_name = std::get<std::string>(*message_queue_name);
-        }
-    }
-    
-    return config;
 }
 
 void ConfigManager::set_tenant_config(const TenantConfig& config) {
@@ -329,6 +315,30 @@ std::string ConfigManager::get_metrics() const {
         << "\"change_callbacks_count\":" << impl_->change_callbacks_.size()
         << "}";
     return oss.str();
+}
+
+// ---------------------------------------------------------------------------
+// Configuration snapshot management (T014)
+// ---------------------------------------------------------------------------
+
+void ConfigManager::set_active_snapshot(const ConfigurationSnapshot& snapshot) {
+    std::lock_guard<std::mutex> lock(impl_->snapshots_mutex_);
+    impl_->active_snapshots_[snapshot.tenant_id] = snapshot;
+}
+
+std::optional<ConfigurationSnapshot>
+ConfigManager::get_active_snapshot(const std::string& tenant_id) const {
+    std::lock_guard<std::mutex> lock(impl_->snapshots_mutex_);
+    auto it = impl_->active_snapshots_.find(tenant_id);
+    if (it != impl_->active_snapshots_.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
+bool ConfigManager::remove_active_snapshot(const std::string& tenant_id) {
+    std::lock_guard<std::mutex> lock(impl_->snapshots_mutex_);
+    return impl_->active_snapshots_.erase(tenant_id) > 0;
 }
 
 // JsonConfigProvider implementation
@@ -648,10 +658,6 @@ TenantConfig create_default_tenant_config(const std::string& tenant_id) {
     config.display_name = tenant_id;
     config.database_path = "./data/" + tenant_id + ".db";
     return config;
-}
-
-IPCConfig create_default_ipc_config() {
-    return IPCConfig{};
 }
 
 } // namespace config_utils
