@@ -33,6 +33,7 @@
 #include "isched_common.hpp"
 #include <sqlite3.h>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
@@ -197,6 +198,41 @@ public:
 private:
     bool has_error_;
     DatabaseError error_value_;
+};
+
+// -------------------------------------------------------------------------
+// Plain-data records returned by system-DB helper methods (T047-005)
+// -------------------------------------------------------------------------
+
+/// A row from the @c organizations table in @c isched_system.db.
+struct OrganizationRecord {
+    std::string id;
+    std::string name;
+    std::string domain;               ///< May be empty
+    std::string subscription_tier;
+    int         user_limit{0};
+    int         storage_limit{0};
+    std::string created_at;
+};
+
+/// A row from the @c platform_admins table in @c isched_system.db.
+/// @c password_hash is excluded from list results for security.
+struct PlatformAdminRecord {
+    std::string id;
+    std::string email;
+    std::string password_hash;        ///< Populated only by get_platform_admin_by_* helpers
+    std::string display_name;
+    bool        is_active{true};
+    std::string created_at;
+    std::string last_login;           ///< May be empty
+};
+
+/// A row from the @c platform_roles table in @c isched_system.db.
+struct PlatformRoleRecord {
+    std::string id;
+    std::string name;
+    std::string description;
+    std::string created_at;
 };
 
 /**
@@ -656,6 +692,78 @@ public:
      *         not exist; @c DatabaseError::AccessDenied for built-in roles.
      */
     [[nodiscard]] DatabaseResult<void> delete_platform_role(const std::string& id);
+
+    /// Fetch a single role by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<PlatformRoleRecord> get_platform_role(const std::string& id);
+
+    /// Return all rows from @c platform_roles (built-in + custom).
+    [[nodiscard]] DatabaseResult<std::vector<PlatformRoleRecord>> list_platform_roles();
+
+    // -------------------------------------------------------------------------
+    // Organization CRUD (T047-005)
+    // -------------------------------------------------------------------------
+
+    /// Insert a new organization record.
+    /// Returns @c DuplicateKey if @p id already exists.
+    [[nodiscard]] DatabaseResult<void> create_organization(
+        const std::string& id,
+        const std::string& name,
+        const std::string& domain,
+        const std::string& subscription_tier,
+        int user_limit,
+        int storage_limit);
+
+    /// Fetch a single organization by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<OrganizationRecord> get_organization(const std::string& id);
+
+    /// Return all organization records.
+    [[nodiscard]] DatabaseResult<std::vector<OrganizationRecord>> list_organizations();
+
+    /// Partially update an organization.  Only non-null optionals are written.
+    /// Returns @c NotFound if @p id does not exist.
+    [[nodiscard]] DatabaseResult<void> update_organization(
+        const std::string& id,
+        std::optional<std::string> name,
+        std::optional<std::string> domain,
+        std::optional<std::string> subscription_tier,
+        std::optional<int>         user_limit,
+        std::optional<int>         storage_limit);
+
+    /// Delete an organization by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<void> delete_organization(const std::string& id);
+
+    // -------------------------------------------------------------------------
+    // Platform-admin CRUD (T047-005)
+    // -------------------------------------------------------------------------
+
+    /// Insert a new platform admin.
+    /// Returns @c DuplicateKey if @p id or @p email already exists.
+    [[nodiscard]] DatabaseResult<void> create_platform_admin(
+        const std::string& id,
+        const std::string& email,
+        const std::string& password_hash,
+        const std::string& display_name);
+
+    /// Fetch a platform admin by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<PlatformAdminRecord> get_platform_admin_by_id(
+        const std::string& id);
+
+    /// Fetch a platform admin by @p email; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<PlatformAdminRecord> get_platform_admin_by_email(
+        const std::string& email);
+
+    /// Return all platform admin records (password_hash excluded).
+    [[nodiscard]] DatabaseResult<std::vector<PlatformAdminRecord>> list_platform_admins();
+
+    /// Partially update a platform admin; only non-null optionals are written.
+    /// Returns @c NotFound if @p id does not exist.
+    [[nodiscard]] DatabaseResult<void> update_platform_admin(
+        const std::string& id,
+        std::optional<std::string> display_name,
+        std::optional<bool>        is_active);
+
+    /// Delete a platform admin by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<void> delete_platform_admin(const std::string& id);
 
 private:
     /**

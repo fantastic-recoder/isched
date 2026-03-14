@@ -1174,4 +1174,542 @@ DatabaseResult<void> DatabaseManager::delete_platform_role(const std::string& id
     return DatabaseResult<void>{};
 }
 
+// =============================================================================
+// T047-005 — platform_role read helpers
+// =============================================================================
+
+DatabaseResult<PlatformRoleRecord> DatabaseManager::get_platform_role(const std::string& id)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "SELECT id, name, description, created_at FROM platform_roles WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+
+    PlatformRoleRecord rec;
+    bool found = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        rec.id          = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        rec.name        = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        rec.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        auto* ca = sqlite3_column_text(stmt, 3);
+        rec.created_at  = ca ? reinterpret_cast<const char*>(ca) : "";
+    }
+    sqlite3_finalize(stmt);
+
+    if (!found) {
+        return DatabaseError::NotFound;
+    }
+    return rec;
+}
+
+DatabaseResult<std::vector<PlatformRoleRecord>> DatabaseManager::list_platform_roles()
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "SELECT id, name, description, created_at FROM platform_roles ORDER BY created_at;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    std::vector<PlatformRoleRecord> rows;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        PlatformRoleRecord rec;
+        rec.id          = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        rec.name        = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        rec.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        auto* ca = sqlite3_column_text(stmt, 3);
+        rec.created_at  = ca ? reinterpret_cast<const char*>(ca) : "";
+        rows.push_back(std::move(rec));
+    }
+    sqlite3_finalize(stmt);
+    return rows;
+}
+
+// =============================================================================
+// T047-005 — Organization CRUD
+// =============================================================================
+
+DatabaseResult<void> DatabaseManager::create_organization(
+    const std::string& id,
+    const std::string& name,
+    const std::string& domain,
+    const std::string& subscription_tier,
+    int user_limit,
+    int storage_limit)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "INSERT INTO organizations (id, name, domain, subscription_tier, user_limit, storage_limit)"
+        " VALUES (?, ?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(),                -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, name.c_str(),              -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, domain.c_str(),            -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, subscription_tier.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int (stmt, 5, user_limit);
+    sqlite3_bind_int (stmt, 6, storage_limit);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc == SQLITE_CONSTRAINT) {
+        return DatabaseError::DuplicateKey;
+    }
+    if (rc != SQLITE_DONE) {
+        spdlog::error("create_organization: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<OrganizationRecord> DatabaseManager::get_organization(const std::string& id)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at"
+        " FROM organizations WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+
+    OrganizationRecord rec;
+    bool found = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        rec.id                = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        rec.name              = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        auto* dom             = sqlite3_column_text(stmt, 2);
+        rec.domain            = dom ? reinterpret_cast<const char*>(dom) : "";
+        rec.subscription_tier = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        rec.user_limit        = sqlite3_column_int(stmt, 4);
+        rec.storage_limit     = sqlite3_column_int(stmt, 5);
+        auto* ca              = sqlite3_column_text(stmt, 6);
+        rec.created_at        = ca ? reinterpret_cast<const char*>(ca) : "";
+    }
+    sqlite3_finalize(stmt);
+
+    if (!found) {
+        return DatabaseError::NotFound;
+    }
+    return rec;
+}
+
+DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizations()
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at"
+        " FROM organizations ORDER BY created_at;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    std::vector<OrganizationRecord> rows;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        OrganizationRecord rec;
+        rec.id                = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        rec.name              = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        auto* dom             = sqlite3_column_text(stmt, 2);
+        rec.domain            = dom ? reinterpret_cast<const char*>(dom) : "";
+        rec.subscription_tier = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        rec.user_limit        = sqlite3_column_int(stmt, 4);
+        rec.storage_limit     = sqlite3_column_int(stmt, 5);
+        auto* ca              = sqlite3_column_text(stmt, 6);
+        rec.created_at        = ca ? reinterpret_cast<const char*>(ca) : "";
+        rows.push_back(std::move(rec));
+    }
+    sqlite3_finalize(stmt);
+    return rows;
+}
+
+DatabaseResult<void> DatabaseManager::update_organization(
+    const std::string&         id,
+    std::optional<std::string> name,
+    std::optional<std::string> domain,
+    std::optional<std::string> subscription_tier,
+    std::optional<int>         user_limit,
+    std::optional<int>         storage_limit)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    // Build SET clause dynamically from non-null optionals
+    std::string set_clause;
+    std::vector<std::string> text_vals;
+    std::vector<int>         int_vals;
+
+    auto append_text = [&](const char* col, const std::optional<std::string>& val) {
+        if (val) {
+            if (!set_clause.empty()) { set_clause += ", "; }
+            set_clause += std::string(col) + " = ?";
+            text_vals.push_back(*val);
+        }
+    };
+    auto append_int = [&](const char* col, const std::optional<int>& val) {
+        if (val) {
+            if (!set_clause.empty()) { set_clause += ", "; }
+            set_clause += std::string(col) + " = ?";
+            int_vals.push_back(*val);
+        }
+    };
+
+    append_text("name",              name);
+    append_text("domain",            domain);
+    append_text("subscription_tier", subscription_tier);
+    append_int ("user_limit",        user_limit);
+    append_int ("storage_limit",     storage_limit);
+
+    if (set_clause.empty()) {
+        // Nothing to update — treat as success
+        return DatabaseResult<void>{};
+    }
+
+    // Verify existence
+    {
+        const char* check = "SELECT COUNT(*) FROM organizations WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
+        sqlite3_finalize(cs);
+        if (count == 0) { return DatabaseError::NotFound; }
+    }
+
+    const std::string sql = "UPDATE organizations SET " + set_clause + " WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    int bind_idx = 1;
+    for (const auto& v : text_vals) {
+        sqlite3_bind_text(stmt, bind_idx++, v.c_str(), -1, SQLITE_TRANSIENT);
+    }
+    for (const auto& v : int_vals) {
+        sqlite3_bind_int(stmt, bind_idx++, v);
+    }
+    sqlite3_bind_text(stmt, bind_idx, id.c_str(), -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        spdlog::error("update_organization: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::delete_organization(const std::string& id)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    // Verify existence
+    {
+        const char* check = "SELECT COUNT(*) FROM organizations WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
+        sqlite3_finalize(cs);
+        if (count == 0) { return DatabaseError::NotFound; }
+    }
+
+    const char* sql = "DELETE FROM organizations WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        spdlog::error("delete_organization: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+// =============================================================================
+// T047-005 — Platform-admin CRUD
+// =============================================================================
+
+DatabaseResult<void> DatabaseManager::create_platform_admin(
+    const std::string& id,
+    const std::string& email,
+    const std::string& password_hash,
+    const std::string& display_name)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "INSERT INTO platform_admins (id, email, password_hash, display_name)"
+        " VALUES (?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(),            -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, email.c_str(),         -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, password_hash.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, display_name.c_str(),  -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc == SQLITE_CONSTRAINT) {
+        return DatabaseError::DuplicateKey;
+    }
+    if (rc != SQLITE_DONE) {
+        spdlog::error("create_platform_admin: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+// Internal helper — executes a SELECT query with a single TEXT bind parameter
+// and returns the first matching PlatformAdminRecord (including password_hash).
+static DatabaseResult<PlatformAdminRecord> fetch_platform_admin(
+    sqlite3* db, const char* sql, const std::string& bind_val)
+{
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, bind_val.c_str(), -1, SQLITE_TRANSIENT);
+
+    PlatformAdminRecord rec;
+    bool found = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        found = true;
+        rec.id            = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        rec.email         = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        rec.password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        auto* dn          = sqlite3_column_text(stmt, 3);
+        rec.display_name  = dn ? reinterpret_cast<const char*>(dn) : "";
+        rec.is_active     = (sqlite3_column_int(stmt, 4) != 0);
+        auto* ca          = sqlite3_column_text(stmt, 5);
+        rec.created_at    = ca ? reinterpret_cast<const char*>(ca) : "";
+        auto* ll          = sqlite3_column_text(stmt, 6);
+        rec.last_login    = ll ? reinterpret_cast<const char*>(ll) : "";
+    }
+    sqlite3_finalize(stmt);
+
+    if (!found) {
+        return DatabaseError::NotFound;
+    }
+    return rec;
+}
+
+DatabaseResult<PlatformAdminRecord> DatabaseManager::get_platform_admin_by_id(
+    const std::string& id)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+    return fetch_platform_admin(system_db_.get(),
+        "SELECT id, email, password_hash, display_name, is_active, created_at, last_login"
+        " FROM platform_admins WHERE id = ?;",
+        id);
+}
+
+DatabaseResult<PlatformAdminRecord> DatabaseManager::get_platform_admin_by_email(
+    const std::string& email)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+    return fetch_platform_admin(system_db_.get(),
+        "SELECT id, email, password_hash, display_name, is_active, created_at, last_login"
+        " FROM platform_admins WHERE email = ?;",
+        email);
+}
+
+DatabaseResult<std::vector<PlatformAdminRecord>> DatabaseManager::list_platform_admins()
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql =
+        "SELECT id, email, display_name, is_active, created_at, last_login"
+        " FROM platform_admins ORDER BY created_at;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    std::vector<PlatformAdminRecord> rows;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        PlatformAdminRecord rec;
+        // password_hash intentionally excluded from list
+        rec.id         = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        rec.email      = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        auto* dn       = sqlite3_column_text(stmt, 2);
+        rec.display_name = dn ? reinterpret_cast<const char*>(dn) : "";
+        rec.is_active  = (sqlite3_column_int(stmt, 3) != 0);
+        auto* ca       = sqlite3_column_text(stmt, 4);
+        rec.created_at = ca ? reinterpret_cast<const char*>(ca) : "";
+        auto* ll       = sqlite3_column_text(stmt, 5);
+        rec.last_login = ll ? reinterpret_cast<const char*>(ll) : "";
+        rows.push_back(std::move(rec));
+    }
+    sqlite3_finalize(stmt);
+    return rows;
+}
+
+DatabaseResult<void> DatabaseManager::update_platform_admin(
+    const std::string&         id,
+    std::optional<std::string> display_name,
+    std::optional<bool>        is_active)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    std::string set_clause;
+    std::vector<std::string> text_vals;
+    std::vector<int>         int_vals;
+
+    if (display_name) {
+        set_clause += "display_name = ?";
+        text_vals.push_back(*display_name);
+    }
+    if (is_active) {
+        if (!set_clause.empty()) { set_clause += ", "; }
+        set_clause += "is_active = ?";
+        int_vals.push_back(*is_active ? 1 : 0);
+    }
+
+    if (set_clause.empty()) {
+        return DatabaseResult<void>{};
+    }
+
+    // Verify existence
+    {
+        const char* check = "SELECT COUNT(*) FROM platform_admins WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
+        sqlite3_finalize(cs);
+        if (count == 0) { return DatabaseError::NotFound; }
+    }
+
+    const std::string sql = "UPDATE platform_admins SET " + set_clause + " WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    int bind_idx = 1;
+    for (const auto& v : text_vals) {
+        sqlite3_bind_text(stmt, bind_idx++, v.c_str(), -1, SQLITE_TRANSIENT);
+    }
+    for (const auto& v : int_vals) {
+        sqlite3_bind_int(stmt, bind_idx++, v);
+    }
+    sqlite3_bind_text(stmt, bind_idx, id.c_str(), -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        spdlog::error("update_platform_admin: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::delete_platform_admin(const std::string& id)
+{
+    std::lock_guard<std::mutex> lk(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    // Verify existence
+    {
+        const char* check = "SELECT COUNT(*) FROM platform_admins WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int count = 0;
+        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
+        sqlite3_finalize(cs);
+        if (count == 0) { return DatabaseError::NotFound; }
+    }
+
+    const char* sql = "DELETE FROM platform_admins WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        spdlog::error("delete_platform_admin: sqlite3_step error {} for id='{}'", rc, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
 } // namespace isched::v0_0_1::backend
