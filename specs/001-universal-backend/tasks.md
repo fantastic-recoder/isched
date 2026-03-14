@@ -172,20 +172,20 @@ Each task implementation MUST verify:
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Add integration test for configuration snapshot creation in `src/test/cpp/integration/test_configuration_snapshots.cpp` *(to be created)*
-- [ ] T027 [P] [US2] Add integration test for schema updates after configuration mutation in `src/test/cpp/integration/test_schema_activation.cpp` *(to be created)*
-- [ ] T028 [P] [US2] Add integration test for configuration rollback on invalid updates in `src/test/cpp/integration/test_configuration_rollback.cpp` *(to be created)*
+- [x] T026 [P] [US2] Add integration test for configuration snapshot creation in `src/test/cpp/integration/test_configuration_snapshots.cpp` *(to be created)*
+- [x] T027 [P] [US2] Add integration test for schema updates after configuration mutation in `src/test/cpp/integration/test_schema_activation.cpp` *(to be created)*
+- [x] T028 [P] [US2] Add integration test for configuration rollback on invalid updates in `src/test/cpp/integration/test_configuration_rollback.cpp` *(to be created)*
 
 ### Implementation for User Story 2
 
-- [ ] T029 [P] [US2] Implement `ConfigurationSnapshot` persistence in `src/main/cpp/isched/shared/config/`
-- [ ] T030 [P] [US2] Implement `applyConfiguration` and related mutations in `isched_GqlExecutor.cpp`
-- [ ] T031 [P] [US2] Implement model-definition persistence and schema generation support
-- [ ] T032 [P] [US2] Implement atomic activation and rollback for configuration snapshots
-- [ ] T033 [P] [US2] Implement safe schema migration and backup handling in `isched_DatabaseManager.cpp`
-- [ ] T034 [US2] Integrate configuration activation with tenant runtime refresh in `isched_Server.cpp` and `isched_TenantManager.cpp`
-- [ ] T035 [US2] Implement queryable configuration history and active configuration resolvers
-- [ ] T036 [US2] Replace obsolete scripting assumptions in docs and runtime comments
+- [x] T029 [P] [US2] Implement `ConfigurationSnapshot` persistence in `src/main/cpp/isched/shared/config/`
+- [x] T030 [P] [US2] Implement `applyConfiguration` and related mutations in `isched_GqlExecutor.cpp`
+- [x] T031 [P] [US2] Implement model-definition persistence and schema generation support
+- [x] T032 [P] [US2] Implement atomic activation and rollback for configuration snapshots
+- [x] T033 [P] [US2] Implement safe schema migration and backup handling in `isched_DatabaseManager.cpp`
+- [x] T034 [US2] Integrate configuration activation with tenant runtime refresh in `isched_Server.cpp` and `isched_TenantManager.cpp`
+- [x] T035 [US2] Implement queryable configuration history and active configuration resolvers
+- [x] T036 [US2] Replace obsolete scripting assumptions in docs and runtime comments
 
 **Checkpoint**: User Story 2 is independently testable with mutation-driven configuration. `ctest` MUST be green before moving to Phase 5.
 

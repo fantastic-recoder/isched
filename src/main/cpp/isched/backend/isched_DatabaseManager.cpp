@@ -707,4 +707,287 @@ DatabaseResult<void> DatabaseManager::configure_connection(sqlite3* connection) 
     return DatabaseResult<void>{};
 }
 
+// ============================================================================
+// Configuration snapshot persistence (T029, T032, T033)
+// ============================================================================
+
+namespace {
+// Time-point → seconds-since-epoch (int64)
+int64_t tp_to_epoch(const std::chrono::system_clock::time_point& tp) {
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        tp.time_since_epoch()).count();
+}
+
+std::chrono::system_clock::time_point epoch_to_tp(int64_t epoch_s) {
+    return std::chrono::system_clock::time_point{std::chrono::seconds{epoch_s}};
+}
+} // anonymous namespace
+
+DatabaseResult<sqlite3*> DatabaseManager::get_config_db() const {
+    // Caller must hold config_db_mutex_
+    if (!config_store_initialized_ || !config_db_) {
+        return DatabaseResult<sqlite3*>{DatabaseError::ConnectionFailed};
+    }
+    return DatabaseResult<sqlite3*>{config_db_.get()};
+}
+
+DatabaseResult<void> DatabaseManager::initialize_config_store() {
+    std::lock_guard<std::mutex> lk(config_db_mutex_);
+    if (config_store_initialized_) return DatabaseResult<void>{};
+
+    // Open (or create) a dedicated SQLite file for config snapshots
+    std::filesystem::path dir{config_.base_path};
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+
+    const std::string db_path = config_.base_path + "/config_snapshots.sqlite3";
+    sqlite3* raw = nullptr;
+    if (sqlite3_open_v2(db_path.c_str(), &raw,
+                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+                        nullptr) != SQLITE_OK) {
+        if (raw) sqlite3_close_v2(raw);
+        return DatabaseResult<void>{DatabaseError::ConnectionFailed};
+    }
+    config_db_ = SqliteConnection{raw};
+
+    const char* ddl =
+        "PRAGMA journal_mode=WAL;"
+        "CREATE TABLE IF NOT EXISTS config_snapshots ("
+        "  id          TEXT PRIMARY KEY,"
+        "  tenant_id   TEXT NOT NULL,"
+        "  version     TEXT NOT NULL,"
+        "  display_name TEXT,"
+        "  schema_sdl  TEXT,"
+        "  is_active   INTEGER NOT NULL DEFAULT 0,"
+        "  created_at  INTEGER NOT NULL,"
+        "  activated_at INTEGER"
+        ");";
+    char* errmsg = nullptr;
+    if (sqlite3_exec(config_db_.get(), ddl, nullptr, nullptr, &errmsg) != SQLITE_OK) {
+        std::string msg = errmsg ? errmsg : "unknown";
+        sqlite3_free(errmsg);
+        return DatabaseResult<void>{DatabaseError::SchemaValidationFailed};
+    }
+    config_store_initialized_ = true;
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::save_config_snapshot(
+    const ConfigurationSnapshot& snap)
+{
+    std::lock_guard<std::mutex> lk(config_db_mutex_);
+    auto db_res = get_config_db();
+    if (!db_res) return DatabaseResult<void>{db_res.error()};
+    sqlite3* db = db_res.value();
+
+    const char* sql =
+        "INSERT INTO config_snapshots"
+        "  (id, tenant_id, version, display_name, schema_sdl, is_active, created_at, activated_at)"
+        " VALUES (?,?,?,?,?,?,?,?);";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseResult<void>{DatabaseError::QueryFailed};
+    }
+    sqlite3_bind_text(stmt, 1, snap.id.c_str(),           -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, snap.tenant_id.c_str(),    -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, snap.version.c_str(),      -1, SQLITE_TRANSIENT);
+    if (snap.display_name.empty())
+        sqlite3_bind_null(stmt, 4);
+    else
+        sqlite3_bind_text(stmt, 4, snap.display_name.c_str(), -1, SQLITE_TRANSIENT);
+    if (snap.schema_sdl.empty())
+        sqlite3_bind_null(stmt, 5);
+    else
+        sqlite3_bind_text(stmt, 5, snap.schema_sdl.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 6, snap.is_active ? 1 : 0);
+    sqlite3_bind_int64(stmt, 7, tp_to_epoch(snap.created_at));
+    if (snap.activated_at)
+        sqlite3_bind_int64(stmt, 8, tp_to_epoch(*snap.activated_at));
+    else
+        sqlite3_bind_null(stmt, 8);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        return DatabaseResult<void>{DatabaseError::QueryFailed};
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::activate_config_snapshot(
+    const std::string& snapshot_id)
+{
+    std::lock_guard<std::mutex> lk(config_db_mutex_);
+    auto db_res = get_config_db();
+    if (!db_res) return DatabaseResult<void>{db_res.error()};
+    sqlite3* db = db_res.value();
+
+    // Find tenant_id for this snapshot
+    std::string tenant_id;
+    {
+        const char* sel = "SELECT tenant_id FROM config_snapshots WHERE id = ?;";
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, sel, -1, &stmt, nullptr) != SQLITE_OK)
+            return DatabaseResult<void>{DatabaseError::QueryFailed};
+        sqlite3_bind_text(stmt, 1, snapshot_id.c_str(), -1, SQLITE_TRANSIENT);
+        int rc = sqlite3_step(stmt);
+        if (rc == SQLITE_ROW) {
+            const char* raw = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+            tenant_id = raw ? raw : "";
+        }
+        sqlite3_finalize(stmt);
+        if (tenant_id.empty()) return DatabaseResult<void>{DatabaseError::TenantNotFound};
+    }
+
+    // Atomic activation in a transaction
+    if (sqlite3_exec(db, "BEGIN;", nullptr, nullptr, nullptr) != SQLITE_OK)
+        return DatabaseResult<void>{DatabaseError::TransactionFailed};
+
+    // Deactivate all for this tenant
+    {
+        const char* upd = "UPDATE config_snapshots SET is_active=0, activated_at=NULL"
+                          " WHERE tenant_id=?;";
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, upd, -1, &stmt, nullptr) != SQLITE_OK) {
+            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return DatabaseResult<void>{DatabaseError::QueryFailed};
+        }
+        sqlite3_bind_text(stmt, 1, tenant_id.c_str(), -1, SQLITE_TRANSIENT);
+        int rc = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        if (rc != SQLITE_DONE) {
+            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return DatabaseResult<void>{DatabaseError::QueryFailed};
+        }
+    }
+
+    // Activate target
+    {
+        auto now_epoch = tp_to_epoch(std::chrono::system_clock::now());
+        const char* upd = "UPDATE config_snapshots SET is_active=1, activated_at=?"
+                          " WHERE id=?;";
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, upd, -1, &stmt, nullptr) != SQLITE_OK) {
+            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return DatabaseResult<void>{DatabaseError::QueryFailed};
+        }
+        sqlite3_bind_int64(stmt, 1, now_epoch);
+        sqlite3_bind_text(stmt, 2, snapshot_id.c_str(), -1, SQLITE_TRANSIENT);
+        int rc = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        if (rc != SQLITE_DONE) {
+            sqlite3_exec(db, "ROLLBACK;", nullptr, nullptr, nullptr);
+            return DatabaseResult<void>{DatabaseError::QueryFailed};
+        }
+    }
+
+    if (sqlite3_exec(db, "COMMIT;", nullptr, nullptr, nullptr) != SQLITE_OK)
+        return DatabaseResult<void>{DatabaseError::TransactionFailed};
+
+    return DatabaseResult<void>{};
+}
+
+namespace {
+ConfigurationSnapshot row_to_snapshot(sqlite3_stmt* stmt) {
+    ConfigurationSnapshot s;
+    auto col_str = [&](int col) -> std::string {
+        const char* raw = reinterpret_cast<const char*>(sqlite3_column_text(stmt, col));
+        return raw ? raw : "";
+    };
+    s.id           = col_str(0);
+    s.tenant_id    = col_str(1);
+    s.version      = col_str(2);
+    s.display_name = col_str(3);
+    s.schema_sdl   = col_str(4);
+    s.is_active    = sqlite3_column_int(stmt, 5) != 0;
+    s.created_at   = epoch_to_tp(sqlite3_column_int64(stmt, 6));
+    if (sqlite3_column_type(stmt, 7) != SQLITE_NULL)
+        s.activated_at = epoch_to_tp(sqlite3_column_int64(stmt, 7));
+    return s;
+}
+} // anonymous namespace
+
+DatabaseResult<std::optional<ConfigurationSnapshot>>
+DatabaseManager::get_active_config_snapshot(const std::string& tenant_id) const
+{
+    std::lock_guard<std::mutex> lk(config_db_mutex_);
+    auto db_res = const_cast<DatabaseManager*>(this)->get_config_db();
+    if (!db_res) return DatabaseResult<std::optional<ConfigurationSnapshot>>{
+        DatabaseError::ConnectionFailed};
+    sqlite3* db = db_res.value();
+
+    const char* sql =
+        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at"
+        " FROM config_snapshots WHERE tenant_id=? AND is_active=1 LIMIT 1;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseResult<std::optional<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
+    sqlite3_bind_text(stmt, 1, tenant_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        auto snap = row_to_snapshot(stmt);
+        sqlite3_finalize(stmt);
+        return DatabaseResult<std::optional<ConfigurationSnapshot>>{std::optional<ConfigurationSnapshot>{snap}};
+    }
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_DONE)
+        return DatabaseResult<std::optional<ConfigurationSnapshot>>{std::optional<ConfigurationSnapshot>{}};
+    return DatabaseResult<std::optional<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
+}
+
+DatabaseResult<std::vector<ConfigurationSnapshot>>
+DatabaseManager::list_config_snapshots(const std::string& tenant_id) const
+{
+    std::lock_guard<std::mutex> lk(config_db_mutex_);
+    auto db_res = const_cast<DatabaseManager*>(this)->get_config_db();
+    if (!db_res) return DatabaseResult<std::vector<ConfigurationSnapshot>>{
+        DatabaseError::ConnectionFailed};
+    sqlite3* db = db_res.value();
+
+    const char* sql =
+        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at"
+        " FROM config_snapshots WHERE tenant_id=? ORDER BY created_at DESC;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseResult<std::vector<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
+    sqlite3_bind_text(stmt, 1, tenant_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    std::vector<ConfigurationSnapshot> results;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        results.push_back(row_to_snapshot(stmt));
+    }
+    sqlite3_finalize(stmt);
+    return DatabaseResult<std::vector<ConfigurationSnapshot>>{std::move(results)};
+}
+
+DatabaseResult<std::optional<ConfigurationSnapshot>>
+DatabaseManager::get_config_snapshot(const std::string& snapshot_id) const
+{
+    std::lock_guard<std::mutex> lk(config_db_mutex_);
+    auto db_res = const_cast<DatabaseManager*>(this)->get_config_db();
+    if (!db_res) return DatabaseResult<std::optional<ConfigurationSnapshot>>{
+        DatabaseError::ConnectionFailed};
+    sqlite3* db = db_res.value();
+
+    const char* sql =
+        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at"
+        " FROM config_snapshots WHERE id=? LIMIT 1;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseResult<std::optional<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
+    sqlite3_bind_text(stmt, 1, snapshot_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        auto snap = row_to_snapshot(stmt);
+        sqlite3_finalize(stmt);
+        return DatabaseResult<std::optional<ConfigurationSnapshot>>{std::optional<ConfigurationSnapshot>{snap}};
+    }
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_DONE)
+        return DatabaseResult<std::optional<ConfigurationSnapshot>>{std::optional<ConfigurationSnapshot>{}};
+    return DatabaseResult<std::optional<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
+}
+
 } // namespace isched::v0_0_1::backend

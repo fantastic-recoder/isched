@@ -76,3 +76,22 @@ add_test(NAME isched_ast_node_tests COMMAND isched_ast_node_tests)
 add_executable(isched_multi_dim_map_tests isched_multi_dim_map_tests.cpp)
 target_link_libraries(isched_multi_dim_map_tests PRIVATE Catch2::Catch2WithMain)
 add_test(NAME isched_multi_dim_map_tests COMMAND isched_multi_dim_map_tests)
+
+# Integration tests for User Story 2 - GraphQL-Native Configuration (T026-T028)
+add_executable(test_configuration_snapshots ../integration/test_configuration_snapshots.cpp)
+target_link_libraries(test_configuration_snapshots PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
+    Boost::url SQLite::SQLite3)
+add_test(NAME test_configuration_snapshots COMMAND test_configuration_snapshots)
+
+add_executable(test_schema_activation ../integration/test_schema_activation.cpp)
+target_link_libraries(test_schema_activation PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
+    Boost::url SQLite::SQLite3)
+add_test(NAME test_schema_activation COMMAND test_schema_activation)
+
+add_executable(test_configuration_rollback ../integration/test_configuration_rollback.cpp)
+target_link_libraries(test_configuration_rollback PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
+    Boost::url SQLite::SQLite3)
+add_test(NAME test_configuration_rollback COMMAND test_configuration_rollback)

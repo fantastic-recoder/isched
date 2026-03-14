@@ -84,6 +84,48 @@ type DatabaseConfig {
   enableWAL: Boolean
 }
 
+"""Input for applying a new configuration snapshot"""
+input ApplyConfigurationInput {
+  """Target tenant identifier"""
+  tenantId: String!
+  """GraphQL SDL schema fragment for tenant-defined types"""
+  schemaSdl: String!
+  """Human-readable name for this snapshot"""
+  displayName: String
+  """Version label (e.g., semver or date string)"""
+  version: String
+}
+
+"""Result of a configuration mutation"""
+type ConfigurationResult {
+  """Whether the operation succeeded"""
+  success: Boolean!
+  """Identifier of the affected or created snapshot"""
+  snapshotId: String
+  """List of error messages on failure"""
+  errors: [String!]
+}
+
+"""A persisted configuration snapshot for a tenant"""
+type SnapshotRecord {
+  """Unique snapshot identifier"""
+  id: String!
+  """Tenant this snapshot belongs to"""
+  tenantId: String!
+  """Version label"""
+  version: String!
+  """Human-readable name"""
+  displayName: String
+  """GraphQL SDL content"""
+  schemaSdl: String!
+  """Whether this snapshot is currently active"""
+  isActive: Boolean!
+  """ISO-8601 creation timestamp"""
+  createdAt: String!
+  """ISO-8601 activation timestamp (null if never activated)"""
+  activatedAt: String
+}
+
 """Root query type"""
 type Query {
   """Simple greeting message"""
@@ -104,12 +146,22 @@ type Query {
   env: Environment
   """Configuration properties"""
   configprops: Configuration
+  """Active configuration snapshot for a tenant"""
+  activeConfiguration(tenantId: String!): SnapshotRecord
+  """Full configuration history for a tenant"""
+  configurationHistory(tenantId: String!): [SnapshotRecord!]!
 }
 
 """Root mutation type"""
 type Mutation {
   """Echo a message back; useful for connectivity testing"""
   echo(message: String): String
+  """Create a new configuration snapshot (does not activate it)"""
+  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationResult!
+  """Activate an existing snapshot by its ID"""
+  activateSnapshot(id: String!): ConfigurationResult!
+  """Roll back to the previous active snapshot for a tenant"""
+  rollbackConfiguration(tenantId: String!): ConfigurationResult!
 }
 
 """Health information for a specific system component"""

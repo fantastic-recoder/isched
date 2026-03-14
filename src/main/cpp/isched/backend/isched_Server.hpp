@@ -137,8 +137,7 @@ public:
      * Ensures graceful shutdown of all resources including:
      * - Active connections termination
      * - Thread pool cleanup
-     * - Tenant process coordination
-     * - IPC resource cleanup
+     * - Tenant runtime state cleanup
      */
     virtual ~Server();
 
@@ -196,9 +195,8 @@ public:
      * Shutdown sequence:
      * 1. Stop accepting new connections
      * 2. Complete active requests (up to timeout)
-     * 3. Shutdown tenant processes
-     * 4. Cleanup IPC resources
-     * 5. Stop thread pool
+     * 3. Shutdown tenant runtime state
+     * 4. Stop thread pool
      * 
      * @post Server status becomes STOPPED
      * @note Active connections receive proper termination notices

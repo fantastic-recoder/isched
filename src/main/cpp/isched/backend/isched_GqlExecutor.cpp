@@ -11,6 +11,7 @@
 #include "isched_GqlExecutor.hpp"
 
 #include <chrono>
+#include <ctime>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -23,6 +24,7 @@
 #include "isched_gql_grammar.hpp"
 #include "isched_builtin_server_schema.hpp"
 #include "isched_log_result.hpp"
+#include "isched_DatabaseManager.hpp"
 
 namespace {
 // Per-request GraphQL variables context (thread-safe: one entry per executing thread)
@@ -274,6 +276,251 @@ namespace isched::v0_0_1::backend {
             }
             return nullptr;
         });
+
+        // Initialise the config store (idempotent — safe to call on every startup)
+        if (m_database) {
+            std::ignore = m_database->initialize_config_store();
+        }
+
+        // Helper: format a system_clock time_point as ISO-8601
+        auto fmt_iso8601 = [](const std::chrono::system_clock::time_point& tp) -> std::string {
+            auto t = std::chrono::system_clock::to_time_t(tp);
+            std::tm tm_val{};
+            gmtime_r(&t, &tm_val);
+            char buf[32];
+            std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm_val);
+            return buf;
+        };
+
+        // Helper: convert a ConfigurationSnapshot to a SnapshotRecord JSON object
+        auto snap_to_json = [fmt_iso8601](const ConfigurationSnapshot& s) -> json {
+            json obj;
+            obj["id"]          = s.id;
+            obj["tenantId"]    = s.tenant_id;
+            obj["version"]     = s.version;
+            obj["displayName"] = s.display_name.empty() ? json(nullptr) : json(s.display_name);
+            obj["schemaSdl"]   = s.schema_sdl;
+            obj["isActive"]    = s.is_active;
+            obj["createdAt"]   = fmt_iso8601(s.created_at);
+            obj["activatedAt"] = s.activated_at ? json(fmt_iso8601(*s.activated_at)) : json(nullptr);
+            return obj;
+        };
+
+        // ---------------------------------------------------------------
+        // Phase 4 mutation: applyConfiguration (T030)
+        // Creates a new snapshot but does NOT activate it.
+        // ---------------------------------------------------------------
+        register_resolver({}, "applyConfiguration",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                json result;
+                result["success"]    = false;
+                result["snapshotId"] = nullptr;
+                result["errors"]     = json::array();
+
+                if (!m_database) {
+                    result["errors"].push_back("Database not available");
+                    return result;
+                }
+                if (!args.contains("input") || !args["input"].is_object()) {
+                    result["errors"].push_back("Missing required argument: input");
+                    return result;
+                }
+
+                const auto& inp = args["input"];
+                if (!inp.contains("tenantId") || !inp["tenantId"].is_string()) {
+                    result["errors"].push_back("input.tenantId is required");
+                    return result;
+                }
+                if (!inp.contains("schemaSdl") || !inp["schemaSdl"].is_string()) {
+                    result["errors"].push_back("input.schemaSdl is required");
+                    return result;
+                }
+
+                ConfigurationSnapshot snap;
+                static std::atomic<uint64_t> snap_counter{0};
+                auto now = std::chrono::system_clock::now();
+                auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now.time_since_epoch()).count();
+                snap.id          = "snap-" + std::to_string(ms) + "-"
+                                   + std::to_string(++snap_counter);
+                snap.tenant_id   = inp["tenantId"].get<std::string>();
+                snap.schema_sdl  = inp["schemaSdl"].get<std::string>();
+                snap.version     = inp.value("version", "1.0.0");
+                snap.display_name = inp.value("displayName", "");
+                snap.is_active   = false;
+                snap.created_at  = now;
+
+                auto save_res = m_database->save_config_snapshot(snap);
+                if (!save_res) {
+                    result["errors"].push_back("Failed to persist snapshot");
+                    return result;
+                }
+
+                result["success"]    = true;
+                result["snapshotId"] = snap.id;
+                return result;
+            });
+
+        // ---------------------------------------------------------------
+        // Phase 4 mutation: activateSnapshot (T030, T032, T034)
+        // Atomically activates a snapshot; queues schema reload for Server.
+        // ---------------------------------------------------------------
+        register_resolver({}, "activateSnapshot",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                json result;
+                result["success"]    = false;
+                result["snapshotId"] = nullptr;
+                result["errors"]     = json::array();
+
+                if (!m_database) {
+                    result["errors"].push_back("Database not available");
+                    return result;
+                }
+                if (!args.contains("id") || !args["id"].is_string()) {
+                    result["errors"].push_back("Missing required argument: id");
+                    return result;
+                }
+
+                const std::string snap_id = args["id"].get<std::string>();
+
+                // Verify snapshot exists
+                auto get_res = m_database->get_config_snapshot(snap_id);
+                if (!get_res || !get_res.value()) {
+                    result["errors"].push_back("Snapshot not found: " + snap_id);
+                    return result;
+                }
+
+                auto act_res = m_database->activate_config_snapshot(snap_id);
+                if (!act_res) {
+                    result["errors"].push_back("Failed to activate snapshot");
+                    return result;
+                }
+
+                // Queue pending schema reload so Server can call load_schema()
+                const std::string new_sdl = get_res.value()->schema_sdl;
+                if (!new_sdl.empty()) {
+                    set_pending_schema_change({
+                        get_res.value()->tenant_id,
+                        new_sdl
+                    });
+                }
+
+                result["success"]    = true;
+                result["snapshotId"] = snap_id;
+                return result;
+            });
+
+        // ---------------------------------------------------------------
+        // Phase 4 mutation: rollbackConfiguration (T028, T032)
+        // Rolls back to the previously-activated snapshot for a tenant.
+        // ---------------------------------------------------------------
+        register_resolver({}, "rollbackConfiguration",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                json result;
+                result["success"]    = false;
+                result["snapshotId"] = nullptr;
+                result["errors"]     = json::array();
+
+                if (!m_database) {
+                    result["errors"].push_back("Database not available");
+                    return result;
+                }
+                if (!args.contains("tenantId") || !args["tenantId"].is_string()) {
+                    result["errors"].push_back("Missing required argument: tenantId");
+                    return result;
+                }
+
+                const std::string tenant_id = args["tenantId"].get<std::string>();
+
+                // List all snapshots (newest created_at first)
+                auto list_res = m_database->list_config_snapshots(tenant_id);
+                if (!list_res) {
+                    result["errors"].push_back("Failed to retrieve snapshot list");
+                    return result;
+                }
+
+                const auto& snaps = list_res.value();
+                if (snaps.size() < 2) {
+                    result["errors"].push_back("No previous snapshot available to roll back to");
+                    return result;
+                }
+
+                // Find the currently active snapshot and the one before it
+                std::string rollback_target_id;
+                bool found_active = false;
+                for (const auto& s : snaps) {
+                    if (s.is_active) { found_active = true; continue; }
+                    if (found_active) { rollback_target_id = s.id; break; }
+                }
+
+                // Fallback: if none found after active, use second snapshot
+                if (rollback_target_id.empty()) {
+                    for (std::size_t i = 0; i < snaps.size(); ++i) {
+                        if (!snaps[i].is_active) {
+                            rollback_target_id = snaps[i].id;
+                            break;
+                        }
+                    }
+                }
+
+                if (rollback_target_id.empty()) {
+                    result["errors"].push_back("Cannot determine rollback target");
+                    return result;
+                }
+
+                auto act_res = m_database->activate_config_snapshot(rollback_target_id);
+                if (!act_res) {
+                    result["errors"].push_back("Failed to activate rollback target");
+                    return result;
+                }
+
+                // Queue schema reload
+                for (const auto& s : snaps) {
+                    if (s.id == rollback_target_id && !s.schema_sdl.empty()) {
+                        set_pending_schema_change({tenant_id, s.schema_sdl});
+                        break;
+                    }
+                }
+
+                result["success"]    = true;
+                result["snapshotId"] = rollback_target_id;
+                return result;
+            });
+
+        // ---------------------------------------------------------------
+        // Phase 4 query: activeConfiguration (T035)
+        // ---------------------------------------------------------------
+        register_resolver({}, "activeConfiguration",
+            [this, snap_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+                if (!m_database) return nullptr;
+                if (!args.contains("tenantId") || !args["tenantId"].is_string())
+                    return nullptr;
+
+                const std::string tenant_id = args["tenantId"].get<std::string>();
+                auto res = m_database->get_active_config_snapshot(tenant_id);
+                if (!res || !res.value()) return nullptr;
+                return snap_to_json(*res.value());
+            });
+
+        // ---------------------------------------------------------------
+        // Phase 4 query: configurationHistory (T035)
+        // ---------------------------------------------------------------
+        register_resolver({}, "configurationHistory",
+            [this, snap_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+                if (!m_database) return json::array();
+                if (!args.contains("tenantId") || !args["tenantId"].is_string())
+                    return json::array();
+
+                const std::string tenant_id = args["tenantId"].get<std::string>();
+                auto res = m_database->list_config_snapshots(tenant_id);
+                if (!res) return json::array();
+
+                json arr = json::array();
+                for (const auto& s : res.value()) {
+                    arr.push_back(snap_to_json(s));
+                }
+                return arr;
+            });
 
         load_schema(BUILTIN_SCHEMA);
     }
@@ -663,8 +910,26 @@ namespace isched::v0_0_1::backend {
                 }
             }
             if (has_sub_sel) {
-                p_result[myFieldName] = json::object();
-                process_field_sub_selections(my_result, p_path, p_field_node, p_result[myFieldName], p_error, myFieldName);
+                if (my_result.is_null()) {
+                    // Nullable field returned null — propagate without sub-selection processing
+                    p_result[myFieldName] = nullptr;
+                } else if (my_result.is_array()) {
+                    // List type: apply sub-selections to each element individually
+                    json arr = json::array();
+                    for (const auto& element : my_result) {
+                        if (element.is_null()) {
+                            arr.push_back(nullptr);
+                            continue;
+                        }
+                        json elem_result = json::object();
+                        process_field_sub_selections(element, p_path, p_field_node, elem_result, p_error, myFieldName);
+                        arr.push_back(std::move(elem_result));
+                    }
+                    p_result[myFieldName] = std::move(arr);
+                } else {
+                    p_result[myFieldName] = json::object();
+                    process_field_sub_selections(my_result, p_path, p_field_node, p_result[myFieldName], p_error, myFieldName);
+                }
             } else {
                 p_result[myFieldName] = std::move(my_result);
             }

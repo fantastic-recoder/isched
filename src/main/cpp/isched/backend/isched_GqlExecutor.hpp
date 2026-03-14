@@ -22,6 +22,8 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <memory>
@@ -249,6 +251,41 @@ namespace isched::v0_0_1::backend {
             m_resolvers.register_resolver(path, field_name, std::move(resolver));
         }
 
+        // ---------------------------------------------------------------
+        // Pending-schema-change support (T034)
+        // ---------------------------------------------------------------
+
+        /**
+         * @brief Describe a schema reload request queued by an activateSnapshot resolver.
+         */
+        struct PendingSchemaChange {
+            std::string tenant_id;
+            std::string new_sdl;
+        };
+
+        /**
+         * @brief Retrieve any pending schema change set during the last execute() call.
+         *
+         * Returns nullopt if no activation was triggered.  Server::execute_graphql()
+         * checks this after every execute() and calls load_schema() accordingly.
+         */
+        [[nodiscard]] std::optional<PendingSchemaChange> get_pending_schema_change() const {
+            std::lock_guard<std::mutex> lk(m_pending_change_mutex);
+            return m_pending_schema_change;
+        }
+
+        /** @brief Clear the pending schema change (called by Server after reload). */
+        void clear_pending_schema_change() {
+            std::lock_guard<std::mutex> lk(m_pending_change_mutex);
+            m_pending_schema_change = std::nullopt;
+        }
+
+        /** @brief Store a pending schema change (called from within a resolver). */
+        void set_pending_schema_change(PendingSchemaChange change) {
+            std::lock_guard<std::mutex> lk(m_pending_change_mutex);
+            m_pending_schema_change = std::move(change);
+        }
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -261,6 +298,10 @@ namespace isched::v0_0_1::backend {
         TAstNodeMap m_type_map;
         TAstNodeMap m_directives;
         std::vector<TSchemaDocPtr> m_schema_documents;
+
+        // Pending schema change set by activateSnapshot resolver; consumed by Server.
+        mutable std::mutex m_pending_change_mutex;
+        std::optional<PendingSchemaChange> m_pending_schema_change;
 
         using TTime = std::chrono::time_point<std::chrono::system_clock>;
 

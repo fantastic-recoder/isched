@@ -103,13 +103,11 @@ using ConfigUpdateCallback = std::function<void(const String& config_json,
  * @namespace isched::v0_0_1::runtime
  * @brief Shared runtime library namespace
  * 
- * Contains shared functionality used by both the main server and CLI executables.
+ * Contains shared functionality used by the server runtime.
  */
 namespace runtime {
 
 // Forward declarations for runtime classes
-class IPC;
-class PluginAPI;
 class Runtime;
 
 } // namespace runtime

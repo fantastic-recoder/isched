@@ -554,7 +554,61 @@ public:
      * @return Global statistics
      */
     [[nodiscard]] nlohmann::json get_global_stats() const;
-    
+
+    // -------------------------------------------------------------------------
+    // Configuration snapshot persistence (T029)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Initialise the config-snapshot store (creates table if absent).
+     *
+     * Uses the reserved "__config__" tenant slot.  Safe to call multiple times.
+     */
+    [[nodiscard]] DatabaseResult<void> initialize_config_store();
+
+    /**
+     * @brief Persist a new snapshot row.
+     *
+     * The snapshot is stored with is_active = false.  To activate it, call
+     * activate_config_snapshot() afterwards.
+     *
+     * @param snapshot Snapshot to persist; its id field must be non-empty.
+     * @return Success/failure.
+     */
+    [[nodiscard]] DatabaseResult<void> save_config_snapshot(
+        const ConfigurationSnapshot& snapshot);
+
+    /**
+     * @brief Atomically activate a snapshot.
+     *
+     * Deactivates all other snapshots for the same tenant, then sets
+     * is_active = 1 and activated_at for the given id — all in one SQLite
+     * transaction.
+     *
+     * @param snapshot_id ID of the snapshot to activate.
+     * @return Success/failure.
+     */
+    [[nodiscard]] DatabaseResult<void> activate_config_snapshot(
+        const std::string& snapshot_id);
+
+    /**
+     * @brief Return the active snapshot for a tenant, or nullopt.
+     */
+    [[nodiscard]] DatabaseResult<std::optional<ConfigurationSnapshot>>
+    get_active_config_snapshot(const std::string& tenant_id) const;
+
+    /**
+     * @brief Return all snapshots for a tenant (newest first).
+     */
+    [[nodiscard]] DatabaseResult<std::vector<ConfigurationSnapshot>>
+    list_config_snapshots(const std::string& tenant_id) const;
+
+    /**
+     * @brief Return a single snapshot by its id, or nullopt if not found.
+     */
+    [[nodiscard]] DatabaseResult<std::optional<ConfigurationSnapshot>>
+    get_config_snapshot(const std::string& snapshot_id) const;
+
 private:
     /**
      * @brief Get connection pool for tenant
@@ -583,6 +637,13 @@ private:
     mutable std::mutex pools_mutex_;
     std::unordered_map<std::string, std::shared_ptr<ConnectionPool>> tenant_pools_;
     std::unique_ptr<SchemaMigrator> migrator_;
+
+    // Config store — dedicated SQLite file for configuration snapshots
+    mutable std::mutex config_db_mutex_;
+    SqliteConnection config_db_;   ///< Opened lazily by initialize_config_store()
+    bool config_store_initialized_{false};
+
+    [[nodiscard]] DatabaseResult<sqlite3*> get_config_db() const;
     
     // Performance monitoring
     mutable std::atomic<std::size_t> total_queries_{0};
