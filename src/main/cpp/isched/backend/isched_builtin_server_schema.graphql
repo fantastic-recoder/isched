@@ -126,6 +126,26 @@ type SnapshotRecord {
   activatedAt: String
 }
 
+"""Server runtime information"""
+type ServerInfo {
+  """Server version string"""
+  version: String
+  """Hostname or bind address"""
+  host: String
+  """HTTP listen port"""
+  port: Int
+  """Runtime status (RUNNING, STOPPED, etc.)"""
+  status: String
+  """Epoch milliseconds when the server started"""
+  startedAt: Int
+  """Number of active tenants"""
+  activeTenants: Int
+  """Number of active WebSocket sessions"""
+  activeWebSocketSessions: Int
+  """Active transport modes"""
+  transportModes: [String]
+}
+
 """Root query type"""
 type Query {
   """Simple greeting message"""
@@ -138,6 +158,8 @@ type Query {
   clientCount: Int
   """Server health status"""
   health: HealthStatus
+  """Runtime server information"""
+  serverInfo: ServerInfo
   """Application information"""
   info: AppInfo
   """Server metrics"""
@@ -162,6 +184,34 @@ type Mutation {
   activateSnapshot(id: String!): ConfigurationResult!
   """Roll back to the previous active snapshot for a tenant"""
   rollbackConfiguration(tenantId: String!): ConfigurationResult!
+}
+
+"""Event payload when a configuration snapshot is activated"""
+type ConfigurationActivatedEvent {
+  """Tenant the activation belongs to"""
+  tenantId: String!
+  """ID of the snapshot that was activated"""
+  snapshotId: String!
+  """SDL of the activated schema"""
+  schemaSdl: String
+  """ISO-8601 timestamp of the activation"""
+  activatedAt: String!
+}
+
+"""Event payload when the server health status changes"""
+type HealthChangedEvent {
+  """Overall health status string"""
+  status: String!
+  """ISO-8601 timestamp of the check"""
+  timestamp: String!
+}
+
+"""Real-time GraphQL subscriptions (graphql-transport-ws protocol)"""
+type Subscription {
+  """Fires whenever a configuration snapshot is activated for a tenant"""
+  configurationActivated(tenantId: String!): ConfigurationActivatedEvent!
+  """Fires when the server health status changes; also delivers an initial snapshot"""
+  healthChanged: HealthChangedEvent!
 }
 
 """Health information for a specific system component"""

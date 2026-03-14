@@ -74,6 +74,7 @@ public:
      */
     struct Configuration {
         uint16_t port;                           ///< HTTP server port
+        uint16_t ws_port;                        ///< WebSocket server port (0 = port + 1)
         String host;                             ///< Bind address
         size_t min_threads;                      ///< Minimum thread pool size
         size_t max_threads;                      ///< Maximum thread pool size
@@ -87,6 +88,7 @@ public:
          */
         Configuration() 
             : port(8080)
+            , ws_port(0)
             , host("localhost")
             , min_threads(4)
             , max_threads(100)

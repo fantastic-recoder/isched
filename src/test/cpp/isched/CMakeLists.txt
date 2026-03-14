@@ -95,3 +95,22 @@ target_link_libraries(test_configuration_rollback PRIVATE isched Catch2::Catch2W
     spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
     Boost::url SQLite::SQLite3)
 add_test(NAME test_configuration_rollback COMMAND test_configuration_rollback)
+
+# Phase 5: WebSocket / Subscription integration tests (T037-T039)
+set(_ws_common_libs isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json
+    httplib::httplib openssl::openssl
+    Boost::url Boost::system Boost::thread SQLite::SQLite3)
+
+add_executable(test_graphql_websocket ../integration/test_graphql_websocket.cpp)
+target_link_libraries(test_graphql_websocket PRIVATE ${_ws_common_libs})
+add_test(NAME test_graphql_websocket COMMAND test_graphql_websocket)
+
+add_executable(test_graphql_subscriptions ../integration/test_graphql_subscriptions.cpp)
+target_link_libraries(test_graphql_subscriptions PRIVATE ${_ws_common_libs})
+add_test(NAME test_graphql_subscriptions COMMAND test_graphql_subscriptions)
+
+add_executable(test_client_compatibility ../integration/test_client_compatibility.cpp)
+target_link_libraries(test_client_compatibility PRIVATE ${_ws_common_libs})
+add_test(NAME test_client_compatibility COMMAND test_client_compatibility)
+

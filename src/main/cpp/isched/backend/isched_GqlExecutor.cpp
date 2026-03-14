@@ -25,6 +25,7 @@
 #include "isched_builtin_server_schema.hpp"
 #include "isched_log_result.hpp"
 #include "isched_DatabaseManager.hpp"
+#include "isched_SubscriptionBroker.hpp"
 
 namespace {
 // Per-request GraphQL variables context (thread-safe: one entry per executing thread)
@@ -61,6 +62,9 @@ namespace isched::v0_0_1::backend {
         register_resolver({},"serverInfo", [this](const json &, const json &, const ResolverCtx&) -> json {
             return json{
                 {"version", "0.0.1"},
+                {"host", "localhost"},
+                {"port", 8080},
+                {"status", "RUNNING"},
                 {"startedAt", std::chrono::duration_cast<std::chrono::milliseconds>(
                     m_start_time.time_since_epoch()).count()},
                 {"activeTenants", 1},
@@ -383,7 +387,7 @@ namespace isched::v0_0_1::backend {
         // Atomically activates a snapshot; queues schema reload for Server.
         // ---------------------------------------------------------------
         register_resolver({}, "activateSnapshot",
-            [this](const json&, const json& args, const ResolverCtx&) -> json {
+            [this, fmt_iso8601](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"]    = false;
                 result["snapshotId"] = nullptr;
@@ -415,11 +419,19 @@ namespace isched::v0_0_1::backend {
 
                 // Queue pending schema reload so Server can call load_schema()
                 const std::string new_sdl = get_res.value()->schema_sdl;
+                const std::string tenant_id = get_res.value()->tenant_id;
                 if (!new_sdl.empty()) {
-                    set_pending_schema_change({
-                        get_res.value()->tenant_id,
-                        new_sdl
-                    });
+                    set_pending_schema_change({tenant_id, new_sdl});
+                }
+
+                // Publish configuration activation event to SubscriptionBroker (T046)
+                if (m_broker) {
+                    json evt;
+                    evt["tenantId"]   = tenant_id;
+                    evt["snapshotId"] = snap_id;
+                    evt["schemaSdl"]  = new_sdl.empty() ? json(nullptr) : json(new_sdl);
+                    evt["activatedAt"] = fmt_iso8601(std::chrono::system_clock::now());
+                    m_broker->publish("config:" + tenant_id, "configurationActivated", evt);
                 }
 
                 result["success"]    = true;
@@ -537,6 +549,43 @@ namespace isched::v0_0_1::backend {
                     arr.push_back(snap_to_json(s));
                 }
                 return arr;
+            });
+
+        // ---------------------------------------------------------------
+        // Phase 5 subscription: healthChanged (T046)
+        // Returns the current health snapshot on subscribe; ongoing events
+        // are published by the Server via SubscriptionBroker.
+        // ---------------------------------------------------------------
+        register_resolver({}, "healthChanged",
+            [this, fmt_iso8601](const json&, const json&, const ResolverCtx&) -> json {
+                json evt;
+                evt["status"]    = "UP";
+                evt["timestamp"] = fmt_iso8601(std::chrono::system_clock::now());
+                return evt;
+            });
+
+        // ---------------------------------------------------------------
+        // Phase 5 subscription: configurationActivated (T046)
+        // Returns the current active snapshot for the tenant (initial value);
+        // activation events are published by activateSnapshot and rollback.
+        // ---------------------------------------------------------------
+        register_resolver({}, "configurationActivated",
+            [this, fmt_iso8601](const json&, const json& args, const ResolverCtx&) -> json {
+                if (!m_database) return nullptr;
+                if (!args.contains("tenantId") || !args["tenantId"].is_string())
+                    return nullptr;
+                const std::string tenant_id = args["tenantId"].get<std::string>();
+                auto res = m_database->get_active_config_snapshot(tenant_id);
+                if (!res || !res.value()) return nullptr;
+                const auto& s = *res.value();
+                json evt;
+                evt["tenantId"]   = s.tenant_id;
+                evt["snapshotId"] = s.id;
+                evt["schemaSdl"]  = s.schema_sdl.empty() ? json(nullptr) : json(s.schema_sdl);
+                evt["activatedAt"] = s.activated_at
+                    ? json(fmt_iso8601(*s.activated_at))
+                    : json(fmt_iso8601(s.created_at));
+                return evt;
             });
 
         load_schema(BUILTIN_SCHEMA);
@@ -1134,12 +1183,31 @@ namespace isched::v0_0_1::backend {
                     });
                 }
             }
+        } else if (a_op_type == "subscription") {
+            // Subscription operations: execute like a query to deliver the initial value.
+            // Ongoing event delivery is handled by the WebSocket server / SubscriptionBroker.
+            for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
+                const auto& child = myOperation->children[myIdx];
+                if (child->type == "isched::v0_0_1::gql::SelectionSet") {
+                    process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
+                } else if (child->type == "isched::v0_0_1::gql::VariablesDefinition"
+                        || child->type == "isched::v0_0_1::gql::VariableDefinitions"
+                        || child->type == "isched::v0_0_1::gql::VariableDefinition"
+                        || child->type == "isched::v0_0_1::gql::Name") {
+                    // skip metadata
+                } else {
+                    p_errors.push_back(gql::Error{
+                        .code=gql::EErrorCodes::PARSE_ERROR,
+                        .message=std::format("Expected a selection set in subscription, got {}.", child->type)
+                    });
+                }
+            }
         } else if (myOperation->children[0]->type == "isched::v0_0_1::gql::SelectionSet") {
             process_field_selection(p_parent_result, p_path,myOperation->children[0], p_result, p_errors);
         } else {
             p_errors.push_back(gql::Error{
                 .code=gql::EErrorCodes::PARSE_ERROR,
-                .message=std::format("Only query operations are supported, got {}.", a_op_type)
+                .message=std::format("Only query/mutation/subscription operations are supported, got {}.", a_op_type)
             });
         }
         return false;

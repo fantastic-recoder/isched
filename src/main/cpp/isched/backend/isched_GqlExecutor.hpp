@@ -28,6 +28,7 @@
 #include <string>
 #include <memory>
 #include <format>
+#include <unordered_map>
 #include <nlohmann/json_fwd.hpp>
 
 #include <string_view>
@@ -52,6 +53,7 @@ namespace isched::v0_0_1::gql {
 
 namespace isched::v0_0_1::backend {
     class DatabaseManager;
+    class SubscriptionBroker;              ///< Forward declaration for event publishing
     using DocumentPtr = std::shared_ptr<gql::Document>;
 
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
@@ -286,6 +288,11 @@ namespace isched::v0_0_1::backend {
             m_pending_schema_change = std::move(change);
         }
 
+        /** @brief Wire the subscription broker so resolvers can publish events (T046). */
+        void set_subscription_broker(SubscriptionBroker* broker) {
+            m_broker = broker;
+        }
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -302,6 +309,9 @@ namespace isched::v0_0_1::backend {
         // Pending schema change set by activateSnapshot resolver; consumed by Server.
         mutable std::mutex m_pending_change_mutex;
         std::optional<PendingSchemaChange> m_pending_schema_change;
+
+        // Subscription broker for publishing events from resolvers (T046); not owned.
+        SubscriptionBroker* m_broker{nullptr};
 
         using TTime = std::chrono::time_point<std::chrono::system_clock>;
 

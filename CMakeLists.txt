@@ -83,7 +83,7 @@ find_package(jwt-cpp REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(platform_folders REQUIRED)
 # Find Boost package
-find_package(Boost REQUIRED COMPONENTS url)
+find_package(Boost REQUIRED COMPONENTS url system thread)
 
 include_directories("src/main/cpp")
 add_subdirectory("src/main/cpp/isched")
