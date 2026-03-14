@@ -248,6 +248,20 @@ struct UserRecord {
     std::string last_login;      ///< May be empty
 };
 
+/// A row from the @c sessions table in a tenant SQLite DB (T049-001).
+struct SessionRecord {
+    std::string id;
+    std::string user_id;
+    std::string access_token_id;
+    std::vector<std::string> permissions;   ///< Deserialized from JSON array column
+    std::vector<std::string> roles;         ///< Role snapshot at login (RISK-003)
+    std::string issued_at;
+    std::string expires_at;
+    std::string last_activity;
+    std::string transport_scope{"any"};     ///< 'http' | 'websocket' | 'any'
+    bool        is_revoked{false};
+};
+
 /**
  * @brief Custom deleter for SQLite database connections
  * 
@@ -826,6 +840,53 @@ public:
     [[nodiscard]] DatabaseResult<void> delete_user(
         const std::string& tenant_id,
         const std::string& id);
+
+    // ── Session management (T049-001) ──────────────────────────────────
+
+    /// Ensure the @c sessions table exists in the tenant DB.
+    /// Called automatically from @c initialize_tenant().
+    [[nodiscard]] DatabaseResult<void> ensure_sessions_table(const std::string& tenant_id);
+
+    /// Persist a new session row.
+    /// @p permissions_json and @p roles_json must be valid JSON arrays.
+    /// Returns @c DuplicateKey if @p id already exists.
+    [[nodiscard]] DatabaseResult<void> create_session(
+        const std::string& tenant_id,
+        const std::string& id,
+        const std::string& user_id,
+        const std::string& access_token_id,
+        const std::string& permissions_json,
+        const std::string& roles_json,
+        const std::string& expires_at,
+        const std::string& transport_scope = "any");
+
+    /// Fetch a single session by @p id; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<SessionRecord> get_session(
+        const std::string& tenant_id,
+        const std::string& id);
+
+    /// Update @c last_activity to UTC-now for an active session.
+    /// Returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<void> update_session_activity(
+        const std::string& tenant_id,
+        const std::string& id);
+
+    /// Mark a single session as revoked (@c is_revoked = 1).
+    /// Returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<void> revoke_session(
+        const std::string& tenant_id,
+        const std::string& id);
+
+    /// Revoke all non-revoked sessions for @p user_id in a tenant.
+    [[nodiscard]] DatabaseResult<void> revoke_all_sessions_for_user(
+        const std::string& tenant_id,
+        const std::string& user_id);
+
+    /// Revoke all non-revoked sessions in a tenant, optionally excluding
+    /// sessions whose @c roles JSON contains @p exclude_role.
+    [[nodiscard]] DatabaseResult<void> revoke_all_sessions_for_org(
+        const std::string& tenant_id,
+        const std::string& exclude_role = "");
 
 private:
     /**

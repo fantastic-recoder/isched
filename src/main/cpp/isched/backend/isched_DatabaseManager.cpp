@@ -524,6 +524,12 @@ DatabaseResult<void> DatabaseManager::initialize_tenant(const std::string& tenan
         spdlog::warn("initialize_tenant: ensure_users_table failed for tenant '{}'", tenant_id);
     }
 
+    // Ensure the sessions table exists (T049-001)
+    auto sessions_res = ensure_sessions_table(tenant_id);
+    if (!sessions_res) {
+        spdlog::warn("initialize_tenant: ensure_sessions_table failed for tenant '{}'", tenant_id);
+    }
+
     return DatabaseResult<void>{};
 }
 
@@ -2008,6 +2014,253 @@ DatabaseResult<void> DatabaseManager::delete_user(
         spdlog::error("delete_user: error {} tenant='{}' id='{}'", rc, tenant_id, id);
         return DatabaseError::QueryFailed;
     }
+    return DatabaseResult<void>{};
+}
+
+// ── Session management (T049-001) ─────────────────────────────────────────────
+
+DatabaseResult<void> DatabaseManager::ensure_sessions_table(const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* ddl = R"sql(
+        CREATE TABLE IF NOT EXISTS sessions (
+            id               TEXT PRIMARY KEY,
+            user_id          TEXT NOT NULL,
+            access_token_id  TEXT NOT NULL DEFAULT '',
+            permissions      TEXT NOT NULL DEFAULT '[]',
+            roles            TEXT NOT NULL DEFAULT '[]',
+            issued_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at       TEXT NOT NULL,
+            last_activity    TEXT NOT NULL DEFAULT (datetime('now')),
+            transport_scope  TEXT NOT NULL DEFAULT 'any',
+            is_revoked       INTEGER NOT NULL DEFAULT 0
+        );
+    )sql";
+
+    if (sqlite3_exec(conn.get(), ddl, nullptr, nullptr, nullptr) != SQLITE_OK) {
+        spdlog::error("ensure_sessions_table: DDL failed for tenant '{}'", tenant_id);
+        return DatabaseError::SchemaValidationFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::create_session(
+    const std::string& tenant_id,
+    const std::string& id,
+    const std::string& user_id,
+    const std::string& access_token_id,
+    const std::string& permissions_json,
+    const std::string& roles_json,
+    const std::string& expires_at,
+    const std::string& transport_scope)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "INSERT INTO sessions (id, user_id, access_token_id, permissions, roles,"
+        " expires_at, transport_scope)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(),              -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, user_id.c_str(),         -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, access_token_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, permissions_json.c_str(),-1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, roles_json.c_str(),      -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, expires_at.c_str(),      -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 7, transport_scope.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_CONSTRAINT) { return DatabaseError::DuplicateKey; }
+    if (rc != SQLITE_DONE) {
+        spdlog::error("create_session: error {} tenant='{}' id='{}'", rc, tenant_id, id);
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+// Internal: parse a SessionRecord from a prepared statement row.
+// Expected column order: id, user_id, access_token_id, permissions, roles,
+//   issued_at, expires_at, last_activity, transport_scope, is_revoked
+static SessionRecord parse_session_row(sqlite3_stmt* stmt)
+{
+    using isched::v0_0_1::backend::SessionRecord;
+    auto text = [&](int col) -> std::string {
+        auto* p = sqlite3_column_text(stmt, col);
+        return p ? reinterpret_cast<const char*>(p) : "";
+    };
+    auto parse_json_array = [](const std::string& json_str) -> std::vector<std::string> {
+        std::vector<std::string> result;
+        try {
+            auto j = nlohmann::json::parse(json_str);
+            if (j.is_array()) {
+                for (const auto& v : j) {
+                    result.push_back(v.get<std::string>());
+                }
+            }
+        } catch (...) {}
+        return result;
+    };
+
+    SessionRecord rec;
+    rec.id               = text(0);
+    rec.user_id          = text(1);
+    rec.access_token_id  = text(2);
+    rec.permissions      = parse_json_array(text(3));
+    rec.roles            = parse_json_array(text(4));
+    rec.issued_at        = text(5);
+    rec.expires_at       = text(6);
+    rec.last_activity    = text(7);
+    rec.transport_scope  = text(8);
+    rec.is_revoked       = (sqlite3_column_int(stmt, 9) != 0);
+    return rec;
+}
+
+DatabaseResult<SessionRecord> DatabaseManager::get_session(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "SELECT id, user_id, access_token_id, permissions, roles,"
+        "       issued_at, expires_at, last_activity, transport_scope, is_revoked"
+        " FROM sessions WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        auto rec = parse_session_row(stmt);
+        sqlite3_finalize(stmt);
+        return rec;
+    }
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_DONE) { return DatabaseError::NotFound; }
+    return DatabaseError::QueryFailed;
+}
+
+DatabaseResult<void> DatabaseManager::update_session_activity(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "UPDATE sessions SET last_activity = datetime('now') WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { return DatabaseError::QueryFailed; }
+    if (sqlite3_changes(conn.get()) == 0) { return DatabaseError::NotFound; }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::revoke_session(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "UPDATE sessions SET is_revoked = 1 WHERE id = ? AND is_revoked = 0;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { return DatabaseError::QueryFailed; }
+    if (sqlite3_changes(conn.get()) == 0) { return DatabaseError::NotFound; }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::revoke_all_sessions_for_user(
+    const std::string& tenant_id,
+    const std::string& user_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "UPDATE sessions SET is_revoked = 1 WHERE user_id = ? AND is_revoked = 0;";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, user_id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { return DatabaseError::QueryFailed; }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::revoke_all_sessions_for_org(
+    const std::string& tenant_id,
+    const std::string& exclude_role)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // When exclude_role is non-empty, skip sessions whose roles JSON contains it.
+    // SQLite's json_each() is available; use instr() as a simpler fallback that
+    // avoids a dependency on the json1 extension.
+    std::string sql;
+    if (exclude_role.empty()) {
+        sql = "UPDATE sessions SET is_revoked = 1 WHERE is_revoked = 0;";
+    } else {
+        // Revoke rows where the roles JSON does NOT contain the excluded role string.
+        // Using instr() for portability; this is intentionally conservative.
+        sql = "UPDATE sessions SET is_revoked = 1"
+              " WHERE is_revoked = 0 AND instr(roles, ?) = 0;";
+    }
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    if (!exclude_role.empty()) {
+        sqlite3_bind_text(stmt, 1, exclude_role.c_str(), -1, SQLITE_TRANSIENT);
+    }
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) { return DatabaseError::QueryFailed; }
     return DatabaseResult<void>{};
 }
 
