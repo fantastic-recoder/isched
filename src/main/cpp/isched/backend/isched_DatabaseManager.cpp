@@ -1034,16 +1034,24 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
         return DatabaseResult<void>{};
     }
 
-    // Determine path: <DataHome>/isched/isched_system.db
-    const std::string system_db_dir  = getDataHome() + "/isched";
-    const std::string system_db_path = system_db_dir + "/isched_system.db";
+    // Determine path: <DataHome>/isched/isched_system.db (overridable via Config)
+    std::string system_db_path;
+    if (!config_.system_db_path.empty()) {
+        system_db_path = config_.system_db_path;
+    } else {
+        const std::string system_db_dir = getDataHome() + "/isched";
+        system_db_path = system_db_dir + "/isched_system.db";
+    }
 
-    // Ensure the directory exists
-    std::error_code ec;
-    std::filesystem::create_directories(system_db_dir, ec);
-    if (ec) {
-        spdlog::error("ensure_system_db: cannot create directory '{}': {}", system_db_dir, ec.message());
-        return DatabaseError::ConnectionFailed;
+    // Ensure the directory exists (skip for in-memory DBs)
+    if (system_db_path != ":memory:") {
+        const std::string system_db_dir = std::filesystem::path(system_db_path).parent_path().string();
+        std::error_code ec;
+        std::filesystem::create_directories(system_db_dir, ec);
+        if (ec) {
+            spdlog::error("ensure_system_db: cannot create directory '{}': {}", system_db_dir, ec.message());
+            return DatabaseError::ConnectionFailed;
+        }
     }
 
     // Open/create the SQLite file

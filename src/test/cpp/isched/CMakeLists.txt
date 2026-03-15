@@ -129,6 +129,20 @@ target_link_libraries(test_session_revocation PRIVATE isched Catch2::Catch2WithM
     taocpp::pegtl openssl::openssl)
 add_test(NAME test_session_revocation COMMAND test_session_revocation)
 
+# Phase 003: Admin UI static asset serving (T-UI-F-001)
+add_executable(test_admin_ui ../integration/test_admin_ui.cpp)
+target_link_libraries(test_admin_ui PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
+    Boost::url Boost::system)
+add_test(NAME test_admin_ui COMMAND test_admin_ui)
+
+# Phase 003: Seed-mode GraphQL resolvers (T-UI-F-002, T-UI-F-003, T-UI-F-004)
+add_executable(test_seed_mode ../integration/test_seed_mode.cpp)
+target_link_libraries(test_seed_mode PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl)
+add_test(NAME test_seed_mode COMMAND test_seed_mode)
+
 # T048: RestDataSource / CryptoUtils unit tests
 add_executable(isched_rest_datasource_tests isched_rest_datasource_tests.cpp)
 target_link_libraries(isched_rest_datasource_tests PRIVATE isched Catch2::Catch2WithMain

@@ -539,6 +539,9 @@ public:
      */
     struct Config {
         std::string base_path{getDataHome()+"/isched/tenants"};  ///< Base directory for tenant databases
+        /// Override path for the system DB (default: <DataHome>/isched/isched_system.db).
+        /// Set to a temp-file path or ":memory:" in tests for full isolation.
+        std::string system_db_path{};                      ///< Empty = use default derived from base_path
         std::size_t connection_pool_size{10};              ///< Connections per tenant pool
         std::chrono::milliseconds query_timeout{20};       ///< Query timeout for 20ms target
         bool enable_wal_mode{true};                        ///< Enable WAL mode for concurrency
