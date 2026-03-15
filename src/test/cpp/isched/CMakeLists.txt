@@ -150,3 +150,11 @@ target_link_libraries(isched_metrics_tests PRIVATE isched Catch2::Catch2WithMain
     taocpp::pegtl httplib::httplib openssl::openssl)
 add_test(NAME isched_metrics_tests COMMAND isched_metrics_tests)
 
+# T052: Performance Benchmark Suite
+add_executable(benchmark_suite ../performance/benchmark_suite.cpp)
+target_link_libraries(benchmark_suite PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl
+    Boost::url Boost::system Boost::thread)
+add_test(NAME benchmark_suite COMMAND benchmark_suite)
+
