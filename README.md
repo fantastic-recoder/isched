@@ -119,3 +119,82 @@ The target is configured automatically during CMake configure if `clang-tidy` is
 - [Python](https://www.python.org/)
 - [CLion](https://www.jetbrains.com/clion/)
 - [Dot Viewer](https://dreampuf.github.io/GraphvizOnline/?engine=dot)
+
+---
+
+## Comparable Benchmark
+
+`tools/comparable_benchmark/` is a TypeScript developer tool that benchmarks isched
+side-by-side against an equivalent Apollo Server 4 reference implementation and emits a
+Markdown results table.
+
+### Prerequisites
+
+| Tool | Minimum version |
+|------|----------------|
+| Node.js | 22 |
+| pnpm | 10 |
+| isched binary | built (via `python3 configure.py`) — binary at `cmake-build-debug/src/main/cpp/isched/isched_srv` |
+
+### Build isched
+
+```bash
+python3 configure.py
+```
+
+### Install Node dependencies (one-time)
+
+```bash
+pnpm install
+```
+
+### Run the full benchmark suite
+
+```bash
+pnpm run benchmark:compare
+```
+
+The harness:
+1. Starts the Apollo reference server on port 18100 (HTTP + WS).
+2. Starts the compiled isched binary on port 18092 (HTTP) / 18093 (WS).
+3. Runs four benchmark scenarios against each server.
+4. Writes JSON result files to `tools/comparable_benchmark/results/` (git-ignored).
+5. Overwrites `docs/comparable-benchmark-results.md` with a Markdown comparison table.
+6. Exits non-zero if isched is more than 10 % slower than Apollo on HTTP throughput scenarios.
+
+### Override the isched binary path
+
+```bash
+ISCHED_BINARY=cmake-build-debug/src/main/cpp/isched/isched_srv pnpm run benchmark:compare
+```
+
+### Validate setup without running benchmarks
+
+```bash
+pnpm run benchmark:compare -- --dry-run
+```
+
+Checks that the binary exists and all required ports (18100, 18092, 18093) are free, then exits 0.
+
+### Re-generate the report from existing JSON results
+
+```bash
+pnpm --filter comparable_benchmark run report
+```
+
+### Adjust the regression threshold
+
+```bash
+REGRESSION_THRESHOLD_PCT=20 pnpm run benchmark:compare
+```
+
+Default is `10` (%).  Set to `0` to make the threshold check purely informational.
+
+### Interpreting the output table
+
+| Column | Meaning |
+|--------|---------|
+| Apollo req/s | Requests per second for the Apollo reference server |
+| isched req/s | Requests per second for isched |
+| isched / Apollo ratio | Values > 1 mean isched is faster; < 1 means Apollo is faster |
+| p95 isched (ms) | 95th-percentile latency for isched HTTP (or WS fan-out elapsed ms) |

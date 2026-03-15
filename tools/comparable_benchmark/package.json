@@ -1,0 +1,28 @@
+{
+  "name": "comparable_benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark:compare": "tsx src/runner.ts",
+    "report": "tsx src/report.ts",
+    "start:apollo": "tsx src/apollo-server.ts"
+  },
+  "dependencies": {
+    "@apollo/server": "^4.11.0",
+    "autocannon": "^7.15.0",
+    "body-parser": "^1.20.0",
+    "express": "^4.19.0",
+    "graphql": "^16.8.0",
+    "graphql-subscriptions": "^2.0.0",
+    "graphql-ws": "^5.16.0",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -60,6 +60,13 @@ Thumbs.db
 /**/mydata.xls
 /src/docker/rest_hello_world
 
+# Benchmark result artifacts (re-generated on each run)
+tools/comparable_benchmark/results/*.json
+
+# Node.js
+node_modules/
+Testing/
+
 # SQLite databases (for development)
 *.db
 *.sqlite

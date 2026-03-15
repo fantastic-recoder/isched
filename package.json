@@ -1,0 +1,7 @@
+{
+  "name": "isched-root",
+  "private": true,
+  "scripts": {
+    "benchmark:compare": "pnpm -F comparable_benchmark run benchmark:compare"
+  }
+}
