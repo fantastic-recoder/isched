@@ -73,3 +73,6 @@ Testing/
 *.sqlite3
 /.output.txt
 nohup.out
+/cmake-build-profile/
+/cmake-build-release/
+/data/config_snapshots.sqlite3*
