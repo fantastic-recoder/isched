@@ -74,7 +74,7 @@ export async function generateReport(results?: BenchmarkResult[]): Promise<void>
     "### Notes",
     "",
     "- **hello throughput**: `autocannon` — 1 connection, 5 s, `POST /graphql` `{ hello }`",
-    "- **concurrent version**: `autocannon` — 100 connections, 1000 total requests, `{ version }`",
+    "- **concurrent version**: `autocannon` — 100 connections, 5 s sustained, `{ version }`",
     "- **p95 latency (version)**: 1000 sequential `fetch` calls, sorted, `timings[950]`",
     "- **WS healthChanged fan-out**: 50 simultaneous `graphql-transport-ws` subscribers,",
     "  wall-clock until all receive first `healthChanged` event",

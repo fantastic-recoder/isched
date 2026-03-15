@@ -52,7 +52,7 @@ export async function runThroughput(
   };
 }
 
-/** Run autocannon concurrent benchmark: 100 connections, 1000 total requests. */
+/** Run autocannon concurrent benchmark: 100 connections, 5 s sustained. */
 export async function runConcurrent(
   url: string,
   query: string,
@@ -61,13 +61,12 @@ export async function runConcurrent(
   scenario: string
 ): Promise<BenchmarkResult> {
   const body = GQL_BODY(query);
-  const start = Date.now();
   const result = await new Promise<autocannon.Result>((resolve, reject) => {
     const instance = autocannon(
       {
         url,
         connections: 100,
-        amount: 1000,
+        duration: 5,
         method: "POST",
         headers: GQL_HEADERS,
         body,
@@ -79,15 +78,14 @@ export async function runConcurrent(
     );
     autocannon.track(instance, { renderProgressBar: false });
   });
-  const durationMs = Date.now() - start;
 
   return {
     scenario,
     server,
     requests: result.requests.total,
     errors: result.errors,
-    durationMs,
-    reqPerSecond: durationMs > 0 ? (result.requests.total / durationMs) * 1000 : null,
+    durationMs: result.duration * 1000,
+    reqPerSecond: result.requests.average,
     p95Ms: null,
     fanOutMs: null,
     hardwareContext,
@@ -109,11 +107,20 @@ export async function runP95Sequential(
 
   for (let i = 0; i < iterations; i++) {
     const t0 = performance.now();
-    await fetch(url, {
-      method: "POST",
-      headers: GQL_HEADERS,
-      body,
-    });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 5_000);
+    try {
+      await fetch(url, {
+        method: "POST",
+        headers: GQL_HEADERS,
+        body,
+        signal: ac.signal,
+      });
+    } catch {
+      // timed-out or network error — record the elapsed time, continue
+    } finally {
+      clearTimeout(timer);
+    }
     timings.push(performance.now() - t0);
   }
 
