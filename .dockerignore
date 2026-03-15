@@ -1,0 +1,49 @@
+# Build directories
+cmake-build-debug/
+build/
+bin/
+obj/
+out/
+
+# Git and version control
+.git/
+.gitignore
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment files
+.env*
+*.env
+
+# Test outputs
+test-results/
+coverage/
+
+# Documentation
+docs/api/
+docs/build/
+doxygen/
+
+# C++ compiled files
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Conan cache and temp files
+.conan/
+conandata.yml
+conanbuild.sh
+conanrun.sh
+conaninfo.txt
+graph_info.json

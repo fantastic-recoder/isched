@@ -1,13 +1,15 @@
 [requires]
-taocpp-pegtl/3.2.6
+taocpp-pegtl/3.2.8
 catch2/3.4.0
-restbed/4.8
 spdlog/1.12.0
 nlohmann_json/3.11.3
 fmt/10.2.1
 cpp-httplib/0.18.3
-nextsilicon-cpp-subprocess/2.0.2
 openssl/3.5.0
+jwt-cpp/0.7.0
+sqlite3/3.44.0
+boost/1.84.0
+platformfolders/4.3.0
 
 [tool_requires]
 cmake/3.22.6
@@ -16,3 +18,6 @@ ninja/1.12.1
 [generators]
 CMakeDeps
 CMakeToolchain
+
+[options]
+boost/boost:header_only=False

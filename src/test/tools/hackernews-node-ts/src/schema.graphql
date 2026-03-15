@@ -1,3 +1,24 @@
+scalar DateTime
+
+type Author {
+  id: ID!
+  name: String!
+  bio: String
+  articles: [Article!]!
+}
+
+type Article {
+  id: ID!
+  title: String!
+  content: String!
+  publishedAt: DateTime!
+  author: Author!
+}
+
 type Query {
-    info: String!
+  info: String!
+  articles: [Article!]!
+  article(id: ID!): Article
+  authors: [Author!]!
+  author(id: ID!): Author
 }

@@ -1,0 +1,68 @@
+# Doxyfile for isched Universal Application Server Backend
+# Generated for C++23 implementation with source code inclusion
+
+# Project information
+PROJECT_NAME           = "isched Universal Application Server Backend"
+PROJECT_NUMBER         = "1.0.0"
+PROJECT_BRIEF          = "Universal Application Server Backend with C++23, GraphQL, and Multi-tenant Architecture"
+
+# Input configuration
+INPUT                  = src/main/cpp/isched/backend \
+                         src/main/cpp/isched/runtime \
+                         src/cli-python \
+                         src/cli-typescript \
+                         README.md
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp *.cpp *.c *.md
+
+# Output configuration
+OUTPUT_DIRECTORY       = docs/api
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+# Documentation extraction
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+
+# Source code inclusion
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = YES
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+# Diagrams and graphs
+HAVE_DOT               = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+CLASS_DIAGRAMS         = YES
+COLLABORATION_GRAPH    = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+
+# C++ specific settings
+OPTIMIZE_OUTPUT_FOR_C  = NO
+CPP_CLI_SUPPORT        = NO
+BUILTIN_STL_SUPPORT    = YES
+
+# Preprocessing
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = src/main/cpp
+
+# Warnings
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+
+# Advanced features
+GENERATE_TREEVIEW      = YES
+USE_MATHJAX            = YES
+SEARCHENGINE           = YES

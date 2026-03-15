@@ -1,15 +1,23 @@
-import { execute, parse } from "graphql";
+import { ApolloServer } from "@apollo/server";
+import { startStandaloneServer } from "@apollo/server/standalone";
 import { schema } from "./schema.js";
 
 async function main() {
-    const myQuery = parse(`query { info }`);
+  const server = new ApolloServer({ schema });
 
-    const result = await execute({
-        schema,
-        document: myQuery,
-    });
+  const { url } = await startStandaloneServer(server, {
+    listen: { port: Number(process.env.PORT) || 4000 },
+  });
 
-    console.log(result);
+  console.log(`🚀 Apollo GraphQL server ready at ${url}`);
+  console.log(`Try running a query like:`);
+  console.log(`{
+  info
+  articles { id title publishedAt author { id name } }
+}`);
 }
 
-main();
+main().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});

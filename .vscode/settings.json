@@ -1,0 +1,23 @@
+{
+    "chat.promptFilesRecommendations": {
+        "speckit.constitution": true,
+        "speckit.specify": true,
+        "speckit.plan": true,
+        "speckit.tasks": true,
+        "speckit.implement": true
+    },
+    "chat.tools.terminal.autoApprove": {
+        ".specify/scripts/bash/": true,
+        ".specify/scripts/powershell/": true,
+        "ninja": true,
+        "./cmake-build-debug/src/test/cpp/isched/isched_gql_executor_tests": true,
+        "/^python3 -c \"\nimport re\nwith open\\('/home/grobap/dev/isched/src/test/cpp/integration/test_user_management\\.cpp', 'r'\\) as f:\n    content = f\\.read\\(\\)\n\nold = '    auto db   = std::make_shared<DatabaseManager>\\(\\);\\\\n    auto exec = std::make_shared<GqlExecutor>\\(db\\);'\nnew = '    auto \\[db, exec\\] = make_executor\\(\\);'\ncount = content\\.count\\(old\\)\nprint\\(f'Found \\{count\\} occurrences'\\)\ncontent = content\\.replace\\(old, new\\)\nwith open\\('/home/grobap/dev/isched/src/test/cpp/integration/test_user_management\\.cpp', 'w'\\) as f:\n    f\\.write\\(content\\)\nprint\\('Done'\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python3 -c \"\nimport re\nwith open\\('/home/grobap/dev/isched/src/test/cpp/integration/test_user_management\\.cpp', 'r'\\) as f:\n    content = f\\.read\\(\\)\n\n# Replace: 'SomeName_' \\+ std::to_string\\(__LINE__\\) with 'SomeName_' \\+ g_run_suffix \\+ '_' \\+ std::to_string\\(__LINE__\\)\nold = '\\+ std::to_string\\(__LINE__\\)'\nnew = '\\+ g_run_suffix \\+ \\\\\"_\\\\\" \\+ std::to_string\\(__LINE__\\)'\ncount = content\\.count\\(old\\)\nprint\\(f'Found \\{count\\} occurrences of LINE suffix'\\)\ncontent = content\\.replace\\(old, new\\)\n\nwith open\\('/home/grobap/dev/isched/src/test/cpp/integration/test_user_management\\.cpp', 'w'\\) as f:\n    f\\.write\\(content\\)\nprint\\('Done'\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

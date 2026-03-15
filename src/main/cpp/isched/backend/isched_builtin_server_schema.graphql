@@ -1,0 +1,505 @@
+"""Environment properties and system information"""
+type Environment {
+  """System-level properties like OS and user info"""
+  systemProperties: SystemProperties
+  """Filtered list of allowed environment variables"""
+  environmentVariables: EnvironmentVariables
+}
+
+"""Basic operating system and environment details"""
+type SystemProperties {
+  os_name: String
+  user_name: String
+  user_home: String
+  file_separator: String
+  path_separator: String
+}
+
+"""Dictionary of safe-to-expose environment variables"""
+type EnvironmentVariables {
+  PATH: String
+  HOME: String
+  USER: String
+  LANG: String
+  TZ: String
+}
+
+"""Application information"""
+type AppInfo {
+  app: AppDetails
+  build: BuildDetails
+  git: GitDetails
+}
+
+"""General application details"""
+type AppDetails {
+  name: String
+  description: String
+  version: String
+  encoding: String
+}
+
+"""Application build details"""
+type BuildDetails {
+  version: String
+  artifact: String
+  name: String
+  time: String
+  group: String
+}
+
+"""Version control information"""
+type GitDetails {
+  branch: String
+  commit: GitCommit
+}
+
+"""Git commit details"""
+type GitCommit {
+  id: String
+  time: String
+}
+
+"""Configuration properties for the server and its subsystems"""
+type Configuration {
+  server: ServerConfig
+  database: DatabaseConfig
+  features: [String]
+  version: String
+  environment: String
+}
+
+"""Configuration for the network server"""
+type ServerConfig {
+  port: Int
+  host: String
+  maxConnections: Int
+  threadPoolSize: Int
+}
+
+"""Configuration for the database connection layer"""
+type DatabaseConfig {
+  type: String
+  connectionPoolSize: Int
+  enableWAL: Boolean
+}
+
+"""Input for applying a new configuration snapshot"""
+input ApplyConfigurationInput {
+  """Target tenant identifier"""
+  tenantId: String!
+  """GraphQL SDL schema fragment for tenant-defined types"""
+  schemaSdl: String!
+  """Human-readable name for this snapshot"""
+  displayName: String
+  """Version label (e.g., semver or date string)"""
+  version: String
+  """Optional resolver bindings activated with this snapshot (T048-007)"""
+  resolverBindings: [ResolverBindingInput]
+}
+
+"""Result of a configuration mutation"""
+type ConfigurationResult {
+  """Whether the operation succeeded"""
+  success: Boolean!
+  """Identifier of the affected or created snapshot"""
+  snapshotId: String
+  """List of error messages on failure"""
+  errors: [String!]
+}
+
+"""A persisted configuration snapshot for a tenant"""
+type SnapshotRecord {
+  """Unique snapshot identifier"""
+  id: String!
+  """Tenant this snapshot belongs to"""
+  tenantId: String!
+  """Version label"""
+  version: String!
+  """Human-readable name"""
+  displayName: String
+  """GraphQL SDL content"""
+  schemaSdl: String!
+  """Whether this snapshot is currently active"""
+  isActive: Boolean!
+  """ISO-8601 creation timestamp"""
+  createdAt: String!
+  """ISO-8601 activation timestamp (null if never activated)"""
+  activatedAt: String
+}
+
+"""Server runtime information"""
+type ServerInfo {
+  """Server version string"""
+  version: String
+  """Hostname or bind address"""
+  host: String
+  """HTTP listen port"""
+  port: Int
+  """Runtime status (RUNNING, STOPPED, etc.)"""
+  status: String
+  """Epoch milliseconds when the server started"""
+  startedAt: Int
+  """Number of active tenants"""
+  activeTenants: Int
+  """Number of active WebSocket sessions"""
+  activeWebSocketSessions: Int
+  """Active transport modes"""
+  transportModes: [String]
+}
+
+"""Root query type"""
+type Query {
+  """Simple greeting message"""
+  hello: String
+  """Server version"""
+  version: String
+  """Server uptime in seconds"""
+  uptime: Int
+  """Number of active clients"""
+  clientCount: Int
+  """Server health status"""
+  health: HealthStatus
+  """Runtime server information"""
+  serverInfo: ServerInfo
+  """Application information"""
+  info: AppInfo
+  """Server metrics (legacy – no auth required)"""
+  metrics: ServerMetrics
+  """Server-wide performance metrics (platform_admin only)"""
+  serverMetrics: ServerMetrics
+  """Per-tenant performance metrics (tenant_admin sees own; platform_admin sees any)"""
+  tenantMetrics(organizationId: ID): TenantMetrics
+  """Environment properties"""
+  env: Environment
+  """Configuration properties"""
+  configprops: Configuration
+  """Active configuration snapshot for a tenant"""
+  activeConfiguration(tenantId: String!): SnapshotRecord
+  """Full configuration history for a tenant"""
+  configurationHistory(tenantId: String!): [SnapshotRecord!]!
+  """Currently authenticated user (null if unauthenticated)"""
+  currentUser: User
+  """Look up a user by ID (tenant_admin or platform_admin only)"""
+  user(id: ID!): User
+  """List all users in the caller's organization (tenant_admin or platform_admin only)"""
+  users: [User!]!
+  """Look up an organization by ID"""
+  organization(id: ID!): Organization
+  """List organizations (platform_admin sees all; tenant_admin sees own org)"""
+  organizations: [Organization!]!
+  """List registered outbound-HTTP data sources for an organization (tenant_admin or platform_admin)"""
+  dataSources(organizationId: ID): [DataSource!]!
+}
+
+"""Root mutation type"""
+type Mutation {
+  """Echo a message back; useful for connectivity testing"""
+  echo(message: String): String
+  """Create a new configuration snapshot (does not activate it)"""
+  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationResult!
+  """Activate an existing snapshot by its ID"""
+  activateSnapshot(id: String!): ConfigurationResult!
+  """Roll back to the previous active snapshot for a tenant"""
+  rollbackConfiguration(tenantId: String!): ConfigurationResult!
+  """Authenticate and receive a signed JWT"""
+  login(email: String!, password: String!, organizationId: ID): AuthPayload!
+  """Revoke the caller's current session"""
+  logout: Boolean!
+  """Revoke a specific session by its ID (tenant_admin only)"""
+  revokeSession(sessionId: ID!): Boolean!
+  """Revoke all sessions for a user (tenant_admin only)"""
+  revokeAllSessions(userId: ID!): Boolean!
+  """Terminate all non-platform-admin sessions in an organization (platform_admin only)"""
+  terminateAllSessions(organizationId: ID!): Boolean!
+  """Create a new custom role (platform_admin for platform scope; tenant_admin for tenant scope)"""
+  createRole(input: CreateRoleInput!): Boolean!
+  """Delete a custom role by id (built-in roles cannot be deleted)"""
+  deleteRole(id: ID!): Boolean!
+  """Create a new organization and provision its tenant database (platform_admin only)"""
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  """Update an existing organization (tenant_admin of that org or platform_admin)"""
+  updateOrganization(id: ID!, input: UpdateOrganizationInput!): Organization!
+  """Delete an organization and deprovision its tenant database (tenant_admin self-delete or platform_admin)"""
+  deleteOrganization(id: ID!): Boolean!
+  """Create a new user in the organization's tenant database (tenant_admin or platform_admin)"""
+  createUser(organizationId: ID!, input: CreateUserInput!): User!
+  """Update an existing user (tenant_admin of own org or platform_admin)"""
+  updateUser(organizationId: ID!, id: ID!, input: UpdateUserInput!): User!
+  """Delete a user (tenant_admin or platform_admin)"""
+  deleteUser(organizationId: ID!, id: ID!): Boolean!
+  """Register a new outbound-HTTP data source (tenant_admin or platform_admin)"""
+  createDataSource(organizationId: ID!, input: CreateDataSourceInput!): DataSource!
+  """Update an existing data source (tenant_admin or platform_admin)"""
+  updateDataSource(organizationId: ID!, id: ID!, input: UpdateDataSourceInput!): DataSource!
+  """Delete a data source (tenant_admin or platform_admin)"""
+  deleteDataSource(organizationId: ID!, id: ID!): Boolean!
+  """Update advisory thread-pool and metrics configuration for an organization (platform_admin only)"""
+  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
+}
+
+"""Event payload when a configuration snapshot is activated"""
+type ConfigurationActivatedEvent {
+  """Tenant the activation belongs to"""
+  tenantId: String!
+  """ID of the snapshot that was activated"""
+  snapshotId: String!
+  """SDL of the activated schema"""
+  schemaSdl: String
+  """ISO-8601 timestamp of the activation"""
+  activatedAt: String!
+}
+
+"""Event payload when the server health status changes"""
+type HealthChangedEvent {
+  """Overall health status string"""
+  status: String!
+  """ISO-8601 timestamp of the check"""
+  timestamp: String!
+}
+
+"""Real-time GraphQL subscriptions (graphql-transport-ws protocol)"""
+type Subscription {
+  """Fires whenever a configuration snapshot is activated for a tenant"""
+  configurationActivated(tenantId: String!): ConfigurationActivatedEvent!
+  """Fires when the server health status changes; also delivers an initial snapshot"""
+  healthChanged: HealthChangedEvent!
+  """Fires with updated server-wide metrics at each interval boundary (platform_admin only)"""
+  serverMetricsUpdated: ServerMetrics
+  """Fires with updated tenant metrics at each interval boundary (tenant_admin or platform_admin)"""
+  tenantMetricsUpdated(organizationId: ID!): TenantMetrics
+}
+
+"""Health information for a specific system component"""
+type HealthComponent {
+  """The name of the component (e.g., 'database', 'memory')"""
+  name: String
+  """Component status (UP/DOWN)"""
+  status: String
+  """Additional technical details about the component health"""
+  details: HealthComponentDetails
+}
+
+"""Technical details for a health component"""
+type HealthComponentDetails {
+  """Database engine name (e.g., 'SQLite')"""
+  database: String
+  """Status of the connection pool"""
+  connectionPool: String
+  """Error message if the component is DOWN"""
+  error: String
+  """Memory usage statistics or availability"""
+  used: String
+  """Maximum memory allocated"""
+  max: String
+}
+
+"""Health status information"""
+type HealthStatus {
+  """Overall health status"""
+  status: String
+  """Individual component health"""
+  components: [HealthComponent]
+  """Health check timestamp"""
+  timestamp: String
+}
+
+"""Server-wide performance metrics (T051)"""
+type ServerMetrics {
+  """Requests handled in the current measurement interval"""
+  requestsInInterval: Int!
+  """Errors returned in the current measurement interval"""
+  errorsInInterval: Int!
+  """Total requests since server startup"""
+  totalRequestsSinceStartup: Int!
+  """Total errors since server startup"""
+  totalErrorsSinceStartup: Int!
+  """Currently open HTTP connections"""
+  activeConnections: Int!
+  """Currently active WebSocket subscriptions"""
+  activeSubscriptions: Int!
+  """Exponential moving average of response latency in ms"""
+  avgResponseTimeMs: Float!
+  """Number of active tenants"""
+  tenantCount: Int!
+}
+
+"""Per-tenant performance metrics (T051)"""
+type TenantMetrics {
+  """Organization this metrics snapshot belongs to"""
+  organizationId: ID!
+  """Requests handled in the current measurement interval"""
+  requestsInInterval: Int!
+  """Errors returned in the current measurement interval"""
+  errorsInInterval: Int!
+  """Total requests since server startup"""
+  totalRequestsSinceStartup: Int!
+  """Total errors since server startup"""
+  totalErrorsSinceStartup: Int!
+  """Exponential moving average of response latency in ms"""
+  avgResponseTimeMs: Float!
+}
+
+# ---------------------------------------------------------------------------
+# Phase 6 — RBAC and User/Org types (T047-000a)
+# ---------------------------------------------------------------------------
+
+"""An authenticated user within an organization"""
+type User {
+  """Unique user identifier"""
+  id: ID!
+  """User email address"""
+  email: String!
+  """Display name"""
+  displayName: String!
+  """Assigned roles"""
+  roles: [String!]!
+  """Whether the account is enabled"""
+  isActive: Boolean!
+  """ISO-8601 creation timestamp"""
+  createdAt: String!
+  """ISO-8601 timestamp of last login (null if never)"""
+  lastLogin: String
+}
+
+"""A tenant organization"""
+type Organization {
+  """Unique organization identifier"""
+  id: ID!
+  """Display name"""
+  name: String!
+  """Optional domain name"""
+  domain: String
+  """Subscription tier (e.g. 'free', 'pro')"""
+  subscriptionTier: String!
+  """Maximum number of users"""
+  userLimit: Int!
+  """Storage limit in bytes"""
+  storageLimit: Int!
+  """ISO-8601 creation timestamp"""
+  createdAt: String!
+}
+
+"""Returned by the login mutation"""
+type AuthPayload {
+  """Signed JWT to include in subsequent Authorization: Bearer headers"""
+  token: String!
+  """ISO-8601 expiry time of the token"""
+  expiresAt: String!
+}
+
+"""Input for creating a new user"""
+input CreateUserInput {
+  email: String!
+  password: String!
+  displayName: String
+  roles: [String!]
+}
+
+"""Input for updating an existing user"""
+input UpdateUserInput {
+  displayName: String
+  roles: [String!]
+  isActive: Boolean
+}
+
+"""Input for creating a new organization"""
+input CreateOrganizationInput {
+  name: String!
+  domain: String
+  subscriptionTier: String
+  userLimit: Int
+  storageLimit: Int
+}
+
+"""Input for updating an existing organization"""
+input UpdateOrganizationInput {
+  name: String
+  domain: String
+  subscriptionTier: String
+  userLimit: Int
+  storageLimit: Int
+}
+
+"""Represents a registered outbound-HTTP data source (T048)"""
+type DataSource {
+  id: ID!
+  name: String!
+  baseUrl: String!
+  """Authentication strategy: none | bearer_passthrough | api_key"""
+  authKind: String!
+  """Header name used when authKind is api_key (e.g. X-API-Key)"""
+  apiKeyHeader: String
+  """Request timeout in milliseconds"""
+  timeoutMs: Int!
+  createdAt: String!
+}
+
+"""Error returned by RestDataSource::fetch when the upstream responds with a non-2xx status or a connection error (T048-006)"""
+type HttpError {
+  statusCode: Int!
+  message: String!
+  url: String
+}
+
+"""Input for registering a new outbound-HTTP data source"""
+input CreateDataSourceInput {
+  name: String!
+  baseUrl: String!
+  """Authentication strategy: none | bearer_passthrough | api_key (default: none)"""
+  authKind: String
+  """Header name for api_key auth (e.g. X-API-Key)"""
+  apiKeyHeader: String
+  """Plain-text API key value (stored encrypted); omit when authKind != api_key"""
+  apiKeyValue: String
+  """Request timeout in milliseconds (default: 5000)"""
+  timeoutMs: Int
+}
+
+"""Input for updating an existing outbound-HTTP data source (all fields optional)"""
+input UpdateDataSourceInput {
+  name: String
+  baseUrl: String
+  authKind: String
+  apiKeyHeader: String
+  apiKeyValue: String
+  timeoutMs: Int
+}
+
+"""Describes one resolver binding: maps a GraphQL field name to an outbound data source (T048-007)"""
+input ResolverBindingInput {
+  """Name of the GraphQL field this binding covers"""
+  fieldName: String!
+  """Resolver strategy — currently only 'outbound_http' is supported"""
+  resolverKind: String!
+  """ID of the DataSource to use"""
+  dataSourceId: String!
+  """URL path to append to the data source base URL (default: /)"""
+  pathPattern: String
+  """HTTP method (default: GET)"""
+  httpMethod: String
+}
+
+"""Input for creating a new custom role"""
+input CreateRoleInput {
+  """Role identifier (e.g. 'role_billing_admin'); must be unique"""
+  id: String!
+  """Human-readable role name"""
+  name: String!
+  """Optional description"""
+  description: String
+  """Scope: 'platform' (requires platform_admin) or 'tenant' (requires tenant_admin)"""
+  scope: String!
+}
+
+"""Advisory thread-pool and metrics configuration for an organization (T050-001 / T051-003)"""
+type TenantConfig {
+  """Organization this configuration belongs to"""
+  organizationId: ID!
+  """Advisory minimum number of HTTP worker threads"""
+  minThreads: Int!
+  """Advisory maximum number of HTTP worker threads"""
+  maxThreads: Int!
+  """Metrics collection interval in minutes (default: 60)"""
+  metricsIntervalMinutes: Int!
+}

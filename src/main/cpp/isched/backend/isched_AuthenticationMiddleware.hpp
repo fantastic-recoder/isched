@@ -1,0 +1,322 @@
+// SPDX-License-Identifier: MPL-2.0
+/**
+ * @file isched_AuthenticationMiddleware.hpp
+ * @copyright Copyright (c) 2024-2026 isched contributors
+ * @see LICENSE.md — Mozilla Public License 2.0
+ * @brief Authentication middleware for JWT and OAuth support
+ * @author isched Development Team
+ * @version 1.0.0
+ * @date 2025-11-02
+ * 
+ * This file contains the authentication middleware for the Universal Application Server Backend.
+ * It provides JWT token validation, OAuth integration, session management, and per-tenant
+ * authentication isolation as required by the constitutional security-first principle.
+ * 
+ * @note All resource management uses smart pointers as required by FR-021.
+ * @see FR-002, FR-002-A, FR-017-A for authentication requirements
+ */
+
+#pragma once
+
+#include <memory>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <chrono>
+#include <optional>
+#include <mutex>
+#include <shared_mutex>
+#include <atomic>
+#include <vector>
+
+// Forward-declare DatabaseManager to avoid a circular include; source files
+// that call the DB-backed session API must include isched_DatabaseManager.hpp.
+namespace isched::v0_0_1::backend { class DatabaseManager; }
+
+namespace isched::v0_0_1::backend {
+
+/**
+ * @brief Built-in platform role name constants.
+ *
+ * Roles are represented as open strings in JWTs and resolver contexts
+ * so that operators can define custom roles without recompiling.  These
+ * constants cover the four built-in roles seeded in `isched_system.db`.
+ */
+namespace Role {
+    inline constexpr std::string_view PLATFORM_ADMIN = "role_platform_admin";
+    inline constexpr std::string_view TENANT_ADMIN   = "role_tenant_admin";
+    inline constexpr std::string_view USER           = "role_user";
+    inline constexpr std::string_view SERVICE        = "role_service";
+} // namespace Role
+
+/**
+ * @brief Authentication result containing user context and validation status
+ */
+struct AuthenticationResult {
+    bool is_authenticated = false;
+    std::string user_id;
+    std::string user_name;                    ///< Display name (from JWT @c name claim)
+    std::string tenant_id;
+    std::vector<std::string> permissions;
+    std::vector<std::string> roles;           ///< Role snapshot (from JWT @c roles claim)
+    std::string error_message;
+    std::chrono::system_clock::time_point expires_at;
+    std::string session_id;           ///< JWT @c jti claim; empty for legacy tokens without jti
+    
+    /// @brief Check if authentication is valid and not expired
+    bool is_valid() const noexcept {
+        return is_authenticated && 
+               std::chrono::system_clock::now() < expires_at;
+    }
+};
+
+/**
+ * @brief OAuth provider configuration
+ */
+struct OAuthConfig {
+    std::string client_id;
+    std::string client_secret;
+    std::string auth_url;
+    std::string token_url;
+    std::vector<std::string> scopes;
+};
+
+/**
+ * @brief Session information for authenticated users
+ */
+struct SessionInfo {
+    /// JWT token generated during login (populated by create_session overload
+    /// that writes to DB; empty for legacy in-memory sessions).
+    std::string token;
+    std::string session_id;
+    std::string user_id;
+    std::string tenant_id;
+    std::vector<std::string> permissions;
+    std::chrono::system_clock::time_point created_at;
+    std::chrono::system_clock::time_point expires_at;
+    std::chrono::system_clock::time_point last_activity;
+    
+    /// @brief Check if session is still valid
+    bool is_valid() const noexcept {
+        auto now = std::chrono::system_clock::now();
+        return now < expires_at;
+    }
+    
+    /// @brief Update last activity timestamp
+    void touch() noexcept {
+        last_activity = std::chrono::system_clock::now();
+    }
+};
+
+/**
+ * @brief Return value from the DB-backed create_session() (T049-002).
+ */
+struct LoginSession {
+    std::string token;       ///< Signed JWT token to hand back to the client
+    std::string session_id;  ///< DB sessions row PK (= JWT @c jti claim)
+    std::string expires_at;  ///< ISO-8601 UTC expiry
+};
+
+/**
+ * @brief Authentication middleware class providing JWT, OAuth, and session management
+ * 
+ * The AuthenticationMiddleware implements industry-standard authentication protocols
+ * with per-tenant isolation and smart pointer-based resource management.
+ * 
+ * Constitutional Compliance:
+ * - Security: Industry-standard JWT and OAuth protocols (FR-SEC-001)
+ * - Performance: In-memory session caching with shared store backup (FR-002-A)
+ * - Portability: Standard C++23 with cross-platform JWT library
+ * - C++ Core Guidelines: Smart pointer usage, const-correctness, RAII
+ */
+class AuthenticationMiddleware {
+public:
+    /**
+     * @brief Factory method to create AuthenticationMiddleware instance
+     * @return Smart pointer to AuthenticationMiddleware instance
+     */
+    static std::unique_ptr<AuthenticationMiddleware> create();
+    
+    /**
+     * @brief Virtual destructor for proper inheritance
+     */
+    virtual ~AuthenticationMiddleware() = default;
+    
+    // Non-copyable but movable
+    AuthenticationMiddleware(const AuthenticationMiddleware&) = delete;
+    AuthenticationMiddleware& operator=(const AuthenticationMiddleware&) = delete;
+    AuthenticationMiddleware(AuthenticationMiddleware&&) = default;
+    AuthenticationMiddleware& operator=(AuthenticationMiddleware&&) = default;
+    
+    /**
+     * @brief Configure JWT secret key for token validation
+     * @param secret_key Secret key for JWT signing and validation
+     */
+    virtual void configure_jwt_secret(const std::string& secret_key) = 0;
+    
+    /**
+     * @brief Add OAuth provider configuration
+     * @param provider_name Name of OAuth provider (e.g., "google", "github")
+     * @param config OAuth configuration parameters
+     */
+    virtual void add_oauth_provider(const std::string& provider_name, 
+                                  const OAuthConfig& config) = 0;
+    
+    /**
+     * @brief Validate authentication from request headers
+     * @param headers Request headers containing authorization information
+     * @param tenant_id Tenant context for authentication validation
+     * @return Authentication result with user context
+     */
+    virtual AuthenticationResult validate_request(
+        const std::unordered_map<std::string, std::string>& headers,
+        const std::string& tenant_id) = 0;
+    
+    /**
+     * @brief Generate JWT token for authenticated user.
+     * @param user_id User identifier (JWT @c sub)
+     * @param tenant_id Tenant context
+     * @param permissions User permissions array
+     * @param expires_in_minutes Token expiration duration in minutes
+     * @param jti Optional JWT ID; embedded as the @c jti claim and used as
+     *            the sessions-table PK for revocation lookups.  Pass an empty
+     *            string to skip the claim.
+     * @param user_name Optional display name embedded as @c name claim.
+     * @param roles Optional role-snapshot array embedded as @c roles claim.
+     * @return Signed JWT token string
+     */
+    virtual std::string generate_jwt_token(
+        const std::string& user_id,
+        const std::string& tenant_id,
+        const std::vector<std::string>& permissions,
+        int expires_in_minutes = 60,
+        const std::string& jti = "",
+        const std::string& user_name = "",
+        const std::vector<std::string>& roles = {}) = 0;
+    
+    /**
+     * @brief Create user session with in-memory caching (legacy, no DB).
+     * Kept for unit tests that do not have a DatabaseManager.
+     * @param user_id User identifier
+     * @param tenant_id Tenant context
+     * @param permissions User permissions
+     * @return Session information (token field is empty)
+     */
+    virtual SessionInfo create_session(
+        const std::string& user_id,
+        const std::string& tenant_id,
+        const std::vector<std::string>& permissions) = 0;
+
+    /**
+     * @brief Create a DB-backed session and issue a signed JWT (T049-002).
+     *
+     * Generates a session ID, builds and signs a JWT containing @p user_id,
+     * @p user_name, @p tenant_id, and a snapshot of @p roles; then persists the
+     * session row to the tenant's @c sessions table via @p db.  The generated
+     * JWT embeds the session ID as the @c jti claim so that @c validate_token()
+     * can look up revocation status in one DB query.
+     *
+     * The caller (@c login resolver, T047-016) must supply a DatabaseManager
+     * that already has the tenant initialised (i.e. the sessions table exists).
+     *
+     * @param db           Live DatabaseManager; must already have the tenant
+     *                     initialised (sessions table exists).
+     * @param user_id      User identifier (stored + embedded in JWT).
+     * @param user_name    Display name (embedded in JWT @c name claim).
+     * @param tenant_id    Tenant owning the session.
+     * @param roles        Role snapshot at login time (RISK-003).
+     * @param transport_scope  'http' | 'websocket' | 'any' (default 'any').
+     * @param expires_in_minutes  Token lifetime (default 480 = 8 h).
+     * @return @c LoginSession with signed token, session ID, and expiry string.
+     * @throws std::runtime_error if JWT secret is not configured.
+     */
+    virtual LoginSession create_session(
+        DatabaseManager& db,
+        const std::string& user_id,
+        const std::string& user_name,
+        const std::string& tenant_id,
+        const std::vector<std::string>& roles,
+        const std::string& transport_scope = "any",
+        int expires_in_minutes = 480) = 0;
+
+    /**
+     * @brief Validate a JWT and check DB revocation status (T049-002).
+     *
+     * Verifies the JWT signature and expiry (same as @c validate_request),
+     * then looks up the @c jti claim in the tenant's @c sessions table to
+     * confirm the session has not been revoked.  If lookup fails (e.g. the
+     * sessions table does not exist) the method falls back to JWT-only validation
+     * and logs a warning.
+     *
+     * @param db        DatabaseManager to query.
+     * @param token     Raw JWT string (without "Bearer " prefix).
+     * @param tenant_id Expected tenant; pass empty to skip tenant check.
+     * @return @c AuthenticationResult; @c is_authenticated is false when the
+     *         token is invalid, expired, or its session has been revoked.
+     */
+    virtual AuthenticationResult validate_token(
+        DatabaseManager& db,
+        const std::string& token,
+        const std::string& tenant_id) = 0;
+    
+    /**
+     * @brief Get session information by session ID
+     * @param session_id Session identifier
+     * @return Optional session information if found and valid
+     */
+    virtual std::optional<SessionInfo> get_session(
+        const std::string& session_id) = 0;
+    
+    /**
+     * @brief Invalidate user session
+     * @param session_id Session identifier to invalidate
+     */
+    virtual void invalidate_session(const std::string& session_id) = 0;
+    
+    /**
+     * @brief Get authentication metrics for monitoring
+     * @return JSON string with authentication statistics
+     */
+    virtual std::string get_metrics() const = 0;
+
+protected:
+    /**
+     * @brief Protected constructor for factory pattern
+     */
+    AuthenticationMiddleware() = default;
+};
+
+} // namespace isched::v0_0_1::backend
+
+// =============================================================================
+// T047-011: Argon2id password hashing helpers (OpenSSL 3.x EVP_KDF)
+// =============================================================================
+namespace isched::v0_0_1::backend {
+
+/**
+ * @brief Hash a plaintext password with Argon2id using OpenSSL 3.x EVP_KDF.
+ *
+ * A random 16-byte salt is generated internally.  The returned string is a
+ * self-contained encoding that includes algorithm parameters and the salt so
+ * that @c verify_password can operate without any external state:
+ * @code
+ *   argon2id:t=3:m=65536:p=1:<salt_hex>:<hash_hex>
+ * @endcode
+ *
+ * @param plaintext  UTF-8 password string, must not be empty.
+ * @return Opaque hash string suitable for storage in the @c password_hash column.
+ * @throws std::runtime_error if hashing fails (EVP_KDF not available or OOM).
+ */
+[[nodiscard]] std::string hash_password(const std::string& plaintext);
+
+/**
+ * @brief Verify a plaintext password against a stored Argon2id hash.
+ *
+ * @param plaintext  Password candidate.
+ * @param stored_hash  Value previously returned by @c hash_password.
+ * @return @c true if the password is correct, @c false otherwise.
+ */
+[[nodiscard]] bool verify_password(const std::string& plaintext,
+                                   const std::string& stored_hash);
+
+} // namespace isched::v0_0_1::backend

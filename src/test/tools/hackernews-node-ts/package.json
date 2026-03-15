@@ -19,6 +19,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@apollo/server": "^4.11.1",
     "@graphql-tools/schema": "^10.0.25",
     "graphql": "^16.11.0",
     "graphql-import-node": "^0.0.5",
