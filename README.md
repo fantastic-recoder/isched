@@ -164,9 +164,24 @@ The harness:
 
 ### Override the isched binary path
 
+The default binary is the Release build (`cmake-build-release/src/main/cpp/isched/isched_srv`).
+Use the `ISCHED_BINARY` env var to point at a different binary:
+
 ```bash
+# Debug build
 ISCHED_BINARY=cmake-build-debug/src/main/cpp/isched/isched_srv pnpm run benchmark:compare
 ```
+
+### Tune isched thread pool
+
+```bash
+ISCHED_MIN_THREADS=32 ISCHED_MAX_THREADS=64 pnpm run benchmark:compare
+```
+
+`ISCHED_MIN_THREADS` (default: 4) and `ISCHED_MAX_THREADS` (default: 100) control the bounds of
+the `AdaptiveTaskQueue` that backs the HTTP thread pool.  The effective throughput ceiling for
+HTTP scenarios is approximately `min_threads × (1000 / per_request_ms)` req/s; increasing these
+values improves concurrent-connection throughput up to that ceiling.
 
 ### Validate setup without running benchmarks
 

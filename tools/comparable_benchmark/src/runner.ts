@@ -134,12 +134,14 @@ async function isPortFree(port: number): Promise<boolean> {
 // Hardware context
 // ---------------------------------------------------------------------------
 
-function getHardwareContext(): HardwareContext {
+function getHardwareContext(ischedBinary: string): HardwareContext {
+  const lowerPath = ischedBinary.toLowerCase();
+  const buildType = lowerPath.includes("release") ? "Release" : "Debug";
   return {
     os: type(),
     cpuCount: cpus().length,
     nodeVersion: process.version,
-    buildType: "Debug",
+    buildType,
   };
 }
 
@@ -152,7 +154,7 @@ async function main(): Promise<void> {
 
   const ischedBinary = resolve(
     REPO_ROOT,
-    process.env["ISCHED_BINARY"] ?? "cmake-build-debug/src/main/cpp/isched/isched_srv"
+    process.env["ISCHED_BINARY"] ?? "cmake-build-release/src/main/cpp/isched/isched_srv"
   );
 
   if (isDryRun) {
@@ -187,7 +189,7 @@ async function main(): Promise<void> {
 
   await mkdir(RESULTS_DIR, { recursive: true });
 
-  const hw = getHardwareContext();
+  const hw = getHardwareContext(ischedBinary);
   const apolloSrcPath = resolve(__dirname, "apollo-server.js");
   const apolloTsPath = resolve(__dirname, "apollo-server.ts");
 
@@ -200,14 +202,18 @@ async function main(): Promise<void> {
   });
 
   // Start isched server
+  const ischedEnv: NodeJS.ProcessEnv = {
+    ISCHED_SERVER_PORT: "18092",
+    ISCHED_SERVER_HOST: "127.0.0.1",
+    SPDLOG_LEVEL: process.env["SPDLOG_LEVEL"] ?? "warn",
+  };
+  if (process.env["ISCHED_MIN_THREADS"]) ischedEnv["ISCHED_MIN_THREADS"] = process.env["ISCHED_MIN_THREADS"];
+  if (process.env["ISCHED_MAX_THREADS"]) ischedEnv["ISCHED_MAX_THREADS"] = process.env["ISCHED_MAX_THREADS"];
+
   const ischedProc = spawnServer({
     binary: ischedBinary,
     args: [],
-    env: {
-      ISCHED_SERVER_PORT: "18092",
-      ISCHED_SERVER_HOST: "127.0.0.1",
-      SPDLOG_LEVEL: "warn",
-    },
+    env: ischedEnv,
     label: "isched",
   });
 
