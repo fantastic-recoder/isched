@@ -24,6 +24,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <stdexcept>
 #include <string>
 #include <memory>
@@ -409,6 +410,37 @@ namespace isched::v0_0_1::backend {
         using TTime = std::chrono::time_point<std::chrono::system_clock>;
 
         TTime m_start_time = std::chrono::system_clock::now();
+
+        // ------------------------------------------------------------------
+        // Query-parse cache: avoids re-parsing identical queries on each
+        // request.  The parsed PEGTL AST holds const-char* iterators into
+        // the string_input buffer, so both must be kept alive together.
+        // ------------------------------------------------------------------
+
+        /// FNV-1a–style transparent hash so string_view lookups don't
+        /// allocate a std::string key.
+        struct TransparentStringHash {
+            using is_transparent = void;
+            std::size_t operator()(std::string_view sv) const noexcept {
+                return std::hash<std::string_view>{}(sv);
+            }
+        };
+
+        struct CachedParse {
+            /// Owns the query text (PEGTL nodes hold char* into this buffer).
+            std::unique_ptr<tao::pegtl::string_input<>> input;
+            /// Parse tree produced from the query above.
+            gql::TAstNodePtr root;
+        };
+
+        static constexpr std::size_t k_query_cache_max = 512;
+
+        mutable std::shared_mutex m_query_cache_mutex;
+        mutable std::unordered_map<
+            std::string,
+            std::shared_ptr<CachedParse>,
+            TransparentStringHash,
+            std::equal_to<>>  m_query_cache;
 
         void update_type_map_recursive(const gql::TAstNodePtr &p_typedef, TAstNodeMap &p_type_map, TAstNodeMap &p_directives);
 

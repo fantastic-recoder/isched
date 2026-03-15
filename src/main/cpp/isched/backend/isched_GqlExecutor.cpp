@@ -257,22 +257,23 @@ static json build_field_json(const TAstNodePtr& node, const TAstNodeMap& type_ma
 }
 
 /// Collect all FieldDefinition descendants of a type node.
-static json collect_fields(const TAstNodePtr& type_node, const TAstNodeMap& type_map) {
-    json fields = json::array();
-    std::function<void(const TAstNodePtr&)> walk = [&](const TAstNodePtr& n) {
-        if (!n) return;
-        if (n->type.ends_with("FieldDefinition")) {
-            fields.push_back(build_field_json(n, type_map));
-            return; // don't recurse inside a FieldDefinition
-        }
-        for (const auto& c : n->children) walk(c);
-    };
+static void collect_fields_walk(const TAstNodePtr& n, nlohmann::json& fields, const TAstNodeMap& type_map) {
+    if (!n) return;
+    if (n->type.ends_with("FieldDefinition")) {
+        fields.push_back(build_field_json(n, type_map));
+        return; // don't recurse inside a FieldDefinition
+    }
+    for (const auto& c : n->children) collect_fields_walk(c, fields, type_map);
+}
+
+static nlohmann::json collect_fields(const TAstNodePtr& type_node, const TAstNodeMap& type_map) {
+    nlohmann::json fields = nlohmann::json::array();
     // Walk only the type-specific sub-node (not the TypeDefinition wrapper)
     // to avoid picking up nested type definitions' fields.
     if (type_node->type.ends_with("gql::TypeDefinition")) {
-        for (const auto& c : type_node->children) walk(c);
+        for (const auto& c : type_node->children) collect_fields_walk(c, fields, type_map);
     } else {
-        walk(type_node);
+        collect_fields_walk(type_node, fields, type_map);
     }
     return fields;
 }
@@ -294,29 +295,31 @@ static std::string base_type_name(const TAstNodePtr& node) {
 
 /// Get the declared field return-type base name from the type node.
 /// Walks FieldDefinition children looking for a field whose Name matches.
+static void field_return_type_walk(const TAstNodePtr& n, const std::string& field_name,
+                                    std::string& result) {
+    if (!n || !result.empty()) return;
+    if (n->type.ends_with("FieldDefinition")) {
+        // Find the field's name
+        std::string fname;
+        const TAstNodePtr* type_ptr = nullptr;
+        for (const auto& c : n->children) {
+            if (c->type.ends_with("gql::Name") && c->has_content() && fname.empty())
+                fname = std::string(c->string_view());
+            if (c->type.ends_with("gql::Type") || c->type.ends_with("NamedType") ||
+                c->type.ends_with("NonNullType") || c->type.ends_with("ListType"))
+                type_ptr = &c;
+        }
+        if (fname == field_name && type_ptr)
+            result = base_type_name(*type_ptr);
+        return; // don't recurse into FieldDefinition
+    }
+    for (const auto& c : n->children) field_return_type_walk(c, field_name, result);
+}
+
 static std::string field_return_type(const TAstNodePtr& type_node,
                                       const std::string& field_name) {
     std::string result;
-    std::function<void(const TAstNodePtr&)> walk = [&](const TAstNodePtr& n) {
-        if (!n || !result.empty()) return;
-        if (n->type.ends_with("FieldDefinition")) {
-            // Find the field's name
-            std::string fname;
-            const TAstNodePtr* type_ptr = nullptr;
-            for (const auto& c : n->children) {
-                if (c->type.ends_with("gql::Name") && c->has_content() && fname.empty())
-                    fname = std::string(c->string_view());
-                if (c->type.ends_with("gql::Type") || c->type.ends_with("NamedType") ||
-                    c->type.ends_with("NonNullType") || c->type.ends_with("ListType"))
-                    type_ptr = &c;
-            }
-            if (fname == field_name && type_ptr)
-                result = base_type_name(*type_ptr);
-            return; // don't recurse into FieldDefinition
-        }
-        for (const auto& c : n->children) walk(c);
-    };
-    walk(type_node);
+    field_return_type_walk(type_node, field_name, result);
     return result;
 }
 
@@ -444,22 +447,24 @@ static QueryAnalysis analyse_query_complexity(const isched::v0_0_1::gql::TAstNod
     QueryAnalysis result{};
     if (!root) return result;
 
-    std::function<void(const isched::v0_0_1::gql::TAstNodePtr&, uint32_t)> walk =
-        [&](const isched::v0_0_1::gql::TAstNodePtr& node, uint32_t cur_depth) {
+    // Plain recursive functor: no std::function overhead, no lambda captures.
+    struct Walker {
+        QueryAnalysis& r;
+        void operator()(const isched::v0_0_1::gql::TAstNodePtr& node,
+                        uint32_t cur_depth) const {
             if (!node) return;
             const auto& t = node->type;
-            if (t.ends_with("gql::Field")) {
-                ++result.complexity;
-            }
+            if (t.ends_with("gql::Field")) ++r.complexity;
             if (t.ends_with("gql::SelectionSet")) {
                 const uint32_t next = cur_depth + 1;
-                if (next > result.depth) result.depth = next;
-                for (const auto& child : node->children) walk(child, next);
+                if (next > r.depth) r.depth = next;
+                for (const auto& child : node->children) (*this)(child, next);
                 return;
             }
-            for (const auto& child : node->children) walk(child, cur_depth);
-        };
-    walk(root, 0);
+            for (const auto& child : node->children) (*this)(child, cur_depth);
+        }
+    };
+    Walker{result}(root, 0);
     return result;
 }
 
@@ -2718,70 +2723,104 @@ namespace isched::v0_0_1::backend {
             });
             return my_result;
         }
-        // Set up the states, here a single std::string as that is
-        // what our action requires as an additional function argument.
-        tao::pegtl::string_input in(std::string(p_query), aName);
-        try {
-            auto myRetVal = gql::generate_ast_and_log<gql::Document>(in, aName, false, p_print_dot);
-            auto aRoot = std::get<1>(std::move(myRetVal));
-            const bool aParsingOk = std::get<0>(myRetVal);
-            if (!aParsingOk) {
+
+        // ------------------------------------------------------------------
+        // Query-parse cache: look up the pre-parsed AST for this query text.
+        // ------------------------------------------------------------------
+        std::shared_ptr<CachedParse> exec_entry;
+        {
+            std::shared_lock lock(m_query_cache_mutex);
+            if (const auto it = m_query_cache.find(p_query); it != m_query_cache.end()) {
+                exec_entry = it->second;   // copy shared_ptr; release lock immediately
+            }
+        }
+
+        if (!exec_entry) {
+            // Cache miss: allocate a stable CachedParse so the PEGTL nodes'
+            // char* iterators into the string_input buffer remain valid.
+            auto new_entry = std::make_shared<CachedParse>();
+            new_entry->input = std::make_unique<tao::pegtl::string_input<>>(
+                std::string(p_query), aName);
+            try {
+                auto [ok, root] = gql::generate_ast_and_log<gql::Document>(
+                    *new_entry->input, aName, false, p_print_dot);
+                if (!ok) {
+                    my_result.errors.push_back(gql::Error{
+                        .code=gql::EErrorCodes::PARSE_ERROR,
+                        .message="Failed to parse schema document"
+                    });
+                    return my_result;
+                }
+                new_entry->root = std::move(root);
+            } catch (const tao::pegtl::parse_error& e) {
+                log_parse_error_exception(*new_entry->input, my_result, e);
+                return my_result;
+            }
+
+            // Insert under exclusive lock (double-check in case a concurrent
+            // thread parsed the same query between our lookup and now).
+            {
+                std::unique_lock lock(m_query_cache_mutex);
+                if (!m_query_cache.contains(p_query)) {
+                    if (m_query_cache.size() >= k_query_cache_max) {
+                        m_query_cache.erase(m_query_cache.begin());
+                    }
+                    m_query_cache.emplace(std::string(p_query), new_entry);
+                }
+            }
+            exec_entry = std::move(new_entry);
+        }
+
+        // Execute from the (possibly cached) parse tree.
+        const auto& aRoot = exec_entry->root;
+        if (!aRoot || aRoot->children.empty()) {
+            my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Empty document"});
+            return my_result;
+        }
+        const auto &myDoc = aRoot->children[0];
+        if (!myDoc || myDoc->type != "isched::v0_0_1::gql::Document") {
+            my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Expected with a document"});
+            return my_result;
+        }
+        if (myDoc->children.empty()) {
+            my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Empty document"});
+            return my_result;
+        }
+
+        // T041: query complexity and depth enforcement
+        if (m_config.max_depth > 0 || m_config.max_complexity > 0) {
+            const auto qa = analyse_query_complexity(aRoot);
+            if (m_config.max_depth > 0 && qa.depth > m_config.max_depth) {
                 my_result.errors.push_back(gql::Error{
-                    .code=gql::EErrorCodes::PARSE_ERROR,.message="Failed to parse schema document"
+                    .code    = gql::EErrorCodes::ARGUMENT_ERROR,
+                    .message = std::format(
+                        "Query depth {} exceeds maximum allowed depth {}",
+                        qa.depth, m_config.max_depth)
                 });
                 return my_result;
             }
-            if (!aRoot || aRoot->children.empty()) {
-                my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Empty document"});
+            if (m_config.max_complexity > 0 && qa.complexity > m_config.max_complexity) {
+                my_result.errors.push_back(gql::Error{
+                    .code    = gql::EErrorCodes::ARGUMENT_ERROR,
+                    .message = std::format(
+                        "Query complexity {} exceeds maximum allowed complexity {}",
+                        qa.complexity, m_config.max_complexity)
+                });
                 return my_result;
             }
-            const auto &myDoc = aRoot->children[0];
-            if (!myDoc || myDoc->type != "isched::v0_0_1::gql::Document") {
-                my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Expected with a document"});
-                return my_result;
-            }
-            if (myDoc->children.empty()) {
-                my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Empty document"});
-                return my_result;
-            }
+        }
 
-            // T041: query complexity and depth enforcement
-            if (m_config.max_depth > 0 || m_config.max_complexity > 0) {
-                const auto qa = analyse_query_complexity(aRoot);
-                if (m_config.max_depth > 0 && qa.depth > m_config.max_depth) {
-                    my_result.errors.push_back(gql::Error{
-                        .code    = gql::EErrorCodes::ARGUMENT_ERROR,
-                        .message = std::format(
-                            "Query depth {} exceeds maximum allowed depth {}",
-                            qa.depth, m_config.max_depth)
-                    });
-                    return my_result;
-                }
-                if (m_config.max_complexity > 0 && qa.complexity > m_config.max_complexity) {
-                    my_result.errors.push_back(gql::Error{
-                        .code    = gql::EErrorCodes::ARGUMENT_ERROR,
-                        .message = std::format(
-                            "Query complexity {} exceeds maximum allowed complexity {}",
-                            qa.complexity, m_config.max_complexity)
-                    });
-                    return my_result;
-                }
+        for (const auto &myChild: myDoc->children) {
+            if (myChild->type != "isched::v0_0_1::gql::ExecutableDefinition") {
+                my_result.errors.push_back(gql::Error{
+                    .code=gql::EErrorCodes::PARSE_ERROR,
+                    .message=std::format("Expected with an executable definition, got {}.", myChild->type)
+                });
+                return my_result;
             }
-
-            for (const auto &myChild: myDoc->children) {
-                if (myChild->type != "isched::v0_0_1::gql::ExecutableDefinition") {
-                    my_result.errors.push_back(gql::Error{
-                        .code=gql::EErrorCodes::PARSE_ERROR,
-                        .message=std::format("Expected with an executable definition, got {}.", myChild->type)
-                    });
-                    return my_result;
-                }
-                for (const auto &myOperation: myChild->children) {
-                    process_operation_definitions(json::object(),myOperation, my_result.data, my_result.errors);
-                }
+            for (const auto &myOperation: myChild->children) {
+                process_operation_definitions(json::object(),myOperation, my_result.data, my_result.errors);
             }
-        } catch (const tao::pegtl::parse_error &e) {
-            log_parse_error_exception(in, my_result, e);
         }
         return my_result;
     }
