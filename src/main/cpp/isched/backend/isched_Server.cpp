@@ -3,14 +3,17 @@
  * @file isched_Server.cpp
  * @copyright Copyright (c) 2024-2026 isched contributors
  * @see LICENSE.md — Mozilla Public License 2.0
- * @brief Implementation of the Server class using cpp-httplib for HTTP transport
- *        and Boost.Beast for WebSocket (graphql-transport-ws) transport.
+ * @brief Implementation of the Server class using Boost.Beast async I/O for
+ *        both HTTP (POST /graphql) and WebSocket (graphql-transport-ws) transport.
+ *
+ *        A single Boost.Asio io_context is shared by the HTTP acceptor and the
+ *        WebSocket acceptor.  A pool of min_threads..max_threads std::threads all
+ *        call io_context::run(), work-stealing completion handlers between them.
+ *        Each HTTP connection is served by an async Beast HttpSession that loops
+ *        over keep-alive requests without tying up a thread between requests.
  */
 
 #include "isched_Server.hpp"
-
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "httplib.h"
 
 #include "isched_DatabaseManager.hpp"
 #include "isched_GqlExecutor.hpp"
@@ -19,7 +22,9 @@
 #include "isched_MetricsCollector.hpp"
 
 #include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
 #include <boost/beast/websocket.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
@@ -28,8 +33,8 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
-#include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
@@ -459,105 +464,196 @@ private:
 } // namespace isched::v0_0_1::backend
 
 // ---------------------------------------------------------------------------
-// T050-003: AdaptiveTaskQueue — growable httplib::TaskQueue
+// HttpSession — handles one HTTP connection with keep-alive support.
 //
-// Wraps a simple mutex+condvar job queue backed by a resizable thread vector.
-// Threads are added via grow_to(); there is no scale-down (the system-wide max
-// from Server::Configuration bounds growth).  The internal deque provides
-// automatically-bounded request queuing when all threads are busy (T050-004).
+// Reads a Beast HTTP request, routes POST /graphql to the GraphQL executor,
+// writes the response, then loops back for the next request (keep-alive).
+// The session runs entirely on the shared io_context work-stealing pool —
+// no thread is ever blocked waiting for I/O.
 // ---------------------------------------------------------------------------
-namespace {
-
-class AdaptiveTaskQueue final : public httplib::TaskQueue {
-public:
-    AdaptiveTaskQueue(std::size_t initial_size, std::size_t max_size)
-        : m_max_size(std::max(std::size_t{1}, max_size))
-    {
-        grow_to(std::max(std::size_t{1}, initial_size));
-    }
-
-    ~AdaptiveTaskQueue() override { shutdown(); }
-
-    // Not copyable or movable.
-    AdaptiveTaskQueue(const AdaptiveTaskQueue&) = delete;
-    AdaptiveTaskQueue& operator=(const AdaptiveTaskQueue&) = delete;
-
-    bool enqueue(std::function<void()> fn) override {
-        {
-            std::unique_lock<std::mutex> lk(m_mutex);
-            if (m_shutdown) return false;
-            m_queue.push_back(std::move(fn));
-        }
-        m_cv.notify_one();
-        return true;
-    }
-
-    void shutdown() override {
-        {
-            std::unique_lock<std::mutex> lk(m_mutex);
-            if (m_shutdown) return;
-            m_shutdown = true;
-        }
-        m_cv.notify_all();
-        for (auto& t : m_threads) {
-            if (t.joinable()) t.join();
-        }
-        m_threads.clear();
-    }
-
-    /// Grow the pool to @p n threads (no-op if already >= n; capped at max_size).
-    void grow_to(std::size_t n) {
-        std::unique_lock<std::mutex> lk(m_mutex);
-        if (m_shutdown) return;
-        n = std::min(n, m_max_size);
-        while (m_threads.size() < n) {
-            m_threads.emplace_back([this]() {
-                for (;;) {
-                    std::function<void()> fn;
-                    {
-                        std::unique_lock<std::mutex> lk2(m_mutex);
-                        m_cv.wait(lk2, [this] {
-                            return !m_queue.empty() || m_shutdown;
-                        });
-                        if (m_shutdown && m_queue.empty()) break;
-                        fn = std::move(m_queue.front());
-                        m_queue.pop_front();
-                    }
-                    try { fn(); } catch (...) {}
-                }
-            });
-        }
-    }
-
-    std::size_t thread_count() const {
-        std::unique_lock<std::mutex> lk(m_mutex);
-        return m_threads.size();
-    }
-
-    std::size_t queued_count() const {
-        std::unique_lock<std::mutex> lk(m_mutex);
-        return m_queue.size();
-    }
-
-    std::size_t max_size() const noexcept { return m_max_size; }
-
-private:
-    const std::size_t m_max_size;
-    bool m_shutdown{false};
-    mutable std::mutex m_mutex;
-    std::condition_variable m_cv;
-    std::deque<std::function<void()>> m_queue;
-    std::vector<std::thread> m_threads;
-};
-
-} // anonymous namespace
-
 namespace isched::v0_0_1::backend {
 
+class HttpSession : public std::enable_shared_from_this<HttpSession> {
+public:
+    using ExecuteFn = std::function<std::string(const std::string&,
+                                                const std::string&,
+                                                const std::string&)>;
+    using MetricFn   = std::function<void(double /*ms*/)>;
+
+    HttpSession(tcp::socket socket, net::io_context& ioc,
+                ExecuteFn execute_fn, MetricFn metric_fn)
+        : strand_(net::make_strand(ioc))
+        , stream_(std::move(socket))
+        , execute_fn_(std::move(execute_fn))
+        , metric_fn_(std::move(metric_fn))
+    {}
+
+    void run() {
+        net::dispatch(strand_, [self = shared_from_this()]() { self->do_read(); });
+    }
+
+private:
+    void do_read() {
+        req_ = {};
+        stream_.expires_after(std::chrono::seconds(30));
+        beast::http::async_read(stream_, buf_, req_,
+            net::bind_executor(strand_,
+                [self = shared_from_this()](beast::error_code ec, std::size_t) {
+                    self->on_read(ec);
+                }));
+    }
+
+    void on_read(beast::error_code ec) {
+        if (ec == beast::http::error::end_of_stream) {
+            beast::error_code ignored;
+            stream_.socket().shutdown(tcp::socket::shutdown_send, ignored);
+            return;
+        }
+        if (ec) return;
+        handle_request();
+    }
+
+    void handle_request() {
+        const auto started_at = std::chrono::steady_clock::now();
+
+        beast::http::response<beast::http::string_body> res{
+            beast::http::status::ok, req_.version()};
+        res.set(beast::http::field::server, "isched/1.0");
+        res.set(beast::http::field::content_type, "application/json");
+        res.set(beast::http::field::access_control_allow_origin, "*");
+        res.keep_alive(req_.keep_alive());
+
+        if (req_.method() == beast::http::verb::options) {
+            // CORS preflight
+            res.result(beast::http::status::no_content);
+            res.set(beast::http::field::access_control_allow_methods, "POST, OPTIONS");
+            res.set(beast::http::field::access_control_allow_headers,
+                    "Content-Type, Authorization");
+            res.body() = "";
+        } else if (req_.method() == beast::http::verb::post &&
+                   req_.target() == "/graphql") {
+            auto body = nlohmann::json::parse(req_.body(), nullptr, /*exceptions=*/false);
+            if (body.is_discarded()) {
+                res.result(beast::http::status::bad_request);
+                res.body() = R"({"errors":[{"message":"Request body must be valid JSON"}]})";
+            } else {
+                std::string query;
+                std::string variables_json = "{}";
+                if (body.contains("query") && body["query"].is_string())
+                    query = body["query"].get<std::string>();
+                if (body.contains("variables") && !body["variables"].is_null())
+                    variables_json = body["variables"].dump();
+                if (query.empty()) {
+                    res.result(beast::http::status::bad_request);
+                    res.body() = R"({"errors":[{"message":"Missing or empty 'query' field"}]})";
+                } else {
+                    const std::string auth_hdr =
+                        std::string(req_[beast::http::field::authorization]);
+                    res.body() = execute_fn_(query, variables_json, auth_hdr);
+                }
+            }
+        } else {
+            res.result(beast::http::status::not_found);
+            res.body() = R"({"errors":[{"message":"Not found. Use POST /graphql"}]})";
+        }
+
+        const double elapsed_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - started_at).count();
+        metric_fn_(elapsed_ms);
+
+        res.prepare_payload();
+        do_write(std::move(res));
+    }
+
+    void do_write(beast::http::response<beast::http::string_body> res) {
+        const bool close = !res.keep_alive();
+        // Keep the response alive for the async write via shared_ptr
+        auto sp = std::make_shared<beast::http::response<beast::http::string_body>>(
+            std::move(res));
+        beast::http::async_write(stream_, *sp,
+            net::bind_executor(strand_,
+                [self = shared_from_this(), sp, close]
+                (beast::error_code ec, std::size_t) {
+                    self->on_write(ec, close);
+                }));
+    }
+
+    void on_write(beast::error_code ec, bool close) {
+        if (ec || close) {
+            beast::error_code ignored;
+            stream_.socket().shutdown(tcp::socket::shutdown_send, ignored);
+            return;
+        }
+        do_read(); // keep-alive: read the next request on this connection
+    }
+
+    net::strand<net::io_context::executor_type>        strand_;
+    beast::tcp_stream                                  stream_;
+    beast::flat_buffer                                 buf_;
+    beast::http::request<beast::http::string_body>     req_;
+    ExecuteFn                                          execute_fn_;
+    MetricFn                                           metric_fn_;
+};
+
+// ---------------------------------------------------------------------------
+// HttpListener — accepts TCP connections and spawns HttpSessions.
+// ---------------------------------------------------------------------------
+class HttpListener : public std::enable_shared_from_this<HttpListener> {
+public:
+    HttpListener(net::io_context& ioc, tcp::endpoint endpoint,
+                 HttpSession::ExecuteFn execute_fn,
+                 HttpSession::MetricFn  metric_fn)
+        : ioc_(ioc)
+        , acceptor_(ioc)
+        , execute_fn_(std::move(execute_fn))
+        , metric_fn_(std::move(metric_fn))
+    {
+        beast::error_code ec;
+        acceptor_.open(endpoint.protocol(), ec);
+        if (ec) throw std::runtime_error("HttpListener open: " + ec.message());
+        acceptor_.set_option(net::socket_base::reuse_address(true), ec); // NOLINT(cert-err33-c)
+        acceptor_.bind(endpoint, ec);
+        if (ec) throw std::runtime_error("HttpListener bind: " + ec.message());
+        acceptor_.listen(net::socket_base::max_listen_connections, ec);
+        if (ec) throw std::runtime_error("HttpListener listen: " + ec.message());
+    }
+
+    void run()  { do_accept(); }
+    void stop() { stopped_ = true; acceptor_.close(); }
+    bool is_open() const { return acceptor_.is_open(); }
+
+private:
+    void do_accept() {
+        acceptor_.async_accept(net::make_strand(ioc_),
+            [self = shared_from_this()](beast::error_code ec, tcp::socket socket) {
+                self->on_accept(ec, std::move(socket));
+            });
+    }
+
+    void on_accept(beast::error_code ec, tcp::socket socket) {
+        if (!ec) {
+            auto session = std::make_shared<HttpSession>(
+                std::move(socket), ioc_, execute_fn_, metric_fn_);
+            session->run();
+        } else if (!stopped_) {
+            spdlog::warn("HttpListener accept error: {}", ec.message());
+        }
+        if (!stopped_) do_accept();
+    }
+
+    net::io_context&          ioc_;
+    tcp::acceptor             acceptor_;
+    bool                      stopped_{false};
+    HttpSession::ExecuteFn    execute_fn_;
+    HttpSession::MetricFn     metric_fn_;
+};
+
 /**
- * @brief PIMPL implementation details for Server class.
+ * @brief PIMPL — owns application-level components and the async I/O pool.
  *
- * Owns the httplib server instance and the background listener thread.
+ * The io_context and its worker threads are created in Server::start() and
+ * torn down in Server::stop().  HttpListener and WsListener share the same
+ * io_context so all I/O (HTTP + WebSocket) benefits from the same thread pool.
  */
 class Server::Impl {
 public:
@@ -598,20 +694,8 @@ public:
             spdlog::warn("Server: jwt_secret_key not configured — using auto-generated ephemeral secret");
         }
         auth->configure_jwt_secret(secret);
-        gql_executor->set_auth_middleware(auth); // share, keep reference in Impl
-        gql_executor->set_master_secret(secret); // reuse JWT secret for DataSource API key encryption (T048-001a)
-
-        http_server = std::make_unique<httplib::Server>();
-
-        // T050-003: install the adaptive task queue BEFORE listen().
-        // The lambda is called exactly once by httplib when listen() starts.
-        http_server->new_task_queue = [this]() -> httplib::TaskQueue* {
-            auto* q = new AdaptiveTaskQueue(config.min_threads, config.max_threads);
-            adaptive_pool = q;
-            spdlog::info("Server: AdaptiveTaskQueue started with {}/{} threads",
-                         config.min_threads, config.max_threads);
-            return q;
-        };
+        gql_executor->set_auth_middleware(auth);
+        gql_executor->set_master_secret(secret);
     }
 
     ~Impl() {
@@ -619,12 +703,19 @@ public:
         metrics_publisher_stop.store(true, std::memory_order_relaxed);
         if (metrics_publisher_thread.joinable()) metrics_publisher_thread.join();
 
-        if (ws_listener) ws_listener->stop();
-        if (ws_ioc)      ws_ioc->stop();
-        if (ws_thread.joinable()) ws_thread.join();
+        // Stop acceptors so no new connections are initiated
+        if (http_listener) http_listener->stop();
+        if (ws_listener)   ws_listener->stop();
 
-        if (http_server) http_server->stop();
-        if (http_thread.joinable()) http_thread.join();
+        // Release the work guard and force-stop the io_context so threads exit
+        work_guard.reset();
+        if (ioc) ioc->stop();
+
+        std::lock_guard<std::mutex> lk(io_threads_mutex);
+        for (auto& t : io_threads) {
+            if (t.joinable()) t.join();
+        }
+        io_threads.clear();
     }
 
     Configuration config;
@@ -632,60 +723,54 @@ public:
     std::shared_ptr<DatabaseManager> database;
     std::shared_ptr<AuthenticationMiddleware> auth;  ///< Shared with GqlExecutor (T049)
     std::unique_ptr<GqlExecutor> gql_executor;
-    std::unique_ptr<httplib::Server> http_server;
-    std::thread http_thread;
     std::atomic<uint64_t> total_requests{0};
     std::atomic<uint64_t> successful_requests{0};
     std::atomic<uint64_t> active_connections{0};
     std::atomic<double> avg_response_time{0.0};
 
-    // T050-003: non-owning pointer to the adaptive pool (owned by httplib)
-    AdaptiveTaskQueue* adaptive_pool{nullptr};
     // T050-002: global active subscription count (updated via broker callback)
     std::atomic<uint64_t> total_active_subscriptions{0};
-    // T050-003: last time pool was shrunk (for 30-second cooldown)
-    std::chrono::steady_clock::time_point last_pool_shrink{std::chrono::steady_clock::now()};
 
-    // T050-003: Grow the global HTTP thread pool when subscription load demands it.
-    // Called from the SubscriptionBroker count-change callback.
-    void adapt_pool(std::size_t subscription_count) {
-        total_active_subscriptions.store(
-            static_cast<uint64_t>(subscription_count), std::memory_order_relaxed);
+    // Shared async I/O infrastructure — created in Server::start()
+    std::unique_ptr<net::io_context> ioc;
+    std::optional<net::executor_work_guard<net::io_context::executor_type>> work_guard;
+    std::vector<std::thread> io_threads;
+    mutable std::mutex io_threads_mutex;
+    std::shared_ptr<HttpListener> http_listener;
 
-        if (!adaptive_pool) return;
-        const std::size_t pool_size  = adaptive_pool->thread_count();
-        const std::size_t threshold  = static_cast<std::size_t>(pool_size * 0.75);
-
-        if (subscription_count > threshold) {
-            // Grow: each subscription above threshold adds one thread (up to max)
-            const std::size_t desired = std::min(
-                pool_size + (subscription_count - threshold),
-                adaptive_pool->max_size());
-            if (desired > pool_size) {
-                adaptive_pool->grow_to(desired);
-                spdlog::info("Server: grew HTTP pool to {} threads "
-                             "(subscriptions={}, threshold={})",
-                             desired, subscription_count, threshold);
-            }
-        }
-        // Scale-down is intentionally deferred — httplib does not support
-        // removing threads from a running pool.  Once grown, threads persist
-        // for the lifetime of the listen() call, which is safe and avoids
-        // churn.  The 30-second cooldown concept is therefore satisfied
-        // implicitly (pool never shrinks within a single listen() session).
-    }
-
-    // WebSocket server components (T042)
+    // WebSocket server (T042) — shares the same io_context
     std::unique_ptr<SubscriptionBroker> subscription_broker;
-    std::unique_ptr<net::io_context> ws_ioc;
     std::shared_ptr<WsListener> ws_listener;
-    std::thread ws_thread;
 
     // Performance metrics collector (T051)
     std::unique_ptr<MetricsCollector> metrics_collector;
     // Background metrics-publisher thread (T051-006/T051-007)
     std::thread metrics_publisher_thread;
     std::atomic<bool> metrics_publisher_stop{false};
+
+    /// Grow the io_context thread pool when subscription load demands it.
+    void adapt_pool(std::size_t subscription_count) {
+        total_active_subscriptions.store(
+            static_cast<uint64_t>(subscription_count), std::memory_order_relaxed);
+
+        if (!ioc) return;
+        std::lock_guard<std::mutex> lk(io_threads_mutex);
+        const std::size_t pool_size = io_threads.size();
+        const std::size_t threshold = static_cast<std::size_t>(pool_size * 0.75);
+        if (subscription_count > threshold) {
+            const std::size_t desired = std::min(
+                pool_size + (subscription_count - threshold),
+                config.max_threads);
+            if (desired > pool_size && !ioc->stopped()) {
+                for (std::size_t i = pool_size; i < desired; ++i) {
+                    io_threads.emplace_back([this]() { ioc->run(); });
+                }
+                spdlog::info("Server: grew io pool to {} threads "
+                             "(subscriptions={}, threshold={})",
+                             desired, subscription_count, threshold);
+            }
+        }
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -760,51 +845,7 @@ bool Server::start() {
             return false;
         }
 
-        // Register HTTP POST /graphql handler
-        m_impl->http_server->Post("/graphql", [this](const httplib::Request& req, httplib::Response& res) {
-            m_impl->active_connections.fetch_add(1);
-            const auto started_at = std::chrono::steady_clock::now();
-
-            std::string query;
-            std::string variables_json = "{}";
-
-            // Parse the JSON body
-            auto body = nlohmann::json::parse(req.body, nullptr, /*exceptions=*/false);
-            if (body.is_discarded()) {
-                res.status = 400;
-                res.set_content(R"({"errors":[{"message":"Request body must be valid JSON"}]})",
-                                "application/json");
-                m_impl->active_connections.fetch_sub(1);
-                return;
-            }
-
-            if (body.contains("query") && body["query"].is_string()) {
-                query = body["query"].get<std::string>();
-            }
-            if (body.contains("variables") && !body["variables"].is_null()) {
-                variables_json = body["variables"].dump();
-            }
-
-            if (query.empty()) {
-                res.status = 400;
-                res.set_content(R"({"errors":[{"message":"Missing or empty 'query' field"}]})",
-                                "application/json");
-                m_impl->active_connections.fetch_sub(1);
-                return;
-            }
-
-            const std::string response_body = execute_graphql(
-                query, variables_json,
-                req.get_header_value("Authorization"));
-            res.set_content(response_body, "application/json");
-
-            const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - started_at);
-            update_response_time_metric(static_cast<double>(elapsed_ms.count()));
-            m_impl->active_connections.fetch_sub(1);
-        });
-
-        // T050-002/003: wire subscription count changes into the adaptive pool
+        // T050-002/003: wire subscription count changes into the io pool
         m_impl->subscription_broker->set_subscription_count_callback(
             [this](std::size_t count) {
                 m_impl->adapt_pool(count);
@@ -815,54 +856,68 @@ bool Server::start() {
                 }
             });
 
-        // Start the HTTP listener in a background thread
-        m_impl->http_thread = std::thread([this]() {
-            if (!m_impl->http_server->listen(m_config.host.c_str(),
-                                             static_cast<int>(m_config.port))) {
-                m_status.store(Status::ERROR);
-                spdlog::error("httplib::Server failed to listen on {}:{}", m_config.host, m_config.port);
-            }
-        });
+        // ── Create shared io_context + work guard ────────────────────────────
+        m_impl->ioc = std::make_unique<net::io_context>();
+        m_impl->work_guard.emplace(net::make_work_guard(*m_impl->ioc));
 
-        // Wait up to 500 ms for the server to bind
-        for (int i = 0; i < 50; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            if (m_impl->http_server->is_running()) break;
-        }
+        const std::string bind_addr = (m_config.host == "localhost")
+                                      ? "127.0.0.1" : m_config.host;
 
-        if (!m_impl->http_server->is_running()) {
+        // ── HTTP listener (Beast async) ───────────────────────────────────────
+        try {
+            tcp::endpoint http_ep{net::ip::make_address(bind_addr),
+                                  m_config.port};
+            m_impl->http_listener = std::make_shared<HttpListener>(
+                *m_impl->ioc, http_ep,
+                [this](const std::string& q, const std::string& v,
+                       const std::string& a) {
+                    return execute_graphql(q, v, a);
+                },
+                [this](double ms) { update_response_time_metric(ms); });
+            m_impl->http_listener->run();
+            spdlog::info("GraphQL endpoint ready at http://{}:{}/graphql",
+                         m_config.host, m_config.port);
+        } catch (const std::exception& e) {
+            spdlog::error("HTTP listener startup failed: {}", e.what());
+            m_impl->work_guard.reset();
             m_status.store(Status::ERROR);
-            if (m_impl->http_thread.joinable()) m_impl->http_thread.join();
             return false;
         }
 
-        // Start the WebSocket server on ws_port (T042)
+        // ── WebSocket listener (T042) — shares the same io_context ───────────
         const uint16_t ws_p = m_config.ws_port != 0
                               ? m_config.ws_port
                               : static_cast<uint16_t>(m_config.port + 1);
         try {
-            m_impl->ws_ioc = std::make_unique<net::io_context>();
-            const std::string bind_addr = (m_config.host == "localhost")
-                                          ? "127.0.0.1" : m_config.host;
-            tcp::endpoint ws_endpoint{net::ip::make_address(bind_addr), ws_p};
+            tcp::endpoint ws_ep{net::ip::make_address(bind_addr), ws_p};
             m_impl->ws_listener = std::make_shared<WsListener>(
-                *m_impl->ws_ioc, ws_endpoint,
+                *m_impl->ioc, ws_ep,
                 m_impl->gql_executor.get(),
                 m_impl->subscription_broker.get(),
                 m_impl->auth.get());
             m_impl->ws_listener->run();
-            m_impl->ws_thread = std::thread([this]() {
-                m_impl->ws_ioc->run();
-            });
             spdlog::info("WebSocket endpoint ready at ws://{}:{}/graphql",
                          m_config.host, ws_p);
         } catch (const std::exception& e) {
-            spdlog::error("WebSocket server startup failed: {}", e.what());
-            m_impl->http_server->stop();
-            if (m_impl->http_thread.joinable()) m_impl->http_thread.join();
+            spdlog::error("WebSocket listener startup failed: {}", e.what());
+            m_impl->http_listener->stop();
+            m_impl->work_guard.reset();
+            m_impl->ioc->stop();
             m_status.store(Status::ERROR);
             return false;
         }
+
+        // ── Launch io_context worker threads ─────────────────────────────────
+        {
+            std::lock_guard<std::mutex> lk(m_impl->io_threads_mutex);
+            for (std::size_t i = 0; i < m_config.min_threads; ++i) {
+                m_impl->io_threads.emplace_back([this]() {
+                    m_impl->ioc->run();
+                });
+            }
+        }
+        spdlog::info("Server: io pool started with {} threads (max {})",
+                     m_config.min_threads, m_config.max_threads);
 
         m_status.store(Status::RUNNING);
         m_impl->start_time = std::chrono::steady_clock::now();
@@ -893,8 +948,6 @@ bool Server::start() {
                 }
             }
         });
-        spdlog::info("GraphQL endpoint ready at http://{}:{}/graphql",
-                     m_config.host, m_config.port);
         return true;
 
     } catch (const std::exception& e) {
@@ -915,23 +968,22 @@ bool Server::stop(Duration timeout_ms) {
     spdlog::info("Stopping server (timeout: {}ms)...", timeout_ms.count());
 
     try {
-        // Stop WebSocket server first (T042)
-        if (m_impl->ws_listener) {
-            m_impl->ws_listener->stop();
-        }
-        if (m_impl->ws_ioc) {
-            m_impl->ws_ioc->stop();
-        }
-        if (m_impl->ws_thread.joinable()) {
-            m_impl->ws_thread.join();
+        // Stop acceptors so no new connections are accepted
+        if (m_impl->http_listener) m_impl->http_listener->stop();
+        if (m_impl->ws_listener)   m_impl->ws_listener->stop();
+
+        // Release the work guard, then stop the io_context to drain all threads
+        m_impl->work_guard.reset();
+        if (m_impl->ioc) m_impl->ioc->stop();
+
+        {
+            std::lock_guard<std::mutex> lk(m_impl->io_threads_mutex);
+            for (auto& t : m_impl->io_threads) {
+                if (t.joinable()) t.join();
+            }
+            m_impl->io_threads.clear();
         }
 
-        if (m_impl->http_server) {
-            m_impl->http_server->stop();
-        }
-        if (m_impl->http_thread.joinable()) {
-            m_impl->http_thread.join();
-        }
         m_status.store(Status::STOPPED);
         spdlog::info("Server stopped");
         return true;
