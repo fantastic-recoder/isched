@@ -187,9 +187,9 @@ TEST_CASE("revokeSession: tenant_admin can revoke a specific session",
 
     const std::string org_id = create_org(exec, g_run_suffix + "_revS_" + std::to_string(__LINE__));
     const std::string email = "rev_sess_" + g_run_suffix + "@example.com";
-    create_user(exec, org_id, email, "RevSess1!");
+    create_user(exec, org_id, email, "RevSess1!pass");
 
-    auto [token, session_id] = do_login(exec, db, org_id, email, "RevSess1!");
+    auto [token, session_id] = do_login(exec, db, org_id, email, "RevSess1!pass");
     REQUIRE(!session_id.empty());
 
     // tenant_admin revokes the session
@@ -235,11 +235,11 @@ TEST_CASE("revokeAllSessions: tenant_admin can revoke all sessions for a user",
 
     const std::string org_id = create_org(exec, g_run_suffix + "_revAll_" + std::to_string(__LINE__));
     const std::string email  = "rev_all_" + g_run_suffix + "@example.com";
-    const std::string user_id = create_user(exec, org_id, email, "RevAll1!");
+    const std::string user_id = create_user(exec, org_id, email, "RevAll1!pass");
 
     // Login twice to create two sessions
-    auto [tok1, sess1] = do_login(exec, db, org_id, email, "RevAll1!");
-    auto [tok2, sess2] = do_login(exec, db, org_id, email, "RevAll1!");
+    auto [tok1, sess1] = do_login(exec, db, org_id, email, "RevAll1!pass");
+    auto [tok2, sess2] = do_login(exec, db, org_id, email, "RevAll1!pass");
     REQUIRE(!sess1.empty());
     REQUIRE(!sess2.empty());
 
@@ -287,9 +287,9 @@ TEST_CASE("terminateAllSessions: platform_admin revokes all tenant sessions",
 
     const std::string org_id = create_org(exec, g_run_suffix + "_termAll_" + std::to_string(__LINE__));
     const std::string email  = "term_" + g_run_suffix + "@example.com";
-    create_user(exec, org_id, email, "Term1Pass!");
+    create_user(exec, org_id, email, "Term1Pass!123");
 
-    auto [tok, sess] = do_login(exec, db, org_id, email, "Term1Pass!");
+    auto [tok, sess] = do_login(exec, db, org_id, email, "Term1Pass!123");
     REQUIRE(!sess.empty());
 
     // platform_admin terminates all sessions for the org

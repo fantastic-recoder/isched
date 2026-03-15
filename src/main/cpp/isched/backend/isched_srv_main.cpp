@@ -84,6 +84,10 @@ int main(const int, const char**) {
         server->get_configuration().host,
         server->get_configuration().port,
         server->get_graphql_endpoint_path());
+    spdlog::info(
+        "Admin UI:           http://{}:{}/isched",
+        server->get_configuration().host,
+        server->get_configuration().port);
 
     while (keep_running.load()) {
         std::this_thread::sleep_for(250ms);

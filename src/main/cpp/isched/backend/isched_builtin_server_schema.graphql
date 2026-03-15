@@ -190,6 +190,8 @@ type Query {
   organizations: [Organization!]!
   """List registered outbound-HTTP data sources for an organization (tenant_admin or platform_admin)"""
   dataSources(organizationId: ID): [DataSource!]!
+  """Seed-mode status — true when no active platform administrator exists (unauthenticated)"""
+  systemState: SystemState!
 }
 
 """Root mutation type"""
@@ -238,6 +240,8 @@ type Mutation {
   updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
   """Gracefully shut down the server process (platform_admin only, or ISCHED_SHUTDOWN_TOKEN bearer)"""
   shutdown: Boolean!
+  """First-run: create the initial platform administrator (only allowed when seedModeActive is true; unauthenticated)"""
+  createPlatformAdmin(email: String!, password: String!): User!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -504,4 +508,10 @@ type TenantConfig {
   maxThreads: Int!
   """Metrics collection interval in minutes (default: 60)"""
   metricsIntervalMinutes: Int!
+}
+
+"""Seed-mode state — indicates whether first-run setup is still required"""
+type SystemState {
+  """True when no active platform administrator exists; the seed form must be used first"""
+  seedModeActive: Boolean!
 }

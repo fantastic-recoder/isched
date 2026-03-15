@@ -86,8 +86,56 @@ find_package(platform_folders REQUIRED)
 find_package(Boost REQUIRED COMPONENTS url system thread)
 
 include_directories("src/main/cpp")
+
+# ── Angular UI build + asset embedding (T-UI-B-001 through T-UI-B-004) ──────
+# isched_ui_build: compile the Angular subproject into dist/isched-ui/browser/
+# isched_ui_embed: run embed_ui_assets.py to generate isched_ui_assets.hpp
+# The isched library target depends on isched_ui_embed so the header is always
+# present when the library is compiled.
+
+find_program(PNPM_EXE NAMES "pnpm")
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+file(GLOB_RECURSE UI_SOURCES "${CMAKE_SOURCE_DIR}/src/ui/src/*")
+
+if(PNPM_EXE)
+    add_custom_target(isched_ui_build
+        COMMAND ${PNPM_EXE} --filter isched-ui run build
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        DEPENDS ${UI_SOURCES}
+        BYPRODUCTS "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html"
+        COMMENT "Building Angular Admin UI (pnpm --filter isched-ui run build)"
+        VERBATIM)
+
+    add_custom_target(isched_ui_embed
+        COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/embed_ui_assets.py"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        DEPENDS isched_ui_build
+        BYPRODUCTS "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/isched_ui_assets.hpp"
+        COMMENT "Embedding Angular UI assets into C++ header"
+        VERBATIM)
+    message(STATUS "isched_ui_build and isched_ui_embed targets configured (pnpm: ${PNPM_EXE})")
+else()
+    # pnpm not found — create stub targets that warn but do not error
+    add_custom_target(isched_ui_build
+        COMMAND ${CMAKE_COMMAND} -E echo
+            "WARNING: pnpm not found — UI build skipped. isched_ui_assets.hpp will not be regenerated."
+        COMMENT "pnpm not found — isched_ui_build skipped")
+    add_custom_target(isched_ui_embed
+        DEPENDS isched_ui_build
+        COMMAND ${CMAKE_COMMAND} -E echo
+            "WARNING: pnpm not found — UI embed skipped."
+        COMMENT "pnpm not found — isched_ui_embed skipped")
+    message(WARNING "pnpm not found — Admin UI will not be automatically built or embedded.")
+    message(STATUS "Install pnpm: npm install -g pnpm")
+endif()
+
 add_subdirectory("src/main/cpp/isched")
 add_subdirectory("src/test/cpp/isched")
+
+# Intentional load-bearing dependency: the isched library must not be compiled
+# until the generated isched_ui_assets.hpp header exists (produced by isched_ui_embed).
+add_dependencies(isched isched_ui_embed)
 
 # T056: Security scan target using clang-tidy with a security-focused check set.
 # Run: cmake --build ./cmake-build-debug/ --target security_scan

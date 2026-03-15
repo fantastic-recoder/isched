@@ -76,6 +76,7 @@ namespace isched::v0_0_1::backend {
         std::vector<std::string> roles;                 ///< Granted roles (e.g. "role_platform_admin")
         std::string session_id;                         ///< JWT @c jti claim for the current request; empty if unauthenticated
         std::string bearer_token;                       ///< Raw Bearer token for bearer_passthrough DataSource auth (T048-007)
+        std::string remote_ip;                          ///< Client IP address string (populated by Server from Beast socket, used for rate-limiting)
     };
 
     /**

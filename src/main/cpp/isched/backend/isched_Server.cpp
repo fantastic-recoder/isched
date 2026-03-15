@@ -20,6 +20,7 @@
 #include "isched_AuthenticationMiddleware.hpp"
 #include "isched_SubscriptionBroker.hpp"
 #include "isched_MetricsCollector.hpp"
+#include "isched_UiAssetRegistry.hpp"
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
@@ -477,7 +478,8 @@ class HttpSession : public std::enable_shared_from_this<HttpSession> {
 public:
     using ExecuteFn = std::function<std::string(const std::string&,
                                                 const std::string&,
-                                                const std::string&)>;
+                                                const std::string&,
+                                                const std::string& /*remote_ip*/)>;
     using MetricFn   = std::function<void(double /*ms*/)>;
 
     HttpSession(tcp::socket socket, net::io_context& ioc,
@@ -516,12 +518,20 @@ private:
     void handle_request() {
         const auto started_at = std::chrono::steady_clock::now();
 
+        // Capture remote IP once — used for rate-limiting and logging.
+        std::string remote_ip;
+        beast::error_code ec_addr;
+        const auto remote_ep = stream_.socket().remote_endpoint(ec_addr);
+        if (!ec_addr) remote_ip = remote_ep.address().to_string();
+
         beast::http::response<beast::http::string_body> res{
             beast::http::status::ok, req_.version()};
         res.set(beast::http::field::server, "isched/1.0");
         res.set(beast::http::field::content_type, "application/json");
         res.set(beast::http::field::access_control_allow_origin, "*");
         res.keep_alive(req_.keep_alive());
+
+        const std::string_view target = req_.target();
 
         if (req_.method() == beast::http::verb::options) {
             // CORS preflight
@@ -530,6 +540,85 @@ private:
             res.set(beast::http::field::access_control_allow_headers,
                     "Content-Type, Authorization");
             res.body() = "";
+        } else if (req_.method() == beast::http::verb::get &&
+                   (target == "/isched" || target == "/isched/" ||
+                    target.starts_with("/isched/"))) {
+            // ── Admin UI static asset handler ────────────────────────────────
+            // Security headers applied to all /isched responses.
+            res.set("X-Content-Type-Options", "nosniff");
+            res.set("X-Frame-Options", "DENY");
+
+            const auto& registry = UiAssetRegistry::instance();
+            if (!registry.has_index_html()) {
+                // Build artefacts missing — Angular project not yet compiled.
+                res.result(beast::http::status::service_unavailable);
+                res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
+                res.body() = "Admin UI assets unavailable";
+            } else {
+                // Strip the /isched prefix; map empty remainder to /index.html
+                std::string asset_path;
+                if (target == "/isched" || target == "/isched/") {
+                    asset_path = "/index.html";
+                } else {
+                    // /isched/... → strip first 7 chars ("/isched")
+                    asset_path = std::string{target.substr(7)};
+                    if (asset_path.empty()) asset_path = "/index.html";
+                }
+
+                const auto entry = registry.find(asset_path);
+                if (entry) {
+                    // ETag cache check
+                    const std::string_view if_none_match =
+                        req_[beast::http::field::if_none_match];
+                    const std::string quoted_etag =
+                        '"' + std::string{entry->etag} + '"';
+                    if (!if_none_match.empty() && if_none_match == quoted_etag) {
+                        // 304 Not Modified
+                        beast::http::response<beast::http::empty_body> not_modified{
+                            beast::http::status::not_modified, req_.version()};
+                        not_modified.set(beast::http::field::server, "isched/1.0");
+                        not_modified.set("ETag", quoted_etag);
+                        not_modified.set("X-Content-Type-Options", "nosniff");
+                        not_modified.set("X-Frame-Options", "DENY");
+                        not_modified.keep_alive(req_.keep_alive());
+                        not_modified.prepare_payload();
+                        auto sp = std::make_shared<
+                            beast::http::response<beast::http::empty_body>>(
+                            std::move(not_modified));
+                        beast::http::async_write(stream_, *sp,
+                            net::bind_executor(strand_,
+                                [self = shared_from_this(), sp, close = !sp->keep_alive()]
+                                (beast::error_code ec2, std::size_t) {
+                                    self->on_write(ec2, close);
+                                }));
+                        return;
+                    }
+                    // Serve asset
+                    res.set(beast::http::field::content_type, std::string{entry->mime_type});
+                    res.set(beast::http::field::etag, quoted_etag);
+                    res.body().assign(
+                        reinterpret_cast<const char*>(entry->data.data()),
+                        entry->data.size());
+                } else {
+                    // Unknown path — check if it looks like a file (has extension)
+                    const bool looks_like_file =
+                        asset_path.find('.') != std::string::npos;
+                    if (looks_like_file) {
+                        // Missing static file → 404 JSON
+                        res.result(beast::http::status::not_found);
+                        res.body() = R"({"errors":[{"message":"asset not found"}]})"
+                        "";
+                    } else {
+                        // Push-state fallback: serve index.html for Angular routes
+                        const auto idx = registry.find("/index.html");
+                        res.set(beast::http::field::content_type,
+                                "text/html; charset=utf-8");
+                        res.body().assign(
+                            reinterpret_cast<const char*>(idx->data.data()),
+                            idx->data.size());
+                    }
+                }
+            }
         } else if (req_.method() == beast::http::verb::post &&
                    req_.target() == "/graphql") {
             auto body = nlohmann::json::parse(req_.body(), nullptr, /*exceptions=*/false);
@@ -549,7 +638,7 @@ private:
                 } else {
                     const std::string auth_hdr =
                         std::string(req_[beast::http::field::authorization]);
-                    res.body() = execute_fn_(query, variables_json, auth_hdr);
+                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip);
                 }
             }
         } else {
@@ -870,8 +959,8 @@ bool Server::start() {
             m_impl->http_listener = std::make_shared<HttpListener>(
                 *m_impl->ioc, http_ep,
                 [this](const std::string& q, const std::string& v,
-                       const std::string& a) {
-                    return execute_graphql(q, v, a);
+                       const std::string& a, const std::string& ip) {
+                    return execute_graphql(q, v, a, ip);
                 },
                 [this](double ms) { update_response_time_metric(ms); });
             m_impl->http_listener->run();
@@ -1084,7 +1173,8 @@ void Server::update_response_time_metric(double response_time_ms) {
 // ---------------------------------------------------------------------------
 
 String Server::execute_graphql(const String& query, const String& variables_json,
-                               const String& authorization_header) {
+                               const String& authorization_header,
+                               const String& remote_ip) {
     const auto started_at = std::chrono::steady_clock::now();
     const auto request_id = make_request_id();
 
@@ -1094,6 +1184,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
     // Build auth context from the supplied Authorization header (best-effort;
     // unauthenticated requests are allowed for public queries such as `login`).
     ResolverCtx ctx;
+    ctx.remote_ip = remote_ip;
     if (!authorization_header.empty() && m_impl->auth) {
         std::unordered_map<std::string, std::string> hdrs{{"Authorization", authorization_header}};
         const auto ar = m_impl->auth->validate_request(hdrs, "");

@@ -287,7 +287,8 @@ public:
      * @return JSON-encoded GraphQL response payload
      */
     String execute_graphql(const String& query, const String& variables_json = "{}",
-                           const String& authorization_header = "");
+                           const String& authorization_header = "",
+                           const String& remote_ip = "");
 
 private:
     /**

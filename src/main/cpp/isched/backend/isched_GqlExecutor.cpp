@@ -23,6 +23,7 @@
 
 #include "isched_AuthenticationMiddleware.hpp"
 #include "isched_CryptoUtils.hpp"
+#include "isched_RateLimiter.hpp"
 #include "isched_ExecutionResult.hpp"
 #include "isched_gql_error.hpp"
 #include "isched_gql_grammar.hpp"
@@ -521,6 +522,25 @@ namespace isched::v0_0_1::backend {
         register_resolver({},"clientCount", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json(1); // Placeholder - could be enhanced with actual connection tracking
         });
+
+        // ---------------------------------------------------------------
+        // T-UI-D-002: systemState query — unauthenticated; reports seed mode.
+        // Seed mode is active when no active platform-admin accounts exist.
+        // ---------------------------------------------------------------
+        register_resolver({}, "systemState",
+            [this](const json&, const json&, const ResolverCtx&) -> json {
+                bool seed_active = true;
+                if (m_database) {
+                    const auto result = m_database->list_platform_admins();
+                    if (result) {
+                        seed_active = std::ranges::none_of(
+                            result.value(),
+                            [](const PlatformAdminRecord& r) { return r.is_active; });
+                    }
+                }
+                return json{{"seedModeActive", seed_active}};
+            });
+        // systemState is intentionally NOT gated by require_roles().
 
         // Spring Boot Actuator-style Health endpoint
         register_resolver({},"health", [this](const json &, const json &, const ResolverCtx&) -> json {
@@ -1581,6 +1601,9 @@ namespace isched::v0_0_1::backend {
                 if (email.empty() || password.empty()) {
                     throw std::invalid_argument("createUser: email and password are required");
                 }
+                if (password.size() < 12) {
+                    throw std::invalid_argument("password must be at least 12 characters");
+                }
                 const std::string display_name = input.value("displayName", "");
 
                 // Build roles JSON array
@@ -1922,6 +1945,86 @@ namespace isched::v0_0_1::backend {
                 return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
             });
         // login is intentionally NOT gated by require_roles().
+
+        // ---------------------------------------------------------------
+        // T-UI-D-003: createPlatformAdmin mutation — unauthenticated (seed only).
+        // Rate-limited per source IP; only allowed when in seed mode.
+        // ---------------------------------------------------------------
+        register_resolver({}, "createPlatformAdmin",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                // --- Resolve rate limit from env / default -----------------
+                static const int seed_rate_limit = []() -> int {
+                    if (const char* ev = std::getenv("ISCHED_SEED_RATE_LIMIT"); ev) {
+                        try { return std::stoi(ev); } catch (...) {}
+                    }
+                    return 5;
+                }();
+                static RateLimiter s_limiter;
+                if (!s_limiter.allow(ctx.remote_ip, seed_rate_limit)) {
+                    throw std::runtime_error{"RATE_LIMITED: too many createPlatformAdmin attempts"};
+                }
+
+                // --- Seed-mode gate ----------------------------------------
+                bool seed_active = true;
+                if (m_database) {
+                    const auto result = m_database->list_platform_admins();
+                    if (result) {
+                        seed_active = std::ranges::none_of(
+                            result.value(),
+                            [](const PlatformAdminRecord& r) { return r.is_active; });
+                    }
+                }
+                if (!seed_active) {
+                    throw std::runtime_error(
+                        "createPlatformAdmin is only allowed during seed mode");
+                }
+
+                // --- Input validation --------------------------------------
+                const std::string email    = args.value("email",    "");
+                const std::string password = args.value("password", "");
+                if (email.empty() || password.empty()) {
+                    throw std::invalid_argument(
+                        "createPlatformAdmin: email and password are required");
+                }
+                if (password.size() < 12) {
+                    throw std::invalid_argument(
+                        "password must be at least 12 characters");
+                }
+
+                // --- Hash + persist ----------------------------------------
+                const std::string hash = hash_password(password);
+                const std::string admin_id =
+                    "pa_" + std::to_string(
+                        std::hash<std::string>{}(email));
+                const std::string display_name = email;
+
+                if (auto res = m_database->create_platform_admin(
+                        admin_id, email, hash, display_name);
+                    !res)
+                {
+                    if (res.error() == DatabaseError::DuplicateKey)
+                        throw std::runtime_error(
+                            "Platform admin with email '" + email + "' already exists");
+                    throw std::runtime_error("Failed to create platform admin");
+                }
+
+                // --- Return User JSON --------------------------------------
+                auto rec = m_database->get_platform_admin_by_id(admin_id);
+                if (!rec)
+                    throw std::runtime_error(
+                        "Platform admin created but could not be fetched");
+                const auto& r = rec.value();
+                return json{
+                    {"id",          r.id},
+                    {"email",       r.email},
+                    {"displayName", r.display_name},
+                    {"roles",       json::array({std::string(Role::PLATFORM_ADMIN)})},
+                    {"isActive",    r.is_active},
+                    {"createdAt",   r.created_at},
+                    {"lastLogin",   json(nullptr)}
+                };
+            });
+        // createPlatformAdmin is intentionally NOT gated by require_roles().
 
         // ---------------------------------------------------------------
         // T050-001 / T051-003: updateTenantConfig mutation (platform_admin only)

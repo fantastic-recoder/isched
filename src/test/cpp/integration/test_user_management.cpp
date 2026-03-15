@@ -305,7 +305,7 @@ TEST_CASE("User: createUser succeeds for tenant_admin",
     const auto user_vars = json{
         {"orgId", org_id},
         {"email", "alice@example.com"},
-        {"password", "S3cret!Pass"},
+        {"password", "S3cret!Pass1"},
         {"displayName", "Alice Example"}
     };
     const std::string create_user_query = R"(
@@ -410,7 +410,7 @@ TEST_CASE("User: updateUser modifies displayName for tenant_admin",
 
     const auto cu_vars = json{
         {"orgId", org_id}, {"email", "bob@example.com"},
-        {"password", "P@ssw0rd!"}, {"displayName", "Bob"}
+        {"password", "P@ssw0rd!123"}, {"displayName", "Bob"}
     };
     auto cu_res = exec->execute(
         R"(mutation($orgId:ID!,$email:String!,$password:String!,$displayName:String){
@@ -453,7 +453,7 @@ TEST_CASE("User: deleteUser removes user for tenant_admin",
 
     const auto cu_vars = json{
         {"orgId", org_id}, {"email", "carol@example.com"},
-        {"password", "S3cure!Pass"}, {"displayName", "Carol"}
+        {"password", "S3cure!Pass1"}, {"displayName", "Carol"}
     };
     auto cu_res = exec->execute(
         R"(mutation($orgId:ID!,$email:String!,$password:String!,$displayName:String){
@@ -531,7 +531,7 @@ TEST_CASE("Login: valid tenant-user credentials return token and expiresAt",
 
     // --- create user ---
     const std::string email    = "bob_" + g_run_suffix + "@example.com";
-    const std::string password = "Bob$ecret99";
+    const std::string password = "Bob$ecret9911";
     auto cu_res = exec->execute(
         R"(mutation($o:ID!,$e:String!,$p:String!){
              createUser(organizationId:$o input:{email:$e password:$p displayName:"Bob"}){id}

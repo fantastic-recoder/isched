@@ -48,6 +48,14 @@ graph_info.json
 # Test outputs
 /test-results/
 /coverage/
+
+# Angular UI build artifacts (generated — do not commit)
+src/ui/dist/
+src/ui/.angular/
+src/ui/node_modules/
+
+# Generated C++ UI asset header (produced by tools/embed_ui_assets.py)
+src/main/cpp/isched/backend/isched_ui_assets.hpp
 *.gcov
 *.gcda
 *.gcno

@@ -43,6 +43,9 @@ add_library(isched
         backend/isched_RestDataSource.cpp
         backend/isched_MetricsCollector.hpp
         backend/isched_MetricsCollector.cpp
+        backend/isched_UiAssetRegistry.hpp
+        backend/isched_UiAssetRegistry.cpp
+        backend/isched_RateLimiter.hpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url Boost::system Boost::thread sago::platform_folders)
