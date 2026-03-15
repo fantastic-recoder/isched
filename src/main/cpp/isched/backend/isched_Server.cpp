@@ -693,9 +693,6 @@ public:
 // ---------------------------------------------------------------------------
 
 bool Server::Configuration::validate() const {
-    if (port > 65535) {
-        throw std::invalid_argument("Port must be between 1 and 65535");
-    }
     if (min_threads == 0 || max_threads == 0) {
         throw std::invalid_argument("Thread pool sizes must be greater than 0");
     }
