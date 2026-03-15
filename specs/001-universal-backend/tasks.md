@@ -1,5 +1,6 @@
 # Tasks: Universal Application Server Backend
 
+**Status**: ✅ CLOSED — merged to `master` on 2026-03-15 (commit `089c09f`)  
 **Input**: Revised design documents from `/specs/001-universal-backend/`  
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`  
 **Tests**: Test tasks included based on constitutional TDD requirements.  
