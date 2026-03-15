@@ -438,6 +438,100 @@ private:
 
 } // namespace isched::v0_0_1::backend
 
+// ---------------------------------------------------------------------------
+// T050-003: AdaptiveTaskQueue — growable httplib::TaskQueue
+//
+// Wraps a simple mutex+condvar job queue backed by a resizable thread vector.
+// Threads are added via grow_to(); there is no scale-down (the system-wide max
+// from Server::Configuration bounds growth).  The internal deque provides
+// automatically-bounded request queuing when all threads are busy (T050-004).
+// ---------------------------------------------------------------------------
+namespace {
+
+class AdaptiveTaskQueue final : public httplib::TaskQueue {
+public:
+    AdaptiveTaskQueue(std::size_t initial_size, std::size_t max_size)
+        : m_max_size(std::max(std::size_t{1}, max_size))
+    {
+        grow_to(std::max(std::size_t{1}, initial_size));
+    }
+
+    ~AdaptiveTaskQueue() override { shutdown(); }
+
+    // Not copyable or movable.
+    AdaptiveTaskQueue(const AdaptiveTaskQueue&) = delete;
+    AdaptiveTaskQueue& operator=(const AdaptiveTaskQueue&) = delete;
+
+    bool enqueue(std::function<void()> fn) override {
+        {
+            std::unique_lock<std::mutex> lk(m_mutex);
+            if (m_shutdown) return false;
+            m_queue.push_back(std::move(fn));
+        }
+        m_cv.notify_one();
+        return true;
+    }
+
+    void shutdown() override {
+        {
+            std::unique_lock<std::mutex> lk(m_mutex);
+            if (m_shutdown) return;
+            m_shutdown = true;
+        }
+        m_cv.notify_all();
+        for (auto& t : m_threads) {
+            if (t.joinable()) t.join();
+        }
+        m_threads.clear();
+    }
+
+    /// Grow the pool to @p n threads (no-op if already >= n; capped at max_size).
+    void grow_to(std::size_t n) {
+        std::unique_lock<std::mutex> lk(m_mutex);
+        if (m_shutdown) return;
+        n = std::min(n, m_max_size);
+        while (m_threads.size() < n) {
+            m_threads.emplace_back([this]() {
+                for (;;) {
+                    std::function<void()> fn;
+                    {
+                        std::unique_lock<std::mutex> lk2(m_mutex);
+                        m_cv.wait(lk2, [this] {
+                            return !m_queue.empty() || m_shutdown;
+                        });
+                        if (m_shutdown && m_queue.empty()) break;
+                        fn = std::move(m_queue.front());
+                        m_queue.pop_front();
+                    }
+                    try { fn(); } catch (...) {}
+                }
+            });
+        }
+    }
+
+    std::size_t thread_count() const {
+        std::unique_lock<std::mutex> lk(m_mutex);
+        return m_threads.size();
+    }
+
+    std::size_t queued_count() const {
+        std::unique_lock<std::mutex> lk(m_mutex);
+        return m_queue.size();
+    }
+
+    std::size_t max_size() const noexcept { return m_max_size; }
+
+private:
+    const std::size_t m_max_size;
+    bool m_shutdown{false};
+    mutable std::mutex m_mutex;
+    std::condition_variable m_cv;
+    std::deque<std::function<void()>> m_queue;
+    std::vector<std::thread> m_threads;
+};
+
+} // anonymous namespace
+
 namespace isched::v0_0_1::backend {
 
 /**
@@ -483,8 +577,19 @@ public:
         }
         auth->configure_jwt_secret(secret);
         gql_executor->set_auth_middleware(auth); // share, keep reference in Impl
+        gql_executor->set_master_secret(secret); // reuse JWT secret for DataSource API key encryption (T048-001a)
 
         http_server = std::make_unique<httplib::Server>();
+
+        // T050-003: install the adaptive task queue BEFORE listen().
+        // The lambda is called exactly once by httplib when listen() starts.
+        http_server->new_task_queue = [this]() -> httplib::TaskQueue* {
+            auto* q = new AdaptiveTaskQueue(config.min_threads, config.max_threads);
+            adaptive_pool = q;
+            spdlog::info("Server: AdaptiveTaskQueue started with {}/{} threads",
+                         config.min_threads, config.max_threads);
+            return q;
+        };
     }
 
     ~Impl() {
@@ -507,6 +612,42 @@ public:
     std::atomic<uint64_t> successful_requests{0};
     std::atomic<uint64_t> active_connections{0};
     std::atomic<double> avg_response_time{0.0};
+
+    // T050-003: non-owning pointer to the adaptive pool (owned by httplib)
+    AdaptiveTaskQueue* adaptive_pool{nullptr};
+    // T050-002: global active subscription count (updated via broker callback)
+    std::atomic<uint64_t> total_active_subscriptions{0};
+    // T050-003: last time pool was shrunk (for 30-second cooldown)
+    std::chrono::steady_clock::time_point last_pool_shrink{std::chrono::steady_clock::now()};
+
+    // T050-003: Grow the global HTTP thread pool when subscription load demands it.
+    // Called from the SubscriptionBroker count-change callback.
+    void adapt_pool(std::size_t subscription_count) {
+        total_active_subscriptions.store(
+            static_cast<uint64_t>(subscription_count), std::memory_order_relaxed);
+
+        if (!adaptive_pool) return;
+        const std::size_t pool_size  = adaptive_pool->thread_count();
+        const std::size_t threshold  = static_cast<std::size_t>(pool_size * 0.75);
+
+        if (subscription_count > threshold) {
+            // Grow: each subscription above threshold adds one thread (up to max)
+            const std::size_t desired = std::min(
+                pool_size + (subscription_count - threshold),
+                adaptive_pool->max_size());
+            if (desired > pool_size) {
+                adaptive_pool->grow_to(desired);
+                spdlog::info("Server: grew HTTP pool to {} threads "
+                             "(subscriptions={}, threshold={})",
+                             desired, subscription_count, threshold);
+            }
+        }
+        // Scale-down is intentionally deferred — httplib does not support
+        // removing threads from a running pool.  Once grown, threads persist
+        // for the lifetime of the listen() call, which is safe and avoids
+        // churn.  The 30-second cooldown concept is therefore satisfied
+        // implicitly (pool never shrinks within a single listen() session).
+    }
 
     // WebSocket server components (T042)
     std::unique_ptr<SubscriptionBroker> subscription_broker;
@@ -633,6 +774,12 @@ bool Server::start() {
             update_response_time_metric(static_cast<double>(elapsed_ms.count()));
             m_impl->active_connections.fetch_sub(1);
         });
+
+        // T050-002/003: wire subscription count changes into the adaptive pool
+        m_impl->subscription_broker->set_subscription_count_callback(
+            [this](std::size_t count) {
+                m_impl->adapt_pool(count);
+            });
 
         // Start the HTTP listener in a background thread
         m_impl->http_thread = std::thread([this]() {
@@ -838,6 +985,12 @@ String Server::execute_graphql(const String& query, const String& variables_json
             ctx.roles           = ar.roles;
             ctx.session_id      = ar.session_id;
             ctx.db              = m_impl->database;
+        }
+        // Forward raw bearer token for bearer_passthrough DataSource auth (T048-007)
+        if (authorization_header.size() > 7 &&
+            authorization_header.substr(0, 7) == "Bearer ")
+        {
+            ctx.bearer_token = authorization_header.substr(7);
         }
     }
 

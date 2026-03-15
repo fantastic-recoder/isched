@@ -20,12 +20,14 @@
 #include <tao/pegtl/string_input.hpp>
 
 #include "isched_AuthenticationMiddleware.hpp"
+#include "isched_CryptoUtils.hpp"
 #include "isched_ExecutionResult.hpp"
 #include "isched_gql_error.hpp"
 #include "isched_gql_grammar.hpp"
 #include "isched_builtin_server_schema.hpp"
 #include "isched_log_result.hpp"
 #include "isched_DatabaseManager.hpp"
+#include "isched_RestDataSource.hpp"
 #include "isched_SubscriptionBroker.hpp"
 
 namespace {
@@ -793,6 +795,10 @@ namespace isched::v0_0_1::backend {
                 snap.is_active   = false;
                 snap.created_at  = now;
 
+                // Persist optional resolver bindings (T048-007)
+                if (inp.contains("resolverBindings") && inp["resolverBindings"].is_array())
+                    snap.resolver_bindings = inp["resolverBindings"].dump();
+
                 auto save_res = m_database->save_config_snapshot(snap);
                 if (!save_res) {
                     result["errors"].push_back("Failed to persist snapshot");
@@ -844,6 +850,62 @@ namespace isched::v0_0_1::backend {
                 const std::string tenant_id = get_res.value()->tenant_id;
                 if (!new_sdl.empty()) {
                     set_pending_schema_change({tenant_id, new_sdl});
+                }
+
+                // Register outbound_http resolver bindings from the snapshot (T048-007)
+                const std::string bindings_raw = get_res.value()->resolver_bindings;
+                if (!bindings_raw.empty() && bindings_raw != "[]") {
+                    try {
+                        const json bindings = json::parse(bindings_raw);
+                        for (const auto& b : bindings) {
+                            if (!b.is_object()) continue;
+                            const std::string kind    = b.value("resolverKind", "");
+                            if (kind != "outbound_http") continue;
+                            const std::string ds_id   = b.value("dataSourceId", "");
+                            const std::string field   = b.value("fieldName",    "");
+                            const std::string path_p  = b.value("pathPattern",  "/");
+                            const std::string http_m  = b.value("httpMethod",   "GET");
+                            if (field.empty() || ds_id.empty()) continue;
+
+                            // Capture by value to avoid dangling references
+                            register_resolver({}, field,
+                                [this, tenant_id, ds_id, path_p, http_m]
+                                (const json&, const json&, const ResolverCtx& ctx) -> json {
+                                    auto ds_res = m_database->get_data_source_by_id(
+                                        ctx.tenant_id.empty() ? tenant_id : ctx.tenant_id, ds_id);
+                                    if (!ds_res)
+                                        return json{{"statusCode", 0},
+                                                    {"message", "Data source '" + ds_id + "' not found"},
+                                                    {"url", ""}};
+
+                                    const auto& ds = ds_res.value();
+                                    backend::DataSourceConfig cfg;
+                                    cfg.base_url        = ds.base_url;
+                                    cfg.auth_kind       = ds.auth_kind;
+                                    cfg.api_key_header  = ds.api_key_header;
+                                    cfg.timeout_ms      = ds.timeout_ms;
+                                    // Decrypt API key if present
+                                    if (!ds.api_key_value_encrypted.empty() &&
+                                        !m_master_secret.empty())
+                                    {
+                                        try {
+                                            cfg.api_key_value = backend::decrypt_secret(
+                                                ds.api_key_value_encrypted,
+                                                ctx.tenant_id.empty() ? tenant_id : ctx.tenant_id,
+                                                m_master_secret);
+                                        } catch (const std::exception& ex) {
+                                            spdlog::error("activateSnapshot binding: "
+                                                "decrypt_secret failed for ds '{}': {}",
+                                                ds_id, ex.what());
+                                        }
+                                    }
+                                    return backend::RestDataSource::fetch(
+                                        cfg, path_p, http_m, json{}, ctx.bearer_token);
+                                });
+                        }
+                    } catch (const json::parse_error& e) {
+                        spdlog::warn("activateSnapshot: failed to parse resolver_bindings: {}", e.what());
+                    }
                 }
 
                 // Publish configuration activation event to SubscriptionBroker (T046)
@@ -1541,6 +1603,165 @@ namespace isched::v0_0_1::backend {
                                      std::string(Role::TENANT_ADMIN)});
 
         // ---------------------------------------------------------------
+        // T048-002: createDataSource mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "createDataSource",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const auto& input        = args.value("input", json::object());
+                const std::string name     = input.value("name",    "");
+                const std::string base_url = input.value("baseUrl", "");
+                if (name.empty())     throw std::invalid_argument("createDataSource: name is required");
+                if (base_url.empty()) throw std::invalid_argument("createDataSource: baseUrl is required");
+
+                const std::string auth_kind       = input.value("authKind",       "none");
+                const std::string api_key_header  = input.value("apiKeyHeader",   "");
+                const int         timeout_ms_val  = input.value("timeoutMs",      5000);
+
+                // Encrypt the plain-text API key value if provided
+                std::string api_key_enc;
+                if (input.contains("apiKeyValue") && !input["apiKeyValue"].is_null()) {
+                    const std::string plain = input["apiKeyValue"].get<std::string>();
+                    if (!plain.empty()) {
+                        if (m_master_secret.empty())
+                            throw std::runtime_error("createDataSource: master_secret not configured");
+                        api_key_enc = backend::encrypt_secret(plain, org_id, m_master_secret);
+                    }
+                }
+
+                // Generate a stable ID
+                const std::string ds_id = "ds_" + std::to_string(
+                    std::hash<std::string>{}(org_id + name + base_url));
+
+                if (auto res = m_database->create_data_source(
+                        org_id, ds_id, name, base_url, auth_kind,
+                        api_key_header, api_key_enc, timeout_ms_val);
+                    !res)
+                {
+                    if (res.error() == DatabaseError::DuplicateKey)
+                        throw std::runtime_error("Data source already exists");
+                    throw std::runtime_error("Failed to create data source");
+                }
+                auto rec = m_database->get_data_source_by_id(org_id, ds_id);
+                if (!rec) throw std::runtime_error("Data source created but could not be fetched");
+                const auto& r = rec.value();
+                return json{
+                    {"id",           r.id},
+                    {"name",         r.name},
+                    {"baseUrl",      r.base_url},
+                    {"authKind",     r.auth_kind},
+                    {"apiKeyHeader", r.api_key_header.empty() ? json(nullptr) : json(r.api_key_header)},
+                    {"timeoutMs",    r.timeout_ms},
+                    {"createdAt",    r.created_at}
+                };
+            });
+        require_roles("createDataSource", {std::string(Role::PLATFORM_ADMIN),
+                                           std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T048-003: updateDataSource mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "updateDataSource",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const std::string id     = args.value("id", "");
+                if (id.empty()) throw std::invalid_argument("updateDataSource: id is required");
+
+                const auto& input = args.value("input", json::object());
+
+                std::optional<std::string> name, base_url, auth_kind, api_key_header, api_key_enc;
+                std::optional<int>         timeout_ms_opt;
+
+                if (input.contains("name")      && !input["name"].is_null())
+                    name = input["name"].get<std::string>();
+                if (input.contains("baseUrl")   && !input["baseUrl"].is_null())
+                    base_url = input["baseUrl"].get<std::string>();
+                if (input.contains("authKind")  && !input["authKind"].is_null())
+                    auth_kind = input["authKind"].get<std::string>();
+                if (input.contains("apiKeyHeader") && !input["apiKeyHeader"].is_null())
+                    api_key_header = input["apiKeyHeader"].get<std::string>();
+                if (input.contains("apiKeyValue")  && !input["apiKeyValue"].is_null()) {
+                    const std::string plain = input["apiKeyValue"].get<std::string>();
+                    if (!plain.empty()) {
+                        if (m_master_secret.empty())
+                            throw std::runtime_error("updateDataSource: master_secret not configured");
+                        api_key_enc = backend::encrypt_secret(plain, org_id, m_master_secret);
+                    }
+                }
+                if (input.contains("timeoutMs") && !input["timeoutMs"].is_null())
+                    timeout_ms_opt = input["timeoutMs"].get<int>();
+
+                if (auto res = m_database->update_data_source(
+                        org_id, id, name, base_url, auth_kind, api_key_header, api_key_enc, timeout_ms_opt);
+                    !res)
+                {
+                    if (res.error() == DatabaseError::NotFound)
+                        throw std::runtime_error("Data source '" + id + "' not found");
+                    throw std::runtime_error("Failed to update data source");
+                }
+                auto rec = m_database->get_data_source_by_id(org_id, id);
+                if (!rec) throw std::runtime_error("Data source updated but could not be fetched");
+                const auto& r = rec.value();
+                return json{
+                    {"id",           r.id},
+                    {"name",         r.name},
+                    {"baseUrl",      r.base_url},
+                    {"authKind",     r.auth_kind},
+                    {"apiKeyHeader", r.api_key_header.empty() ? json(nullptr) : json(r.api_key_header)},
+                    {"timeoutMs",    r.timeout_ms},
+                    {"createdAt",    r.created_at}
+                };
+            });
+        require_roles("updateDataSource", {std::string(Role::PLATFORM_ADMIN),
+                                           std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T048-003: deleteDataSource mutation
+        // ---------------------------------------------------------------
+        register_resolver({}, "deleteDataSource",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                const std::string id     = args.value("id", "");
+                if (id.empty()) throw std::invalid_argument("deleteDataSource: id is required");
+
+                if (auto res = m_database->delete_data_source(org_id, id); !res) {
+                    if (res.error() == DatabaseError::NotFound)
+                        throw std::runtime_error("Data source '" + id + "' not found");
+                    throw std::runtime_error("Failed to delete data source");
+                }
+                return true;
+            });
+        require_roles("deleteDataSource", {std::string(Role::PLATFORM_ADMIN),
+                                           std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // T048-004: dataSources query
+        // ---------------------------------------------------------------
+        register_resolver({}, "dataSources",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                const std::string org_id = args.value("organizationId", ctx.tenant_id);
+                auto result = m_database->list_data_sources(org_id);
+                if (!result) {
+                    throw std::runtime_error("Failed to list data sources");
+                }
+                json arr = json::array();
+                for (const auto& r : result.value()) {
+                    arr.push_back(json{
+                        {"id",           r.id},
+                        {"name",         r.name},
+                        {"baseUrl",      r.base_url},
+                        {"authKind",     r.auth_kind},
+                        {"apiKeyHeader", r.api_key_header.empty() ? json(nullptr) : json(r.api_key_header)},
+                        {"timeoutMs",    r.timeout_ms},
+                        {"createdAt",    r.created_at}
+                    });
+                }
+                return arr;
+            });
+        require_roles("dataSources", {std::string(Role::PLATFORM_ADMIN),
+                                      std::string(Role::TENANT_ADMIN)});
+
+        // ---------------------------------------------------------------
         // T047-016: login mutation
         // Unauthenticated — any caller may attempt; no require_roles() gate.
         // ---------------------------------------------------------------
@@ -1606,6 +1827,42 @@ namespace isched::v0_0_1::backend {
                 return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
             });
         // login is intentionally NOT gated by require_roles().
+
+        // ---------------------------------------------------------------
+        // T050-001: updateTenantConfig mutation (platform_admin only)
+        // ---------------------------------------------------------------
+        register_resolver({}, "updateTenantConfig",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                const std::string org_id = args.value("organizationId", "");
+                if (org_id.empty())
+                    throw std::invalid_argument("updateTenantConfig: organizationId is required");
+
+                // Retrieve existing values as defaults
+                int min_t = 4;
+                int max_t = 16;
+                if (auto r = m_database->get_tenant_setting(org_id, "min_threads"); r)
+                    min_t = std::stoi(r.value());
+                if (auto r = m_database->get_tenant_setting(org_id, "max_threads"); r)
+                    max_t = std::stoi(r.value());
+
+                if (args.contains("minThreads") && !args["minThreads"].is_null())
+                    min_t = args["minThreads"].get<int>();
+                if (args.contains("maxThreads") && !args["maxThreads"].is_null())
+                    max_t = args["maxThreads"].get<int>();
+
+                if (min_t < 1) min_t = 1;
+                if (max_t < min_t) max_t = min_t;
+
+                std::ignore = m_database->set_tenant_setting(org_id, "min_threads", std::to_string(min_t));
+                std::ignore = m_database->set_tenant_setting(org_id, "max_threads", std::to_string(max_t));
+
+                return json{
+                    {"organizationId", org_id},
+                    {"minThreads",     min_t},
+                    {"maxThreads",     max_t}
+                };
+            });
+        require_roles("updateTenantConfig", {std::string(Role::PLATFORM_ADMIN)});
 
         load_schema(BUILTIN_SCHEMA);
     }

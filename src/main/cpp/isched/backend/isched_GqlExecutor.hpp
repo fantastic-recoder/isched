@@ -73,6 +73,7 @@ namespace isched::v0_0_1::backend {
         std::string user_name;                          ///< Human-readable display name (empty = anonymous)
         std::vector<std::string> roles;                 ///< Granted roles (e.g. "role_platform_admin")
         std::string session_id;                         ///< JWT @c jti claim for the current request; empty if unauthenticated
+        std::string bearer_token;                       ///< Raw Bearer token for bearer_passthrough DataSource auth (T048-007)
     };
 
     /**
@@ -348,6 +349,17 @@ namespace isched::v0_0_1::backend {
             m_auth = std::move(auth);
         }
 
+        /**
+         * @brief Provide the server-level master secret used to derive per-tenant
+         *        AES-256-GCM keys for encrypting DataSource API keys (T048-001a).
+         *
+         * The JWT secret is a sensible default; call this before the first request
+         * that touches createDataSource / updateDataSource.
+         */
+        void set_master_secret(std::string secret) {
+            m_master_secret = std::move(secret);
+        }
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -373,6 +385,9 @@ namespace isched::v0_0_1::backend {
 
         // Authentication middleware for the login resolver (T047-016); shared ownership.
         std::shared_ptr<AuthenticationMiddleware> m_auth;
+
+        // Server-level master secret for DataSource API key encryption (T048-001a).
+        std::string m_master_secret;
 
         /// Execution configuration stored at construction time.
         Config m_config;

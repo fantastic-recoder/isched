@@ -94,6 +94,8 @@ input ApplyConfigurationInput {
   displayName: String
   """Version label (e.g., semver or date string)"""
   version: String
+  """Optional resolver bindings activated with this snapshot (T048-007)"""
+  resolverBindings: [ResolverBindingInput]
 }
 
 """Result of a configuration mutation"""
@@ -182,6 +184,8 @@ type Query {
   organization(id: ID!): Organization
   """List organizations (platform_admin sees all; tenant_admin sees own org)"""
   organizations: [Organization!]!
+  """List registered outbound-HTTP data sources for an organization (tenant_admin or platform_admin)"""
+  dataSources(organizationId: ID): [DataSource!]!
 }
 
 """Root mutation type"""
@@ -220,6 +224,14 @@ type Mutation {
   updateUser(organizationId: ID!, id: ID!, input: UpdateUserInput!): User!
   """Delete a user (tenant_admin or platform_admin)"""
   deleteUser(organizationId: ID!, id: ID!): Boolean!
+  """Register a new outbound-HTTP data source (tenant_admin or platform_admin)"""
+  createDataSource(organizationId: ID!, input: CreateDataSourceInput!): DataSource!
+  """Update an existing data source (tenant_admin or platform_admin)"""
+  updateDataSource(organizationId: ID!, id: ID!, input: UpdateDataSourceInput!): DataSource!
+  """Delete a data source (tenant_admin or platform_admin)"""
+  deleteDataSource(organizationId: ID!, id: ID!): Boolean!
+  """Update advisory thread-pool configuration for an organization (platform_admin only)"""
+  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int): TenantConfig!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -383,6 +395,65 @@ input UpdateOrganizationInput {
   storageLimit: Int
 }
 
+"""Represents a registered outbound-HTTP data source (T048)"""
+type DataSource {
+  id: ID!
+  name: String!
+  baseUrl: String!
+  """Authentication strategy: none | bearer_passthrough | api_key"""
+  authKind: String!
+  """Header name used when authKind is api_key (e.g. X-API-Key)"""
+  apiKeyHeader: String
+  """Request timeout in milliseconds"""
+  timeoutMs: Int!
+  createdAt: String!
+}
+
+"""Error returned by RestDataSource::fetch when the upstream responds with a non-2xx status or a connection error (T048-006)"""
+type HttpError {
+  statusCode: Int!
+  message: String!
+  url: String
+}
+
+"""Input for registering a new outbound-HTTP data source"""
+input CreateDataSourceInput {
+  name: String!
+  baseUrl: String!
+  """Authentication strategy: none | bearer_passthrough | api_key (default: none)"""
+  authKind: String
+  """Header name for api_key auth (e.g. X-API-Key)"""
+  apiKeyHeader: String
+  """Plain-text API key value (stored encrypted); omit when authKind != api_key"""
+  apiKeyValue: String
+  """Request timeout in milliseconds (default: 5000)"""
+  timeoutMs: Int
+}
+
+"""Input for updating an existing outbound-HTTP data source (all fields optional)"""
+input UpdateDataSourceInput {
+  name: String
+  baseUrl: String
+  authKind: String
+  apiKeyHeader: String
+  apiKeyValue: String
+  timeoutMs: Int
+}
+
+"""Describes one resolver binding: maps a GraphQL field name to an outbound data source (T048-007)"""
+input ResolverBindingInput {
+  """Name of the GraphQL field this binding covers"""
+  fieldName: String!
+  """Resolver strategy — currently only 'outbound_http' is supported"""
+  resolverKind: String!
+  """ID of the DataSource to use"""
+  dataSourceId: String!
+  """URL path to append to the data source base URL (default: /)"""
+  pathPattern: String
+  """HTTP method (default: GET)"""
+  httpMethod: String
+}
+
 """Input for creating a new custom role"""
 input CreateRoleInput {
   """Role identifier (e.g. 'role_billing_admin'); must be unique"""
@@ -393,4 +464,14 @@ input CreateRoleInput {
   description: String
   """Scope: 'platform' (requires platform_admin) or 'tenant' (requires tenant_admin)"""
   scope: String!
+}
+
+"""Advisory thread-pool configuration for an organization (T050-001)"""
+type TenantConfig {
+  """Organization this configuration belongs to"""
+  organizationId: ID!
+  """Advisory minimum number of HTTP worker threads"""
+  minThreads: Int!
+  """Advisory maximum number of HTTP worker threads"""
+  maxThreads: Int!
 }

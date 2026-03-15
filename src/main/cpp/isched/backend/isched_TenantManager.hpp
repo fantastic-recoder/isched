@@ -94,6 +94,9 @@ public:
         bool enable_introspection{true};    ///< Allow GraphQL introspection
         std::size_t max_query_complexity{1000}; ///< GraphQL query complexity cap
         Duration request_timeout{20000};    ///< Per-request timeout
+        // T050-001: advisory thread pool configuration stored per-tenant
+        std::size_t min_threads{4};         ///< Advisory minimum HTTP worker threads
+        std::size_t max_threads{16};        ///< Advisory maximum HTTP worker threads
 
         TenantConfiguration() = default;
     };
@@ -210,6 +213,16 @@ public:
     /** Return a JSON string with the current health status. */
     String get_health() const;
 
+    // T050-002: global subscription count tracking
+    /** Increment the global active-subscription counter (call on subscribe). */
+    void on_subscription_start() noexcept;
+
+    /** Decrement the global active-subscription counter (call on disconnect). */
+    void on_subscription_end() noexcept;
+
+    /** Return the current total count of active subscriptions across all tenants. */
+    uint64_t get_active_subscription_count() const noexcept;
+
 private:
     explicit TenantManager(const Configuration& config);
 
@@ -228,6 +241,7 @@ private:
 
     std::atomic<uint64_t> m_total_requests{0};
     std::atomic<uint64_t> m_active_tenants{0};
+    std::atomic<uint64_t> m_total_active_subscription_count{0}; ///< T050-002
     TimePoint m_start_time{};
 };
 

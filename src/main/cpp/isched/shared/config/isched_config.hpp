@@ -117,6 +117,9 @@ struct ConfigurationSnapshot {
     std::string display_name;      ///< Human-readable label
     std::string schema_sdl;        ///< Generated SDL fragment for tenant types
     bool is_active = false;        ///< Whether this is the current active snapshot
+    /// JSON array of resolver binding objects (T048-007); stored as serialised JSON string.
+    /// Each object: { fieldName, resolverKind, dataSourceId, pathPattern?, httpMethod? }.
+    std::string resolver_bindings{"[]"};
 
     std::chrono::system_clock::time_point created_at  = std::chrono::system_clock::now();
     std::optional<std::chrono::system_clock::time_point> activated_at;

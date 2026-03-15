@@ -346,21 +346,21 @@ Each task implementation MUST verify:
 
 #### Data source configuration
 
-- [ ] T048-001 [P] Create SQLite schema for `data_sources` table in each tenant DB: `id`, `name`, `base_url`, `auth_kind` (`none`|`bearer_passthrough`|`api_key`), `api_key_header`, `api_key_value_encrypted` (AES-256-GCM ciphertext + nonce, base64-encoded), `timeout_ms`, `created_at` — **depends on T047-006**; `api_key_value` MUST NOT be stored in plaintext (FR-SEC-002)
-- [ ] T048-001a [P] Implement an `isched_CryptoUtils.hpp/.cpp` helper providing `encrypt_secret(plaintext, tenant_key) → base64_ciphertext` and `decrypt_secret(base64_ciphertext, tenant_key) → plaintext` using AES-256-GCM via OpenSSL `EVP_AEAD`; derive the per-tenant key from a server-level master secret + tenant ID using HKDF (OpenSSL — no new dependency); use this helper in `RestDataSource` when reading `api_key_value`
-- [ ] T048-002 [P] Implement `createDataSource(name: String!, baseUrl: String!, authKind: String, ...)` mutation — `tenant_admin` only
-- [ ] T048-003 [P] Implement `updateDataSource(id: ID!, ...)` and `deleteDataSource(id: ID!)` mutations — `tenant_admin` only
-- [ ] T048-004 [P] Implement `dataSources` Query field — returns all data sources for the caller's tenant
+- [x] T048-001 [P] Create SQLite schema for `data_sources` table in each tenant DB: `id`, `name`, `base_url`, `auth_kind` (`none`|`bearer_passthrough`|`api_key`), `api_key_header`, `api_key_value_encrypted` (AES-256-GCM ciphertext + nonce, base64-encoded), `timeout_ms`, `created_at` — **depends on T047-006**; `api_key_value` MUST NOT be stored in plaintext (FR-SEC-002)
+- [x] T048-001a [P] Implement an `isched_CryptoUtils.hpp/.cpp` helper providing `encrypt_secret(plaintext, tenant_key) → base64_ciphertext` and `decrypt_secret(base64_ciphertext, tenant_key) → plaintext` using AES-256-GCM via OpenSSL `EVP_AEAD`; derive the per-tenant key from a server-level master secret + tenant ID using HKDF (OpenSSL — no new dependency); use this helper in `RestDataSource` when reading `api_key_value`
+- [x] T048-002 [P] Implement `createDataSource(name: String!, baseUrl: String!, authKind: String, ...)` mutation — `tenant_admin` only
+- [x] T048-003 [P] Implement `updateDataSource(id: ID!, ...)` and `deleteDataSource(id: ID!)` mutations — `tenant_admin` only
+- [x] T048-004 [P] Implement `dataSources` Query field — returns all data sources for the caller's tenant
 
 #### Resolver binding
 
-- [ ] T048-005 [P] Create `isched_RestDataSource.hpp/.cpp` *(to be created)* implementing `fetch(path, method, body, ctx) → json` using `cpp-httplib` as the HTTP client; apply auth forwarding based on `auth_kind`; return structured `HttpError` JSON on timeout or 4xx/5xx
-- [ ] T048-006 [P] Add `HttpError` type to the built-in GraphQL schema in `isched_builtin_server_schema.graphql`: `type HttpError { statusCode: Int!, message: String!, url: String }`
-- [ ] T048-007 [P] Wire `RestDataSource` into `ResolverDefinition` dispatch: when `resolver_kind == "outbound_http"`, load data source config from tenant DB and invoke `RestDataSource::fetch`; map JSON response through default field resolver
+- [x] T048-005 [P] Create `isched_RestDataSource.hpp/.cpp` *(to be created)* implementing `fetch(path, method, body, ctx) → json` using `cpp-httplib` as the HTTP client; apply auth forwarding based on `auth_kind`; return structured `HttpError` JSON on timeout or 4xx/5xx
+- [x] T048-006 [P] Add `HttpError` type to the built-in GraphQL schema in `isched_builtin_server_schema.graphql`: `type HttpError { statusCode: Int!, message: String!, url: String }`
+- [x] T048-007 [P] Wire `RestDataSource` into `ResolverDefinition` dispatch: when `resolver_kind == "outbound_http"`, load data source config from tenant DB and invoke `RestDataSource::fetch`; map JSON response through default field resolver
 
 #### Tests
 
-- [ ] T048-008 [P] Add unit tests in `src/test/cpp/isched/isched_rest_datasource_tests.cpp` *(to be created)*: bearer passthrough sets correct `Authorization` header; api_key sets configured header; 404 upstream returns `HttpError`; timeout returns `HttpError`
+- [x] T048-008 [P] Add unit tests in `src/test/cpp/isched/isched_rest_datasource_tests.cpp` *(to be created)*: bearer passthrough sets correct `Authorization` header; api_key sets configured header; 404 upstream returns `HttpError`; timeout returns `HttpError`
 
 ---
 
@@ -391,11 +391,11 @@ Each task implementation MUST verify:
 - Global pool size adapts based on aggregate active subscriptions; overflow requests queued globally
 - Rationale: `cpp-httplib::Server::set_thread_pool_size()` is a global API with no per-tenant granularity; a separate per-tenant dispatch layer is deferred
 
-- [ ] T050-001 [P] Add advisory `min_threads` and `max_threads` fields to `TenantManager::TenantConfig`; expose `updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int)` mutation — `platform_admin` only; store in tenant DB for future enforcement
-- [ ] T050-002 [P] In `TenantManager`, track `total_active_subscription_count` as an atomic global counter (increment on any tenant subscription start, decrement on disconnect)
-- [ ] T050-003 [P] Implement global adaptation logic: when `total_active_subscription_count` crosses a configurable threshold (default: current pool size × 0.75), call `httplib::Server::set_thread_pool_size()` to grow the global pool up to a system-wide `max_global_threads` limit; scale down when count drops below threshold with a cooldown period (default: 30 s)
-- [ ] T050-004 [P] Implement global request queuing: when in-flight requests exceed the current pool size, enqueue new requests in a global `std::queue` protected by a mutex; drain as threads become free
-- [ ] T050-005 [P] Add unit tests verifying global pool adaptation triggers at correct subscription thresholds and the queue drains correctly after threads free up
+- [x] T050-001 [P] Add advisory `min_threads` and `max_threads` fields to `TenantManager::TenantConfig`; expose `updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int)` mutation — `platform_admin` only; store in tenant DB for future enforcement
+- [x] T050-002 [P] In `TenantManager`, track `total_active_subscription_count` as an atomic global counter (increment on any tenant subscription start, decrement on disconnect)
+- [x] T050-003 [P] Implement global adaptation logic: when `total_active_subscription_count` crosses a configurable threshold (default: current pool size × 0.75), call `httplib::Server::set_thread_pool_size()` to grow the global pool up to a system-wide `max_global_threads` limit; scale down when count drops below threshold with a cooldown period (default: 30 s)
+- [x] T050-004 [P] Implement global request queuing: when in-flight requests exceed the current pool size, enqueue new requests in a global `std::queue` protected by a mutex; drain as threads become free
+- [x] T050-005 [P] Add unit tests verifying global pool adaptation triggers at correct subscription thresholds and the queue drains correctly after threads free up
 
 ---
 

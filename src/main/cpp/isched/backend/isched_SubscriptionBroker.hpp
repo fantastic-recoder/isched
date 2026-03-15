@@ -169,6 +169,16 @@ public:
      */
     [[nodiscard]] std::size_t get_subscriber_count(const std::string& topic = "") const;
 
+    /**
+     * @brief Register a callback that fires whenever the total subscription
+     *        count changes (T050-002).
+     *
+     * The callback is invoked with the new count after every subscribe,
+     * unsubscribe, or disconnect_session call that alters the total.
+     * Pass an empty function to clear the callback.
+     */
+    void set_subscription_count_callback(std::function<void(std::size_t)> cb);
+
 private:
     SubscriptionBroker();
 

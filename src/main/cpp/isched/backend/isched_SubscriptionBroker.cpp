@@ -57,6 +57,10 @@ struct SubscriptionBroker::Impl {
     std::unordered_map<std::string, AuthSessionRecord> auth_sessions;
     //   ws_session_id → auth_session_id  (reverse lookup for cleanup)
     std::unordered_map<std::string, std::string> ws_to_auth;
+
+    // T050-002: count-change callback (set once before listen(), then read-only)
+    mutable std::mutex count_cb_mutex;
+    std::function<void(std::size_t)> count_change_cb;
 };
 
 // ---------------------------------------------------------------------------
@@ -80,11 +84,21 @@ std::string SubscriptionBroker::subscribe(const std::string& session_id,
                                            const std::string& topic,
                                            SubscriptionHandler handler) {
     const std::string sub_id = make_subscription_id();
-
-    std::unique_lock lock(m_impl->mutex);
-    m_impl->subscriptions.emplace(sub_id,
-        SubscriptionRecord{sub_id, session_id, topic, std::move(handler)});
-    m_impl->session_index[session_id].push_back(sub_id);
+    std::size_t new_count = 0;
+    {
+        std::unique_lock lock(m_impl->mutex);
+        m_impl->subscriptions.emplace(sub_id,
+            SubscriptionRecord{sub_id, session_id, topic, std::move(handler)});
+        m_impl->session_index[session_id].push_back(sub_id);
+        new_count = m_impl->subscriptions.size();
+    }
+    // T050-002: notify outside the main lock
+    std::function<void(std::size_t)> cb;
+    {
+        std::lock_guard<std::mutex> lk(m_impl->count_cb_mutex);
+        cb = m_impl->count_change_cb;
+    }
+    if (cb) cb(new_count);
 
     spdlog::debug("SubscriptionBroker: registered {} for session {} on topic '{}'",
                   sub_id, session_id, topic);
@@ -92,41 +106,71 @@ std::string SubscriptionBroker::subscribe(const std::string& session_id,
 }
 
 void SubscriptionBroker::unsubscribe(const std::string& subscription_id) {
-    std::unique_lock lock(m_impl->mutex);
+    bool changed = false;
+    std::size_t new_count = 0;
+    {
+        std::unique_lock lock(m_impl->mutex);
 
-    auto it = m_impl->subscriptions.find(subscription_id);
-    if (it == m_impl->subscriptions.end()) {
-        return;
-    }
-
-    const std::string session_id = it->second.session_id;
-    m_impl->subscriptions.erase(it);
-
-    // Remove from session index
-    auto sess_it = m_impl->session_index.find(session_id);
-    if (sess_it != m_impl->session_index.end()) {
-        auto& ids = sess_it->second;
-        ids.erase(std::remove(ids.begin(), ids.end(), subscription_id), ids.end());
-        if (ids.empty()) {
-            m_impl->session_index.erase(sess_it);
+        auto it = m_impl->subscriptions.find(subscription_id);
+        if (it == m_impl->subscriptions.end()) {
+            return;
         }
+
+        const std::string session_id = it->second.session_id;
+        m_impl->subscriptions.erase(it);
+        new_count = m_impl->subscriptions.size();
+        changed = true;
+
+        // Remove from session index
+        auto sess_it = m_impl->session_index.find(session_id);
+        if (sess_it != m_impl->session_index.end()) {
+            auto& ids = sess_it->second;
+            ids.erase(std::remove(ids.begin(), ids.end(), subscription_id), ids.end());
+            if (ids.empty()) {
+                m_impl->session_index.erase(sess_it);
+            }
+        }
+    }
+    // T050-002: notify outside the main lock
+    if (changed) {
+        std::function<void(std::size_t)> cb;
+        {
+            std::lock_guard<std::mutex> lk(m_impl->count_cb_mutex);
+            cb = m_impl->count_change_cb;
+        }
+        if (cb) cb(new_count);
     }
 
     spdlog::debug("SubscriptionBroker: removed {}", subscription_id);
 }
 
 void SubscriptionBroker::disconnect_session(const std::string& session_id) {
-    std::unique_lock lock(m_impl->mutex);
+    bool changed = false;
+    std::size_t new_count = 0;
+    {
+        std::unique_lock lock(m_impl->mutex);
 
-    auto sess_it = m_impl->session_index.find(session_id);
-    if (sess_it == m_impl->session_index.end()) {
-        return;
-    }
+        auto sess_it = m_impl->session_index.find(session_id);
+        if (sess_it == m_impl->session_index.end()) {
+            return;
+        }
 
-    for (const auto& sub_id : sess_it->second) {
-        m_impl->subscriptions.erase(sub_id);
+        for (const auto& sub_id : sess_it->second) {
+            m_impl->subscriptions.erase(sub_id);
+        }
+        m_impl->session_index.erase(sess_it);
+        new_count = m_impl->subscriptions.size();
+        changed = true;
     }
-    m_impl->session_index.erase(sess_it);
+    // T050-002: notify outside the main lock
+    if (changed) {
+        std::function<void(std::size_t)> cb;
+        {
+            std::lock_guard<std::mutex> lk(m_impl->count_cb_mutex);
+            cb = m_impl->count_change_cb;
+        }
+        if (cb) cb(new_count);
+    }
 
     spdlog::debug("SubscriptionBroker: disconnected session {}", session_id);
 }
@@ -182,6 +226,12 @@ std::size_t SubscriptionBroker::get_subscriber_count(const std::string& topic) c
         }
     }
     return count;
+}
+
+// T050-002: set_subscription_count_callback
+void SubscriptionBroker::set_subscription_count_callback(std::function<void(std::size_t)> cb) {
+    std::lock_guard<std::mutex> lk(m_impl->count_cb_mutex);
+    m_impl->count_change_cb = std::move(cb);
 }
 
 // ---------------------------------------------------------------------------

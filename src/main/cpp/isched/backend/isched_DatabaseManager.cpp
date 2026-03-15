@@ -530,6 +530,12 @@ DatabaseResult<void> DatabaseManager::initialize_tenant(const std::string& tenan
         spdlog::warn("initialize_tenant: ensure_sessions_table failed for tenant '{}'", tenant_id);
     }
 
+    // Ensure the data_sources table exists (T048)
+    auto ds_res = ensure_data_sources_table(tenant_id);
+    if (!ds_res) {
+        spdlog::warn("initialize_tenant: ensure_data_sources_table failed for tenant '{}'", tenant_id);
+    }
+
     return DatabaseResult<void>{};
 }
 
@@ -775,7 +781,8 @@ DatabaseResult<void> DatabaseManager::initialize_config_store() {
         "  schema_sdl  TEXT,"
         "  is_active   INTEGER NOT NULL DEFAULT 0,"
         "  created_at  INTEGER NOT NULL,"
-        "  activated_at INTEGER"
+        "  activated_at INTEGER,"
+        "  resolver_bindings TEXT NOT NULL DEFAULT '[]'"
         ");";
     char* errmsg = nullptr;
     if (sqlite3_exec(config_db_.get(), ddl, nullptr, nullptr, &errmsg) != SQLITE_OK) {
@@ -783,6 +790,11 @@ DatabaseResult<void> DatabaseManager::initialize_config_store() {
         sqlite3_free(errmsg);
         return DatabaseResult<void>{DatabaseError::SchemaValidationFailed};
     }
+    // Migration: add resolver_bindings column to databases created before T048-007.
+    // sqlite3_exec silently returns an error if the column already exists — we ignore it.
+    sqlite3_exec(config_db_.get(),
+        "ALTER TABLE config_snapshots ADD COLUMN resolver_bindings TEXT NOT NULL DEFAULT '[]';",
+        nullptr, nullptr, nullptr);
     config_store_initialized_ = true;
     return DatabaseResult<void>{};
 }
@@ -797,8 +809,8 @@ DatabaseResult<void> DatabaseManager::save_config_snapshot(
 
     const char* sql =
         "INSERT INTO config_snapshots"
-        "  (id, tenant_id, version, display_name, schema_sdl, is_active, created_at, activated_at)"
-        " VALUES (?,?,?,?,?,?,?,?);";
+        "  (id, tenant_id, version, display_name, schema_sdl, is_active, created_at, activated_at, resolver_bindings)"
+        " VALUES (?,?,?,?,?,?,?,?,?);";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseResult<void>{DatabaseError::QueryFailed};
@@ -820,6 +832,8 @@ DatabaseResult<void> DatabaseManager::save_config_snapshot(
         sqlite3_bind_int64(stmt, 8, tp_to_epoch(*snap.activated_at));
     else
         sqlite3_bind_null(stmt, 8);
+    const std::string bindings_json = snap.resolver_bindings.empty() ? "[]" : snap.resolver_bindings;
+    sqlite3_bind_text(stmt, 9, bindings_json.c_str(), -1, SQLITE_TRANSIENT);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -918,6 +932,9 @@ ConfigurationSnapshot row_to_snapshot(sqlite3_stmt* stmt) {
     s.created_at   = epoch_to_tp(sqlite3_column_int64(stmt, 6));
     if (sqlite3_column_type(stmt, 7) != SQLITE_NULL)
         s.activated_at = epoch_to_tp(sqlite3_column_int64(stmt, 7));
+    // Column 8: resolver_bindings (added T048-007; may be absent in old rows)
+    if (sqlite3_column_count(stmt) > 8 && sqlite3_column_type(stmt, 8) != SQLITE_NULL)
+        s.resolver_bindings = col_str(8);
     return s;
 }
 } // anonymous namespace
@@ -932,7 +949,7 @@ DatabaseManager::get_active_config_snapshot(const std::string& tenant_id) const
     sqlite3* db = db_res.value();
 
     const char* sql =
-        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at"
+        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at,resolver_bindings"
         " FROM config_snapshots WHERE tenant_id=? AND is_active=1 LIMIT 1;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
@@ -961,7 +978,7 @@ DatabaseManager::list_config_snapshots(const std::string& tenant_id) const
     sqlite3* db = db_res.value();
 
     const char* sql =
-        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at"
+        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at,resolver_bindings"
         " FROM config_snapshots WHERE tenant_id=? ORDER BY created_at DESC;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
@@ -986,7 +1003,7 @@ DatabaseManager::get_config_snapshot(const std::string& snapshot_id) const
     sqlite3* db = db_res.value();
 
     const char* sql =
-        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at"
+        "SELECT id,tenant_id,version,display_name,schema_sdl,is_active,created_at,activated_at,resolver_bindings"
         " FROM config_snapshots WHERE id=? LIMIT 1;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK)
@@ -1075,6 +1092,13 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
             user_limit        INTEGER NOT NULL DEFAULT 10,
             storage_limit     INTEGER NOT NULL DEFAULT 1073741824,
             created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS tenant_settings (
+            org_id  TEXT NOT NULL,
+            key     TEXT NOT NULL,
+            value   TEXT NOT NULL,
+            PRIMARY KEY (org_id, key)
         );
     )sql";
 
@@ -2263,5 +2287,292 @@ DatabaseResult<void> DatabaseManager::revoke_all_sessions_for_org(
     if (rc != SQLITE_DONE) { return DatabaseError::QueryFailed; }
     return DatabaseResult<void>{};
 }
+
+// ── Data sources (T048) ───────────────────────────────────────────────────────
+
+DatabaseResult<void> DatabaseManager::ensure_data_sources_table(const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* ddl = R"sql(
+        CREATE TABLE IF NOT EXISTS data_sources (
+            id                       TEXT PRIMARY KEY,
+            name                     TEXT NOT NULL,
+            base_url                 TEXT NOT NULL,
+            auth_kind                TEXT NOT NULL DEFAULT 'none',
+            api_key_header           TEXT NOT NULL DEFAULT '',
+            api_key_value_encrypted  TEXT NOT NULL DEFAULT '',
+            timeout_ms               INTEGER NOT NULL DEFAULT 5000,
+            created_at               TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    )sql";
+
+    if (sqlite3_exec(conn.get(), ddl, nullptr, nullptr, nullptr) != SQLITE_OK) {
+        spdlog::error("ensure_data_sources_table: DDL failed for tenant '{}'", tenant_id);
+        return DatabaseError::SchemaValidationFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::create_data_source(
+    const std::string& tenant_id,
+    const std::string& id,
+    const std::string& name,
+    const std::string& base_url,
+    const std::string& auth_kind,
+    const std::string& api_key_header,
+    const std::string& api_key_value_encrypted,
+    int timeout_ms)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "INSERT INTO data_sources "
+        "(id, name, base_url, auth_kind, api_key_header, api_key_value_encrypted, timeout_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, id.c_str(),                       -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, name.c_str(),                     -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, base_url.c_str(),                 -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, auth_kind.c_str(),                -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, api_key_header.c_str(),           -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, api_key_value_encrypted.c_str(),  -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int (stmt, 7, timeout_ms);
+
+    const int rc2 = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc2 == SQLITE_CONSTRAINT) { return DatabaseError::DuplicateKey; }
+    if (rc2 != SQLITE_DONE)       { return DatabaseError::QueryFailed;   }
+    return DatabaseResult<void>{};
+}
+
+namespace {
+DataSourceRecord row_to_data_source(sqlite3_stmt* s)
+{
+    DataSourceRecord r;
+    auto col_text = [s](int col) -> std::string {
+        const char* p = reinterpret_cast<const char*>(sqlite3_column_text(s, col));
+        return p ? p : "";
+    };
+    r.id                      = col_text(0);
+    r.name                    = col_text(1);
+    r.base_url                = col_text(2);
+    r.auth_kind               = col_text(3);
+    r.api_key_header          = col_text(4);
+    r.api_key_value_encrypted = col_text(5);
+    r.timeout_ms              = sqlite3_column_int(s, 6);
+    r.created_at              = col_text(7);
+    return r;
+}
+} // anonymous namespace — row_to_data_source
+
+DatabaseResult<DataSourceRecord> DatabaseManager::get_data_source_by_id(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "SELECT id, name, base_url, auth_kind, api_key_header, "
+        "       api_key_value_encrypted, timeout_ms, created_at "
+        "FROM data_sources WHERE id = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc2 = sqlite3_step(stmt);
+    if (rc2 == SQLITE_ROW) {
+        auto rec = row_to_data_source(stmt);
+        sqlite3_finalize(stmt);
+        return rec;
+    }
+    sqlite3_finalize(stmt);
+    if (rc2 == SQLITE_DONE) { return DatabaseError::NotFound; }
+    return DatabaseError::QueryFailed;
+}
+
+DatabaseResult<std::vector<DataSourceRecord>> DatabaseManager::list_data_sources(
+    const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "SELECT id, name, base_url, auth_kind, api_key_header, "
+        "       api_key_value_encrypted, timeout_ms, created_at "
+        "FROM data_sources ORDER BY created_at ASC;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    std::vector<DataSourceRecord> records;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        records.push_back(row_to_data_source(stmt));
+    }
+    sqlite3_finalize(stmt);
+    return records;
+}
+
+DatabaseResult<void> DatabaseManager::update_data_source(
+    const std::string& tenant_id,
+    const std::string& id,
+    std::optional<std::string> name,
+    std::optional<std::string> base_url,
+    std::optional<std::string> auth_kind,
+    std::optional<std::string> api_key_header,
+    std::optional<std::string> api_key_value_encrypted,
+    std::optional<int>         timeout_ms)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // Build a dynamic SET clause from the non-null optionals
+    std::string set_clause;
+    auto append_col = [&](const char* col) {
+        if (!set_clause.empty()) set_clause += ", ";
+        set_clause += std::string(col) + " = ?";
+    };
+    if (name)                      append_col("name");
+    if (base_url)                  append_col("base_url");
+    if (auth_kind)                 append_col("auth_kind");
+    if (api_key_header)            append_col("api_key_header");
+    if (api_key_value_encrypted)   append_col("api_key_value_encrypted");
+    if (timeout_ms)                append_col("timeout_ms");
+
+    if (set_clause.empty()) {
+        // Nothing to update — just verify the record exists
+        const auto check = get_data_source_by_id(tenant_id, id);
+        if (!check) return check.error();
+        return DatabaseResult<void>{};
+    }
+
+    const std::string dyn_sql = "UPDATE data_sources SET " + set_clause + " WHERE id = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), dyn_sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    int col = 1;
+    if (name)                    sqlite3_bind_text(stmt, col++, name->c_str(),                     -1, SQLITE_TRANSIENT);
+    if (base_url)                sqlite3_bind_text(stmt, col++, base_url->c_str(),                 -1, SQLITE_TRANSIENT);
+    if (auth_kind)               sqlite3_bind_text(stmt, col++, auth_kind->c_str(),                -1, SQLITE_TRANSIENT);
+    if (api_key_header)          sqlite3_bind_text(stmt, col++, api_key_header->c_str(),           -1, SQLITE_TRANSIENT);
+    if (api_key_value_encrypted) sqlite3_bind_text(stmt, col++, api_key_value_encrypted->c_str(), -1, SQLITE_TRANSIENT);
+    if (timeout_ms)              sqlite3_bind_int (stmt, col++, *timeout_ms);
+    sqlite3_bind_text(stmt, col, id.c_str(), -1, SQLITE_TRANSIENT);
+
+    const int rc2 = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc2 != SQLITE_DONE)                     { return DatabaseError::QueryFailed; }
+    if (sqlite3_changes(conn.get()) == 0)        { return DatabaseError::NotFound;   }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::delete_data_source(
+    const std::string& tenant_id,
+    const std::string& id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql = "DELETE FROM data_sources WHERE id = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc2 = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc2 != SQLITE_DONE)                     { return DatabaseError::QueryFailed; }
+    if (sqlite3_changes(conn.get()) == 0)        { return DatabaseError::NotFound;   }
+    return DatabaseResult<void>{};
+}
+
+// ---------------------------------------------------------------------------
+// T050-001: tenant_settings key-value helpers (isched_system.db)
+// ---------------------------------------------------------------------------
+
+DatabaseResult<void> DatabaseManager::set_tenant_setting(
+    const std::string& org_id,
+    const std::string& key,
+    const std::string& value)
+{
+    if (!system_db_) return DatabaseError::ConnectionFailed;
+
+    const char* sql =
+        "INSERT INTO tenant_settings (org_id, key, value) VALUES (?, ?, ?)"
+        " ON CONFLICT(org_id, key) DO UPDATE SET value=excluded.value;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, org_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, key.c_str(),    -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, value.c_str(),  -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) return DatabaseError::QueryFailed;
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<std::string> DatabaseManager::get_tenant_setting(
+    const std::string& org_id,
+    const std::string& key)
+{
+    if (!system_db_) return DatabaseError::ConnectionFailed;
+
+    const char* sql =
+        "SELECT value FROM tenant_settings WHERE org_id = ? AND key = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, org_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, key.c_str(),    -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        const char* val = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        std::string result = val ? val : "";
+        sqlite3_finalize(stmt);
+        return result;
+    }
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_DONE) return DatabaseError::NotFound;
+    return DatabaseError::QueryFailed;
+}
+
 
 } // namespace isched::v0_0_1::backend

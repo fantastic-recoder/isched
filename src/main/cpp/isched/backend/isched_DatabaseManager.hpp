@@ -262,6 +262,18 @@ struct SessionRecord {
     bool        is_revoked{false};
 };
 
+/// Describes one registered outbound-HTTP data source (T048).
+struct DataSourceRecord {
+    std::string id;
+    std::string name;
+    std::string base_url;
+    std::string auth_kind{"none"};            ///< none | bearer_passthrough | api_key
+    std::string api_key_header;              ///< Header name for api_key auth (e.g. "X-API-Key")
+    std::string api_key_value_encrypted;     ///< base64-encoded AES-256-GCM blob
+    int         timeout_ms{5000};
+    std::string created_at;
+};
+
 /**
  * @brief Custom deleter for SQLite database connections
  * 
@@ -887,6 +899,60 @@ public:
     [[nodiscard]] DatabaseResult<void> revoke_all_sessions_for_org(
         const std::string& tenant_id,
         const std::string& exclude_role = "");
+
+    // ── Data sources (T048) ──────────────────────────────────────────────
+
+    /// Create the `data_sources` table in the tenant DB when it does not exist.
+    [[nodiscard]] DatabaseResult<void> ensure_data_sources_table(const std::string& tenant_id);
+
+    /// Insert a new data source.  Returns @c DuplicateKey if @p id already exists.
+    [[nodiscard]] DatabaseResult<void> create_data_source(
+        const std::string& tenant_id,
+        const std::string& id,
+        const std::string& name,
+        const std::string& base_url,
+        const std::string& auth_kind,
+        const std::string& api_key_header,
+        const std::string& api_key_value_encrypted,
+        int timeout_ms);
+
+    /// Fetch one data source by @p id.  Returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<DataSourceRecord> get_data_source_by_id(
+        const std::string& tenant_id,
+        const std::string& id);
+
+    /// List all data sources for @p tenant_id.
+    [[nodiscard]] DatabaseResult<std::vector<DataSourceRecord>> list_data_sources(
+        const std::string& tenant_id);
+
+    /// Partial update: only non-null optionals are applied.
+    /// Returns @c NotFound if @p id is absent.
+    [[nodiscard]] DatabaseResult<void> update_data_source(
+        const std::string& tenant_id,
+        const std::string& id,
+        std::optional<std::string> name,
+        std::optional<std::string> base_url,
+        std::optional<std::string> auth_kind,
+        std::optional<std::string> api_key_header,
+        std::optional<std::string> api_key_value_encrypted,
+        std::optional<int>         timeout_ms);
+
+    /// Delete a data source by @p id.  Returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<void> delete_data_source(
+        const std::string& tenant_id,
+        const std::string& id);
+
+    // T050-001: per-tenant advisory key-value settings (isched_system.db)
+    /// Store (or overwrite) a key-value setting for an org in @c tenant_settings.
+    [[nodiscard]] DatabaseResult<void> set_tenant_setting(
+        const std::string& org_id,
+        const std::string& key,
+        const std::string& value);
+
+    /// Retrieve a key-value setting for an org.  Returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<std::string> get_tenant_setting(
+        const std::string& org_id,
+        const std::string& key);
 
 private:
     /**

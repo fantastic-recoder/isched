@@ -247,6 +247,25 @@ TenantManager::String TenantManager::get_health() const {
 }
 
 // ============================================================================
+// T050-002: subscription count tracking
+// ============================================================================
+
+void TenantManager::on_subscription_start() noexcept {
+    m_total_active_subscription_count.fetch_add(1, std::memory_order_relaxed);
+}
+
+void TenantManager::on_subscription_end() noexcept {
+    // Guard against underflow
+    if (m_total_active_subscription_count.load(std::memory_order_relaxed) > 0) {
+        m_total_active_subscription_count.fetch_sub(1, std::memory_order_relaxed);
+    }
+}
+
+uint64_t TenantManager::get_active_subscription_count() const noexcept {
+    return m_total_active_subscription_count.load(std::memory_order_relaxed);
+}
+
+// ============================================================================
 // Private helpers
 // ============================================================================
 

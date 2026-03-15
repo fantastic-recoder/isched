@@ -37,6 +37,10 @@ add_library(isched
         backend/isched_gql_error.hpp
         backend/isched_multi_dim_map.hpp
         backend/isched_gql_grammar.cpp
+        backend/isched_CryptoUtils.hpp
+        backend/isched_CryptoUtils.cpp
+        backend/isched_RestDataSource.hpp
+        backend/isched_RestDataSource.cpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url Boost::system Boost::thread sago::platform_folders)

@@ -129,3 +129,17 @@ target_link_libraries(test_session_revocation PRIVATE isched Catch2::Catch2WithM
     taocpp::pegtl openssl::openssl)
 add_test(NAME test_session_revocation COMMAND test_session_revocation)
 
+# T048: RestDataSource / CryptoUtils unit tests
+add_executable(isched_rest_datasource_tests isched_rest_datasource_tests.cpp)
+target_link_libraries(isched_rest_datasource_tests PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl)
+add_test(NAME isched_rest_datasource_tests COMMAND isched_rest_datasource_tests)
+
+# T050-005: Adaptive thread pool and subscription resource control unit tests
+add_executable(isched_tenant_thread_pool_tests isched_tenant_thread_pool_tests.cpp)
+target_link_libraries(isched_tenant_thread_pool_tests PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl)
+add_test(NAME isched_tenant_thread_pool_tests COMMAND isched_tenant_thread_pool_tests)
+
