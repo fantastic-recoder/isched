@@ -143,7 +143,7 @@ std::string encrypt_secret(const std::string& plaintext,
         throw std::runtime_error("encrypt_secret: get GCM tag failed");
 
     // Wire format: nonce (12) | tag (16) | ciphertext
-    const std::size_t ct_len = static_cast<std::size_t>(enc_len + final_len);
+    const std::size_t ct_len = static_cast<std::size_t>(enc_len) + static_cast<std::size_t>(final_len);
     std::vector<unsigned char> blob;
     blob.reserve(12 + 16 + ct_len);
     blob.insert(blob.end(), nonce, nonce + 12);

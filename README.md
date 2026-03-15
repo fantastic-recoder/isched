@@ -4,7 +4,14 @@ parallel operation running from cloud server hardware down to embedded hardware.
 
 ## Dependencies
 ### Direct dependencies
-- [Restbed](https://github.com/Corvusoft/restbed)
+- [cpp-httplib](https://github.com/yhirose/cpp-httplib) — HTTP and WebSocket transport
+- [nlohmann/json](https://github.com/nlohmann/json) — JSON serialisation
+- [spdlog](https://github.com/gabime/spdlog) — structured logging
+- [Catch2](https://github.com/catchorg/Catch2) — test framework
+- [SQLite3](https://www.sqlite.org/) — per-tenant embedded database
+- [jwt-cpp](https://github.com/Thalhammer/jwt-cpp) — JWT authentication
+- [Boost.URL / Boost.Asio / Boost.Beast](https://www.boost.org/) — URL parsing and WebSocket utilities
+- [taocpp-pegtl](https://github.com/taocpp/PEGTL) — GraphQL grammar parsing
 
 ## Documentation
 
@@ -46,27 +53,21 @@ cmake --build cmake-build-debug --target docs
 Build on Ubuntu with Docker
 ---------------------------
 
-Make sure you have [Docker installed](https://docs.docker.com/engine/install/) and 
+Make sure you have [Docker installed](https://docs.docker.com/engine/install/) and
 [git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) on your system.
 
-- Build Isched via Docker
 ```bash
 git clone --recursive https://github.com/gogoba/isched.git
 cd isched/src/docker
 docker build -t isched .
-docker run -d --name isched001 --rm -v isched:/opt/isched -p 1980 -t isched:latest
-docker cp isched001:/opt/isched/rest_hello_world .
-docker cp isched001:/opt/isched/isched_srv .
-docker stop isched001
+docker run --name isched001 --rm -p 8080:8080 -t isched:latest
 ```
-Now we can run the resulting binary and send to it a message with curl:
+
+Once running, send GraphQL queries over HTTP:
 ```bash
-./rest_hello_world & 
-curl  --data Groby localhost:1984/resource
-```
-- or you can run isched server out of container:
-```
-docker run --name isched001 --rm -v isched:/opt/isched -t isched:latest /opt/isched/isched_srv
+curl -s -X POST http://localhost:8080/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "{ hello }"}'
 ```
 
 Build on Ubuntu 20.04
@@ -82,11 +83,35 @@ start fill-in in the [CMake options dialogue](doc/clion_cmake_options.png)
 the CMake options used in the [configure.py script](configure.py). The line
 is marked with commentary ```# CMake options after "cmake```. 
 
+## Security
+
+Isched enforces security through static analysis as part of the development workflow.
+
+### Static Analysis — `security_scan` target
+
+A dedicated CMake target runs [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) with a security-focused check set over all library sources:
+
+```bash
+cmake --build ./cmake-build-debug/ --target security_scan
+```
+
+Checks enabled: `cert-*` (CERT C/C++ Secure Coding Standard), `bugprone-*`, `cppcoreguidelines-*`, and `clang-analyzer-security.*`.
+
+The check configuration lives in [.clang-tidy](.clang-tidy) at the repository root. Each suppressed check is documented inline with its rationale (C API compatibility, false positives, intentional design decisions).
+
+**Prerequisites** (Ubuntu/Debian):
+
+```bash
+sudo apt install clang-tidy
+```
+
+The target is configured automatically during CMake configure if `clang-tidy` is found on `PATH`; it is silently skipped when the tool is absent so that CI environments without the tool are not broken.
+
 ## Usefull links
 - [Doxygen](https://www.doxygen.nl/index.html)
 - [Conan](https://conan.io/)
 - [Ninja](https://ninja-build.org/)
-- [Restbed](https://github.com/Corvusoft/restbed)
+- [cpp-httplib](https://github.com/yhirose/cpp-httplib)
 - [CppCoreGuidelines](https://github.com/isocpp/CppCoreGuidelines)
 - [CMake](https://cmake.org/)
 - [Docker](https://www.docker.com/)

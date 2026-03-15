@@ -23,6 +23,7 @@
 #include <iomanip>
 #include <stdexcept>
 #include <ctime>
+#include <utility>
 
 namespace isched::v0_0_1::backend {
 
@@ -246,7 +247,7 @@ public:
         std::tm exp_tm{};
         gmtime_r(&exp_tt, &exp_tm);
         char exp_buf[32];
-        std::strftime(exp_buf, sizeof(exp_buf), "%Y-%m-%dT%H:%M:%SZ", &exp_tm);
+        std::ignore = std::strftime(exp_buf, sizeof(exp_buf), "%Y-%m-%dT%H:%M:%SZ", &exp_tm);
         const std::string expires_at_str(exp_buf);
 
         // Build the JWT with jti = session_id and roles snapshot.
@@ -370,7 +371,8 @@ private:
         buf[6] = (buf[6] & 0x0f) | 0x40;
         buf[8] = (buf[8] & 0x3f) | 0x80;
         char out[37];
-        std::snprintf(out, sizeof(out),
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg,cert-err33-c) -- snprintf is the correct API for UUID hex formatting
+        std::ignore = std::snprintf(out, sizeof(out),
             "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
             buf[0],  buf[1],  buf[2],  buf[3],
             buf[4],  buf[5],

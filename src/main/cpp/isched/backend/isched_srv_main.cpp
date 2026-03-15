@@ -14,6 +14,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <thread>
+#include <utility>
 
 #include <spdlog/cfg/env.h>
 #include <spdlog/spdlog.h>
@@ -34,8 +35,8 @@ int main(const int, const char**) {
 
     spdlog::cfg::load_env_levels();
 
-    std::signal(SIGINT, handle_signal);
-    std::signal(SIGTERM, handle_signal);
+    std::ignore = std::signal(SIGINT, handle_signal);
+    std::ignore = std::signal(SIGTERM, handle_signal);
 
     auto server = Server::create();
     if (!server->start()) {

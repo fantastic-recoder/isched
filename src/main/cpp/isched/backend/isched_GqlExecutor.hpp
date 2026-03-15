@@ -217,8 +217,8 @@ namespace isched::v0_0_1::backend {
 
         nlohmann::json generate_schema_introspection();
 
-        GqlExecutor(GqlExecutor&&) = default;
-        GqlExecutor& operator=(GqlExecutor&&) = default;
+        GqlExecutor(GqlExecutor&&) = delete;
+        GqlExecutor& operator=(GqlExecutor&&) = delete;
 
         /**
          * @brief Parse GraphQL query string

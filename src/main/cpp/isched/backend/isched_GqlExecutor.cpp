@@ -33,6 +33,7 @@
 
 namespace {
 // Per-request GraphQL variables context (thread-safe: one entry per executing thread)
+// NOLINTNEXTLINE(cert-err58-cpp) -- json::object() is functionally noexcept; only theoretical std::bad_alloc risk
 thread_local nlohmann::json tl_gql_variables = nlohmann::json::object();
 
 // Per-request resolver context (auth info populated by execute() overload that accepts ctx)
@@ -479,9 +480,6 @@ namespace isched::v0_0_1::backend {
     }
 
     void GqlExecutor::setup_builtin_resolvers() {
-        static std::atomic<std::size_t> request_counter{0};
-        static std::atomic<std::size_t> error_counter{0};
-
         // Basic Hello/Version resolvers
         register_resolver({},"hello", [](const json &, const json &, const ResolverCtx&)->json {
             return basic_json("Hello, GraphQL!");
@@ -806,7 +804,7 @@ namespace isched::v0_0_1::backend {
             std::tm tm_val{};
             gmtime_r(&t, &tm_val);
             char buf[32];
-            std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm_val);
+            std::ignore = std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm_val);
             return buf;
         };
 
@@ -1131,7 +1129,7 @@ namespace isched::v0_0_1::backend {
         // are published by the Server via SubscriptionBroker.
         // ---------------------------------------------------------------
         register_resolver({}, "healthChanged",
-            [this, fmt_iso8601](const json&, const json&, const ResolverCtx&) -> json {
+            [fmt_iso8601](const json&, const json&, const ResolverCtx&) -> json {
                 json evt;
                 evt["status"]    = "UP";
                 evt["timestamp"] = fmt_iso8601(std::chrono::system_clock::now());
@@ -1282,7 +1280,7 @@ namespace isched::v0_0_1::backend {
         // T049-005: revokeAllSessions mutation — tenant_admin only
         // ---------------------------------------------------------------
         register_resolver({}, "revokeAllSessions",
-            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
+            [](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string user_id = args.value("userId", "");
                 if (user_id.empty())
@@ -1305,7 +1303,7 @@ namespace isched::v0_0_1::backend {
         // T049-006: terminateAllSessions mutation — platform_admin only
         // ---------------------------------------------------------------
         register_resolver({}, "terminateAllSessions",
-            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
+            [](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string org_id = args.value("organizationId", "");
                 if (org_id.empty())
@@ -1404,7 +1402,7 @@ namespace isched::v0_0_1::backend {
                     }
                 }
                 // Provision the tenant SQLite file (idempotent)
-                m_database->initialize_tenant(org_id);
+                std::ignore = m_database->initialize_tenant(org_id);
 
                 // Return the created record
                 auto rec_result = m_database->get_organization(org_id);
@@ -2722,7 +2720,7 @@ namespace isched::v0_0_1::backend {
         }
         // Set up the states, here a single std::string as that is
         // what our action requires as an additional function argument.
-        tao::pegtl::string_input in(std::move(std::string(p_query)), aName);
+        tao::pegtl::string_input in(std::string(p_query), aName);
         try {
             auto myRetVal = gql::generate_ast_and_log<gql::Document>(in, aName, false, p_print_dot);
             auto aRoot = std::get<1>(std::move(myRetVal));

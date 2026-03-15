@@ -449,11 +449,12 @@ Each task implementation MUST verify:
 - Scope: all documents — `README.md`, `docs/`, `specs/`, and source-file comments
 - Acceptance: manual review; no automated gate
 
-- [ ] T055-001 Search all documents and source comments for legacy terminology: "REST endpoint", "REST API", "IPC", "script", "CLI executable", "restbed", "process management" — replace with GraphQL-only equivalents
-- [ ] T055-002 Review `README.md` for accurate startup, query, and transport instructions; remove any REST or IPC references
-- [ ] T055-003 Review `docs/` generated output and `specs/` planning documents; update any outdated architecture descriptions
-- [ ] T055-004 Review source-file header comments in `src/main/cpp/` for obsolete descriptions; update to reflect GraphQL-only transport
-- [ ] T055-005 Document all non-standard `extensions` fields (`code`, `timestamp`, `requestId`) in `specs/001-universal-backend/contracts/http-api.md` with example error response shapes (FR-GQL-003)- [ ] T055-006 [P] Update `specs/001-universal-backend/contracts/graphql-schema.md` with all Phase 6 additions and reconcile existing discrepancies:
+- [x] T055-001 Search all documents and source comments for legacy terminology: "REST endpoint", "REST API", "IPC", "script", "CLI executable", "restbed", "process management" — replace with GraphQL-only equivalents
+- [x] T055-002 Review `README.md` for accurate startup, query, and transport instructions; remove any REST or IPC references
+- [x] T055-003 Review `docs/` generated output and `specs/` planning documents; update any outdated architecture descriptions
+- [x] T055-004 Review source-file header comments in `src/main/cpp/` for obsolete descriptions; update to reflect GraphQL-only transport
+- [x] T055-005 Document all non-standard `extensions` fields (`code`, `timestamp`, `requestId`) in `specs/001-universal-backend/contracts/http-api.md` with example error response shapes (FR-GQL-003)
+- [x] T055-006 [P] Update `specs/001-universal-backend/contracts/graphql-schema.md` with all Phase 6 additions and reconcile existing discrepancies:
   - **Reconcile login**: replace `login(input: LoginInput!)` with `login(email: String!, password: String!, organizationId: ID): AuthPayload!` per T047 decision; update `LoginInput` or remove if unused
   - **Reconcile AuthPayload**: replace 4-field `{ accessToken, refreshToken, expiresAt, user }` with 2-field `{ token: String!, expiresAt: String! }` per T047 decision; remove `register` and `refreshToken` mutations if not in scope
   - **Add**: `HttpError` type (T048-006), `ServerMetrics` / `TenantMetrics` types (T051-001), data source types and mutations (`DataSource`, `createDataSource`, `updateDataSource`, `deleteDataSource`, `dataSources`) (T048), session revocation mutations (`revokeSession`, `revokeAllSessions`, `terminateAllSessions`) (T049), RBAC mutations (`createRole`, `deleteRole`) (T047-004), metrics subscriptions (`serverMetricsUpdated`, `tenantMetricsUpdated`) (T051), thread pool config mutation (`updateTenantConfig`) (T050-001)
@@ -465,17 +466,17 @@ Each task implementation MUST verify:
 - Tool: clang-tidy (already partially configured); additional scanners deferred to a later release
 - Integration: CMake target `security_scan` (does not block the default build; run explicitly)
 
-- [ ] T056-001 [P] Add a `security_scan` CMake custom target in `CMakeLists.txt` that runs `clang-tidy` with a security-focused `.clang-tidy` config (enable `cert-*`, `bugprone-*`, `cppcoreguidelines-*`, `clang-analyzer-security.*` checks) over all library sources in `src/main/cpp/`
-- [ ] T056-002 [P] Create or update `.clang-tidy` at the repo root to include the security checks listed above; suppress only checks that conflict with intentional design decisions (document each suppression)
-- [ ] T056-003 [P] Verify `cmake --build ./cmake-build-debug/ --target security_scan` runs without new errors on the current codebase; fix any findings before marking done
-- [ ] T056-004 [P] Document the `security_scan` target in `README.md` under a "Security" section
+- [x] T056-001 [P] Add a `security_scan` CMake custom target in `CMakeLists.txt` that runs `clang-tidy` with a security-focused `.clang-tidy` config (enable `cert-*`, `bugprone-*`, `cppcoreguidelines-*`, `clang-analyzer-security.*` checks) over all library sources in `src/main/cpp/`
+- [x] T056-002 [P] Create or update `.clang-tidy` at the repo root to include the security checks listed above; suppress only checks that conflict with intentional design decisions (document each suppression)
+- [x] T056-003 [P] Verify `cmake --build ./cmake-build-debug/ --target security_scan` runs without new errors on the current codebase; fix any findings before marking done
+- [x] T056-004 [P] Document the `security_scan` target in `README.md` under a "Security" section
 
 ---
 
 ### T057: Deployment Documentation
 
-- [ ] T057-001 Add deployment documentation for HTTP and WebSocket operation covering: TLS configuration with `cpp-httplib`, port and bind-address settings, multi-tenant bootstrap, and graceful shutdown
-- [ ] T057-002 Add embedded/Raspberry Pi deployment guidance in `docs/deployment.md` (FR-PERF-002): minimum RAM/storage requirements, recommended SQLite page-cache sizing, reducing thread counts via `TenantConfig`, and ARM/Linux build instructions using the standard Conan + CMake toolchain — no special compiler flags required
+- [x] T057-001 Add deployment documentation for HTTP and WebSocket operation covering: TLS configuration with `cpp-httplib`, port and bind-address settings, multi-tenant bootstrap, and graceful shutdown
+- [x] T057-002 Add embedded/Raspberry Pi deployment guidance in `docs/deployment.md` (FR-PERF-002): minimum RAM/storage requirements, recommended SQLite page-cache sizing, reducing thread counts via `TenantConfig`, and ARM/Linux build instructions using the standard Conan + CMake toolchain — no special compiler flags required
 
 ---
 

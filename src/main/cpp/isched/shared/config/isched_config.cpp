@@ -524,7 +524,7 @@ std::optional<ConfigValue> EnvironmentConfigProvider::get(const std::string& key
     return std::nullopt;
 }
 
-bool EnvironmentConfigProvider::set(const std::string& key, const ConfigValue& value) {
+bool EnvironmentConfigProvider::set([[maybe_unused]] const std::string& key, [[maybe_unused]] const ConfigValue& value) {
     // Environment variables are read-only in this implementation
     return false;
 }

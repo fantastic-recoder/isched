@@ -64,6 +64,19 @@ Primary endpoint for GraphQL queries and mutations.
 }
 ```
 
+### Non-standard `extensions` fields (FR-GQL-003)
+
+When the server returns an error, the `extensions` object MAY contain the following non-standard fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `code` | `string` | Machine-readable error code identifying the error category (e.g. `CONFIG_VALIDATION_ERROR`, `UNAUTHORIZED`, `NOT_FOUND`, `INTERNAL_SERVER_ERROR`). Clients SHOULD use this field for programmatic error handling rather than parsing `message`. |
+| `timestamp` | `string` | ISO-8601 UTC timestamp of when the error occurred. Useful for correlating errors with server-side logs. |
+| `requestId` | `string` | Opaque identifier for the specific request that produced the error. Include this value when reporting bugs or contacting support; it allows server-side operators to locate the exact log entry. |
+
+All three fields are optional and MAY be absent in any given error response. The `message` field (part of the GraphQL spec) is always present.
+```
+
 ### GET /graphql
 
 Optional support for query operations and introspection over HTTP GET.

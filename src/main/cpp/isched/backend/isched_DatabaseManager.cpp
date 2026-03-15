@@ -648,7 +648,7 @@ DatabaseResult<nlohmann::json> DatabaseManager::execute_transaction(
 
 DatabaseResult<void> DatabaseManager::generate_schema(
     const std::string& tenant_id,
-    const nlohmann::json& data_model) {
+    [[maybe_unused]] const nlohmann::json& data_model) {
     
     // This is a simplified schema generation - in a full implementation,
     // you'd parse the data_model JSON and generate appropriate CREATE TABLE statements
@@ -722,7 +722,7 @@ std::string DatabaseManager::get_tenant_db_path(const std::string& tenant_id) co
     return config_.base_path + "/" + tenant_id + "/data.sqlite3";
 }
 
-DatabaseResult<void> DatabaseManager::configure_connection(sqlite3* connection) const {
+DatabaseResult<void> DatabaseManager::configure_connection([[maybe_unused]] sqlite3* connection) const {
     // This would apply tenant-specific connection configuration
     // For now, basic configuration is applied in ConnectionPool::create_connection
     return DatabaseResult<void>{};
@@ -786,8 +786,9 @@ DatabaseResult<void> DatabaseManager::initialize_config_store() {
         ");";
     char* errmsg = nullptr;
     if (sqlite3_exec(config_db_.get(), ddl, nullptr, nullptr, &errmsg) != SQLITE_OK) {
-        std::string msg = errmsg ? errmsg : "unknown";
+        const std::string msg = errmsg ? errmsg : "unknown";
         sqlite3_free(errmsg);
+        spdlog::warn("initialize_config_store: schema DDL failed: {}", msg);
         return DatabaseResult<void>{DatabaseError::SchemaValidationFailed};
     }
     // Migration: add resolver_bindings column to databases created before T048-007.

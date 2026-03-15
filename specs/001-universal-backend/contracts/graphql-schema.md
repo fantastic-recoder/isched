@@ -1,201 +1,373 @@
 # GraphQL Schema Contract
 
 **Purpose**: Defines the core GraphQL API contract for the Universal Application Server Backend.  
-**Version**: 2.0.0  
-**Compliance**: GraphQL specification and GraphQL over HTTP / `graphql-transport-ws` interoperability
+**Version**: 3.0.0  
+**Compliance**: GraphQL specification and GraphQL over HTTP / `graphql-transport-ws` interoperability  
+**Last updated**: 2026-03-15 (reconciled with Phase 6 implementation: T047–T052)
 
 ## Core Schema
 
 ```graphql
+# ---------------------------------------------------------------------------
+# Scalars
+# ---------------------------------------------------------------------------
 scalar DateTime
 scalar JSON
 scalar UUID
 
+# ---------------------------------------------------------------------------
+# Built-in server types
+# ---------------------------------------------------------------------------
+
+"""Server runtime information"""
 type ServerInfo {
-  version: String!
-  startedAt: DateTime!
-  activeTenants: Int!
-  activeWebSocketSessions: Int!
-  transportModes: [String!]!
+  version: String
+  host: String
+  port: Int
+  status: String
+  startedAt: Int
+  activeTenants: Int
+  activeWebSocketSessions: Int
+  transportModes: [String]
 }
 
+"""Health information for a specific system component"""
 type HealthComponent {
-  name: String!
-  status: String!
-  details: JSON
+  name: String
+  status: String
+  details: HealthComponentDetails
 }
 
+"""Technical details for a health component"""
+type HealthComponentDetails {
+  database: String
+  connectionPool: String
+  error: String
+  used: String
+  max: String
+}
+
+"""Health status information"""
 type HealthStatus {
-  status: String!
-  timestamp: DateTime!
-  components: [HealthComponent!]!
+  status: String
+  timestamp: String
+  components: [HealthComponent]
 }
 
-type ConfigurationSnapshot {
-  id: UUID!
-  tenantId: UUID!
+"""A persisted configuration snapshot for a tenant"""
+type SnapshotRecord {
+  id: String!
+  tenantId: String!
   version: String!
-  displayName: String!
-  settings: JSON!
+  displayName: String
   schemaSdl: String!
-  createdAt: DateTime!
-  activatedAt: DateTime
   isActive: Boolean!
+  createdAt: String!
+  activatedAt: String
 }
 
-type ModelFieldDefinition {
-  name: String!
-  type: String!
-  required: Boolean!
-  unique: Boolean!
-  defaultValue: JSON
+"""Result of a configuration mutation"""
+type ConfigurationResult {
+  success: Boolean!
+  snapshotId: String
+  errors: [String!]
 }
 
-type DataModelDefinition {
-  id: UUID!
-  tenantId: UUID!
-  snapshotId: UUID!
-  name: String!
-  fields: [ModelFieldDefinition!]!
-  indexes: JSON!
-  constraints: JSON!
+# ---------------------------------------------------------------------------
+# Performance metrics (T051)
+# ---------------------------------------------------------------------------
+
+"""Server-wide performance metrics (platform_admin only)"""
+type ServerMetrics {
+  requestsInInterval: Int!
+  errorsInInterval: Int!
+  totalRequestsSinceStartup: Int!
+  totalErrorsSinceStartup: Int!
+  activeConnections: Int!
+  activeSubscriptions: Int!
+  avgResponseTimeMs: Float!
+  tenantCount: Int!
 }
 
+"""Per-tenant performance metrics"""
+type TenantMetrics {
+  organizationId: ID!
+  requestsInInterval: Int!
+  errorsInInterval: Int!
+  totalRequestsSinceStartup: Int!
+  totalErrorsSinceStartup: Int!
+  avgResponseTimeMs: Float!
+}
+
+"""Advisory thread-pool and metrics configuration for an organization (T050, T051)"""
+type TenantConfig {
+  organizationId: ID!
+  minThreads: Int!
+  maxThreads: Int!
+  metricsInterval: Int!
+}
+
+# ---------------------------------------------------------------------------
+# RBAC, User, and Organization types (T047)
+# ---------------------------------------------------------------------------
+
+"""An authenticated user within an organization"""
 type User {
-  id: UUID!
+  id: ID!
   email: String!
   displayName: String!
-  tenantIds: [UUID!]!
   roles: [String!]!
   isActive: Boolean!
-  createdAt: DateTime!
-  lastLogin: DateTime
+  createdAt: String!
+  lastLogin: String
 }
 
+"""A tenant organization"""
 type Organization {
-  id: UUID!
+  id: ID!
   name: String!
   domain: String
   subscriptionTier: String!
   userLimit: Int!
   storageLimit: Int!
-  createdAt: DateTime!
+  createdAt: String!
 }
 
+"""Returned by the login mutation"""
 type AuthPayload {
-  accessToken: String!
-  refreshToken: String!
-  expiresAt: DateTime!
-  user: User!
+  """Signed JWT to include in subsequent Authorization: Bearer headers"""
+  token: String!
+  """ISO-8601 expiry time of the token"""
+  expiresAt: String!
 }
 
-type ConfigurationApplyResult {
-  configuration: ConfigurationSnapshot!
-  warnings: [String!]!
+# ---------------------------------------------------------------------------
+# Outbound-HTTP data sources (T048)
+# ---------------------------------------------------------------------------
+
+"""A registered outbound-HTTP data source"""
+type DataSource {
+  id: ID!
+  name: String!
+  baseUrl: String!
+  """Authentication strategy: none | bearer_passthrough | api_key"""
+  authKind: String!
+  apiKeyHeader: String
+  timeoutMs: Int!
+  createdAt: String!
 }
 
-type ConfigurationEvent {
-  tenantId: UUID!
-  version: String!
-  activatedAt: DateTime!
+"""Error returned by RestDataSource when the upstream responds with a non-2xx status (T048-006)"""
+type HttpError {
+  statusCode: Int!
+  message: String!
+  url: String
 }
+
+# ---------------------------------------------------------------------------
+# Subscription event payloads
+# ---------------------------------------------------------------------------
+
+"""Event payload when a configuration snapshot is activated"""
+type ConfigurationActivatedEvent {
+  tenantId: String!
+  snapshotId: String!
+  schemaSdl: String
+  activatedAt: String!
+}
+
+"""Event payload when the server health status changes"""
+type HealthChangedEvent {
+  status: String!
+  timestamp: String!
+}
+
+# ---------------------------------------------------------------------------
+# Root Query
+# ---------------------------------------------------------------------------
 
 type Query {
-  hello: String!
-  version: String!
-  uptime: Int!
-  serverInfo: ServerInfo!
-  health: HealthStatus!
+  """Simple greeting message"""
+  hello: String
+  """Server version"""
+  version: String
+  """Server uptime in seconds"""
+  uptime: Int
+  """Server health status"""
+  health: HealthStatus
+  """Runtime server information"""
+  serverInfo: ServerInfo
 
-  activeConfiguration(tenantId: UUID!): ConfigurationSnapshot
-  configurationHistory(tenantId: UUID!, limit: Int = 20): [ConfigurationSnapshot!]!
-  dataModels(tenantId: UUID!, snapshotId: UUID): [DataModelDefinition!]!
+  """Active configuration snapshot for a tenant"""
+  activeConfiguration(tenantId: String!): SnapshotRecord
+  """Full configuration history for a tenant"""
+  configurationHistory(tenantId: String!): [SnapshotRecord!]!
 
+  """Currently authenticated user (null if unauthenticated)"""
   currentUser: User
-  user(id: UUID!): User
-  users(tenantId: UUID!, limit: Int = 20, offset: Int = 0): [User!]!
+  """Look up a user by ID (tenant_admin or platform_admin only)"""
+  user(id: ID!): User
+  """List all users in the caller's organization"""
+  users: [User!]!
 
-  organization(id: UUID!): Organization
-  organizations(limit: Int = 20, offset: Int = 0): [Organization!]!
+  """Look up an organization by ID"""
+  organization(id: ID!): Organization
+  """List organizations (platform_admin sees all; tenant_admin sees own org)"""
+  organizations: [Organization!]!
+
+  """Server-wide performance metrics (platform_admin only)"""
+  serverMetrics: ServerMetrics
+  """Per-tenant performance metrics"""
+  tenantMetrics(organizationId: ID): TenantMetrics
+
+  """List registered outbound-HTTP data sources"""
+  dataSources(organizationId: ID): [DataSource!]!
 }
+
+# ---------------------------------------------------------------------------
+# Root Mutation
+# ---------------------------------------------------------------------------
 
 type Mutation {
-  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationApplyResult!
-  activateConfiguration(snapshotId: UUID!): ConfigurationSnapshot!
-  rollbackConfiguration(tenantId: UUID!, targetSnapshotId: UUID!): ConfigurationSnapshot!
+  """Create a new configuration snapshot (does not activate it)"""
+  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationResult!
+  """Activate an existing snapshot by its ID"""
+  activateSnapshot(id: String!): ConfigurationResult!
+  """Roll back to the previous active snapshot for a tenant"""
+  rollbackConfiguration(tenantId: String!): ConfigurationResult!
 
-  createDataModel(input: CreateDataModelInput!): DataModelDefinition!
-  updateDataModel(id: UUID!, input: UpdateDataModelInput!): DataModelDefinition!
-  deleteDataModel(id: UUID!): Boolean!
-
-  register(input: RegisterInput!): AuthPayload!
-  login(input: LoginInput!): AuthPayload!
-  refreshToken(refreshToken: String!): AuthPayload!
+  """Authenticate and receive a signed JWT"""
+  login(email: String!, password: String!, organizationId: ID): AuthPayload!
+  """Revoke the caller's current session"""
   logout: Boolean!
+  """Revoke a specific session by its ID (tenant_admin only)"""
+  revokeSession(sessionId: ID!): Boolean!
+  """Revoke all sessions for a user (tenant_admin only)"""
+  revokeAllSessions(userId: ID!): Boolean!
+  """Terminate all non-platform-admin sessions in an organization (platform_admin only)"""
+  terminateAllSessions(organizationId: ID!): Boolean!
+
+  """Create a new custom role"""
+  createRole(input: CreateRoleInput!): Boolean!
+  """Delete a custom role by id (built-in roles cannot be deleted)"""
+  deleteRole(id: ID!): Boolean!
+
+  """Create a new organization"""
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  """Update an existing organization"""
+  updateOrganization(id: ID!, input: UpdateOrganizationInput!): Organization!
+  """Delete an organization"""
+  deleteOrganization(id: ID!): Boolean!
+
+  """Create a new user in the organization"""
+  createUser(organizationId: ID!, input: CreateUserInput!): User!
+  """Update an existing user"""
+  updateUser(organizationId: ID!, id: ID!, input: UpdateUserInput!): User!
+  """Delete a user"""
+  deleteUser(organizationId: ID!, id: ID!): Boolean!
+
+  """Register a new outbound-HTTP data source"""
+  createDataSource(organizationId: ID!, input: CreateDataSourceInput!): DataSource!
+  """Update an existing data source"""
+  updateDataSource(organizationId: ID!, id: ID!, input: UpdateDataSourceInput!): DataSource!
+  """Delete a data source"""
+  deleteDataSource(organizationId: ID!, id: ID!): Boolean!
+
+  """Update advisory thread-pool and metrics configuration (platform_admin only)"""
+  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
 }
+
+# ---------------------------------------------------------------------------
+# Root Subscription
+# ---------------------------------------------------------------------------
 
 type Subscription {
-  configurationApplied(tenantId: UUID!): ConfigurationEvent!
-  healthStatusChanged(tenantId: UUID): HealthStatus!
-  modelChanged(tenantId: UUID!): DataModelDefinition!
+  """Fires whenever a configuration snapshot is activated for a tenant"""
+  configurationActivated(tenantId: String!): ConfigurationActivatedEvent!
+  """Fires when the server health status changes; also delivers an initial snapshot"""
+  healthChanged: HealthChangedEvent!
+  """Fires with updated server-wide metrics at each interval boundary (platform_admin only)"""
+  serverMetricsUpdated: ServerMetrics
+  """Fires with updated tenant metrics at each interval boundary"""
+  tenantMetricsUpdated(organizationId: ID!): TenantMetrics
 }
 
-input ModelFieldInput {
-  name: String!
-  type: String!
-  required: Boolean = false
-  unique: Boolean = false
-  defaultValue: JSON
-}
-
-input DataModelInput {
-  name: String!
-  fields: [ModelFieldInput!]!
-  indexes: JSON = []
-  constraints: JSON = {}
-}
-
-input AuthConfigurationInput {
-  allowRegistration: Boolean = false
-  jwtIssuer: String
-  tokenLifetimeSeconds: Int = 3600
-}
+# ---------------------------------------------------------------------------
+# Input types
+# ---------------------------------------------------------------------------
 
 input ApplyConfigurationInput {
-  tenantId: UUID!
-  displayName: String!
-  settings: JSON = {}
-  models: [DataModelInput!]!
-  auth: AuthConfigurationInput
+  tenantId: String!
+  schemaSdl: String!
+  displayName: String
+  version: String
+  resolverBindings: [ResolverBindingInput]
 }
 
-input CreateDataModelInput {
-  tenantId: UUID!
-  snapshotId: UUID!
+input ResolverBindingInput {
+  fieldName: String!
+  resolverKind: String!
+  dataSourceId: String!
+  pathPattern: String
+  httpMethod: String
+}
+
+input CreateUserInput {
+  email: String!
+  password: String!
+  displayName: String
+  roles: [String!]
+}
+
+input UpdateUserInput {
+  displayName: String
+  roles: [String!]
+  isActive: Boolean
+}
+
+input CreateOrganizationInput {
   name: String!
-  fields: [ModelFieldInput!]!
-  indexes: JSON = []
-  constraints: JSON = {}
+  domain: String
+  subscriptionTier: String
+  userLimit: Int
+  storageLimit: Int
 }
 
-input UpdateDataModelInput {
+input UpdateOrganizationInput {
   name: String
-  fields: [ModelFieldInput!]
-  indexes: JSON
-  constraints: JSON
+  domain: String
+  subscriptionTier: String
+  userLimit: Int
+  storageLimit: Int
 }
 
-input RegisterInput {
-  tenantId: UUID!
-  email: String!
-  password: String!
-  displayName: String!
+input CreateDataSourceInput {
+  name: String!
+  baseUrl: String!
+  """Authentication strategy: none | bearer_passthrough | api_key (default: none)"""
+  authKind: String
+  apiKeyHeader: String
+  """Plain-text API key value (stored encrypted)"""
+  apiKeyValue: String
+  """Request timeout in milliseconds (default: 5000)"""
+  timeoutMs: Int
 }
 
-input LoginInput {
-  tenantId: UUID!
-  email: String!
-  password: String!
+input UpdateDataSourceInput {
+  name: String
+  baseUrl: String
+  authKind: String
+  apiKeyHeader: String
+  apiKeyValue: String
+  timeoutMs: Int
+}
+
+input CreateRoleInput {
+  id: String!
+  name: String!
+  description: String
+  """Scope: 'platform' (requires platform_admin) or 'tenant' (requires tenant_admin)"""
+  scope: String!
 }
 ```
 

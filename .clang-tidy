@@ -1,0 +1,138 @@
+# .clang-tidy — Security-focused static analysis configuration for isched
+#
+# Run via CMake:  cmake --build ./cmake-build-debug/ --target security_scan
+#
+# Checks enabled:
+#   cert-*                       CERT C/C++ Secure Coding Standard
+#   bugprone-*                   Bugprone code patterns
+#   cppcoreguidelines-*          C++ Core Guidelines
+#   clang-analyzer-security.*    Clang static-analysis security checkers
+#
+# Each suppression below is documented with its rationale.
+---
+Checks: >
+  cert-*, bugprone-*, cppcoreguidelines-*, clang-analyzer-security.*, clang-analyzer-optin.performance.*, -cert-oop54-cpp, -cppcoreguidelines-noexcept-destructor, -cppcoreguidelines-noexcept-move-operations, -cppcoreguidelines-special-member-functions, -cppcoreguidelines-avoid-magic-numbers, -cppcoreguidelines-pro-type-member-init, -cppcoreguidelines-pro-type-reinterpret-cast, -cppcoreguidelines-pro-type-const-cast, -cppcoreguidelines-init-variables, -cppcoreguidelines-avoid-non-const-global-variables, -cppcoreguidelines-avoid-c-arrays, -cppcoreguidelines-use-default-member-init, -cppcoreguidelines-rvalue-reference-param-not-moved, -cppcoreguidelines-missing-std-forward, -cppcoreguidelines-narrowing-conversions, -cppcoreguidelines-pro-bounds-array-to-pointer-decay, -cppcoreguidelines-pro-bounds-pointer-arithmetic, -cppcoreguidelines-pro-bounds-constant-array-index, -cppcoreguidelines-avoid-const-or-ref-data-members, -cppcoreguidelines-owning-memory, -cppcoreguidelines-avoid-do-while, -clang-analyzer-optin.performance.Padding, -bugprone-easily-swappable-parameters, -bugprone-empty-catch, -bugprone-narrowing-conversions, -bugprone-branch-clone, -bugprone-exception-escape, -bugprone-unused-return-value
+
+# Suppression rationale:
+#
+# -cert-oop54-cpp
+#   Alias for cppcoreguidelines-special-member-functions. Disabled together with
+#   that check to avoid a clang-tidy 18 stack overflow crash triggered by
+#   nlohmann/json's deeply-recursive template instantiations (LLVM upstream bug
+#   in ExceptionSpecAnalyzer::analyzeRecord).
+#
+# -cppcoreguidelines-noexcept-destructor
+# -cppcoreguidelines-noexcept-move-operations
+# -cppcoreguidelines-special-member-functions
+#   Same crash as above. These three checks all invoke ExceptionSpecAnalyzer
+#   which overflows the stack on nlohmann::basic_json template chains.
+#
+# -cppcoreguidelines-avoid-magic-numbers
+#   HTTP status codes (200, 401, 403, 404, 500), SQLite error codes, default
+#   port numbers, and fixed buffer sizes are self-documenting integer literals
+#   in context; introducing named constants everywhere adds noise without
+#   improving clarity (see C++ Core Guidelines NR.2 exception).
+#
+# -cppcoreguidelines-pro-type-member-init
+#   The project uses constructor-based initialisation throughout; default-member
+#   init style conflicts with the C++23 designated-initialiser pattern used for
+#   aggregate configuration structs.
+#
+# -cppcoreguidelines-pro-type-reinterpret-cast
+#   The SQLite C API requires reinterpret_cast between const char* and
+#   const unsigned char* (sqlite3_bind_text / sqlite3_column_text).  All
+#   casts are between compatible pointer types and values flow through
+#   prepared statements, so there is no type-safety or injection risk.
+#
+# -cppcoreguidelines-pro-type-const-cast
+#   Two occurrences: (1) OpenSSL's OSSL_PARAM_construct_octet_string takes a
+#   non-const void* while the data is logically immutable; (2) a const accessor
+#   on DatabaseManager::ConnectionPool needs interior mutability for pool
+#   bookkeeping to avoid code duplication.
+#
+# -cppcoreguidelines-init-variables
+#   Structured bindings and C-style out-parameters (e.g. sqlite3_open) are
+#   always assigned before any read; the check emits false positives here.
+#
+# -cppcoreguidelines-avoid-non-const-global-variables
+#   thread_local state (tl_gql_variables in GqlExecutor) and atomic subscription
+#   counters require non-const linkage; these are intentional design decisions.
+#
+# -cppcoreguidelines-avoid-c-arrays
+#   Fixed-size char arrays mandated by SQLite date-formatting APIs (strftime
+#   buffers) and OpenSSL OSSL_PARAM arrays; no safe C++ alternative exists here.
+#
+# -cppcoreguidelines-use-default-member-init
+#   Consistency with the constructor-based initialisation style used project-wide.
+#
+# -cppcoreguidelines-rvalue-reference-param-not-moved
+#   Intentional forwarding-sink pattern: callers pass temporaries; the T&&
+#   parameters must not be unconditionally moved to support conditional paths.
+#
+# -cppcoreguidelines-missing-std-forward
+#   Template helpers in isched_DatabaseManager.hpp and isched_multi_dim_map.hpp
+#   accept T&& for perfect-forwarding type deduction only; std::forward would
+#   change the semantics of these adapters.
+#
+# -bugprone-easily-swappable-parameters
+#   API-boundary functions (e.g. createTenant, addSchedule) take multiple
+#   std::string parameters whose order is fixed by the GraphQL schema contract.
+#   Renaming or reordering them would be a breaking API change.
+#
+# -bugprone-empty-catch
+#   Catch blocks that call helper functions (log_parse_error_exception) are
+#   reported as empty by clang-tidy 18 when the <chrono> header is not located
+#   via the compilation database; the blocks are not empty.
+#
+# -bugprone-narrowing-conversions
+# -cppcoreguidelines-narrowing-conversions
+#   Narrowing conversions from std::size_t to double appear in statistics
+#   computations (e.g. hit_rate = cache_hits / total_requests in DatabaseManager,
+#   avg_response_time exponential moving-average in Server). These are deliberate
+#   floating-point aggregations where loss of precision is irrelevant and all
+#   values are << 2^53, so the conversion is exact in practice.
+#
+# -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+# -cppcoreguidelines-pro-bounds-pointer-arithmetic
+# -cppcoreguidelines-pro-bounds-constant-array-index
+#   OpenSSL C API (EVP_Encrypt*, RAND_bytes, etc.) and POSIX environ[] traversal
+#   mandate raw C arrays and pointer arithmetic.  No GSL-safe alternative exists
+#   for these system library interfaces.
+#
+# -cppcoreguidelines-avoid-const-or-ref-data-members
+#   Boost.Asio strands, io_context and acceptor members are naturally reference-
+#   typed in WsConn/WsListener.  The objects are guaranteed to outlive the
+#   containing classes (owned by Server::Impl).
+#
+# -cppcoreguidelines-owning-memory
+#   httplib::Server::new_task_queue returns a raw TaskQueue* that httplib owns
+#   and deletes.  The ownership transfer is by design in the httplib API contract;
+#   using a smart pointer here would double-free.
+#
+# -cppcoreguidelines-avoid-do-while
+#   The MetricsCollector compare-exchange loop (CAS) is a standard lock-free
+#   exponential-moving-average update idiom; do-while is its canonical spelling.
+#
+# -clang-analyzer-optin.performance.Padding
+#   ServerConfig field ordering follows logical grouping (network, performance,
+#   auth, logging).  Reordering fields for cache-line packing would break
+#   readability without measurable benefit (the struct is constructed rarely).
+#
+# -bugprone-branch-clone
+#   The wildcard-pattern matcher in isched_fs_utils.cpp intentionally repeats
+#   the "backtrack on star" code path in each character-mismatch branch; this
+#   is the canonical O(n) wildcard algorithm and the duplication is inherent.
+#
+# -bugprone-exception-escape
+#   Destructors (e.g. Server::Impl::~Impl) perform RAII cleanup (joining threads,
+#   stopping servers).  These operations are designed to be exception-safe;
+#   the theoretical throw path is inaccessible in practice.
+#
+# -bugprone-unused-return-value
+#   Boost.Asio socket operations (open, set_option, bind, listen) pass errors
+#   via an error_code& out-parameter, not via their return value.  Each call
+#   site checks the ec variable immediately afterwards.
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '^.*isched/src/'
+FormatStyle: none

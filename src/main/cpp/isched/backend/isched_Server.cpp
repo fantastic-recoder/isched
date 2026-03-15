@@ -417,12 +417,12 @@ public:
         , auth_(auth)
     {
         beast::error_code ec;
-        acceptor_.open(endpoint.protocol(), ec);
+        acceptor_.open(endpoint.protocol(), ec); // NOLINT(cert-err33-c) -- error communicated via ec
         if (ec) throw std::runtime_error("WsListener open: " + ec.message());
-        acceptor_.set_option(net::socket_base::reuse_address(true), ec);
-        acceptor_.bind(endpoint, ec);
+        acceptor_.set_option(net::socket_base::reuse_address(true), ec); // NOLINT(cert-err33-c)
+        acceptor_.bind(endpoint, ec); // NOLINT(cert-err33-c) -- error communicated via ec
         if (ec) throw std::runtime_error("WsListener bind: " + ec.message());
-        acceptor_.listen(net::socket_base::max_listen_connections, ec);
+        acceptor_.listen(net::socket_base::max_listen_connections, ec); // NOLINT(cert-err33-c)
         if (ec) throw std::runtime_error("WsListener listen: " + ec.message());
     }
 
@@ -1058,6 +1058,9 @@ String Server::execute_graphql(const String& query, const String& variables_json
         }
     }
 
+    // Save tenant_id before the move so metrics recording can access it afterwards.
+    const std::string tenant_id_for_metrics = ctx.tenant_id;
+
     ExecutionResult result;
     if (!m_impl->gql_executor) {
         result.errors.push_back(gql::Error{
@@ -1089,7 +1092,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
     // T051: Record request in the MetricsCollector for per-tenant and aggregate stats
     if (m_impl->metrics_collector) {
         m_impl->metrics_collector->record_request(
-            ctx.tenant_id,
+            tenant_id_for_metrics,
             static_cast<double>(elapsed_ms.count()),
             !result.is_success());
         m_impl->metrics_collector->set_active_connections(

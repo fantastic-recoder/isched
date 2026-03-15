@@ -89,3 +89,32 @@ include_directories("src/main/cpp")
 add_subdirectory("src/main/cpp/isched")
 add_subdirectory("src/test/cpp/isched")
 
+# T056: Security scan target using clang-tidy with a security-focused check set.
+# Run: cmake --build ./cmake-build-debug/ --target security_scan
+find_program(CLANG_TIDY_EXE NAMES "clang-tidy-18" "clang-tidy")
+find_program(RUN_CLANG_TIDY_EXE NAMES "run-clang-tidy-18" "run-clang-tidy")
+if(CLANG_TIDY_EXE AND RUN_CLANG_TIDY_EXE)
+    file(GLOB_RECURSE ISCHED_SECURITY_SOURCES
+        "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/*.cpp"
+        "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/shared/*.cpp")
+
+    add_custom_target(security_scan
+        COMMAND ${RUN_CLANG_TIDY_EXE}
+            -clang-tidy-binary ${CLANG_TIDY_EXE}
+            -p ${CMAKE_BINARY_DIR}
+            -header-filter "^${CMAKE_SOURCE_DIR}/src/"
+            -extra-arg=-isystem/usr/include/c++/13
+            -extra-arg=-isystem/usr/include/x86_64-linux-gnu/c++/13
+            # clang-18 defines __cpp_concepts=201907L but GCC-13 libstdc++ <expected>
+            # guards with >= 202002L; override so that std::expected resolves correctly.
+            "-extra-arg=-D__cpp_concepts=202002L"
+            ${ISCHED_SECURITY_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Running clang-tidy security scan on isched library sources"
+        VERBATIM)
+    message(STATUS "security_scan target configured (clang-tidy: ${CLANG_TIDY_EXE})")
+else()
+    message(STATUS "clang-tidy not found — security_scan target not available")
+    message(STATUS "Install: sudo apt install clang-tidy (Ubuntu/Debian) or sudo dnf install clang-tools-extra (Fedora/RHEL)")
+endif()
+
