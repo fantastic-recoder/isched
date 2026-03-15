@@ -143,3 +143,10 @@ target_link_libraries(isched_tenant_thread_pool_tests PRIVATE isched Catch2::Cat
     taocpp::pegtl httplib::httplib openssl::openssl)
 add_test(NAME isched_tenant_thread_pool_tests COMMAND isched_tenant_thread_pool_tests)
 
+# T051: Performance Metrics via GraphQL unit tests
+add_executable(isched_metrics_tests isched_metrics_tests.cpp)
+target_link_libraries(isched_metrics_tests PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl)
+add_test(NAME isched_metrics_tests COMMAND isched_metrics_tests)
+

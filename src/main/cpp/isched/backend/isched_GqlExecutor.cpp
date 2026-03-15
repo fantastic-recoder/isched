@@ -29,6 +29,7 @@
 #include "isched_DatabaseManager.hpp"
 #include "isched_RestDataSource.hpp"
 #include "isched_SubscriptionBroker.hpp"
+#include "isched_MetricsCollector.hpp"
 
 namespace {
 // Per-request GraphQL variables context (thread-safe: one entry per executing thread)
@@ -606,27 +607,116 @@ namespace isched::v0_0_1::backend {
             };
         });
 
-        // Metrics endpoint
-        register_resolver({},"metrics", [](const json &, const json &, const ResolverCtx&) -> json {
-            static auto start_time = std::chrono::system_clock::now();
-            static std::atomic<int> request_counter{0};
-            static std::atomic<int> error_counter{0};
-
-            auto now = std::chrono::system_clock::now();
-            auto uptime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
-
-            request_counter++;
-
+        // Legacy metrics endpoint (no auth required; delegates to MetricsCollector if wired)
+        register_resolver({}, "metrics", [this](const json &, const json &, const ResolverCtx&) -> json {
+            if (m_metrics) {
+                // Use live data from the MetricsCollector (T051)
+                return m_metrics->get_server_metrics(0, 0, 0);
+            }
+            // Fallback stub for environments where the collector is not wired
             return json{
-                {"uptime", uptime_ms},
-                {"activeConnections", 1},
-                {"totalRequests", request_counter.load()},
-                {"failedRequests", error_counter.load()},
-                {"averageResponseTime", 15.5},
-                {"memoryUsage", "Available"},
-                {"threadCount", std::thread::hardware_concurrency()}
+                {"requestsInInterval", 0},
+                {"errorsInInterval", 0},
+                {"totalRequestsSinceStartup", 0},
+                {"totalErrorsSinceStartup", 0},
+                {"activeConnections", 0},
+                {"activeSubscriptions", 0},
+                {"avgResponseTimeMs", 0.0},
+                {"tenantCount", 0}
             };
         });
+
+        // Server-wide metrics (platform_admin only) — T051-004
+        register_resolver({}, "serverMetrics", [this](const json &, const json &, const ResolverCtx&) -> json {
+            if (m_metrics) {
+                // active_connections and active_subscriptions are provided by the
+                // Server layer via the MetricsCollector; tenant_count is approximated
+                // as the number of tenants that have recorded at least one request.
+                return m_metrics->get_server_metrics(0, 0, 0);
+            }
+            return json{
+                {"requestsInInterval", 0},
+                {"errorsInInterval", 0},
+                {"totalRequestsSinceStartup", 0},
+                {"totalErrorsSinceStartup", 0},
+                {"activeConnections", 0},
+                {"activeSubscriptions", 0},
+                {"avgResponseTimeMs", 0.0},
+                {"tenantCount", 0}
+            };
+        });
+        require_roles("serverMetrics", {std::string(Role::PLATFORM_ADMIN)});
+
+        // Per-tenant metrics — T051-005
+        // platform_admin can pass any organizationId; tenant_admin sees own org.
+        register_resolver({}, "tenantMetrics", [this](const json &, const json & args, const ResolverCtx& ctx) -> json {
+            std::string org_id = ctx.tenant_id;
+            if (args.contains("organizationId") && !args["organizationId"].is_null()) {
+                const std::string requested = args["organizationId"].get<std::string>();
+                // Non-platform-admins may only see their own org
+                bool is_platform_admin = false;
+                for (const auto& r : ctx.roles) {
+                    if (r == Role::PLATFORM_ADMIN) { is_platform_admin = true; break; }
+                }
+                if (!is_platform_admin && requested != org_id) {
+                    return json{{"errors", json::array({json{{"message", "Access denied: cannot view metrics for another organization"}}})}};
+                }
+                org_id = requested;
+            }
+            if (org_id.empty()) {
+                return json{{"errors", json::array({json{{"message", "organizationId is required for unauthenticated requests"}}})}};
+            }
+            if (m_metrics) {
+                return m_metrics->get_tenant_metrics(org_id);
+            }
+            return json{
+                {"organizationId", org_id},
+                {"requestsInInterval", 0},
+                {"errorsInInterval", 0},
+                {"totalRequestsSinceStartup", 0},
+                {"totalErrorsSinceStartup", 0},
+                {"avgResponseTimeMs", 0.0}
+            };
+        });
+        require_roles("tenantMetrics", {std::string(Role::TENANT_ADMIN), std::string(Role::PLATFORM_ADMIN)});
+
+        // Subscription: serverMetricsUpdated — T051-006
+        // Published by Server's background publisher thread; this resolver handles
+        // the initial subscribe request (returns empty data; actual payloads come
+        // from broker publishes on topic "__metrics/server").
+        register_resolver({}, "serverMetricsUpdated", [this](const json &, const json &, const ResolverCtx&) -> json {
+            if (m_broker) {
+                // Subscribing is managed by the WebSocket layer; return current snapshot
+                if (m_metrics) {
+                    return m_metrics->get_server_metrics(0, 0, 0);
+                }
+            }
+            return json{
+                {"requestsInInterval", 0}, {"errorsInInterval", 0},
+                {"totalRequestsSinceStartup", 0}, {"totalErrorsSinceStartup", 0},
+                {"activeConnections", 0}, {"activeSubscriptions", 0},
+                {"avgResponseTimeMs", 0.0}, {"tenantCount", 0}
+            };
+        });
+        require_roles("serverMetricsUpdated", {std::string(Role::PLATFORM_ADMIN)});
+
+        // Subscription: tenantMetricsUpdated — T051-007
+        register_resolver({}, "tenantMetricsUpdated", [this](const json &, const json & args, const ResolverCtx& ctx) -> json {
+            std::string org_id = ctx.tenant_id;
+            if (args.contains("organizationId") && !args["organizationId"].is_null()) {
+                org_id = args["organizationId"].get<std::string>();
+            }
+            if (m_metrics && !org_id.empty()) {
+                return m_metrics->get_tenant_metrics(org_id);
+            }
+            return json{
+                {"organizationId", org_id},
+                {"requestsInInterval", 0}, {"errorsInInterval", 0},
+                {"totalRequestsSinceStartup", 0}, {"totalErrorsSinceStartup", 0},
+                {"avgResponseTimeMs", 0.0}
+            };
+        });
+        require_roles("tenantMetricsUpdated", {std::string(Role::TENANT_ADMIN), std::string(Role::PLATFORM_ADMIN)});
 
         // Environment endpoint (filtered for security)
         register_resolver({},"env", [](const json &, const json &, const ResolverCtx&) -> json {
@@ -1829,7 +1919,7 @@ namespace isched::v0_0_1::backend {
         // login is intentionally NOT gated by require_roles().
 
         // ---------------------------------------------------------------
-        // T050-001: updateTenantConfig mutation (platform_admin only)
+        // T050-001 / T051-003: updateTenantConfig mutation (platform_admin only)
         // ---------------------------------------------------------------
         register_resolver({}, "updateTenantConfig",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
@@ -1838,28 +1928,42 @@ namespace isched::v0_0_1::backend {
                     throw std::invalid_argument("updateTenantConfig: organizationId is required");
 
                 // Retrieve existing values as defaults
-                int min_t = 4;
-                int max_t = 16;
+                int min_t    = 4;
+                int max_t    = 16;
+                int metrics_interval = 60;
                 if (auto r = m_database->get_tenant_setting(org_id, "min_threads"); r)
                     min_t = std::stoi(r.value());
                 if (auto r = m_database->get_tenant_setting(org_id, "max_threads"); r)
                     max_t = std::stoi(r.value());
+                if (auto r = m_database->get_tenant_setting(org_id, "metrics_interval_minutes"); r)
+                    metrics_interval = std::stoi(r.value());
 
                 if (args.contains("minThreads") && !args["minThreads"].is_null())
                     min_t = args["minThreads"].get<int>();
                 if (args.contains("maxThreads") && !args["maxThreads"].is_null())
                     max_t = args["maxThreads"].get<int>();
+                if (args.contains("metricsInterval") && !args["metricsInterval"].is_null()) {
+                    metrics_interval = args["metricsInterval"].get<int>();
+                    if (metrics_interval < 1) metrics_interval = 1;
+                }
 
                 if (min_t < 1) min_t = 1;
                 if (max_t < min_t) max_t = min_t;
 
                 std::ignore = m_database->set_tenant_setting(org_id, "min_threads", std::to_string(min_t));
                 std::ignore = m_database->set_tenant_setting(org_id, "max_threads", std::to_string(max_t));
+                std::ignore = m_database->set_tenant_setting(org_id, "metrics_interval_minutes", std::to_string(metrics_interval));
+
+                // Propagate new interval to MetricsCollector if available (T051-003)
+                if (m_metrics) {
+                    m_metrics->set_interval_minutes(org_id, metrics_interval);
+                }
 
                 return json{
-                    {"organizationId", org_id},
-                    {"minThreads",     min_t},
-                    {"maxThreads",     max_t}
+                    {"organizationId",         org_id},
+                    {"minThreads",             min_t},
+                    {"maxThreads",             max_t},
+                    {"metricsIntervalMinutes", metrics_interval}
                 };
             });
         require_roles("updateTenantConfig", {std::string(Role::PLATFORM_ADMIN)});

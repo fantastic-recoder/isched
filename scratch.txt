@@ -2,7 +2,9 @@ As a developer I want to check initial Isched functionality. I start the isched_
 and port, let us say 8080. I then open the URL /isched endpoint and expect to get a simple Angular UI, that indicates
 the service is running and ready to accept requests. Angular UI is a simple HTML page with a login form and a button to
 submit the login form. Angular is in the newest version, currently 21.0.1. The UI should use DaisyUI, a Tailwind CSS
-framework. The UI should be responsive and work well on both desktop and mobile devices.
+framework. The UI should be responsive and work well on both desktop and mobile devices. Download the newest Angular
+code guidlines, save them to the docs subfolder and ammend constitution with Angular paragraph - use the new Angular
+guidlones, signals, @-based templates, separate files, html, css, ts etz.. 
 
 Feature: Seed mode.
 Scenario: Check initial Isched functionality

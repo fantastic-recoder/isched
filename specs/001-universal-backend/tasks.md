@@ -407,14 +407,14 @@ Each task implementation MUST verify:
 - Per-tenant scope (auth: `tenant_admin`) and aggregate system scope (auth: `platform_admin`), both auth-gated
 - Interval window default = 60 minutes (configurable); resets automatically at boundary; cumulative counters never reset
 
-- [ ] T051-001 [P] Add `ServerMetrics` and `TenantMetrics` types to `isched_builtin_server_schema.graphql`: interval-window fields `requestsInInterval: Int!`, `errorsInInterval: Int!`; cumulative fields `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`; `tenantCount: Int!` on `ServerMetrics` only
-- [ ] T051-002 [P] Implement an in-memory `MetricsCollector` class (dedicated `isched_MetricsCollector.hpp/.cpp`): atomic interval-window counters (reset at boundary) and separate never-resetting cumulative counters per tenant; record request start/end timestamps for `avgResponseTimeMs`
-- [ ] T051-003 [P] Add `metricsInterval` config field (default 60 minutes) settable via `updateTenantConfig` for per-tenant scope and a system-level config mutation for global scope
-- [ ] T051-004 [P] Implement `serverMetrics: ServerMetrics` Query resolver — `platform_admin` only; returns aggregate across all tenants — **depends on T047-002** (roles in `ResolverCtx`)
-- [ ] T051-005 [P] Implement `tenantMetrics(organizationId: ID): TenantMetrics` Query resolver — `tenant_admin` sees their own org; `platform_admin` may specify any `organizationId` — **depends on T047-002**
-- [ ] T051-006 [P] Implement `subscription { serverMetricsUpdated: ServerMetrics }` — `platform_admin` only; publishes via `SubscriptionBroker` at each interval boundary — **depends on T047-002**
-- [ ] T051-007 [P] Implement `subscription { tenantMetricsUpdated: TenantMetrics }` — `tenant_admin` sees own org; publishes at each interval boundary — **depends on T047-002**
-- [ ] T051-008 [P] Add unit tests verifying counter increments, interval reset, and auth gating on both Query and Subscription resolvers
+- [x] T051-001 [P] Add `ServerMetrics` and `TenantMetrics` types to `isched_builtin_server_schema.graphql`: interval-window fields `requestsInInterval: Int!`, `errorsInInterval: Int!`; cumulative fields `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`; `tenantCount: Int!` on `ServerMetrics` only
+- [x] T051-002 [P] Implement an in-memory `MetricsCollector` class (dedicated `isched_MetricsCollector.hpp/.cpp`): atomic interval-window counters (reset at boundary) and separate never-resetting cumulative counters per tenant; record request start/end timestamps for `avgResponseTimeMs`
+- [x] T051-003 [P] Add `metricsInterval` config field (default 60 minutes) settable via `updateTenantConfig` for per-tenant scope and a system-level config mutation for global scope
+- [x] T051-004 [P] Implement `serverMetrics: ServerMetrics` Query resolver — `platform_admin` only; returns aggregate across all tenants — **depends on T047-002** (roles in `ResolverCtx`)
+- [x] T051-005 [P] Implement `tenantMetrics(organizationId: ID): TenantMetrics` Query resolver — `tenant_admin` sees their own org; `platform_admin` may specify any `organizationId` — **depends on T047-002**
+- [x] T051-006 [P] Implement `subscription { serverMetricsUpdated: ServerMetrics }` — `platform_admin` only; publishes via `SubscriptionBroker` at each interval boundary — **depends on T047-002**
+- [x] T051-007 [P] Implement `subscription { tenantMetricsUpdated: TenantMetrics }` — `tenant_admin` sees own org; publishes at each interval boundary — **depends on T047-002**
+- [x] T051-008 [P] Add unit tests verifying counter increments, interval reset, and auth gating on both Query and Subscription resolvers
 
 ---
 

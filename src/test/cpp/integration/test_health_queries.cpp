@@ -109,15 +109,13 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "ServerInfo query: transportModes is an
     server->stop();
 }
 
-TEST_CASE_METHOD(HealthQueryTestFixture, "Metrics query: uptime and activeConnections", "[integration][health][us1]") {
+TEST_CASE_METHOD(HealthQueryTestFixture, "Metrics query: activeConnections and requestsInInterval", "[integration][health][us1]") {
     REQUIRE(server->start());
-    // Let a small amount of time pass so uptime > 0
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
 
-    auto resp = post_graphql("{ metrics { uptime activeConnections } }");
+    auto resp = post_graphql("{ metrics { activeConnections requestsInInterval } }");
     REQUIRE(resp.contains("data"));
-    REQUIRE(resp["data"]["metrics"]["uptime"].is_number());
     REQUIRE(resp["data"]["metrics"]["activeConnections"].is_number());
+    REQUIRE(resp["data"]["metrics"]["requestsInInterval"].is_number());
 
     server->stop();
 }

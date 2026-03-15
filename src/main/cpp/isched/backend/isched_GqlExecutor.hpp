@@ -55,6 +55,7 @@ namespace isched::v0_0_1::backend {
     class DatabaseManager;
     class AuthenticationMiddleware;        ///< Forward declaration for login resolver
     class SubscriptionBroker;              ///< Forward declaration for event publishing
+    class MetricsCollector;               ///< Forward declaration for metrics (T051)
     using DocumentPtr = std::shared_ptr<gql::Document>;
 
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
@@ -360,6 +361,16 @@ namespace isched::v0_0_1::backend {
             m_master_secret = std::move(secret);
         }
 
+        /**
+         * @brief Wire the MetricsCollector so resolvers can read live counters (T051).
+         *
+         * The collector is not owned by the executor; the caller (Server) is
+         * responsible for ensuring the collector outlives the executor.
+         */
+        void set_metrics_collector(MetricsCollector* mc) {
+            m_metrics = mc;
+        }
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -382,6 +393,9 @@ namespace isched::v0_0_1::backend {
 
         // Subscription broker for publishing events from resolvers (T046); not owned.
         SubscriptionBroker* m_broker{nullptr};
+
+        // Metrics collector for live counter reads from resolvers (T051); not owned.
+        MetricsCollector* m_metrics{nullptr};
 
         // Authentication middleware for the login resolver (T047-016); shared ownership.
         std::shared_ptr<AuthenticationMiddleware> m_auth;

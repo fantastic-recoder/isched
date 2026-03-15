@@ -217,7 +217,7 @@ TEST_CASE("DatabaseManager: set_tenant_setting and get_tenant_setting round-trip
     const auto sys_res = db.ensure_system_db();
     REQUIRE(sys_res.has_value());
 
-    const std::string org_id = "org_test_050";
+    const std::string org_id = "org_test_050_" + std::to_string(std::time(nullptr));
 
     // Initially absent → NotFound
     auto missing = db.get_tenant_setting(org_id, "min_threads");

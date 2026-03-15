@@ -164,8 +164,12 @@ type Query {
   serverInfo: ServerInfo
   """Application information"""
   info: AppInfo
-  """Server metrics"""
+  """Server metrics (legacy – no auth required)"""
   metrics: ServerMetrics
+  """Server-wide performance metrics (platform_admin only)"""
+  serverMetrics: ServerMetrics
+  """Per-tenant performance metrics (tenant_admin sees own; platform_admin sees any)"""
+  tenantMetrics(organizationId: ID): TenantMetrics
   """Environment properties"""
   env: Environment
   """Configuration properties"""
@@ -230,8 +234,8 @@ type Mutation {
   updateDataSource(organizationId: ID!, id: ID!, input: UpdateDataSourceInput!): DataSource!
   """Delete a data source (tenant_admin or platform_admin)"""
   deleteDataSource(organizationId: ID!, id: ID!): Boolean!
-  """Update advisory thread-pool configuration for an organization (platform_admin only)"""
-  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int): TenantConfig!
+  """Update advisory thread-pool and metrics configuration for an organization (platform_admin only)"""
+  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -260,6 +264,10 @@ type Subscription {
   configurationActivated(tenantId: String!): ConfigurationActivatedEvent!
   """Fires when the server health status changes; also delivers an initial snapshot"""
   healthChanged: HealthChangedEvent!
+  """Fires with updated server-wide metrics at each interval boundary (platform_admin only)"""
+  serverMetricsUpdated: ServerMetrics
+  """Fires with updated tenant metrics at each interval boundary (tenant_admin or platform_admin)"""
+  tenantMetricsUpdated(organizationId: ID!): TenantMetrics
 }
 
 """Health information for a specific system component"""
@@ -296,22 +304,40 @@ type HealthStatus {
   timestamp: String
 }
 
-"""Server performance metrics"""
+"""Server-wide performance metrics (T051)"""
 type ServerMetrics {
-  """Uptime in milliseconds"""
-  uptime: Int
-  """Active connections"""
-  activeConnections: Int
-  """Total requests processed"""
-  totalRequests: Int
-  """Failed requests"""
-  failedRequests: Int
-  """Average response time"""
-  averageResponseTime: Float
-  """Memory usage information"""
-  memoryUsage: String
-  """Active thread count"""
-  threadCount: Int
+  """Requests handled in the current measurement interval"""
+  requestsInInterval: Int!
+  """Errors returned in the current measurement interval"""
+  errorsInInterval: Int!
+  """Total requests since server startup"""
+  totalRequestsSinceStartup: Int!
+  """Total errors since server startup"""
+  totalErrorsSinceStartup: Int!
+  """Currently open HTTP connections"""
+  activeConnections: Int!
+  """Currently active WebSocket subscriptions"""
+  activeSubscriptions: Int!
+  """Exponential moving average of response latency in ms"""
+  avgResponseTimeMs: Float!
+  """Number of active tenants"""
+  tenantCount: Int!
+}
+
+"""Per-tenant performance metrics (T051)"""
+type TenantMetrics {
+  """Organization this metrics snapshot belongs to"""
+  organizationId: ID!
+  """Requests handled in the current measurement interval"""
+  requestsInInterval: Int!
+  """Errors returned in the current measurement interval"""
+  errorsInInterval: Int!
+  """Total requests since server startup"""
+  totalRequestsSinceStartup: Int!
+  """Total errors since server startup"""
+  totalErrorsSinceStartup: Int!
+  """Exponential moving average of response latency in ms"""
+  avgResponseTimeMs: Float!
 }
 
 # ---------------------------------------------------------------------------
@@ -466,7 +492,7 @@ input CreateRoleInput {
   scope: String!
 }
 
-"""Advisory thread-pool configuration for an organization (T050-001)"""
+"""Advisory thread-pool and metrics configuration for an organization (T050-001 / T051-003)"""
 type TenantConfig {
   """Organization this configuration belongs to"""
   organizationId: ID!
@@ -474,4 +500,6 @@ type TenantConfig {
   minThreads: Int!
   """Advisory maximum number of HTTP worker threads"""
   maxThreads: Int!
+  """Metrics collection interval in minutes (default: 60)"""
+  metricsIntervalMinutes: Int!
 }

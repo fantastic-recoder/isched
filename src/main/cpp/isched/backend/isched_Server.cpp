@@ -16,6 +16,7 @@
 #include "isched_GqlExecutor.hpp"
 #include "isched_AuthenticationMiddleware.hpp"
 #include "isched_SubscriptionBroker.hpp"
+#include "isched_MetricsCollector.hpp"
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
@@ -285,6 +286,25 @@ private:
     static std::string derive_topic(const std::string& query,
                                     const nlohmann::json& payload) {
         if (query.find("healthChanged") != std::string::npos) return "health";
+        if (query.find("serverMetricsUpdated") != std::string::npos) return "__metrics/server";
+        if (query.find("tenantMetricsUpdated") != std::string::npos) {
+            // Extract organizationId from variables or inline literal
+            if (payload.contains("variables") &&
+                payload["variables"].is_object() &&
+                payload["variables"].contains("organizationId")) {
+                return "__metrics/tenant/" + payload["variables"]["organizationId"].get<std::string>();
+            }
+            auto pos = query.find("organizationId");
+            if (pos != std::string::npos) {
+                auto q = query.find('"', pos);
+                if (q != std::string::npos) {
+                    auto e = query.find('"', q + 1);
+                    if (e != std::string::npos) {
+                        return "__metrics/tenant/" + query.substr(q + 1, e - q - 1);
+                    }
+                }
+            }
+        }
         if (query.find("configurationActivated") != std::string::npos) {
             // Look in variables first
             if (payload.contains("variables") &&
@@ -557,7 +577,9 @@ public:
 
         gql_executor = GqlExecutor::create(database);
         subscription_broker = SubscriptionBroker::create();
+        metrics_collector = std::make_unique<MetricsCollector>();
         gql_executor->set_subscription_broker(subscription_broker.get());
+        gql_executor->set_metrics_collector(metrics_collector.get());
 
         // Wire AuthenticationMiddleware for the login resolver (T047-016).
         // Use the configured JWT secret; generate a random one if empty (dev mode).
@@ -593,6 +615,10 @@ public:
     }
 
     ~Impl() {
+        // Stop metrics publisher first (before broker is destroyed)
+        metrics_publisher_stop.store(true, std::memory_order_relaxed);
+        if (metrics_publisher_thread.joinable()) metrics_publisher_thread.join();
+
         if (ws_listener) ws_listener->stop();
         if (ws_ioc)      ws_ioc->stop();
         if (ws_thread.joinable()) ws_thread.join();
@@ -654,6 +680,12 @@ public:
     std::unique_ptr<net::io_context> ws_ioc;
     std::shared_ptr<WsListener> ws_listener;
     std::thread ws_thread;
+
+    // Performance metrics collector (T051)
+    std::unique_ptr<MetricsCollector> metrics_collector;
+    // Background metrics-publisher thread (T051-006/T051-007)
+    std::thread metrics_publisher_thread;
+    std::atomic<bool> metrics_publisher_stop{false};
 };
 
 // ---------------------------------------------------------------------------
@@ -779,6 +811,11 @@ bool Server::start() {
         m_impl->subscription_broker->set_subscription_count_callback(
             [this](std::size_t count) {
                 m_impl->adapt_pool(count);
+                // T051: keep MetricsCollector's active-subscription counter in sync
+                if (m_impl->metrics_collector) {
+                    m_impl->metrics_collector->set_active_subscriptions(
+                        static_cast<uint64_t>(count));
+                }
             });
 
         // Start the HTTP listener in a background thread
@@ -832,6 +869,33 @@ bool Server::start() {
 
         m_status.store(Status::RUNNING);
         m_impl->start_time = std::chrono::steady_clock::now();
+
+        // T051-006/T051-007: Start background metrics publisher.
+        // Publishes current metrics to the broker every 60 seconds.
+        m_impl->metrics_publisher_stop.store(false, std::memory_order_relaxed);
+        m_impl->metrics_publisher_thread = std::thread([this]() {
+            // Default publish interval: 60 s.  Uses 1-second sleeps so the
+            // stop flag is checked promptly on server shutdown.
+            constexpr int PUBLISH_INTERVAL_SECS = 60;
+            int elapsed_secs = 0;
+            while (!m_impl->metrics_publisher_stop.load(std::memory_order_relaxed)) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                ++elapsed_secs;
+                if (m_impl->metrics_publisher_stop.load(std::memory_order_relaxed)) break;
+                if (elapsed_secs < PUBLISH_INTERVAL_SECS) continue;
+                elapsed_secs = 0;
+                // Publish server-wide metrics snapshot
+                if (m_impl->metrics_collector && m_impl->subscription_broker) {
+                    const auto srv = m_impl->metrics_collector->get_server_metrics(
+                        m_impl->active_connections.load(std::memory_order_relaxed),
+                        m_impl->total_active_subscriptions.load(std::memory_order_relaxed),
+                        m_impl->metrics_collector->tenant_count());
+                    m_impl->subscription_broker->publish(
+                        "__metrics/server", "serverMetricsUpdated",
+                        nlohmann::json{{"serverMetricsUpdated", srv}});
+                }
+            }
+        });
         spdlog::info("GraphQL endpoint ready at http://{}:{}/graphql",
                      m_config.host, m_config.port);
         return true;
@@ -1020,6 +1084,16 @@ String Server::execute_graphql(const String& query, const String& variables_json
         m_impl->successful_requests.fetch_add(1);
     } else {
         m_error_count.fetch_add(1);
+    }
+
+    // T051: Record request in the MetricsCollector for per-tenant and aggregate stats
+    if (m_impl->metrics_collector) {
+        m_impl->metrics_collector->record_request(
+            ctx.tenant_id,
+            static_cast<double>(elapsed_ms.count()),
+            !result.is_success());
+        m_impl->metrics_collector->set_active_connections(
+            m_impl->active_connections.load(std::memory_order_relaxed));
     }
 
     auto response = result.to_json();
