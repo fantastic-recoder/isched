@@ -73,6 +73,12 @@ int main(const int, const char**) {
         return EXIT_FAILURE;
     }
 
+    // Wire the shutdown mutation to the main-loop sentinel so that
+    // `mutation { shutdown }` exits cleanly without SIGTERM.
+    server->set_shutdown_callback([&keep_running]() {
+        keep_running.store(false, std::memory_order_relaxed);
+    });
+
     spdlog::info(
         "GraphQL endpoint available at http://{}:{}{}",
         server->get_configuration().host,

@@ -11,8 +11,10 @@
 #include "isched_GqlExecutor.hpp"
 
 #include <chrono>
+#include <cstdlib>
 #include <ctime>
 #include <nlohmann/json.hpp>
+#include <thread>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <tao/pegtl.hpp>
@@ -1970,6 +1972,43 @@ namespace isched::v0_0_1::backend {
                 };
             });
         require_roles("updateTenantConfig", {std::string(Role::PLATFORM_ADMIN)});
+
+        // ---------------------------------------------------------------
+        // Shutdown mutation: platform_admin role OR matching ISCHED_SHUTDOWN_TOKEN.
+        // The actual stop is fired on a short-lived detached thread so the
+        // HTTP response is flushed before the io_context is torn down.
+        // ---------------------------------------------------------------
+        register_resolver({}, "shutdown",
+            [this](const json&, const json&, const ResolverCtx& ctx) -> json
+            {
+                // Accept a static bearer token from the environment (automation / benchmark use).
+                const char* env_token = std::getenv("ISCHED_SHUTDOWN_TOKEN");
+                const bool token_ok   = (env_token != nullptr &&
+                                         *env_token != '\0' &&
+                                         ctx.bearer_token == std::string_view(env_token));
+
+                if (!token_ok) {
+                    const auto& r = ctx.roles;
+                    const bool is_admin = std::find(
+                        r.begin(), r.end(), std::string(Role::PLATFORM_ADMIN)) != r.end();
+                    if (!is_admin) {
+                        throw std::runtime_error(
+                            "shutdown: requires platform_admin role or valid ISCHED_SHUTDOWN_TOKEN");
+                    }
+                }
+
+                spdlog::info("Server: graceful shutdown requested via GraphQL mutation");
+                if (m_shutdown_callback) {
+                    // Detach so the resolver returns (and the response is written)
+                    // before the io_context threads are joined.
+                    std::thread([cb = m_shutdown_callback]() {
+                        using namespace std::chrono_literals;
+                        std::this_thread::sleep_for(200ms);
+                        cb();
+                    }).detach();
+                }
+                return true;
+            });
 
         load_schema(BUILTIN_SCHEMA);
     }

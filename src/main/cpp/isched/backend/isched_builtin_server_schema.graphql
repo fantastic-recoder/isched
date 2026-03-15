@@ -236,6 +236,8 @@ type Mutation {
   deleteDataSource(organizationId: ID!, id: ID!): Boolean!
   """Update advisory thread-pool and metrics configuration for an organization (platform_admin only)"""
   updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
+  """Gracefully shut down the server process (platform_admin only, or ISCHED_SHUTDOWN_TOKEN bearer)"""
+  shutdown: Boolean!
 }
 
 """Event payload when a configuration snapshot is activated"""

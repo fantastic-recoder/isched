@@ -372,6 +372,17 @@ namespace isched::v0_0_1::backend {
             m_metrics = mc;
         }
 
+        /**
+         * @brief Register a callback invoked by the `shutdown` mutation after the
+         *        response has been flushed (runs on a short-lived detached thread).
+         *
+         * Typically wired by the process entry-point to set a flag that causes the
+         * main loop to exit cleanly.
+         */
+        void set_shutdown_callback(std::function<void()> cb) {
+            m_shutdown_callback = std::move(cb);
+        }
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -397,6 +408,9 @@ namespace isched::v0_0_1::backend {
 
         // Metrics collector for live counter reads from resolvers (T051); not owned.
         MetricsCollector* m_metrics{nullptr};
+
+        // Callback invoked by the shutdown mutation; set by the process entry-point.
+        std::function<void()> m_shutdown_callback;
 
         // Authentication middleware for the login resolver (T047-016); shared ownership.
         std::shared_ptr<AuthenticationMiddleware> m_auth;

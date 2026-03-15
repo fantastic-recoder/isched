@@ -158,3 +158,17 @@ target_link_libraries(benchmark_suite PRIVATE isched Catch2::Catch2WithMain
     Boost::url Boost::system Boost::thread)
 add_test(NAME benchmark_suite COMMAND benchmark_suite)
 
+# Profiling build: same sources + -pg + -O2, links against the same libraries.
+# Does NOT register as a ctest so it stays out of the normal green-gate.
+# Usage:
+#   cmake --build cmake-build-debug --target benchmark_profile
+#   cd cmake-build-debug && GMON_OUT_PREFIX=gmon src/test/cpp/performance/benchmark_profile
+#   gprof src/test/cpp/performance/benchmark_profile gmon.out | head -60
+add_executable(benchmark_profile EXCLUDE_FROM_ALL ../performance/benchmark_suite.cpp)
+target_compile_options(benchmark_profile PRIVATE -pg -O2 -fno-omit-frame-pointer)
+target_link_options(benchmark_profile PRIVATE -pg)
+target_link_libraries(benchmark_profile PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl
+    Boost::url Boost::system Boost::thread)
+

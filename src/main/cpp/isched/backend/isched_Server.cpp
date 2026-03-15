@@ -957,6 +957,12 @@ bool Server::start() {
     }
 }
 
+void Server::set_shutdown_callback(std::function<void()> callback) {
+    if (m_impl && m_impl->gql_executor) {
+        m_impl->gql_executor->set_shutdown_callback(std::move(callback));
+    }
+}
+
 bool Server::stop(Duration timeout_ms) {
     std::lock_guard<std::mutex> lock(m_status_mutex);
 

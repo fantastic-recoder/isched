@@ -1,6 +1,25 @@
 # Isched
-Project [Isched](https://de.wikipedia.org/wiki/Isched-Baum) is a high performance GraphQL server suited for massive 
+Project [Isched](https://de.wikipedia.org/wiki/Isched-Baum) is a high performance GraphQL server suited for massive
 parallel operation running from cloud server hardware down to embedded hardware.
+
+## Performance
+
+Preliminary benchmarks (Release build, 16-core Linux host, compared against **Apollo Server 4**):
+
+| Scenario | Apollo req/s | isched req/s | Ratio | p95 isched |
+|---|---:|---:|:---:|---:|
+| `hello` throughput (1 conn, 5 s) | 1 680 | 9 008 | **5.36×** | — |
+| `version` throughput (100 conns, 5 s) | 3 269 | 25 606 | **7.83×** | — |
+| `version` p95 latency (1 000 sequential) | — | — | — | **0.47 ms** |
+| `healthChanged` WS fan-out (50 subscribers) | — | — | — | **30 ms** |
+
+Key optimisations behind these numbers:
+
+- **Query AST parse cache** — repeated identical query strings skip PEGTL grammar parsing entirely.
+- **Boost.Beast async I/O** — non-blocking HTTP and WebSocket pipelines with an adaptive thread pool.
+- **Zero-copy resolver dispatch** — field selection walks a pre-built AST node map without heap allocations per field.
+
+Full methodology and raw results: [docs/comparable-benchmark-results.md](docs/comparable-benchmark-results.md)
 
 ## Dependencies
 ### Direct dependencies
@@ -126,7 +145,8 @@ The target is configured automatically during CMake configure if `clang-tidy` is
 
 `tools/comparable_benchmark/` is a TypeScript developer tool that benchmarks isched
 side-by-side against an equivalent Apollo Server 4 reference implementation and emits a
-Markdown results table.
+Markdown results table.  The latest recorded run is summarised in the [Performance](#performance)
+section above; full raw data lives in [docs/comparable-benchmark-results.md](docs/comparable-benchmark-results.md).
 
 ### Prerequisites
 

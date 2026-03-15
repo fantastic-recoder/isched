@@ -30,6 +30,7 @@
 
 #include "isched_common.hpp"
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <boost/url.hpp>
 
@@ -207,6 +208,22 @@ public:
      * @note Active connections receive proper termination notices
      */
     bool stop(Duration timeout_ms = Duration{5000});
+
+    /**
+     * @brief Register a callback invoked when the `shutdown` GraphQL mutation is executed.
+     *
+     * The callback is called on a short-lived detached thread roughly 200 ms after
+     * the mutation response has been flushed, giving the transport layer time to
+     * deliver the final bytes before the io_context is torn down.
+     *
+     * Typically wired in the process entry-point to clear the main-loop sentinel:
+     * @code{cpp}
+     *   server->set_shutdown_callback([&keep_running]() {
+     *       keep_running.store(false, std::memory_order_relaxed);
+     *   });
+     * @endcode
+     */
+    void set_shutdown_callback(std::function<void()> callback);
 
     /**
      * @brief Get current server status

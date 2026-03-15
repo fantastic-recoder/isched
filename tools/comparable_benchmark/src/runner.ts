@@ -60,6 +60,36 @@ async function killServer(proc: ChildProcess, label: string): Promise<void> {
   await sleep(200);
 }
 
+/** Send the `shutdown` GraphQL mutation to isched and wait for the process to exit. */
+async function gracefulShutdownIsched(
+  proc: ChildProcess,
+  shutdownToken: string
+): Promise<boolean> {
+  if (proc.exitCode !== null) return true;
+  try {
+    const body = JSON.stringify({ query: "mutation { shutdown }" });
+    const res = await fetch(ISCHED_HTTP, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${shutdownToken}`,
+      },
+      body,
+      signal: AbortSignal.timeout(3_000),
+    });
+    if (res.ok) {
+      // Wait up to 3 s for the process to exit cleanly.
+      for (let i = 0; i < 30; i++) {
+        await sleep(100);
+        if (proc.exitCode !== null) return true;
+      }
+    }
+  } catch {
+    // fetch failed — server may already be gone
+  }
+  return proc.exitCode !== null;
+}
+
 async function waitReady(url: string, label: string, timeoutMs = 10_000): Promise<void> {
   const body = JSON.stringify({ query: "{ health { status } }" });
   const deadline = Date.now() + timeoutMs;
@@ -202,10 +232,12 @@ async function main(): Promise<void> {
   });
 
   // Start isched server
+  const ISCHED_SHUTDOWN_TOKEN = "isched-benchmark-shutdown-" + Math.random().toString(36).slice(2);
   const ischedEnv: NodeJS.ProcessEnv = {
     ISCHED_SERVER_PORT: "18092",
     ISCHED_SERVER_HOST: "127.0.0.1",
     SPDLOG_LEVEL: process.env["SPDLOG_LEVEL"] ?? "warn",
+    ISCHED_SHUTDOWN_TOKEN,
   };
   if (process.env["ISCHED_MIN_THREADS"]) ischedEnv["ISCHED_MIN_THREADS"] = process.env["ISCHED_MIN_THREADS"];
   if (process.env["ISCHED_MAX_THREADS"]) ischedEnv["ISCHED_MAX_THREADS"] = process.env["ISCHED_MAX_THREADS"];
@@ -270,9 +302,14 @@ async function main(): Promise<void> {
       results.push(await runWsFanOut(wsUrl, hw, server, "ws-healthchanged-fanout"));
     }
   } finally {
+    // Shut down isched gracefully via the shutdown mutation, then fall back to SIGTERM.
+    const cleanExit = await gracefulShutdownIsched(ischedProc, ISCHED_SHUTDOWN_TOKEN);
+    if (!cleanExit) {
+      console.log("[isched] graceful shutdown timed out — sending SIGTERM");
+    }
     await Promise.all([
       killServer(apolloProc, "apollo"),
-      killServer(ischedProc, "isched"),
+      cleanExit ? Promise.resolve() : killServer(ischedProc, "isched"),
     ]);
   }
 
