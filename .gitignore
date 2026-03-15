@@ -75,4 +75,4 @@ Testing/
 nohup.out
 /cmake-build-profile/
 /cmake-build-release/
-/data/config_snapshots.sqlite3*
+data/tenants/config_snapshots.sqlite3*
