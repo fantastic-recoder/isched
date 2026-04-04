@@ -30,7 +30,7 @@
 |---|------------|----------|
 | 1 | server startup and `/graphql` availability | `src/test/cpp/integration/test_server_startup.cpp` |
 | 2 | bootstrap platform admin (one-time) | `src/test/cpp/integration/test_bootstrap_platform_admin.cpp` (`bootstrapPlatformAdmin succeeds exactly once...`, `bootstrapPlatformAdmin rejects subsequent...`) |
-| 3 | login with JWT issuance | `src/test/cpp/integration/test_user_management.cpp` (`Login: valid tenant-user credentials return token and expiresAt`) |
+| 3 | login with JWT issuance | `src/test/cpp/integration/test_user_management.cpp` (`Login: valid organization user credentials return token and expiresAt`) |
 | 4 | authenticated built-in query `hello` | `src/test/cpp/integration/test_builtin_schema.cpp` |
 | 5 | authenticated built-in query `version` | `src/test/cpp/integration/test_builtin_schema.cpp` |
 | 6 | authenticated built-in query `uptime` | `src/test/cpp/integration/test_health_queries.cpp` |

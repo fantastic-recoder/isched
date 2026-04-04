@@ -327,7 +327,7 @@ Full details in `tasks.md` (T047–T052). Summary of sub-areas:
 
 ### ✅ Phase 7: Documentation and Security Hardening — COMPLETE
 
-Full details in `tasks.md` (T055–T057). Summary:
+Full details in `tasks.md` (T054–T058). Summary:
 
 **T055 — Documentation Review**: All docs (`graphql-schema.md`, `http-api.md`, `quickstart.md`, `data-model.md`) reviewed against implementation; `extensions` field documented in `http-api.md`
 **T056 — Security Scan & Threat Modeling**: `security_scan` CMake target running clang-tidy with security-oriented checks, plus feature-scoped and project-wide threat-model documentation
@@ -384,7 +384,7 @@ Full details in `tasks.md` (T055–T057). Summary:
 
 - Sessions table uses the same schema in each organization DB and in `isched_system.db` for platform-level logins
 - `AuthenticationMiddleware::create_session()` is the sole session-creation entry point; `login` resolver delegates to it
-- 4 revocation GraphQL mutations: `revokeSession`, `revokeUserSessions`, `revokeOrgSessions`, `terminateAllSessions`
+- 4 revocation GraphQL mutations: `logout`, `revokeSession`, `revokeAllSessions`, `terminateAllSessions`
 - WebSocket force-close on revocation: `SubscriptionBroker` receives revocation event and closes affected connections
 - `last_activity` updates are request-driven but throttled to reduce write amplification (default 5-minute minimum interval per session)
 - `roles` column stored as JSON array to enable `terminateAllSessions` without cross-table joins
@@ -418,7 +418,7 @@ Full details in `tasks.md` (T055–T057). Summary:
 
 **Status**: Implementation for Phases 0-7 is complete and constitution closeout evidence is recorded.
 **Implementation phases complete**: 0, 1, 1b, 1c, 2, 3, 4, 5, 5b, 6, 7.
-**Architecture decisions recorded in `tasks.md`**: T047-T052 (Phase 6) and T055-T057 (Phase 7) are fully expanded from stubs through `speckit.clarify` + `speckit.analyze` sessions.
+**Architecture decisions recorded in `tasks.md`**: T047-T052 (Phase 6) and T054-T058 (Phase 7) are fully expanded from stubs through `speckit.clarify` + `speckit.analyze` sessions.
 **Next Action**: Re-run final cross-artifact consistency pass and prepare final sign-off commit.
 **Gate**: Each sub-task committed individually; `ctest --output-on-failure` must be 100% green before each commit.
 
