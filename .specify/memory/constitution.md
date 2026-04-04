@@ -1,15 +1,17 @@
 <!--
 Sync Impact Report:
-- Version change: 1.0.0 → 1.1.0
-- Modified principles: None (structural additions only)
-- Added sections: C++ Core Guidelines compliance in Technical Standards
+- Version change: 1.3.0 → 2.0.0
+- Modified principles: None
+- Added sections: None
 - Removed sections: None
-- Templates requiring updates: 
-  ✅ constitution.md (updated)
-  ✅ plan-template.md (updated with C++ Core Guidelines compliance check)
-  ✅ spec-template.md (updated with C++ Core Guidelines requirements)
-  ✅ tasks-template.md (updated with C++ Core Guidelines compliance checklist)
-- Follow-up TODOs: None - all placeholders filled with concrete values
+- Templates requiring updates:
+  ✅ .specify/templates/plan-template.md (Constitution Check + technical context wording updated for C++23 baseline)
+  ✅ .specify/templates/tasks-template.md (setup task examples updated for C++23 + Conan/CMake baseline)
+  ✅ .specify/templates/spec-template.md (reviewed; no language-version wording change required)
+  ✅ .specify/templates/constitution-template.md (reviewed; generic placeholders remain valid)
+  ✅ `.specify/templates/commands/*.md` (not present; no updates required)
+  ✅ README.md (reviewed; already aligned to C++23)
+- Follow-up TODOs: None
 -->
 
 # Isched Constitution
@@ -36,7 +38,7 @@ Authentication and authorization mechanisms MUST be implemented using industry-s
 
 ### IV. Test-Driven Development
 
-TDD is mandatory for all core functionality: Tests written → Specification approved → Tests fail → Implementation. Integration tests are required for GraphQL endpoints, database transactions, and authentication flows. Performance tests MUST validate scalability claims.
+TDD remains the preferred engineering practice for all core functionality. Automated tests covering the intended behavior MUST exist before a story or core capability is considered complete. Planning artifacts and task lists are not required to place test tasks before implementation tasks, but the final delivered change MUST include the necessary passing verification coverage. Integration tests are required for GraphQL endpoints, database transactions, and authentication flows. Performance tests MUST validate scalability claims.
 
 **Rationale**: High-performance multi-tenant systems require bulletproof reliability. TDD ensures functionality works correctly under all supported conditions.
 
@@ -48,7 +50,7 @@ Code MUST compile and run on Linux, with clear documentation for other platforms
 
 ## Technical Standards
 
-**Language**: C++20 standard compliance required. Modern C++ features encouraged when they improve performance or safety.
+**Language**: C++23 standard compliance required. Contributions that lower the language level are prohibited unless the constitution is amended first.
 
 **C++ Core Guidelines**: All C++ code MUST adhere to the [ISO C++ Core Guidelines](https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines). Code reviews MUST verify guideline compliance. Deviations require explicit justification and documentation in code comments.
 
@@ -66,7 +68,7 @@ Code MUST compile and run on Linux, with clear documentation for other platforms
 
 **Performance Testing**: Changes affecting core paths require performance regression testing.
 
-**Documentation**: Public APIs require comprehensive documentation. Security-related features require threat model documentation.
+**Documentation**: Public APIs require comprehensive documentation. Security-related features require both a feature-scoped threat model in the relevant `specs/[feature]/` directory and a summarized project-wide threat model entry in `docs/security-threat-model.md`.
 
 **Versioning**: Semantic versioning with special attention to GraphQL schema breaking changes.
 
@@ -78,4 +80,4 @@ Amendments require: (1) Documentation of proposed changes, (2) Impact analysis o
 
 Constitution violations are critical issues requiring immediate resolution.
 
-**Version**: 1.1.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2025-11-01
+**Version**: 2.0.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2026-04-04

@@ -1,0 +1,1 @@
+Let us go through all CRITICAL findings, point per point, and let me answer clarification questions. When answeren update the related documents like constitutions.

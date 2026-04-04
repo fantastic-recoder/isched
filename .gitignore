@@ -6,6 +6,9 @@
 /out/
 /CMakeFiles/*
 
+# Node.js artifacts from test fixtures/tools
+node_modules/
+
 # C++ compiled objects and libraries
 *.o
 *.a

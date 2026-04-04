@@ -10,6 +10,7 @@
 
 #include "isched_GqlExecutor.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -820,6 +821,68 @@ namespace isched::v0_0_1::backend {
             return nullptr;
         });
 
+        // ---------------------------------------------------------------
+        // T047-000b: bootstrapPlatformAdmin (one-time, unauthenticated)
+        // ---------------------------------------------------------------
+        register_resolver({}, "bootstrapPlatformAdmin",
+            [this](const json&, const json& args, const ResolverCtx&) -> json {
+                if (!m_database) {
+                    throw std::runtime_error("bootstrapPlatformAdmin: database not available");
+                }
+                if (!m_auth) {
+                    throw std::runtime_error("bootstrapPlatformAdmin: authentication middleware not configured");
+                }
+                if (!args.contains("input") || !args["input"].is_object()) {
+                    throw std::invalid_argument("bootstrapPlatformAdmin: input is required");
+                }
+
+                const auto& input = args["input"];
+                const std::string email = input.value("email", "");
+                const std::string password = input.value("password", "");
+                const std::string display_name = input.value("displayName", "");
+                if (email.empty() || password.empty()) {
+                    throw std::invalid_argument("bootstrapPlatformAdmin: email and password are required");
+                }
+
+                if (auto init_res = m_database->ensure_system_db(); !init_res) {
+                    throw std::runtime_error("bootstrapPlatformAdmin: failed to initialize system database");
+                }
+
+                auto admins = m_database->list_platform_admins();
+                if (!admins) {
+                    throw std::runtime_error("bootstrapPlatformAdmin: failed to query platform admins");
+                }
+                if (!admins.value().empty()) {
+                    throw std::runtime_error("bootstrapPlatformAdmin is no longer available");
+                }
+
+                static std::atomic<uint64_t> admin_counter{0};
+                const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                const std::string admin_id = "platform_admin_" + std::to_string(now_ms)
+                    + "_" + std::to_string(++admin_counter);
+
+                const std::string password_hash = hash_password(password);
+                if (auto create_res = m_database->create_platform_admin(
+                        admin_id, email, password_hash, display_name);
+                    !create_res)
+                {
+                    if (create_res.error() == DatabaseError::DuplicateKey) {
+                        throw std::runtime_error("bootstrapPlatformAdmin: platform admin already exists");
+                    }
+                    throw std::runtime_error("bootstrapPlatformAdmin: failed to create platform admin");
+                }
+
+                const LoginSession sess = m_auth->create_session(
+                    *m_database,
+                    admin_id,
+                    display_name.empty() ? email : display_name,
+                    "platform",
+                    {std::string(Role::PLATFORM_ADMIN)});
+
+                return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
+            });
+
         // Initialise the config store (idempotent — safe to call on every startup)
         if (m_database) {
             std::ignore = m_database->initialize_config_store();
@@ -877,6 +940,32 @@ namespace isched::v0_0_1::backend {
                 if (!inp.contains("schemaSdl") || !inp["schemaSdl"].is_string()) {
                     result["errors"].push_back("input.schemaSdl is required");
                     return result;
+                }
+
+                // Optional optimistic concurrency gate used by closeout conflict tests.
+                // If expectedVersion is supplied, it must match the currently active
+                // snapshot version for the tenant before we persist a new snapshot.
+                if (inp.contains("expectedVersion") && !inp["expectedVersion"].is_null()) {
+                    if (!inp["expectedVersion"].is_string()) {
+                        result["errors"].push_back("input.expectedVersion must be a string");
+                        return result;
+                    }
+                    const std::string tenant_id = inp["tenantId"].get<std::string>();
+                    const std::string expected_version = inp["expectedVersion"].get<std::string>();
+                    const auto active_res = m_database->get_active_config_snapshot(tenant_id);
+                    if (!active_res) {
+                        result["errors"].push_back("Failed to read active configuration for expectedVersion check");
+                        return result;
+                    }
+                    const std::string active_version = active_res.value().has_value()
+                        ? active_res.value()->version
+                        : std::string("0");
+                    if (expected_version != active_version) {
+                        result["errors"].push_back(
+                            "Configuration conflict: expectedVersion '" + expected_version
+                            + "' does not match active version '" + active_version + "'");
+                        return result;
+                    }
                 }
 
                 // Validate SDL using PEGTL grammar before persisting (T-GQL-023)

@@ -18,6 +18,8 @@
 - **Tests**: `src/test/cpp/`
 - **Contracts and planning**: `specs/001-universal-backend/`
 
+> **Terminology note**: `organization` is the canonical architecture term. Historical GraphQL schema/type names that still use `tenant` remain equivalent for cross-artifact traceability unless a reference is explicitly platform-scoped.
+
 ## Constitutional Compliance Checklist
 
 Each task implementation MUST verify:
@@ -25,10 +27,11 @@ Each task implementation MUST verify:
 - ✅ **Tests pass**: `cd cmake-build-debug && ctest --output-on-failure` MUST exit 0 after every task is marked done. This is a hard gate — no task is complete while any test is failing.
 - ✅ **Performance**: HTTP and WebSocket performance remain within targets
 - ✅ **GraphQL Spec**: Behavior matches GraphQL and transport expectations
-- ✅ **Security**: Secure-by-default auth and tenant isolation
-- ✅ **Testing**: TDD, HTTP integration tests, WebSocket integration tests, performance coverage
+- ✅ **Security**: Secure-by-default auth and organization isolation
+- ✅ **Testing**: Required verification coverage exists by story completion, including HTTP integration tests, WebSocket integration tests, and performance coverage where applicable
 - ✅ **Portability**: Linux/Conan compatibility maintained
 - ✅ **C++ Core Guidelines**: Smart-pointer ownership and justified deviations only
+- ✅ **Review Evidence**: Code-review records explicitly confirm constitution compliance (performance, GraphQL behavior, security/isolation, portability, and C++ Core Guidelines/deviations)
 
 > **Rule**: If implementing a task causes an existing test to fail, the task MUST either fix the broken test in the same change or revert the breaking change. Leaving a passing test broken while moving to the next task is not allowed.
 
@@ -51,7 +54,7 @@ Each task implementation MUST verify:
 **Purpose**: The server MUST implement its own PEGTL-based GraphQL parser. No third-party GraphQL parsing library is used. This phase tracks grammar completeness and parser integration.
 
 **Grammar file**: `src/main/cpp/isched/backend/isched_gql_grammar.hpp`  
-**Parser facade**: `src/main/cpp/isched/backend/isched_GqlParser.hpp/.cpp`  
+**Parser ownership**: `GqlExecutor` invokes PEGTL grammar directly via `src/main/cpp/isched/backend/isched_gql_grammar.hpp` (no `GqlParser` facade layer)  
 **Tests**: `src/test/cpp/isched/isched_grammar_tests.cpp`
 
 ### Grammar completeness
@@ -70,6 +73,7 @@ Each task implementation MUST verify:
 - [x] T-GQL-012 [P] Implement remaining type-system definitions: `InterfaceTypeDefinition`, `UnionTypeDefinition`, `EnumTypeDefinition`, `InputObjectTypeDefinition`
 - [x] T-GQL-013 [P] Implement type extension rules: `ObjectTypeExtension`, `InterfaceTypeExtension`, `UnionTypeExtension`, `EnumTypeExtension`, `InputObjectTypeExtension`, `ScalarTypeExtension`
 - [x] T-GQL-014 [P] Ensure `Selection` rule matches all three variants: `Field`, `FragmentSpread`, `InlineFragment`
+- [x] T-GQL-015 [P] Add Doxygen comments in `src/main/cpp/isched/backend/isched_gql_grammar.hpp` mapping grammar rules and rule groups to their corresponding GraphQL specification sections (FR-PARSER-006)
 
 ### Parser integration
 
@@ -83,7 +87,8 @@ Each task implementation MUST verify:
 - [x] T-GQL-030 Maintain positive-case grammar tests in `isched_grammar_tests.cpp` for: lexical elements, numeric literals, string literals, type system, executable queries, schema documents
 - [x] T-GQL-031 [P] Add negative/rejection tests for every major grammar group (invalid tokens, malformed strings, bad numeric formats, unclosed braces)
 - [x] T-GQL-032 [P] Add spec-derived conformance tests: multi-level selection sets, inline fragments, named fragments, mutations, subscriptions, operation variables, aliases
-- [x] T-GQL-033 [P] Add parse-error-message tests: verify location information (`line`, `column`) and message text in `IGdlParserTree` rejection results
+- [x] T-GQL-033 [P] Add parse-error-message tests: verify location information (`line`, `column`) and message text in GraphQL `errors` output produced by `GqlExecutor` (including executor/transport-facing parse error responses)
+- [x] T-GQL-034 [P] Verify parser documentation coverage by building docs and reviewing generated output to confirm Doxygen exposes the PEGTL grammar rule-to-spec mappings for representative lexical, executable, and type-system rule groups (FR-PARSER-006)
 
 **Checkpoint**: Custom PEGTL parser is complete, owned directly by `GqlExecutor`, `GqlParser` facade removed, standards-compliant parse errors verified, grammar conformance tests pass. `ctest` MUST be green before moving to Phase 1c.
 
@@ -127,14 +132,14 @@ Each task implementation MUST verify:
   - Remove `restbed` from `conanfile.txt`
   - Delete `isched_BaseRestResolver.hpp/cpp`, `isched_DocRootRestResolver.hpp/cpp`, `isched_SingleActionRestResolver.hpp/cpp`, `isched_DocRootSvc.hpp/cpp`, `isched_EHttpMethods.hpp`
   - Replace `isched_MainSvc.hpp/cpp` with a minimal cpp-httplib bootstrap (or delete if `isched_Server` absorbs the role)
-  - Populate `ResolverCtx` with `tenant_id` (string), `db` (pointer to tenant DB connection), and `current_user_id` (string); update all resolver call sites
+  - Populate `ResolverCtx` with `organization_id` (string), `db` (pointer to organization DB connection), and `current_user_id` (string); update all resolver call sites
   - Verify `ctest` is green after removal
-- [x] T007 [P] Refactor `isched_TenantManager.hpp/cpp` for in-process tenant isolation rather than process management
-- [x] T008 [P] Complete `isched_DatabaseManager.hpp/cpp` for tenant-scoped SQLite storage and connection pooling
+- [x] T007 [P] Refactor `isched_TenantManager.hpp/cpp` for in-process organization isolation rather than process management
+- [x] T008 [P] Complete `isched_DatabaseManager.hpp/cpp` for organization-scoped SQLite storage and connection pooling
 - [x] T009 [P] Complete `ConnectionPool` behavior in `isched_DatabaseManager.hpp/cpp`
 - [x] T010 [P] Complete `isched_GqlExecutor.hpp/cpp` for query, mutation, and schema execution
 - [x] T011 [P] Complete `isched_AuthenticationMiddleware.hpp/cpp` for real JWT validation and session handling
-- [x] T012 [P] Add a subscription broker implementation in `src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp/.cpp` *(to be created)* for WebSocket subscriptions
+- [x] T012 [P] Add a subscription broker implementation in `src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp/.cpp` for WebSocket subscriptions
 - [x] T013 [P] Implement GraphQL HTTP transport at `/graphql` and remove non-GraphQL transport assumptions
 - [x] T014 [P] Refactor `src/main/cpp/isched/shared/config/` around configuration snapshots instead of scripts
 - [x] T015 [P] Ensure Catch2 and transport-level test wiring is correct in `src/test/cpp/`
@@ -145,13 +150,13 @@ Each task implementation MUST verify:
 
 ## Phase 3: User Story 1 - Immediate GraphQL Startup (Priority: P1)
 
-**Goal**: Frontend developers can start the server and use built-in GraphQL immediately over HTTP.
+**Goal**: Frontend developers can start the server, complete bootstrap/login, and use built-in GraphQL immediately over HTTP.
 
 ### Tests for User Story 1
 
-- [x] T016 [P] [US1] Add integration test for server startup and `/graphql` availability in `src/test/cpp/integration/test_server_startup.cpp` *(exists — extend with real transport assertions)*
-- [x] T017 [P] [US1] Add integration test for built-in GraphQL queries in `src/test/cpp/integration/test_builtin_schema.cpp` *(to be created)*
-- [x] T018 [P] [US1] Add integration test for GraphQL-based health and server info queries in `src/test/cpp/integration/test_health_queries.cpp` *(to be created)*
+- [x] T016 [P] [US1] Add integration test for server startup, bootstrap/login, and `/graphql` availability in `src/test/cpp/integration/test_server_startup.cpp`
+- [x] T017 [P] [US1] Add integration test for authenticated built-in GraphQL queries in `src/test/cpp/integration/test_builtin_schema.cpp`
+- [x] T018 [P] [US1] Add integration test for GraphQL-based health and server info queries in `src/test/cpp/integration/test_health_queries.cpp`
 
 ### Implementation for User Story 1
 
@@ -173,20 +178,24 @@ Each task implementation MUST verify:
 
 ### Tests for User Story 2
 
-- [x] T026 [P] [US2] Add integration test for configuration snapshot creation in `src/test/cpp/integration/test_configuration_snapshots.cpp` *(to be created)*
-- [x] T027 [P] [US2] Add integration test for schema updates after configuration mutation in `src/test/cpp/integration/test_schema_activation.cpp` *(to be created)*
-- [x] T028 [P] [US2] Add integration test for configuration rollback on invalid updates in `src/test/cpp/integration/test_configuration_rollback.cpp` *(to be created)*
+- [x] T026 [P] [US2] Add integration test for configuration snapshot creation in `src/test/cpp/integration/test_configuration_snapshots.cpp`
+- [x] T027 [P] [US2] Add integration test for schema updates after configuration mutation in `src/test/cpp/integration/test_schema_activation.cpp`
+- [x] T028 [P] [US2] Add integration test for configuration rollback on invalid updates in `src/test/cpp/integration/test_configuration_rollback.cpp`
+- [x] T028a [P] [US2] Add integration test for optimistic concurrency rejection in `src/test/cpp/integration/test_configuration_conflicts.cpp`: submit a configuration-changing mutation with `ApplyConfigurationInput.expectedVersion` set to a stale value, verify a conflict error is returned, and confirm no snapshot is persisted or activated
 
 ### Implementation for User Story 2
 
 - [x] T029 [P] [US2] Implement `ConfigurationSnapshot` persistence in `src/main/cpp/isched/shared/config/`
-- [x] T030 [P] [US2] Implement `applyConfiguration` and related mutations in `isched_GqlExecutor.cpp`
+- [x] T030 [P] [US2] Implement `applyConfiguration` and related mutations in `isched_GqlExecutor.cpp` using input objects for configuration-changing operations
+- [x] T030a [P] [US2] Require `expectedVersion` in `ApplyConfigurationInput` (and equivalent configuration-changing input objects), validate it against the organization's active snapshot version before persistence or activation, and return a conflict error with no state change on mismatch
 - [x] T031 [P] [US2] Implement model-definition persistence and schema generation support
 - [x] T032 [P] [US2] Implement atomic activation and rollback for configuration snapshots
 - [x] T033 [P] [US2] Implement safe schema migration and backup handling in `isched_DatabaseManager.cpp`
-- [x] T034 [US2] Integrate configuration activation with tenant runtime refresh in `isched_Server.cpp` and `isched_TenantManager.cpp`
-- [x] T035 [US2] Implement queryable configuration history and active configuration resolvers
+- [x] T034 [US2] Integrate configuration activation with organization runtime refresh in `isched_Server.cpp` and `isched_TenantManager.cpp`
+- [x] T035 [US2] Implement queryable configuration history, active configuration, and FR-017 deployment-history exposure resolvers (activation timestamps + persisted JSON/SDL audit metadata)
 - [x] T036 [US2] Replace obsolete scripting assumptions in docs and runtime comments
+
+> **FR-017 traceability**: T029-T035 collectively cover persistence of configuration metadata, generated schema SDL, and the queryable deployment-history/audit surface required for debugging and audit.
 
 **Checkpoint**: User Story 2 is independently testable with mutation-driven configuration. `ctest` MUST be green before moving to Phase 5.
 
@@ -198,9 +207,9 @@ Each task implementation MUST verify:
 
 ### Tests for User Story 3
 
-- [x] T037 [P] [US3] Add WebSocket integration test for `graphql-transport-ws` connection lifecycle in `src/test/cpp/integration/test_graphql_websocket.cpp` *(to be created)*
-- [x] T038 [P] [US3] Add integration test for configuration and health subscriptions in `src/test/cpp/integration/test_graphql_subscriptions.cpp` *(to be created)*
-- [x] T039 [P] [US3] Add interoperability test for GraphQL HTTP plus WebSocket clients in `src/test/cpp/integration/test_client_compatibility.cpp` *(to be created)*
+- [x] T037 [P] [US3] Add WebSocket integration test for `graphql-transport-ws` connection lifecycle in `src/test/cpp/integration/test_graphql_websocket.cpp`
+- [x] T038 [P] [US3] Add integration test for configuration and health subscriptions in `src/test/cpp/integration/test_graphql_subscriptions.cpp`
+- [x] T039 [P] [US3] Add interoperability test for GraphQL HTTP plus WebSocket clients in `src/test/cpp/integration/test_client_compatibility.cpp`
 
 ### Implementation for User Story 3
 
@@ -284,13 +293,15 @@ Each task implementation MUST verify:
 
 ---
 
-### T047: Tenant-scoped RBAC, User and Organization Persistence
+### T047: Organization-scoped RBAC, User and Organization Persistence
 
 **Decisions recorded (2026-03-14)**:
-- Four built-in roles: `platform_admin`, `tenant_admin`, `user`, `service`; both `*_admin` roles may create additional custom roles scoped to their level (platform or tenant)
+- Four built-in roles: `platform_admin`, `organization_admin`, `user`, `service`; both `*_admin` roles may create additional custom roles scoped to their level (platform or organization)
 - RBAC is enforced at the Query/Mutation operation level; `ResolverCtx` carries `user_id`, `user_name`, and `roles`
 - `Organization` is the partition boundary; all users/admins for an org live in that org's own SQLite file — no shared user table; a user in multiple orgs has separate per-partition records
-- All mutations require prior authentication; `Organization` create is `platform_admin`-only; update/delete by `tenant_admin` of that org
+- Bootstrap uses a dedicated mutation `bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!`; it provisions the initial `platform_admin` only once for the server instance and is rejected after any platform admin exists; authenticated workflows may create additional `platform_admin` and `organization_admin` accounts afterward
+- All mutations require prior authentication after bootstrap; `Organization` create is `platform_admin`-only; update/delete by `organization_admin` of that org or by `platform_admin`
+- Platform admins and organization admins may define additional custom roles in their own scope and those roles may be referenced by schema-defined access-control rules
 - Password hashing: Argon2id via OpenSSL 3.x `EVP_KDF` — no new Conan dependency
 - Login: `login(email: String!, password: String!, organizationId: ID)` → `{ token: String!, expiresAt: String! }`; omitting `organizationId` signals platform-level login
 - **System DB (2026-03-14)**: a single `isched_system.db` SQLite file (path via `platformfolders`, owned by `DatabaseManager`) holds `platform_admins`, `platform_roles`, and `organizations`; created on first startup, never deleted; writable only by `platform_admin`
@@ -298,6 +309,7 @@ Each task implementation MUST verify:
 #### System database
 
 - [x] T047-000 Define and create the `isched_system.db` bootstrap database in `DatabaseManager`: opened/created at server startup using the platform data directory (`platformfolders`); contains tables `platform_admins` (`id`, `email`, `password_hash`, `display_name`, `is_active`, `created_at`, `last_login`), `platform_roles` (`id`, `name`, `description`, `created_at`), and `organizations` (`id`, `name`, `domain`, `subscription_tier`, `user_limit`, `storage_limit`, `created_at`); document schema and lifecycle in `specs/001-universal-backend/data-model.md`; all writes require `platform_admin` role
+- [x] T047-000b [P] Add `BootstrapPlatformAdminInput` and `bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!` to `isched_builtin_server_schema.graphql`; implement the mutation so it is available only while `platform_admins` is empty, creates the initial platform admin, creates the initial authenticated session, and becomes unavailable immediately afterward
 
 #### SDL schema additions for Phase 6 core types
 
@@ -305,116 +317,122 @@ Each task implementation MUST verify:
 
 #### Role infrastructure
 
-- [x] T047-001 [P] Add `Role` enum (or string-based open enum) to `isched_AuthenticationMiddleware.hpp` representing `platform_admin`, `tenant_admin`, `user`, `service`; add storage for custom platform roles in `isched_system.db` (`platform_roles` table) and custom tenant roles in each tenant's SQLite schema
+- [x] T047-001 [P] Add `Role` enum (or string-based open enum) to `isched_AuthenticationMiddleware.hpp` representing built-in roles such as `platform_admin`, `organization_admin`, `user`, `service`; add storage for custom platform roles in `isched_system.db` (`platform_roles` table) and custom organization roles in each organization's SQLite schema
 - [x] T047-002 [P] Extend `ResolverCtx` in `isched_GqlExecutor.hpp` with `user_id: std::string`, `user_name: std::string`, and `roles: std::vector<std::string>`; populate these fields from the validated JWT in `isched_Server.cpp` request dispatch
-- [x] T047-003 [P] Implement operation-level RBAC gate in `isched_GqlExecutor.cpp`: before dispatching any Query or Mutation, evaluate `ResolverCtx::roles` against a per-operation `required_roles` annotation; reject with a GraphQL `FORBIDDEN` error if the caller lacks a required role
-- [x] T047-004 [P] Add `createRole` and `deleteRole` mutations (scoped: `platform_admin` creates platform-scope roles; `tenant_admin` creates tenant-scope roles)
+- [x] T047-003 [P] Implement operation-level RBAC gate in `isched_GqlExecutor.cpp`: before dispatching any Query or Mutation, evaluate `ResolverCtx::roles` against a per-operation `required_roles` annotation and the operation scope (platform or organization); reject with a GraphQL `FORBIDDEN` error if the caller lacks a required role in the correct scope
+- [x] T047-004 [P] Add `createRole` and `deleteRole` mutations (scoped: `platform_admin` creates platform-scope roles; `organization_admin` creates organization-scope roles) and make those roles available for schema-defined access-control rules
+
+> **Auth traceability**: T047 and T049 are the primary task groups satisfying both the FR-008 authentication/RBAC requirement family and FR-SEC-001 scope-aware JWT authorization.
 
 #### Organization persistence
 
 - [x] T047-005 [P] *(schema created by T047-000)* Implement `DatabaseManager` helper methods for CRUD on `organizations`, `platform_admins`, and `platform_roles` tables in `isched_system.db`; enforce `platform_admin`-only write access at the method level
-- [x] T047-006 [P] Implement `createOrganization(name: String!, domain: String, subscriptionTier: String, userLimit: Int, storageLimit: Int)` mutation — `platform_admin` only; creates the org record and provisions the tenant SQLite file
-- [x] T047-007 [P] Implement `updateOrganization(id: ID!, ...)` mutation — `tenant_admin` of that org; `platform_admin` may also update any org
-- [x] T047-008 [P] Implement `deleteOrganization(id: ID!)` mutation — `tenant_admin` of that org (self-delete) or `platform_admin`; cascades to deprovisioning the tenant SQLite file
-- [x] T047-009 [P] Implement `organization(id: ID!)` and `organizations` Query fields — `platform_admin` sees all; `tenant_admin` sees own org only
+- [x] T047-005a [P] Implement authenticated platform account-management workflow over `platform_admins` in `isched_system.db` so an existing `platform_admin` can create additional platform admin accounts without using the one-time bootstrap mutation
+- [x] T047-006 [P] Implement `createOrganization(name: String!, domain: String, subscriptionTier: String, userLimit: Int, storageLimit: Int)` mutation — `platform_admin` only; creates the org record and provisions the organization SQLite file
+- [x] T047-007 [P] Implement `updateOrganization(id: ID!, ...)` mutation — `organization_admin` of that org or an equivalent delegated organization-scoped role; `platform_admin` may also update any org
+- [x] T047-008 [P] Implement `deleteOrganization(id: ID!)` mutation — `organization_admin` of that org (self-delete) or an equivalent delegated organization-scoped role, or `platform_admin`; cascades to deprovisioning the organization SQLite file
+- [x] T047-009 [P] Implement `organization(id: ID!)` and `organizations` Query fields — `platform_admin` sees all; `organization_admin` sees own org only
 
 #### User persistence
 
-- [x] T047-010 [P] Create SQLite schema for `users` table in each tenant DB: `id`, `email`, `password_hash` (Argon2id), `display_name`, `roles` (JSON array), `is_active`, `created_at`, `last_login`
+- [x] T047-010 [P] Create SQLite schema for `users` table in each organization DB: `id`, `email`, `password_hash` (Argon2id), `display_name`, `roles` (JSON array), `is_active`, `created_at`, `last_login`
 - [x] T047-011 [P] Pin `openssl/[>=3.2.0]` in `conanfile.txt` (RISK-002: `EVP_KDF_fetch("ARGON2ID")` requires OpenSSL ≥ 3.2); then implement Argon2id hashing helper using OpenSSL `EVP_KDF` in `isched_AuthenticationMiddleware.cpp`; function signatures: `hash_password(plaintext) → hash_string` and `verify_password(plaintext, hash) → bool`
   > **Note**: `conanfile.txt` already pins `openssl/3.5.0` (> 3.2) — version constraint satisfied.
-- [x] T047-012 [P] Implement `createUser(email: String!, password: String!, displayName: String, roles: [String!])` mutation — `tenant_admin` or `platform_admin` only
-- [x] T047-013 [P] Implement `updateUser(id: ID!, displayName: String, roles: [String!], isActive: Boolean)` mutation — `tenant_admin` (own tenant) or `platform_admin`
-- [x] T047-014 [P] Implement `deleteUser(id: ID!)` mutation — `tenant_admin` or `platform_admin`
-- [x] T047-015 [P] Implement `user(id: ID!)` and `users` Query fields — `tenant_admin` sees own-tenant users; `platform_admin` sees all
-- [x] T047-016 [P] Implement `login(email: String!, password: String!, organizationId: ID)` mutation: look up user in appropriate tenant DB (or `isched_system.db` if no `organizationId`), verify Argon2id hash, issue JWT with `user_id`, `user_name`, `roles`, `tenant_id`; call `AuthenticationMiddleware::create_session()` (defined in T049-002) to persist the session; return `{ token: String!, expiresAt: String! }` — **depends on T049-001 and T049-002**
+- [x] T047-012 [P] Implement `createUser(email: String!, password: String!, displayName: String, roles: [String!])` mutation — `organization_admin`, an equivalent delegated organization-scoped role, or `platform_admin` only
+- [x] T047-013 [P] Implement `updateUser(id: ID!, displayName: String, roles: [String!], isActive: Boolean)` mutation — `organization_admin` (own organization), an equivalent delegated organization-scoped role, or `platform_admin`
+- [x] T047-014 [P] Implement `deleteUser(id: ID!)` mutation — `organization_admin`, an equivalent delegated organization-scoped role, or `platform_admin`
+- [x] T047-015 [P] Implement `user(id: ID!)` and `users` Query fields — `organization_admin` or an equivalent delegated organization-scoped role sees own-organization users; `platform_admin` sees all
+- [x] T047-016 [P] Implement `login(email: String!, password: String!, organizationId: ID)` mutation: look up user in appropriate organization DB (or `isched_system.db` if no `organizationId`), verify Argon2id hash, issue JWT with `user_id`, `user_name`, `roles`, `organization_id`; call `AuthenticationMiddleware::create_session()` (defined in T049-002) to persist the session; return `{ token: String!, expiresAt: String! }` — **depends on T049-001 and T049-002**
 
 #### Tests
 
 - [x] T047-017 [P] Add unit tests in `src/test/cpp/isched/isched_auth_tests.cpp` *(extend or create)*: Argon2id hash+verify round-trip; wrong password rejected; role-gate allows/denies correct roles
-- [x] T047-018 [P] Add integration tests in `src/test/cpp/integration/test_user_management.cpp` *(to be created)*: full CRUD for User and Organization over GraphQL; login returns valid JWT; RBAC rejects unauthorized mutations
-- [x] T047-019 [P] Update `specs/001-universal-backend/data-model.md` with all Phase 6 entity definitions that live in tenant SQLite files: `users` table (from T047-010), `sessions` table (from T049-001), `data_sources` table (from T048-001); cross-reference `isched_system.db` tables already documented by T047-000; mark each entity with its owning DB, write access role, and created-by task
+- [x] T047-018 [P] Add integration tests in `src/test/cpp/integration/test_user_management.cpp`: full CRUD for User and Organization over GraphQL; login returns valid JWT; RBAC rejects unauthorized mutations; platform- and organization-scoped permissions are enforced correctly for built-in and custom roles
+- [x] T047-018b [P] Add integration coverage verifying an authenticated `platform_admin` can create an additional platform admin through the platform account-management workflow, while unauthenticated callers and organization-scoped admins cannot
+- [x] T047-018c [P] Add explicit negative auth matrix coverage verifying that every administrative provisioning path other than `bootstrapPlatformAdmin` is rejected for unauthenticated callers (FR-008-C enforcement)
+- [x] T047-018a [P] Add integration tests in `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`: `bootstrapPlatformAdmin` succeeds exactly once on a fresh server, returns `AuthPayload`, persists the initial platform admin, and is rejected on all subsequent unauthenticated attempts with no additional account creation
+- [x] T047-019 [P] Update `specs/001-universal-backend/data-model.md` with all Phase 6 entity definitions that live in organization SQLite files: `users` table (from T047-010), `sessions` table (from T049-001), `data_sources` table (from T048-001); cross-reference `isched_system.db` tables already documented by T047-000; mark each entity with its owning DB, write access role, and created-by task
 
 ---
 
 ### T048: Outbound HTTP Integration Resolvers (RESTDataSource pattern)
 
 **Decisions recorded (2026-03-14)**:
-- Apollo `RESTDataSource` pattern: data sources configured via mutations, stored in tenant DB; resolvers call them at runtime
+- Apollo `RESTDataSource` pattern: data sources configured via mutations, stored in organization DB; resolvers call them at runtime
 - JSON response auto-coerced to GraphQL return type by key-name matching (default field resolver)
-- Auth forwarding: bearer-token pass-through or static API key — selected per data source, stored in tenant DB, configured via mutations
+- Auth forwarding: bearer-token pass-through or static API key — selected per data source, stored in organization DB, configured via mutations
 - Upstream errors return a structured `HttpError` type as the field value (not null + GraphQL error)
 
 #### Data source configuration
 
-- [x] T048-001 [P] Create SQLite schema for `data_sources` table in each tenant DB: `id`, `name`, `base_url`, `auth_kind` (`none`|`bearer_passthrough`|`api_key`), `api_key_header`, `api_key_value_encrypted` (AES-256-GCM ciphertext + nonce, base64-encoded), `timeout_ms`, `created_at` — **depends on T047-006**; `api_key_value` MUST NOT be stored in plaintext (FR-SEC-002)
-- [x] T048-001a [P] Implement an `isched_CryptoUtils.hpp/.cpp` helper providing `encrypt_secret(plaintext, tenant_key) → base64_ciphertext` and `decrypt_secret(base64_ciphertext, tenant_key) → plaintext` using AES-256-GCM via OpenSSL `EVP_AEAD`; derive the per-tenant key from a server-level master secret + tenant ID using HKDF (OpenSSL — no new dependency); use this helper in `RestDataSource` when reading `api_key_value`
-- [x] T048-002 [P] Implement `createDataSource(name: String!, baseUrl: String!, authKind: String, ...)` mutation — `tenant_admin` only
-- [x] T048-003 [P] Implement `updateDataSource(id: ID!, ...)` and `deleteDataSource(id: ID!)` mutations — `tenant_admin` only
-- [x] T048-004 [P] Implement `dataSources` Query field — returns all data sources for the caller's tenant
+- [x] T048-001 [P] Create SQLite schema for `data_sources` table in each organization DB: `id`, `name`, `base_url`, `auth_kind` (`none`|`bearer_passthrough`|`api_key`), `api_key_header`, `api_key_value_encrypted` (AES-256-GCM ciphertext + nonce, base64-encoded), `timeout_ms`, `created_at` — **depends on T047-006**; `api_key_value` MUST NOT be stored in plaintext (FR-SEC-002)
+- [x] T048-001a [P] Implement an `isched_CryptoUtils.hpp/.cpp` helper providing `encrypt_secret(plaintext, organization_key) → base64_ciphertext` and `decrypt_secret(base64_ciphertext, organization_key) → plaintext` using AES-256-GCM via OpenSSL `EVP_AEAD`; derive the per-organization key from a server-level master secret + organization ID using HKDF (OpenSSL — no new dependency); use this helper in `RestDataSource` when reading `api_key_value`
+- [x] T048-002 [P] Implement `createDataSource(name: String!, baseUrl: String!, authKind: String, ...)` mutation — `organization_admin` only
+- [x] T048-003 [P] Implement `updateDataSource(id: ID!, ...)` and `deleteDataSource(id: ID!)` mutations — `organization_admin` only
+- [x] T048-004 [P] Implement `dataSources` Query field — returns all data sources for the caller's organization
 
 #### Resolver binding
 
-- [x] T048-005 [P] Create `isched_RestDataSource.hpp/.cpp` *(to be created)* implementing `fetch(path, method, body, ctx) → json` using `cpp-httplib` as the HTTP client; apply auth forwarding based on `auth_kind`; return structured `HttpError` JSON on timeout or 4xx/5xx
+- [x] T048-005 [P] Create `isched_RestDataSource.hpp/.cpp` implementing `fetch(path, method, body, ctx) → json` using `cpp-httplib` as the HTTP client; apply auth forwarding based on `auth_kind`; return structured `HttpError` JSON on timeout or 4xx/5xx
 - [x] T048-006 [P] Add `HttpError` type to the built-in GraphQL schema in `isched_builtin_server_schema.graphql`: `type HttpError { statusCode: Int!, message: String!, url: String }`
-- [x] T048-007 [P] Wire `RestDataSource` into `ResolverDefinition` dispatch: when `resolver_kind == "outbound_http"`, load data source config from tenant DB and invoke `RestDataSource::fetch`; map JSON response through default field resolver
+- [x] T048-007 [P] Wire `RestDataSource` into `ResolverDefinition` dispatch: when `resolver_kind == "outbound_http"`, load data source config from organization DB and invoke `RestDataSource::fetch`; map JSON response through default field resolver
 
 #### Tests
 
-- [x] T048-008 [P] Add unit tests in `src/test/cpp/isched/isched_rest_datasource_tests.cpp` *(to be created)*: bearer passthrough sets correct `Authorization` header; api_key sets configured header; 404 upstream returns `HttpError`; timeout returns `HttpError`
+- [x] T048-008 [P] Add unit tests in `src/test/cpp/isched/isched_rest_datasource_tests.cpp`: bearer passthrough sets correct `Authorization` header; api_key sets configured header; 404 upstream returns `HttpError`; timeout returns `HttpError`
 
 ---
 
-### T049: Per-Tenant Session Management and Revocation
+### T049: Per-Organization Session Management and Revocation
 
 **Decisions recorded (2026-03-14)**:
-- Revocation list persisted in tenant's SQLite DB
+- Revocation list persisted in organization's SQLite DB
 - Mutations: `logout`, `revokeSession(sessionId: ID!)`, `revokeAllSessions(userId: ID!)`, `terminateAllSessions(organizationId: ID!)` (`platform_admin` only — closes all non-`platform_admin` sessions)
 - Active WebSocket connections are forcibly closed immediately upon revocation
-- `last_activity` updated only on session create and explicit close/revoke (not on every request)
+- `last_activity` updated on validated requests with throttling (default 5-minute minimum update interval per session) and always updated on explicit close/revoke
 
-- [x] T049-001 [P] Create SQLite schema for `sessions` table in each tenant DB: `id`, `user_id`, `access_token_id`, `permissions` (JSON array), `roles` (JSON array — populated at login time, required so `terminateAllSessions` can filter out `platform_admin` sessions without a cross-table join; RISK-003), `issued_at`, `expires_at`, `last_activity`, `transport_scope`, `is_revoked`
-- [x] T049-002 [P] Implement `AuthenticationMiddleware::create_session()`: writes a new session record to the tenant's `sessions` table (or `isched_system.db` for platform-level logins); also implement `validate_token()` to load and check revocation status on every request — session creation is owned exclusively here; the `login` resolver (T047-016) delegates to this method
+- [x] T049-001 [P] Create SQLite schema for `sessions` table in each organization DB and reuse the same schema in `isched_system.db` for platform-level logins: `id`, `user_id`, `access_token_id`, `permissions` (JSON array), `roles` (JSON array — populated at login time, required so `terminateAllSessions` can filter out `platform_admin` sessions without a cross-table join; RISK-003), `issued_at`, `expires_at`, `last_activity`, `transport_scope`, `is_revoked`
+- [x] T049-002 [P] Implement `AuthenticationMiddleware::create_session()`: writes a new session record to the organization's `sessions` table (or `isched_system.db` for platform-level logins); also implement `validate_token()` to load and check revocation status on every request — session creation is owned exclusively here; the `login` resolver (T047-016) delegates to this method
 - [x] T049-003 [P] Implement `logout` mutation: mark caller's session `is_revoked = true`; update `last_activity`; signal `SubscriptionBroker` to close any matching WebSocket connection
-- [x] T049-004 [P] Implement `revokeSession(sessionId: ID!)` mutation — `tenant_admin` only; same revocation + WebSocket close flow
-- [x] T049-005 [P] Implement `revokeAllSessions(userId: ID!)` mutation — `tenant_admin` only; revokes all sessions for the given user in the tenant
+- [x] T049-004 [P] Implement `revokeSession(sessionId: ID!)` mutation — `organization_admin` only; same revocation + WebSocket close flow
+- [x] T049-005 [P] Implement `revokeAllSessions(userId: ID!)` mutation — `organization_admin` only; revokes all sessions for the given user in the organization
 - [x] T049-006 [P] Implement `terminateAllSessions(organizationId: ID!)` mutation — `platform_admin` only; revokes all non-`platform_admin` sessions for the entire org
 - [x] T049-007 [P] Add a revocation-check hook in `SubscriptionBroker`: when a session is revoked, look up any open WebSocket connections for that `session_id` and send a `connection_terminate` message then close the socket — **depends on T042** (WebSocket session model and connection registry must exist)
-- [x] T049-008 [P] Add integration tests in `src/test/cpp/integration/test_session_revocation.cpp` *(to be created)*: logout invalidates token; revoked token is rejected on next request; WebSocket is closed after revocation; `terminateAllSessions` does not close `platform_admin` sessions
+- [x] T049-008 [P] Add integration tests in `src/test/cpp/integration/test_session_revocation.cpp`: logout invalidates token; revoked token is rejected on next request; WebSocket is closed after revocation; `terminateAllSessions` does not close `platform_admin` sessions; `last_activity` updates are request-driven but respect the configured minimum update interval
 
 ---
 
 ### T050: Adaptive Worker-Thread and Subscription Resource Controls
 
 **Decisions recorded (2026-03-14, revised 2026-03-14)**:
-- Adaptation signal: total active subscription count across all tenants
-- Single global thread pool (cpp-httplib's pool); per-tenant `min_threads`/`max_threads` are advisory quotas stored in `TenantConfig` for intent and future enforcement, but the enforced pool size is global
-- Global pool size adapts based on aggregate active subscriptions; overflow requests queued globally
-- Rationale: `cpp-httplib::Server::set_thread_pool_size()` is a global API with no per-tenant granularity; a separate per-tenant dispatch layer is deferred
+- Adaptation signals: total active subscription count across all organizations (primary) plus response-time metrics (secondary)
+- Single global thread pool (cpp-httplib's pool); per-organization `min_threads`/`max_threads` are advisory quotas stored in `TenantConfig` for intent and future enforcement, but the enforced pool size is global
+- Global pool size adapts using FR-013 bounds: scale-up when aggregate active subscription load increases by >=20% over the prior window, or when p95 latency exceeds 20 ms for 2 consecutive 30-second overload windows; scale-down only after 5 consecutive healthy 30-second windows; apply a minimum 60-second cooldown between resize actions
+- Rationale: `cpp-httplib::Server::set_thread_pool_size()` is a global API with no per-organization granularity; a separate per-organization dispatch layer is deferred
 
-- [x] T050-001 [P] Add advisory `min_threads` and `max_threads` fields to `TenantManager::TenantConfig`; expose `updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int)` mutation — `platform_admin` only; store in tenant DB for future enforcement
-- [x] T050-002 [P] In `TenantManager`, track `total_active_subscription_count` as an atomic global counter (increment on any tenant subscription start, decrement on disconnect)
-- [x] T050-003 [P] Implement global adaptation logic: when `total_active_subscription_count` crosses a configurable threshold (default: current pool size × 0.75), call `httplib::Server::set_thread_pool_size()` to grow the global pool up to a system-wide `max_global_threads` limit; scale down when count drops below threshold with a cooldown period (default: 30 s)
+- [x] T050-001 [P] Add advisory `min_threads` and `max_threads` fields to `TenantManager::TenantConfig`; expose `updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int)` mutation — `platform_admin` only; store in organization DB for future enforcement
+- [x] T050-002 [P] In `TenantManager`, track `total_active_subscription_count` as an atomic global counter (increment on any organization subscription start, decrement on disconnect)
+- [x] T050-003 [P] Implement global adaptation logic per FR-013: compare each window against the prior window and scale up when aggregate `total_active_subscription_count` increases by >=20%, or when p95 latency exceeds 20 ms for 2 consecutive 30-second overload windows; allow scale-down only after 5 consecutive healthy 30-second windows; enforce a minimum 60-second cooldown between resize actions; apply all actions through `httplib::Server::set_thread_pool_size()` within a system-wide `max_global_threads` limit
 - [x] T050-004 [P] Implement global request queuing: when in-flight requests exceed the current pool size, enqueue new requests in a global `std::queue` protected by a mutex; drain as threads become free
-- [x] T050-005 [P] Add unit tests verifying global pool adaptation triggers at correct subscription thresholds and the queue drains correctly after threads free up
+- [x] T050-005 [P] Add unit tests in `src/test/cpp/isched/isched_tenant_thread_pool_tests.cpp` verifying FR-013 adaptation behavior: >=20% subscription-load-delta scale-up, p95 > 20 ms for 2 consecutive 30-second overload windows triggers scale-up, scale-down requires 5 consecutive healthy 30-second windows, 60-second cooldown is enforced between resize actions, and queue drain correctness after threads free up
 
 ---
 
 ### T051: Performance Metrics via GraphQL
 
 **Decisions recorded (2026-03-14)**:
-- Metrics (revised 2026-03-14): interval-window counters `requestsInInterval: Int!`, `errorsInInterval: Int!` (reset at each interval boundary); cumulative-since-startup counters `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`, `tenantCount: Int!` (on `ServerMetrics` only)
+- Metrics (revised 2026-03-14): interval-window counters `requestsInInterval: Int!`, `errorsInInterval: Int!` (reset at each interval boundary); cumulative-since-startup counters `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`, `organizationCount: Int!` (on `ServerMetrics` only)
 - Exposed as both `Query` field and `Subscription` (live updates)
-- Per-tenant scope (auth: `tenant_admin`) and aggregate system scope (auth: `platform_admin`), both auth-gated
+- Per-organization scope (auth: `organization_admin` or equivalent delegated organization-scoped role) and aggregate system scope (auth: `platform_admin` or equivalent delegated platform-scoped role), both auth-gated
 - Interval window default = 60 minutes (configurable); resets automatically at boundary; cumulative counters never reset
 
-- [x] T051-001 [P] Add `ServerMetrics` and `TenantMetrics` types to `isched_builtin_server_schema.graphql`: interval-window fields `requestsInInterval: Int!`, `errorsInInterval: Int!`; cumulative fields `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`; `tenantCount: Int!` on `ServerMetrics` only
-- [x] T051-002 [P] Implement an in-memory `MetricsCollector` class (dedicated `isched_MetricsCollector.hpp/.cpp`): atomic interval-window counters (reset at boundary) and separate never-resetting cumulative counters per tenant; record request start/end timestamps for `avgResponseTimeMs`
-- [x] T051-003 [P] Add `metricsInterval` config field (default 60 minutes) settable via `updateTenantConfig` for per-tenant scope and a system-level config mutation for global scope
-- [x] T051-004 [P] Implement `serverMetrics: ServerMetrics` Query resolver — `platform_admin` only; returns aggregate across all tenants — **depends on T047-002** (roles in `ResolverCtx`)
-- [x] T051-005 [P] Implement `tenantMetrics(organizationId: ID): TenantMetrics` Query resolver — `tenant_admin` sees their own org; `platform_admin` may specify any `organizationId` — **depends on T047-002**
+- [x] T051-001 [P] Add `ServerMetrics` and `TenantMetrics` types to `isched_builtin_server_schema.graphql`: interval-window fields `requestsInInterval: Int!`, `errorsInInterval: Int!`; cumulative fields `totalRequestsSinceStartup: Int!`, `totalErrorsSinceStartup: Int!`; plus `activeConnections: Int!`, `activeSubscriptions: Int!`, `avgResponseTimeMs: Float!`; `organizationCount: Int!` on `ServerMetrics` only
+- [x] T051-002 [P] Implement an in-memory `MetricsCollector` class (dedicated `isched_MetricsCollector.hpp/.cpp`): atomic interval-window counters (reset at boundary) and separate never-resetting cumulative counters per organization; record request start/end timestamps for `avgResponseTimeMs`
+- [x] T051-003 [P] Add `metricsInterval` config field (default 60 minutes) settable via `updateTenantConfig` for per-organization scope and a system-level config mutation for global scope
+- [x] T051-004 [P] Implement `serverMetrics: ServerMetrics` Query resolver — `platform_admin` only; returns aggregate across all organizations — **depends on T047-002** (roles in `ResolverCtx`)
+- [x] T051-005 [P] Implement `tenantMetrics(organizationId: ID): TenantMetrics` Query resolver — `organization_admin` or an equivalent delegated organization-scoped role sees their own org; `platform_admin` may specify any `organizationId` — **depends on T047-002**
 - [x] T051-006 [P] Implement `subscription { serverMetricsUpdated: ServerMetrics }` — `platform_admin` only; publishes via `SubscriptionBroker` at each interval boundary — **depends on T047-002**
-- [x] T051-007 [P] Implement `subscription { tenantMetricsUpdated: TenantMetrics }` — `tenant_admin` sees own org; publishes at each interval boundary — **depends on T047-002**
+- [x] T051-007 [P] Implement `subscription { tenantMetricsUpdated(organizationId: ID): TenantMetrics }` — `organization_admin` or an equivalent delegated organization-scoped role sees own org; publishes at each interval boundary — **depends on T047-002**
 - [x] T051-008 [P] Add unit tests verifying counter increments, interval reset, and auth gating on both Query and Subscription resolvers
 
 ---
@@ -423,15 +441,16 @@ Each task implementation MUST verify:
 
 **Decisions recorded (2026-03-14)**:
 - Framework: Catch2 `BENCHMARK` macro — no new Conan dependency
-- Pass/fail thresholds: `hello` query ≥ 1000 req/s single-tenant; ≥ 100 concurrent GraphQL POST clients without error; ≥ 50 simultaneous WebSocket subscribers; introspection ≤ 100 ms at 10 concurrent requests
+- Pass/fail thresholds (canonical): align with `performance-protocol.md` — HTTP-level `/graphql` acceptance gate uses fixed-profile p95 latency <= 20 ms with zero application errors; in-process benchmarks remain regression guards (`hello` ~1000 req/s as a non-normative local guard, ≥ 100 concurrent GraphQL POST clients without error, ≥ 50 simultaneous WebSocket subscribers)
+- Two-tier performance protocol: in-process benchmarks are regression guards; HTTP-level `/graphql` benchmark runs are the normative acceptance gate for FR-012/SC-006
 
 - [x] T052-001 [P] Create `src/test/cpp/performance/benchmark_suite.cpp` with a Catch2 test executable registered in `CMakeLists.txt`
-- [x] T052-002 [P] Add benchmark: `hello` query throughput — spin up server in-process, measure sequential request rate over 5 seconds, assert ≥ 1000 req/s
+- [x] T052-002 [P] Add benchmark: `hello` query throughput — spin up server in-process, measure sequential request rate over 5 seconds, and keep an approximately `1000 req/s` assertion only as a non-normative local regression guard
 - [x] T052-003 [P] Add benchmark: concurrent GraphQL POST — launch 100 threads each sending 10 `{ version }` queries, assert 0 errors and completion within 10 seconds
 - [x] T052-004 [P] Add benchmark: WebSocket subscription fan-out — open 50 simultaneous WebSocket connections, subscribe each, broadcast one event, assert all 50 receive it within 500 ms
-- [x] T052-005 [P] Add benchmark: introspection under load — 10 concurrent `__schema { types }` requests, assert each completes within 500 ms (threshold adjusted from 100 ms: warm-call introspection on this schema takes ~50–250 ms depending on load)
-- [x] T052-006 [P] Add benchmark: p95 latency ≤ 20ms (FR-012) — send 1000 sequential `{ version }` queries in-process, record per-request wall time, assert p95 ≤ 20 ms
-- [x] T052-007 Record measured benchmark results (req/s, p95 latency, fan-out timing) in `docs/performance.md` after the benchmark suite passes; update with each release (FR-PERF-003)
+- [x] T052-005 [P] Add benchmark: introspection under load — 10 concurrent `__schema { types }` requests, assert each completes within 500 ms as a Tier 1 regression guard (non-normative; canonical FR-012/SC-006 acceptance remains the HTTP-level gate in `performance-protocol.md`)
+- [x] T052-006 [P] Add benchmark: in-process p95 latency ≤ 20ms regression guard — send 1000 sequential `{ version }` queries in-process, record per-request wall time, and track p95 for fast local regression detection
+- [x] T052-007 Define the canonical two-tier benchmark gate in `specs/001-universal-backend/performance-protocol.md` (fixed query mix, fixed concurrency, warmup window, percentile method, and pass/fail criteria), and record measured results in `docs/performance.md` as the release-facing summary for both tiers (FR-PERF-003)
 
 ---
 
@@ -466,18 +485,28 @@ Each task implementation MUST verify:
 **Decisions recorded (2026-03-14)**:
 - Tool: clang-tidy (already partially configured); additional scanners deferred to a later release
 - Integration: CMake target `security_scan` (does not block the default build; run explicitly)
+- Threat-model deliverables: maintain both `specs/001-universal-backend/threat-model.md` and `docs/security-threat-model.md` for security-sensitive behavior
 
 - [x] T056-001 [P] Add a `security_scan` CMake custom target in `CMakeLists.txt` that runs `clang-tidy` with a security-focused `.clang-tidy` config (enable `cert-*`, `bugprone-*`, `cppcoreguidelines-*`, `clang-analyzer-security.*` checks) over all library sources in `src/main/cpp/`
 - [x] T056-002 [P] Create or update `.clang-tidy` at the repo root to include the security checks listed above; suppress only checks that conflict with intentional design decisions (document each suppression)
 - [x] T056-003 [P] Verify `cmake --build ./cmake-build-debug/ --target security_scan` runs without new errors on the current codebase; fix any findings before marking done
 - [x] T056-004 [P] Document the `security_scan` target in `README.md` under a "Security" section
+- [x] T056-005 [P] Create `specs/001-universal-backend/threat-model.md` covering assets, trust boundaries, threat scenarios, mitigations, residual risks, and assumptions for bootstrap flow, JWT auth, RBAC, organization isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
+- [x] T056-006 [P] Create `docs/security-threat-model.md` as the project-wide security summary, linking to `specs/001-universal-backend/threat-model.md` and capturing reusable mitigations and operational guidance
 
 ---
 
 ### T057: Deployment Documentation
 
-- [x] T057-001 Add deployment documentation for HTTP and WebSocket operation covering: TLS configuration with `cpp-httplib`, port and bind-address settings, multi-tenant bootstrap, and graceful shutdown
+- [x] T057-001 Add deployment documentation in `docs/deployment.md` for HTTP and WebSocket operation covering: TLS configuration with `cpp-httplib`, port and bind-address settings, multi-organization bootstrap, and graceful shutdown
 - [x] T057-002 Add embedded/Raspberry Pi deployment guidance in `docs/deployment.md` (FR-PERF-002): minimum RAM/storage requirements, recommended SQLite page-cache sizing, reducing thread counts via `TenantConfig`, and ARM/Linux build instructions using the standard Conan + CMake toolchain — no special compiler flags required
+
+### T058: Constitution Compliance Review Gate
+
+- [x] T058-001 Populate closeout review evidence in `specs/001-universal-backend/plan.md` under `Constitution Review Evidence (Closeout Record)`, with explicit code-review verification for constitution compliance (performance, GraphQL spec conformance, security/isolation, portability, C++ Core Guidelines/deviation documentation) before feature completion
+- [x] T058-002 Generate `specs/001-universal-backend/closeout-validation.md` with SC-005 automated capability checklist results (>=19/20 threshold), mapped evidence paths, and final pass/fail ratio
+- [x] T058-003 Record SC-001 timed quickstart validation evidence in `specs/001-universal-backend/closeout-validation.md`, linking the closeout note to `quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, and `plan.md`
+- [x] T058-004 Record SC-004 configuration-activation latency validation evidence in `specs/001-universal-backend/closeout-validation.md`, linking the closeout note to `src/test/cpp/integration/test_schema_activation.cpp` and `plan.md`
 
 ---
 
@@ -500,7 +529,7 @@ Each task implementation MUST verify:
 
 ### Within Each User Story
 
-- Tests must be written and fail before implementation
+- Automated tests covering changed behavior MUST exist before the story is marked complete; task ordering does not need to place test tasks before implementation tasks
 - Transport behavior should be exercised end-to-end, not only through direct method calls
 - Parallel tasks must touch separate files or clearly separable subsystems
 

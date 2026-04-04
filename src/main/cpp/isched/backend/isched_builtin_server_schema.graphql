@@ -90,6 +90,8 @@ input ApplyConfigurationInput {
   tenantId: String!
   """GraphQL SDL schema fragment for tenant-defined types"""
   schemaSdl: String!
+  """Optional optimistic concurrency token: must match currently active version"""
+  expectedVersion: String
   """Human-readable name for this snapshot"""
   displayName: String
   """Version label (e.g., semver or date string)"""
@@ -198,6 +200,8 @@ type Query {
 type Mutation {
   """Echo a message back; useful for connectivity testing"""
   echo(message: String): String
+  """One-time unauthenticated bootstrap for the first platform admin"""
+  bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!
   """Create a new configuration snapshot (does not activate it)"""
   applyConfiguration(input: ApplyConfigurationInput!): ConfigurationResult!
   """Activate an existing snapshot by its ID"""
@@ -496,6 +500,13 @@ input CreateRoleInput {
   description: String
   """Scope: 'platform' (requires platform_admin) or 'tenant' (requires tenant_admin)"""
   scope: String!
+}
+
+"""Input for one-time platform-admin bootstrap"""
+input BootstrapPlatformAdminInput {
+  email: String!
+  password: String!
+  displayName: String
 }
 
 """Advisory thread-pool and metrics configuration for an organization (T050-001 / T051-003)"""
