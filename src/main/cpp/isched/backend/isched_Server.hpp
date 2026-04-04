@@ -284,11 +284,14 @@ public:
      * @param query GraphQL query string
      * @param variables_json GraphQL variables as a JSON string
      * @param authorization_header Value of the HTTP Authorization header (optional)
+     * @param remote_ip Client IP address for rate-limiting and logging
+     * @param request_headers Additional request headers (X-CSRF-Token, Origin, Referer for CSRF validation)
      * @return JSON-encoded GraphQL response payload
      */
     String execute_graphql(const String& query, const String& variables_json = "{}",
                            const String& authorization_header = "",
-                           const String& remote_ip = "");
+                           const String& remote_ip = "",
+                           const std::unordered_map<std::string, std::string>& request_headers = {});
 
 private:
     /**

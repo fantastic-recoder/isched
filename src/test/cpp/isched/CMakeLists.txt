@@ -148,6 +148,13 @@ target_link_libraries(test_admin_ui PRIVATE isched Catch2::Catch2WithMain
     Boost::url Boost::system)
 add_test(NAME test_admin_ui COMMAND test_admin_ui)
 
+# T010 + T013: WebUI security foundation tests (CSRF, origin validation, GraphQL-only)
+add_executable(test_webui_security_foundation ../integration/test_webui_security_foundation.cpp)
+target_link_libraries(test_webui_security_foundation PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl Boost::url)
+add_test(NAME test_webui_security_foundation COMMAND test_webui_security_foundation)
+
 # Phase 003: Seed-mode GraphQL resolvers (T-UI-F-002, T-UI-F-003, T-UI-F-004)
 add_executable(test_seed_mode ../integration/test_seed_mode.cpp)
 target_link_libraries(test_seed_mode PRIVATE isched Catch2::Catch2WithMain

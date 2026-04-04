@@ -22,7 +22,13 @@ namespace isched::v0_0_1::gql {
         OK = 0,
         UNKNOWN_ERROR = 1,
         MISSING_GQL_RESOLVER = 2, PARSE_ERROR = 3, EXECUTABLE_DEF_NOT_ALLOWED = 4, ARGUMENT_ERROR = 5,
-        FORBIDDEN = 6   ///< Caller lacks a required role for this operation
+        FORBIDDEN = 6,   ///< Caller lacks a required role for this operation
+        CSRF_FAILED = 7, ///< CSRF token/origin validation failed
+        UNAUTHENTICATED = 8, ///< Session missing/expired/revoked
+        VALIDATION_FAILED = 9, ///< Input validation failed
+        CONFLICT = 10, ///< Uniqueness/state conflict
+        CONTEXT_MISMATCH = 11, ///< Organization context mismatch
+        TRANSIENT_NETWORK = 12 ///< Retryable network/backend error
     };
 
     /// Source location used in GraphQL error objects (per GraphQL over HTTP spec).

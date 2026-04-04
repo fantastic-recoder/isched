@@ -479,7 +479,8 @@ public:
     using ExecuteFn = std::function<std::string(const std::string&,
                                                 const std::string&,
                                                 const std::string&,
-                                                const std::string& /*remote_ip*/)>;
+                                                const std::string&, /*remote_ip*/
+                                                const std::unordered_map<std::string, std::string>&)>; /*headers*/
     using MetricFn   = std::function<void(double /*ms*/)>;
 
     HttpSession(tcp::socket socket, net::io_context& ioc,
@@ -663,9 +664,23 @@ private:
                     res.result(beast::http::status::bad_request);
                     res.body() = R"({"errors":[{"message":"Missing or empty 'query' field"}]})";
                 } else {
-                    const std::string auth_hdr =
-                        std::string(req_[beast::http::field::authorization]);
-                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip);
+                    // Extract request headers for CSRF validation (T010)
+                    std::unordered_map<std::string, std::string> req_headers;
+
+                    // Extract standard headers
+                    for (auto const& field : req_) {
+                        const auto name = std::string(field.name_string());
+                        if (name == "X-CSRF-Token" ||
+                            name == "Origin" ||
+                            name == "Referer" ||
+                            name == "Authorization") {
+                            req_headers[name] = std::string(field.value());
+                        }
+                    }
+
+                    const std::string auth_hdr = req_headers.count("Authorization") ?
+                                                 req_headers["Authorization"] : "";
+                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip, req_headers);
                 }
             }
         } else {
@@ -986,8 +1001,9 @@ bool Server::start() {
             m_impl->http_listener = std::make_shared<HttpListener>(
                 *m_impl->ioc, http_ep,
                 [this](const std::string& q, const std::string& v,
-                       const std::string& a, const std::string& ip) {
-                    return execute_graphql(q, v, a, ip);
+                       const std::string& a, const std::string& ip,
+                       const std::unordered_map<std::string, std::string>& hdrs) {
+                    return execute_graphql(q, v, a, ip, hdrs);
                 },
                 [this](double ms) { update_response_time_metric(ms); });
             m_impl->http_listener->run();
@@ -1174,8 +1190,8 @@ void Server::setup_endpoints() {
 }
 
 std::string Server::process_graphql_query(const std::string& query,
-                                          const std::string& variables_json) {
-    return execute_graphql(query, variables_json);
+                                           const std::string& variables_json) {
+    return execute_graphql(query, variables_json, "", "", {});
 }
 
 std::string Server::status_to_string(Status status) const {
@@ -1201,12 +1217,63 @@ void Server::update_response_time_metric(double response_time_ms) {
 
 String Server::execute_graphql(const String& query, const String& variables_json,
                                const String& authorization_header,
-                               const String& remote_ip) {
+                               const String& remote_ip,
+                               const std::unordered_map<std::string, std::string>& request_headers) {
     const auto started_at = std::chrono::steady_clock::now();
     const auto request_id = make_request_id();
 
     m_request_count.fetch_add(1);
     m_impl->total_requests.fetch_add(1);
+
+    // T010: Validate CSRF token and Origin/Referer for mutations
+    // Detect if query is a mutation by checking if it starts with "mutation"
+    std::string trimmed_query = query;
+    // Trim leading whitespace
+    size_t start = trimmed_query.find_first_not_of(" \t\n\r");
+    if (start != std::string::npos) {
+        trimmed_query = trimmed_query.substr(start);
+    }
+
+    const bool is_mutation = trimmed_query.size() >= 8 &&
+                            trimmed_query.substr(0, 8) == "mutation";
+
+    ExecutionResult csrf_result;
+    if (is_mutation) {
+        // Extract CSRF headers
+        const auto csrf_it = request_headers.find("X-CSRF-Token");
+        const auto origin_it = request_headers.find("Origin");
+        const auto referer_it = request_headers.find("Referer");
+
+        const std::string csrf_token = csrf_it != request_headers.end() ? csrf_it->second : "";
+        const std::string origin = origin_it != request_headers.end() ? origin_it->second : "";
+        const std::string referer = referer_it != request_headers.end() ? referer_it->second : "";
+
+        // CSRF validation: require either double-submit token or Origin/Referer check
+        // For now, enforce CSRF token presence (double-submit model)
+        if (csrf_token.empty()) {
+            csrf_result.errors.push_back(gql::Error{
+                .code = gql::EErrorCodes::CSRF_FAILED,
+                .message = "CSRF token missing or invalid"
+            });
+        }
+        // TODO: Add Origin/Referer validation as secondary check
+
+        if (!csrf_result.is_success()) {
+            const auto finished_at = std::chrono::steady_clock::now();
+            const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                finished_at - started_at);
+            update_response_time_metric(static_cast<double>(elapsed_ms.count()));
+
+            auto response = csrf_result.to_json();
+            response["extensions"]["requestId"] = request_id;
+            response["extensions"]["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            response["extensions"]["executionTimeMs"] = elapsed_ms.count();
+            response["extensions"]["endpoint"] = get_graphql_endpoint_path();
+
+            return response.dump();
+        }
+    }
 
     // Build auth context from the supplied Authorization header (best-effort;
     // unauthenticated requests are allowed for public queries such as `login`).

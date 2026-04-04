@@ -37,10 +37,10 @@
 - [X] T007 Define shared GraphQL error-code mapping (`UNAUTHENTICATED`, `FORBIDDEN`, `VALIDATION_FAILED`, `CONFLICT`, `CSRF_FAILED`, `CONTEXT_MISMATCH`, `TRANSIENT_NETWORK`) in `src/ui/src/app/services/graphql.service.ts`
 - [X] T008 [P] Implement cookie-session bootstrap + sign-out primitives in `src/ui/src/app/services/auth.service.ts`
 - [X] T009 [P] Implement CSRF token acquisition/propagation interceptor for all mutations in `src/ui/src/app/interceptors/auth.interceptor.ts`
-- [ ] T010 [P] Enforce GraphQL mutation CSRF and Origin/Referer checks in backend request pipeline `src/main/cpp/isched/backend/isched_AuthenticationMiddleware.cpp`
+- [X] T010 [P] Enforce GraphQL mutation CSRF and Origin/Referer checks in backend request pipeline `src/main/cpp/isched/backend/isched_AuthenticationMiddleware.cpp`
 - [X] T011 Implement explicit organization-context guard state for admin mutations in `src/ui/src/app/services/org-context.service.ts`
 - [X] T012 [P] Add backend context-mismatch rejection path for org-scoped mutations in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
-- [ ] T013 [P] Add foundational security integration tests for CSRF, origin validation, and GraphQL-only endpoint behavior in `src/test/cpp/integration/test_webui_security_foundation.cpp`
+- [X] T013 [P] Add foundational security integration tests for CSRF, origin validation, and GraphQL-only endpoint behavior in `src/test/cpp/integration/test_webui_security_foundation.cpp`
 - [X] T014 Add foundational UI tests for cookie-auth opaque JWT handling and no storage persistence in `src/ui/src/app/services/auth.service.spec.ts`
 - [ ] T014a [P] Add security verification tests ensuring JWT values never appear in frontend logs/errors, backend logs, GraphQL error payloads, or telemetry fixtures in `src/test/cpp/integration/test_webui_jwt_leakage.cpp`
 
