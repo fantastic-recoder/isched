@@ -113,6 +113,8 @@ As a developer, I can run the WebUI independently in local development with a do
 - **FR-010**: The WebUI MUST use secure HttpOnly SameSite cookie-based JWT handling, MUST NOT store JWTs in `localStorage`, `sessionStorage`, IndexedDB, or other script-readable browser storage, and MUST prevent token values from appearing in UI-visible errors or logs.
 - **FR-010b**: The system MUST prevent JWT value leakage in frontend logs, backend logs, GraphQL error payloads, and feature telemetry/diagnostic events; verification evidence MUST include automated checks of representative success and failure flows.
 - **FR-010a**: For every state-changing GraphQL mutation, the system MUST enforce CSRF defenses using double-submit token validation and strict `Origin`/`Referer` validation; requests failing either check MUST be rejected with actionable error feedback.
+- **FR-010c**: Backend and integration tests that execute authenticated GraphQL mutations MUST first obtain authentication via the bootstrap/login GraphQL flow and MUST attach a valid JWT context before asserting mutation success paths.
+- **FR-010d**: The repository MUST provide shared GraphQL test helper utilities for common auth/security setup (bootstrap/login, JWT header wiring, CSRF token/header wiring, and standard error-code assertions) so mutation-oriented tests do not duplicate fragile setup logic.
 - **FR-011**: The system MUST enforce explicit multi-organization context selection for administrative operations and MUST prevent cross-organization writes caused by stale context.
 - **FR-012**: The WebUI MUST surface backend validation, authentication, authorization, and connectivity errors in a user-actionable manner.
 - **FR-012a**: Error surfacing MUST be measurable: `VALIDATION_FAILED` maps to field-level messages for all invalid input fields, and `UNAUTHENTICATED`, `FORBIDDEN`, `CSRF_FAILED`, `CONTEXT_MISMATCH`, `TRANSIENT_NETWORK` map to deterministic global alerts with retry or re-auth actions.
@@ -167,6 +169,7 @@ As a developer, I can run the WebUI independently in local development with a do
 - Availability of backend GraphQL operations for bootstrap, organization, user, and RBAC workflows.
 - JWT issuance and verification behavior from the existing authentication subsystem.
 - Existing environment or scripts to run backend locally for proxy-based UI development.
+- Availability of a shared backend test utility layer for GraphQL auth bootstrap and CSRF/JWT header setup used by integration and contract tests.
 
 ## Success Criteria *(mandatory)*
 

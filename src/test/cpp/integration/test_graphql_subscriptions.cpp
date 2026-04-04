@@ -14,6 +14,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <cstdlib>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -28,6 +30,7 @@
 #include "httplib.h"
 
 #include <isched/backend/isched_Server.hpp>
+#include "../isched/isched_graphql_test_helpers.hpp"
 
 namespace beast     = boost::beast;
 namespace websocket = beast::websocket;
@@ -38,6 +41,8 @@ using namespace isched::v0_0_1::backend;
 
 static constexpr int k_http_port = 18088;
 static constexpr int k_ws_port   = 18089;
+static const std::string g_run_suffix = std::to_string(
+    std::chrono::system_clock::now().time_since_epoch().count());
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -45,8 +50,13 @@ static constexpr int k_ws_port   = 18089;
 class SubscriptionTestFixture {
 public:
     std::unique_ptr<Server> server;
+    std::unique_ptr<isched::test::GraphQLTestClient> auth_client;
+    std::optional<isched::test::AuthPayload> auth;
 
     SubscriptionTestFixture() {
+        const std::string data_home = "/tmp/isched-test-subscriptions-" + g_run_suffix;
+        (void)::setenv("XDG_DATA_HOME", data_home.c_str(), 1);
+
         Server::Configuration cfg;
         cfg.port            = k_http_port;
         cfg.ws_port         = k_ws_port;
@@ -55,6 +65,7 @@ public:
         cfg.max_query_complexity = 500;
         server = Server::create(cfg);
         REQUIRE(server->start());
+        auth_client = std::make_unique<isched::test::GraphQLTestClient>("localhost", k_http_port);
         std::this_thread::sleep_for(std::chrono::milliseconds(80));
     }
 
@@ -64,14 +75,41 @@ public:
         }
     }
 
+    const isched::test::AuthPayload& ensure_auth() {
+        if (!auth.has_value()) {
+            const std::string email = "subscriptions-admin-" + g_run_suffix + "@example.com";
+            auth = auth_client->bootstrap_or_login_platform_admin(
+                email,
+                "SubscriptionsAdminPass!123",
+                "Subscriptions Admin");
+        }
+        return auth.value();
+    }
+
     nlohmann::json post_graphql(const std::string& query,
                                 const nlohmann::json& variables = nullptr) {
         httplib::Client client("localhost", k_http_port);
         client.set_connection_timeout(2);
         client.set_read_timeout(5);
+
         nlohmann::json body = {{"query", query}};
-        if (!variables.is_null()) body["variables"] = variables;
+        if (!variables.is_null()) {
+            body["variables"] = variables;
+        }
+
+        const auto first_non_ws = query.find_first_not_of(" \t\n\r");
+        const bool is_mutation =
+            first_non_ws != std::string::npos && query.compare(first_non_ws, 8, "mutation") == 0;
+
         auto res = client.Post("/graphql", body.dump(), "application/json");
+        if (is_mutation) {
+            const auto& current_auth = ensure_auth();
+            httplib::Headers headers;
+            headers.emplace("X-CSRF-Token", current_auth.csrf_token);
+            headers.emplace("Authorization", "Bearer " + current_auth.token);
+            res = client.Post("/graphql", headers, body.dump(), "application/json");
+        }
+
         REQUIRE(res != nullptr);
         return nlohmann::json::parse(res->body);
     }

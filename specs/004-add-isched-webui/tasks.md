@@ -43,6 +43,8 @@
 - [X] T013 [P] Add foundational security integration tests for CSRF, origin validation, and GraphQL-only endpoint behavior in `src/test/cpp/integration/test_webui_security_foundation.cpp`
 - [X] T014 Add foundational UI tests for cookie-auth opaque JWT handling and no storage persistence in `src/ui/src/app/services/auth.service.spec.ts`
 - [ ] T014a [P] Add security verification tests ensuring JWT values never appear in frontend logs/errors, backend logs, GraphQL error payloads, or telemetry fixtures in `src/test/cpp/integration/test_webui_jwt_leakage.cpp`
+- [ ] T013a [P] Add shared backend GraphQL integration test helper library in `src/test/cpp/isched/isched_graphql_test_helpers.hpp` for bootstrap/login auth setup, JWT header wiring, CSRF header wiring, and normalized GraphQL error assertions.
+- [ ] T013b [P] Refactor mutation-oriented integration tests to use the shared helper bootstrap/auth flow (obtain initial JWT context before asserting protected mutation success) in `src/test/cpp/integration/`
 
 **Checkpoint**: Security, org-scope guardrails, and GraphQL-only foundations are in place.
 
@@ -56,7 +58,7 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] Add GraphQL contract test for `BootstrapStatus` and `CompleteBootstrap` in `src/test/cpp/integration/test_webui_bootstrap_contract.cpp`
+- [ ] T015 [P] [US1] Add GraphQL contract test for `BootstrapStatus` and `CompleteBootstrap` in `src/test/cpp/integration/test_webui_bootstrap_contract.cpp` (using shared helper bootstrap/JWT setup)
 - [ ] T016 [P] [US1] Add backend integration test for second-attempt bootstrap denial and redirect semantics in `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`
 - [X] T017 [P] [US1] Add Angular bootstrap page unit/component validation tests in `src/ui/src/app/pages/bootstrap/bootstrap.page.spec.ts`
 - [X] T017a [P] [US1] Add non-dev runtime integration tests for backend embedded WebUI static serving + SPA fallback + bootstrap unauthenticated exception behavior in `src/test/cpp/integration/test_webui_embedded_serving.cpp`

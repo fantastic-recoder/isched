@@ -532,7 +532,6 @@ private:
         res.set(beast::http::field::access_control_allow_origin, "*");
         res.keep_alive(req_.keep_alive());
 
-        const std::string_view target = req_.target();
 
         if (req_.method() == beast::http::verb::options) {
             // CORS preflight
@@ -541,85 +540,6 @@ private:
             res.set(beast::http::field::access_control_allow_headers,
                     "Content-Type, Authorization");
             res.body() = "";
-        } else if (req_.method() == beast::http::verb::get &&
-                   (target == "/isched" || target == "/isched/" ||
-                    target.starts_with("/isched/"))) {
-            // ── Admin UI static asset handler ────────────────────────────────
-            // Security headers applied to all /isched responses.
-            res.set("X-Content-Type-Options", "nosniff");
-            res.set("X-Frame-Options", "DENY");
-
-            const auto& registry = UiAssetRegistry::instance();
-            if (!registry.has_index_html()) {
-                // Build artefacts missing — Angular project not yet compiled.
-                res.result(beast::http::status::service_unavailable);
-                res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
-                res.body() = "Admin UI assets unavailable";
-            } else {
-                // Strip the /isched prefix; map empty remainder to /index.html
-                std::string asset_path;
-                if (target == "/isched" || target == "/isched/") {
-                    asset_path = "/index.html";
-                } else {
-                    // /isched/... → strip first 7 chars ("/isched")
-                    asset_path = std::string{target.substr(7)};
-                    if (asset_path.empty()) asset_path = "/index.html";
-                }
-
-                const auto entry = registry.find(asset_path);
-                if (entry) {
-                    // ETag cache check
-                    const std::string_view if_none_match =
-                        req_[beast::http::field::if_none_match];
-                    const std::string quoted_etag =
-                        '"' + std::string{entry->etag} + '"';
-                    if (!if_none_match.empty() && if_none_match == quoted_etag) {
-                        // 304 Not Modified
-                        beast::http::response<beast::http::empty_body> not_modified{
-                            beast::http::status::not_modified, req_.version()};
-                        not_modified.set(beast::http::field::server, "isched/1.0");
-                        not_modified.set("ETag", quoted_etag);
-                        not_modified.set("X-Content-Type-Options", "nosniff");
-                        not_modified.set("X-Frame-Options", "DENY");
-                        not_modified.keep_alive(req_.keep_alive());
-                        not_modified.prepare_payload();
-                        auto sp = std::make_shared<
-                            beast::http::response<beast::http::empty_body>>(
-                            std::move(not_modified));
-                        beast::http::async_write(stream_, *sp,
-                            net::bind_executor(strand_,
-                                [self = shared_from_this(), sp, close = !sp->keep_alive()]
-                                (beast::error_code ec2, std::size_t) {
-                                    self->on_write(ec2, close);
-                                }));
-                        return;
-                    }
-                    // Serve asset
-                    res.set(beast::http::field::content_type, std::string{entry->mime_type});
-                    res.set(beast::http::field::etag, quoted_etag);
-                    res.body().assign(
-                        reinterpret_cast<const char*>(entry->data.data()),
-                        entry->data.size());
-                } else {
-                    // Unknown path — check if it looks like a file (has extension)
-                    const bool looks_like_file =
-                        asset_path.find('.') != std::string::npos;
-                    if (looks_like_file) {
-                        // Missing static file → 404 JSON
-                        res.result(beast::http::status::not_found);
-                        res.body() = R"({"errors":[{"message":"asset not found"}]})"
-                        "";
-                    } else {
-                        // Push-state fallback: serve index.html for Angular routes
-                        const auto idx = registry.find("/index.html");
-                        res.set(beast::http::field::content_type,
-                                "text/html; charset=utf-8");
-                        res.body().assign(
-                            reinterpret_cast<const char*>(idx->data.data()),
-                            idx->data.size());
-                    }
-                }
-            }
         } else if (req_.method() == beast::http::verb::get &&
                    req_.target() == "/graphql") {
             // ── Embedded Angular admin UI on GET /graphql (T017a) ──────────────────
@@ -691,6 +611,7 @@ private:
         const double elapsed_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - started_at).count();
         metric_fn_(elapsed_ms);
+
 
         res.prepare_payload();
         do_write(std::move(res));

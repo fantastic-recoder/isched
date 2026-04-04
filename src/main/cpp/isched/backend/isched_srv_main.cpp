@@ -85,7 +85,7 @@ int main(const int, const char**) {
         server->get_configuration().port,
         server->get_graphql_endpoint_path());
     spdlog::info(
-        "Admin UI:           http://{}:{}/isched",
+        "Admin UI:           http://{}:{}/graphql",
         server->get_configuration().host,
         server->get_configuration().port);
 

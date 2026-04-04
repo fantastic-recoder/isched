@@ -12,7 +12,7 @@ Add and harden the embedded Angular 21 WebUI for one-time bootstrap, organizatio
 Language/Version: C++23 backend + Angular 21 / TypeScript 5.9 (strict)  
 Primary Dependencies: Angular standalone APIs, RxJS 7.8, Tailwind CSS 3.4, DaisyUI 4.12, GraphQL-over-HTTP + `graphql-transport-ws` semantics, existing backend stack (`boost`, `jwt-cpp`, `sqlite3`, `cpp-httplib` transport)  
 Storage: Existing SQLite model (`isched_system.db` + organization DBs); WebUI holds transient view/form state in memory only  
-Testing: Catch2 + `ctest` (backend), Angular unit/component tests (`ng test`/Jest), GraphQL integration coverage for auth/RBAC/scope/security flows  
+Testing: Catch2 + `ctest` (backend), Angular unit/component tests (`ng test`/Jest), GraphQL integration coverage for auth/RBAC/scope/security flows, plus shared GraphQL integration test helpers for bootstrap/login JWT + CSRF setup reuse  
 Target Platform: Linux-hosted isched backend + modern browsers for Angular WebUI + local dev on Linux with Angular dev server proxy  
 Project Type: Multi-tenant GraphQL backend with embedded web application  
 Performance Goals: Bootstrap completion <5 minutes for first-time operator; admin create/edit flows first-attempt completion >=95%; no added REST round-trips; verify p95 static asset GET <=200 ms and p95 representative admin GraphQL <=300 ms at 50 concurrent virtual users for 5 minutes with <1% non-intentional errors  
