@@ -4,13 +4,16 @@ build/
 bin/
 obj/
 out/
+node_modules/
 
 # Git and version control
 .git/
 .gitignore
+Dockerfile*
+.dockerignore
 
 # IDE files
-.idea/
+.idea/CONST
 .vscode/
 *.iml
 
