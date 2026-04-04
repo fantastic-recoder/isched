@@ -5,13 +5,13 @@
 
 **Note**: This plan supersedes the earlier scripting and IPC-oriented design. The implementation baseline is now a GraphQL-only HTTP/WebSocket backend.
 
-**Status as of 2026-03-14**: Phases 1–5 (including 1b, 1c, 5b) are fully complete and committed. All 23 ctest tests pass. Phase 6 architecture decisions have been recorded in `tasks.md` through the `speckit.clarify` + `speckit.analyze` sessions; this document has been updated to reflect those decisions.
+**Status**: This plan tracks completed and clarified implementation across Phases 0–7 and reflects the current state recorded in `tasks.md`. Validation remains gated by `ctest --output-on-failure` at task boundaries.
 
 ## Summary
 
-Create a GraphQL-native application server that exposes only GraphQL over HTTP and WebSocket, removes scripting runtimes and IPC completely, persists configuration through GraphQL mutations, uses SQLite per tenant, and delivers built-in authentication, schema management, subscriptions, and documentation generation within a single C++23 runtime.
+Create a GraphQL-native application server that exposes only GraphQL over HTTP and WebSocket, removes scripting runtimes and IPC completely, persists configuration through GraphQL mutations, uses SQLite per organization, and delivers built-in authentication, schema management, subscriptions, and documentation generation within a single C++23 runtime.
 
-**Phase 6 scope** (in progress): full RBAC-based user and organization persistence with per-org SQLite isolation, Argon2id password hashing, a `isched_system.db` bootstrap database for platform-level entities, AES-256-GCM-encrypted API-key storage for outbound HTTP data sources (Apollo RESTDataSource pattern), persistent per-tenant session management with WebSocket force-revocation, global adaptive thread pool, dual-scope performance metrics (interval-window + cumulative), and a Catch2 benchmark suite with FR-012 latency assertion.
+**Phase 6 scope**: full RBAC-based user and organization persistence with per-org SQLite isolation, Argon2id password hashing, a `isched_system.db` bootstrap database for platform-level entities, AES-256-GCM-encrypted API-key storage for outbound HTTP data sources (Apollo RESTDataSource pattern), persistent per-organization session management with WebSocket force-revocation, global adaptive thread pool, dual-scope performance metrics (interval-window + cumulative), and a Catch2 benchmark suite with FR-012 latency assertion.
 
 ## Technical Context
 
@@ -19,16 +19,16 @@ Create a GraphQL-native application server that exposes only GraphQL over HTTP a
 **Build System**: CMake 3.22.6 + Ninja 1.12.1 (both provided via Conan `[tool_requires]`)
 **Dependency Manager**: Conan 2.x — all dependencies declared in `conanfile.txt`; generators `CMakeDeps` + `CMakeToolchain`
 **Primary Dependencies**: `taocpp-pegtl`, `nlohmann_json`, `spdlog`, `jwt-cpp`, `sqlite3`, `boost/1.84.0` (Boost.URL), `cpp-httplib` (sole HTTP/WebSocket transport), `openssl/[>=3.2.0]` (≥3.2 required for Argon2id via `EVP_KDF_fetch`), `platformfolders`
-**Architecture**: Single-process, tenant-aware runtime with GraphQL over HTTP and WebSocket
-**Storage**: SQLite per tenant with pooled connections and persisted configuration snapshots; plus `isched_system.db` for platform-level entities (`platform_admins`, `platform_roles`, `organizations`)
+**Architecture**: Single-process, organization-aware runtime with GraphQL over HTTP and WebSocket
+**Storage**: SQLite per organization with pooled connections and persisted configuration snapshots; plus `isched_system.db` for platform-level entities (`platform_admins`, `platform_roles`, `organizations`)
 **Memory Management**: Mandatory smart pointers (`std::unique_ptr`, `std::shared_ptr`)
 **Testing**: Catch2 3.x unit/integration/benchmark tests
 **Documentation**: Automated Doxygen source documentation via `cmake --build . --target docs`
 **Target Platform**: Linux primary; Raspberry Pi / ARM Linux deployment documented; cross-platform portability documented
 **Project Type**: High-performance GraphQL backend server
-**Performance Goals**: 20ms p95 response time (FR-012), ≥1000 req/s throughput, ≥50 concurrent WebSocket subscribers, ≥100 concurrent HTTP clients
+**Performance Goals**: 20ms p95 response time (FR-012) under the documented HTTP-level `/graphql` benchmark profile; FR-PERF-001 also requires ≥50 concurrent WebSocket subscribers and ≥100 concurrent HTTP clients. Separately, the in-process `hello` throughput check (`~1000 req/s`) is retained only as a non-normative local regression guard.
 **Constraints**: GraphQL-only external interface, no scripting, no IPC, secure-by-default, C++ Core Guidelines
-**Scale/Scope**: Multi-tenant backend with built-in auth, schema configuration, subscriptions, outbound HTTP integrations, and performance metrics
+**Scale/Scope**: Multi-organization backend with built-in auth, schema configuration, subscriptions, outbound HTTP integrations, and performance metrics
 
 ## Build Commands
 
@@ -77,12 +77,13 @@ cmake --build ./cmake-build-debug/ --target docs
 
 *GATE: Must pass before implementation starts. Re-check after design updates.*
 
-✅ **High Performance**: Single-runtime design must still meet multi-tenant performance targets  
+✅ **High Performance**: Single-runtime design must still meet multi-organization performance targets  
 ✅ **GraphQL Compliance**: HTTP and WebSocket behavior must remain standards-aligned  
-✅ **Security-First**: Authentication and tenant isolation remain mandatory  
+✅ **Security-First**: Authentication and organization isolation remain mandatory  
 ✅ **Test-Driven Development**: Core transport and configuration behavior requires tests first  
 ✅ **Cross-Platform Portability**: Linux build required; portability documented  
 ✅ **C++ Core Guidelines**: No raw ownership, RAII throughout
+✅ **Review Evidence Gate**: Completion requires explicit code-review evidence that checks constitution compliance (performance, GraphQL spec behavior, security, portability, and C++ Core Guidelines)
 
 ## Project Structure
 
@@ -93,7 +94,10 @@ specs/[###-feature]/
 ├── plan.md
 ├── research.md
 ├── data-model.md
+├── closeout-validation.md
+├── performance-protocol.md
 ├── quickstart.md
+├── threat-model.md
 ├── contracts/
 │   ├── graphql-schema.md
 │   └── http-api.md
@@ -107,87 +111,62 @@ src/
 ├── main/cpp/isched/
 │   ├── isched.hpp                               # Top-level convenience include
 │   ├── backend/
-│   │   ├── isched_gql_grammar.hpp/cpp           # Custom PEGTL GraphQL grammar (mandatory)
-│   │   ├── isched_GqlParser.hpp/cpp             # *(deleted in Phase 1b — T-GQL-020)*
+│   │   ├── isched_gql_grammar.hpp/cpp           # Custom PEGTL GraphQL grammar
 │   │   ├── isched_GqlExecutor.hpp/cpp           # Query/mutation executor + built-in resolvers
 │   │   ├── isched_Server.hpp/cpp                # GraphQL-only HTTP/WebSocket server (cpp-httplib)
-│   │   ├── isched_TenantManager.hpp/cpp         # Multi-tenant isolation manager (refactor pending)
-│   │   ├── isched_DatabaseManager.hpp/cpp       # Per-tenant SQLite storage + connection pooling
-│   │   ├── isched_AuthenticationMiddleware.hpp/cpp  # JWT auth (stub — Phase 2)
-│   │   ├── isched_SubscriptionBroker.hpp/cpp    # WebSocket subscription broker (exists — Phase 5)
-│   │   ├── isched_CryptoUtils.hpp/cpp           # Argon2id + AES-256-GCM helpers (to be created — Phase 6, T047/T048)
-│   │   ├── isched_MetricsCollector.hpp/cpp      # Dual-scope performance metrics (to be created — Phase 6, T051)
-│   │   ├── isched_RestDataSource.hpp/cpp        # Outbound HTTP data-source client (to be created — Phase 6, T048)
-│   │   ├── isched_common.hpp                    # Smart-pointer aliases, namespace declarations
-│   │   ├── isched_ExecutionResult.hpp           # GraphQL execution result type
-│   │   ├── isched_gql_error.hpp                 # EErrorCodes, Error, TErrorVector
-│   │   ├── isched_log_result.hpp                # log_result(), concat_vector() helpers
-│   │   ├── isched_multi_dim_map.hpp             # Multidimensional associative container
-│   │   ├── isched_LogEnvLoader.hpp              # spdlog env-level loader (static init)
-│   │   ├── isched_srv_main.cpp                  # Server process entry point (main)
-│   │   │
-│   │   │   Legacy REST layer (deleted in Phase 2 — T006):
-│   │   ├── isched_BaseRestResolver.hpp/cpp      # Abstract REST resolver interface (legacy)
-│   │   ├── isched_DocRootRestResolver.hpp/cpp   # Static doc-root REST resolver (legacy)
-│   │   ├── isched_DocRootSvc.hpp/cpp            # Doc-root service integration (legacy)
-│   │   ├── isched_EHttpMethods.hpp              # HTTP method enum (legacy)
-│   │   ├── isched_MainSvc.hpp/cpp               # Restbed service wrapper (legacy)
-│   │   └── isched_SingleActionRestResolver.hpp/cpp  # Fixed-response REST resolver (legacy)
+│   │   ├── isched_TenantManager.hpp/cpp         # Organization isolation + advisory tenant config
+│   │   ├── isched_DatabaseManager.hpp/cpp       # Per-organization SQLite storage + pooling
+│   │   ├── isched_AuthenticationMiddleware.hpp/cpp  # JWT auth + session validation
+│   │   ├── isched_SubscriptionBroker.hpp/cpp    # WebSocket subscription broker
+│   │   ├── isched_CryptoUtils.hpp/cpp           # Argon2id + AES-256-GCM helpers
+│   │   ├── isched_MetricsCollector.hpp/cpp      # Dual-scope performance metrics
+│   │   ├── isched_RestDataSource.hpp/cpp        # Outbound HTTP data-source client
+│   │   ├── isched_builtin_server_schema.graphql # Built-in GraphQL schema
+│   │   └── isched_srv_main.cpp                  # Server process entry point
 │   └── shared/
-│       ├── config/
-│       │   └── isched_config.hpp/cpp            # Configuration management + match_pattern()
-│       ├── fs/
-│       │   └── isched_fs_utils.hpp/cpp          # Unix-style glob, filesystem helpers
-│       ├── ipc/
-│       │   └── isched_ipc.hpp/cpp               # Legacy IPC framework (Phase 7 removal)
-│       ├── isched_exception_base.hpp/cpp        # Abstract exception base
-│       ├── isched_exception_doc_path_not_found.hpp/cpp
-│       └── isched_exception_unknown_enum_value.hpp
+│       ├── config/isched_config.hpp/cpp
+│       ├── fs/isched_fs_utils.hpp/cpp
+│       └── isched_exception_*.hpp/cpp
 └── test/
-    ├── basic_server_test.cpp                    # Basic server foundation test
-    ├── tenant_manager_test.cpp                  # TenantManager lifecycle test
+    ├── basic_server_test.cpp
+    ├── tenant_manager_test.cpp
     └── cpp/
         ├── integration/
-        │   ├── test_server_startup.cpp          # Server startup + built-in GraphQL (exists)
-        │   ├── test_builtin_schema.cpp          # Built-in schema queries (exists — Phase 1/2)
-        │   ├── test_health_queries.cpp          # Health query coverage (exists — Phase 3)
-        │   ├── test_configuration_snapshots.cpp # Configuration snapshot roundtrip (exists — Phase 3)
-        │   ├── test_schema_activation.cpp       # Schema activation + rollback (exists — Phase 3)
-        │   ├── test_configuration_rollback.cpp  # Rollback on validation failure (exists — Phase 3)
-        │   ├── test_graphql_websocket.cpp       # WebSocket connection lifecycle (exists — Phase 5)
-        │   ├── test_graphql_subscriptions.cpp   # Subscription delivery (exists — Phase 5)
-        │   ├── test_client_compatibility.cpp    # Client compatibility (exists — Phase 5)
-        │   ├── test_user_management.cpp         # RBAC user/org CRUD (to be created — Phase 6, T047)
-        │   └── test_session_revocation.cpp      # Session revocation + WS force-close (to be created — Phase 6, T049)
+        │   ├── test_server_startup.cpp
+        │   ├── test_builtin_schema.cpp
+        │   ├── test_health_queries.cpp
+        │   ├── test_configuration_snapshots.cpp
+        │   ├── test_configuration_conflicts.cpp
+        │   ├── test_schema_activation.cpp
+        │   ├── test_configuration_rollback.cpp
+        │   ├── test_graphql_websocket.cpp
+        │   ├── test_graphql_subscriptions.cpp
+        │   ├── test_client_compatibility.cpp
+        │   ├── test_bootstrap_platform_admin.cpp
+        │   ├── test_user_management.cpp
+        │   └── test_session_revocation.cpp
         ├── isched/
-        │   ├── isched_grammar_tests.cpp         # Grammar conformance tests (exists)
-        │   ├── isched_gql_executor_tests.cpp    # GqlExecutor unit tests (exists)
-        │   ├── isched_ast_node_tests.cpp        # AST node helper tests (exists)
-        │   ├── isched_auth_tests.cpp            # AuthenticationMiddleware tests (exists)
-        │   ├── isched_config_tests.cpp          # Configuration system tests (exists)
-        │   ├── isched_database_test.cpp         # DatabaseManager unit tests (exists)
-        │   ├── isched_fs_utils_tests.cpp        # Filesystem utility tests (exists)
-        │   ├── isched_graphql_tests.cpp         # GqlExecutor end-to-end tests (exists)
-        │   ├── isched_multi_dim_map_tests.cpp   # multi_dim_map container tests (exists)
-        │   ├── isched_pattern_match_tests.cpp   # match_pattern() tests (exists)
-        │   ├── isched_resolver_tests.cpp        # GqlParser resolver integration tests (exists)
-        │   ├── isched_rest_hello_world.cpp      # Legacy Restbed sanity test (legacy)
-        │   ├── isched_srv_tests.cpp             # Server HTTP integration tests (exists)
-        │   ├── isched_test_run_listener.cpp     # Catch2 event listener (exists)
-        │   ├── isched_ipc_tests.cpp             # IPC tests (legacy)
-        │   └── isched_rest_datasource_tests.cpp # RestDataSource unit tests (to be created — Phase 6, T048)
-        └── performance/
-            └── benchmark_suite.cpp             # Catch2 benchmark suite (to be created — Phase 6, T052)
+        │   ├── isched_grammar_tests.cpp
+        │   ├── isched_gql_executor_tests.cpp
+        │   ├── isched_auth_tests.cpp
+        │   ├── isched_metrics_tests.cpp
+        │   ├── isched_rest_datasource_tests.cpp
+        │   ├── isched_subscription_broker_tests.cpp
+        │   ├── isched_tenant_thread_pool_tests.cpp
+        │   └── isched_srv_tests.cpp
+        └── performance/benchmark_suite.cpp
 
 CMakeLists.txt
 conanfile.txt
-configure.py                                    # One-shot Conan + CMake + Ninja build script
+configure.py
 docs/
-├── performance.md                              # Benchmark results + FR-012 assertion (to be created — Phase 6, T052)
-└── deployment.md                              # Deployment guide + Raspberry Pi notes (to be created — Phase 7, T057)
+├── performance.md
+└── deployment.md
 ```
 
 **Structure Decision**: Keep a single C++ project but drop any plan for CLI runtimes or shared-memory coordination. The architecture centers on a GraphQL transport layer, an in-process configuration subsystem, and a subscription broker for WebSocket sessions.
+
+**Terminology note**: `organization` is the canonical product term in the revised architecture. Historical contract/type names that still use `tenant` are equivalent for cross-artifact review unless a reference is explicitly platform-scoped.
 
 ## Complexity Tracking
 
@@ -195,16 +174,31 @@ docs/
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 | --------- | ---------- | ----------------------------------- |
-| Per-tenant databases | Strong tenant isolation and simpler recovery | Shared schemas in one database raise isolation risk |
+| Per-organization databases | Strong organization isolation and simpler recovery | Shared schemas in one database raise isolation risk |
 | WebSocket subscription broker | Required real-time GraphQL transport | HTTP polling violates transport requirement and adds latency |
 | Atomic configuration snapshots | Prevent partial schema activation | In-place mutation risks broken active schemas |
 | Custom PEGTL GraphQL parser | Full parse-tree control, no library dependency, direct integration with execution context | Third-party parsing library would duplicate internal concerns and add an opaque runtime dependency |
-| `isched_system.db` bootstrap database | Platform-level entities (platform_admins, platform_roles, organizations) must exist before any tenant DB; cross-org queries would require joins across tenant SQLite files | A single tenant DB would violate multi-tenant isolation; cramming platform entities into one tenant DB is unsound |
-| AES-256-GCM API key encryption | API keys for outbound HTTP data sources are secrets; storing plaintext in tenant SQLite exposes them via any DB-file read | A simpler credential store (e.g. OS keyring) is not portable to the embedded/Raspberry Pi target; AES-GCM with HKDF-derived key is the minimal portable solution |
-| Global adaptive thread pool | `cpp-httplib` exposes a single process-wide `set_thread_pool_size()` — there is no per-tenant granularity in the transport layer | A custom per-tenant thread pool would require a parallel async I/O layer, far exceeding scope; advisory per-tenant min/max stored in `TenantConfig` and applied as aggregate |
+| `isched_system.db` bootstrap database | Platform-level entities (platform_admins, platform_roles, organizations) must exist before any organization DB; cross-org queries would require joins across organization SQLite files | A single organization DB would violate multi-organization isolation; cramming platform entities into one organization DB is unsound |
+| AES-256-GCM API key encryption | API keys for outbound HTTP data sources are secrets; storing plaintext in organization SQLite exposes them via any DB-file read | A simpler credential store (e.g. OS keyring) is not portable to the embedded/Raspberry Pi target; AES-GCM with HKDF-derived key is the minimal portable solution |
+| Global adaptive thread pool | `cpp-httplib` exposes a single process-wide `set_thread_pool_size()` — there is no per-organization granularity in the transport layer | A custom per-organization thread pool would require a parallel async I/O layer, far exceeding scope; advisory per-organization min/max stored in `TenantConfig` and applied as aggregate |
 | Dual performance counter semantics | FR-PERF-003 requires both interval-window counters (reset every 60 min) and cumulative counters (never reset) — a single counter cannot satisfy both requirements | Storing only cumulative counts prevents interval-rate queries; storing only interval counts loses absolute totals needed for capacity planning |
 
 ## Phase Plan
+
+### Phase taxonomy crosswalk (plan.md vs tasks.md)
+
+| `plan.md` phase label | `tasks.md` phase label(s) |
+| --- | --- |
+| Phase 0: Research Update | Phase 1 prerequisites context (setup intent) |
+| Phase 1: Design Update | Phase 1, Phase 1b, Phase 1c |
+| Phase 2: Implementation Realignment | Phase 2: Foundational GraphQL Runtime |
+| Phase 3: Verification | Phase 3: User Story 1 |
+| Phase 4: Tenant Isolation | Phase 4: User Story 2 |
+| Phase 5: Configuration System | Phase 5 and Phase 5b |
+| Phase 6: Security, Auth, Metrics & Integrations | T047-T052 block under Phase 6 |
+| Phase 7: Documentation and Security Hardening | Phase 7 (T054-T058) |
+
+This crosswalk is authoritative when labels differ; task IDs and completion state in `tasks.md` remain the execution source of truth.
 
 ### Invariant: Test Suite Always Green
 
@@ -219,6 +213,10 @@ This is a hard gate at every task boundary, not only at phase checkpoints. If a 
 ### Invariant: Commit After Every Task
 
 Once a task is complete and `ctest` is fully green, a Git commit MUST be created before moving to the next task. Completed work must never remain uncommitted when starting the next task. The commit message must reference the task ID(s) addressed and note any bugs fixed.
+
+### Invariant: Constitution Compliance Review Evidence
+
+Before feature closeout, review records MUST explicitly confirm constitution compliance for the delivered changes: performance impact, GraphQL compliance, security/isolation behavior, portability constraints, and C++ Core Guidelines adherence (including any documented deviations).
 
 ---
 
@@ -262,71 +260,77 @@ Once a task is complete and `ctest` is fully green, a Git commit MUST be created
 
 ### ✅ Phase 4: Tenant Isolation — COMPLETE
 
-- Per-tenant SQLite databases with connection pooling
+- Per-organization SQLite databases with connection pooling
 - Tenant lifecycle management (create, activate, suspend, destroy)
-- Cross-tenant isolation enforced at executor level
+- Cross-organization isolation enforced at executor level
 
 ### ✅ Phase 5: Configuration System — COMPLETE
 
 - Versioned configuration snapshots in SQLite
 - Atomic activation with rollback on validation failure
+- Input-object based optimistic concurrency for configuration mutations via required `expectedVersion`
 - Schema regeneration from model definitions
+- FR-017 closeout clarification: persisted snapshot metadata plus `schemaSdl`/generated SDL and the queryable `configurationHistory` + `activeConfiguration` surfaces are the documented deployment-history/audit trail for configuration rollouts
 
 ### ✅ Phase 5b: Subscription Broker — COMPLETE
 
 - `SubscriptionBroker` for WebSocket subscription delivery
 - Subscription lifecycle (subscribe, publish, unsubscribe)
-- Per-tenant subscription isolation
+- Per-organization subscription isolation
 
 ---
 
-### 🔄 Phase 6: Security, Auth, Metrics & Integrations — IN PROGRESS
+### ✅ Phase 6: Security, Auth, Metrics & Integrations — COMPLETE
 
 Full details in `tasks.md` (T047–T052). Summary of sub-areas:
 
 **T047 — RBAC and User/Org Management**
 - `isched_system.db` bootstrap database: `platform_admins`, `platform_roles`, `organizations` tables; created by `DatabaseManager` on first startup
-- 4 built-in roles: `PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_MEMBER`, `ORG_VIEWER`
-- RBAC enforced at Query/Mutation resolver level; per-org SQLite isolation
+- Built-in RBAC concepts: `platform_admin`, `organization_admin`, and `user`, with support for additional scoped custom roles defined by platform admins or organization admins
+- RBAC enforced at Query/Mutation resolver level with scope-aware platform and organization authorization; per-org SQLite isolation
+- Traceability note: T047 and T049 jointly provide the primary implementation evidence for both the FR-008 authentication/RBAC requirement family and FR-SEC-001 scope-aware JWT authorization
+- Dedicated unauthenticated bootstrap mutation `bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!`; enabled only while `platform_admins` is empty, then globally disabled after first successful provisioning
+- Additional platform admins are created through authenticated platform account-management workflows over `platform_admins` / `platform_roles`; no second bootstrap path is introduced
 - User CRUD mutations; `login` mutation returns JWT; Argon2id via OpenSSL ≥ 3.2 `EVP_KDF_fetch("ARGON2ID")`
 - `conanfile.txt` updated to pin `openssl/[>=3.2.0]`
 
 **T048 — Outbound HTTP RESTDataSource**
-- `isched_RestDataSource` following Apollo RESTDataSource pattern: per-tenant auth config in tenant DB
-- API key stored encrypted: `isched_CryptoUtils` provides AES-256-GCM encrypt/decrypt; HKDF-derived per-tenant key
+- `isched_RestDataSource` following Apollo RESTDataSource pattern: per-organization auth config in organization DB
+- API key stored encrypted: `isched_CryptoUtils` provides AES-256-GCM encrypt/decrypt; HKDF-derived per-organization key
 - JSON auto-coercion; structured `HttpError` type in GraphQL schema
 - Column name: `api_key_value_encrypted`
 
 **T049 — Session Management and Revocation**
-- Sessions table in tenant SQLite; includes `roles` JSON array (populated at login)
+- Sessions table in organization SQLite; includes `roles` JSON array (populated at login)
 - `AuthenticationMiddleware::create_session()` is sole owner; `login` resolver delegates
-- 4 revocation mutations + `terminateAllSessions`; WebSocket force-close on revocation
-- `last_activity` updated on each request
+- 4 session-control mutations: `logout`, `revokeSession`, `revokeAllSessions`, and `terminateAllSessions`; WebSocket force-close on revocation
+- `last_activity` updated on validated requests with write-throttling (default 5-minute minimum update interval per session)
 
 **T050 — Global Adaptive Thread Pool**
-- Single `cpp-httplib` global pool driven by aggregate active-subscription count
-- Per-tenant min/max stored as advisory in `TenantConfig`; applied only at aggregate level
-- Pool size updated on subscription connect/disconnect events
+- Single `cpp-httplib` global pool using hybrid triggers: aggregate active-subscription count as primary signal and response-time threshold breaches as secondary signals
+- Per-organization min/max stored as advisory in `TenantConfig`; applied only at aggregate level
+- FR-013 policy: scale-up on >=20% aggregate subscription-load delta vs prior window, or p95 latency > 20 ms for 2 consecutive 30-second overload windows; scale-down only after 5 consecutive healthy 30-second windows; minimum 60-second cooldown between resize actions
 
 **T051 — Performance Metrics**
 - Dual counter sets: `requestsInInterval` / `errorsInInterval` (reset every 60 min) + `totalRequestsSinceStartup` / `totalErrorsSinceStartup` (cumulative)
-- Both Query and Subscription exposed; per-tenant and system-level queries
+- Both Query and Subscription exposed; per-organization and system-level queries
 - `isched_MetricsCollector` owns counters; 60-minute interval timer via `std::jthread`
 
 **T052 — Catch2 Benchmark Suite**
 - `benchmark_suite.cpp` using `CATCH_BENCHMARK`
-- 4 named thresholds: GraphQL parse, resolver dispatch, DB read, DB write
+- Two-tier protocol: in-process benchmark suite for fast regression checks, plus HTTP-level `/graphql` benchmark profile as the FR-012 acceptance gate (canonical profile in `specs/001-universal-backend/performance-protocol.md`)
+- `hello` throughput retains an approximately `1000 req/s` in-process check only as a non-normative local regression guard; it is not the release acceptance criterion
 - T052-006: `REQUIRE(p95_latency_ms <= 20.0)` asserting FR-012
-- T052-007: results documented in `docs/performance.md`
+- T052-007: results documented in `docs/performance.md` as release-facing summary linked to the canonical profile
 
 ---
 
-### Phase 7: Documentation and Security Hardening — NOT STARTED
+### ✅ Phase 7: Documentation and Security Hardening — COMPLETE
 
 Full details in `tasks.md` (T055–T057). Summary:
 
 **T055 — Documentation Review**: All docs (`graphql-schema.md`, `http-api.md`, `quickstart.md`, `data-model.md`) reviewed against implementation; `extensions` field documented in `http-api.md`
-**T056 — Security Scan**: `security_scan` CMake target running clang-tidy with security-oriented checks
+**T056 — Security Scan & Threat Modeling**: `security_scan` CMake target running clang-tidy with security-oriented checks, plus feature-scoped and project-wide threat-model documentation
 **T057 — Deployment Docs**: `docs/deployment.md` covering Linux setup, environment variables, Raspberry Pi / ARM Linux guidance
 
 ## Revised Implementation Focus
@@ -334,7 +338,7 @@ Full details in `tasks.md` (T055–T057). Summary:
 ### Custom PEGTL Parser ✅
 
 - `isched_gql_grammar.hpp` — complete, spec-mapped PEGTL grammar for the full GraphQL document language
-- `GqlParser` facade — stable `parse(string, name)` entry point used by `GqlExecutor` and SDL subsystems
+- `GqlExecutor` directly invokes PEGTL parsing for execution and SDL validation paths; no separate `GqlParser` facade layer
 - Parse-error conversion to GraphQL `errors` array with `locations`
 - Grammar conformance tests per spec section
 - No third-party GraphQL parsing library used
@@ -344,12 +348,13 @@ Full details in `tasks.md` (T055–T057). Summary:
 - GraphQL over HTTP request handling
 - GraphQL over WebSocket connection lifecycle and subscriptions
 - Built-in schema for startup, health, auth, and configuration
-- Tenant-aware runtime state and connection pooling
+- Organization-aware runtime state and connection pooling
 
 ### Configuration System ✅
 
 - Versioned configuration snapshots stored internally
-- GraphQL mutations for apply, validate, activate, and inspect operations
+- GraphQL mutations for apply, validate, activate, and inspect operations use input objects for configuration-changing calls
+- `expectedVersion` is required in configuration mutation input objects and is checked before persistence or activation; mismatches return a conflict without state change
 - Atomic activation with rollback on validation failure
 - Schema regeneration from model definitions
 
@@ -359,56 +364,79 @@ Full details in `tasks.md` (T055–T057). Summary:
 - Optional operational event subscriptions via WebSocket
 - Request, error, and subscription metrics framework in place
 
-### System Database (Phase 6 — T047) 🔄
+### ✅ System Database (Phase 6 — T047)
 
 - `isched_system.db` created by `DatabaseManager::ensure_system_db()` on first startup
-- Tables: `platform_admins` (id, username, password_hash, created_at), `platform_roles` (id, name, permissions JSON), `organizations` (id, name, tenant_id, created_at)
-- 4 built-in roles seeded at startup: `PLATFORM_ADMIN`, `ORG_ADMIN`, `ORG_MEMBER`, `ORG_VIEWER`
-- Bootstrap admin credentials loaded from environment variable on first run
+- Tables: `platform_admins` (`id`, `email`, `password_hash`, `display_name`, `is_active`, `created_at`, `last_login`), `platform_roles` (`id`, `name`, `description`, `created_at`), `organizations` (`id`, `name`, `domain`, `subscription_tier`, `user_limit`, `storage_limit`, `created_at`), plus the reused `sessions` schema for platform-level logins
+- Bootstrap provisions the initial `platform_admin` through `bootstrapPlatformAdmin`; availability is derived from whether `platform_admins` is empty, and authenticated RBAC workflows may create additional platform admins and organization admins after startup
+- Platform-scoped and organization-scoped custom roles are managed in their respective databases and may be referenced by schema access-control rules
 
-### Authentication and RBAC (Phase 6 — T047) 🔄
+### ✅ Authentication and RBAC (Phase 6 — T047)
 
 - `AuthenticationMiddleware` extended with full JWT validation and role extraction
 - Argon2id password hashing via `isched_CryptoUtils::hash_password()` using `EVP_KDF_fetch("ARGON2ID")` (requires OpenSSL ≥ 3.2)
+- `bootstrapPlatformAdmin` is the only unauthenticated admin-provisioning path; it creates the initial platform admin, returns `AuthPayload`, and is rejected once any platform admin exists
 - `login` mutation: validates credentials, calls `create_session()`, returns signed JWT
-- RBAC enforced at resolver level: each Query/Mutation checks minimum required role from JWT claims
-- Per-org SQLite isolation: org data lives in its own tenant DB, not in `isched_system.db`
+- RBAC enforced at resolver level: each Query/Mutation checks minimum required role from JWT claims with explicit platform scope vs organization scope enforcement
+- Per-org SQLite isolation: org data lives in its own organization DB, not in `isched_system.db`
 
-### Session Management and Revocation (Phase 6 — T049) 🔄
+### ✅ Session Management and Revocation (Phase 6 — T049)
 
-- Sessions table in tenant SQLite: `(id, user_id, roles TEXT, created_at, last_activity, revoked_at)`
+- Sessions table uses the same schema in each organization DB and in `isched_system.db` for platform-level logins
 - `AuthenticationMiddleware::create_session()` is the sole session-creation entry point; `login` resolver delegates to it
 - 4 revocation GraphQL mutations: `revokeSession`, `revokeUserSessions`, `revokeOrgSessions`, `terminateAllSessions`
 - WebSocket force-close on revocation: `SubscriptionBroker` receives revocation event and closes affected connections
+- `last_activity` updates are request-driven but throttled to reduce write amplification (default 5-minute minimum interval per session)
 - `roles` column stored as JSON array to enable `terminateAllSessions` without cross-table joins
 
-### Outbound HTTP — RESTDataSource (Phase 6 — T048) 🔄
+### ✅ Outbound HTTP — RESTDataSource (Phase 6 — T048)
 
-- `isched_RestDataSource`: per-tenant outbound HTTP client following Apollo RESTDataSource pattern
-- Auth config stored per data-source in tenant SQLite; supports `Authorization: Bearer`, API key, and unauthenticated modes
-- API key encrypted at rest: `isched_CryptoUtils::encrypt_aes_gcm()` / `decrypt_aes_gcm()` with HKDF-derived per-tenant key
+- `isched_RestDataSource`: per-organization outbound HTTP client following Apollo RESTDataSource pattern
+- Auth config stored per data-source in organization SQLite; supports `Authorization: Bearer`, API key, and unauthenticated modes
+- API key encrypted at rest: `isched_CryptoUtils::encrypt_aes_gcm()` / `decrypt_aes_gcm()` with HKDF-derived per-organization key
 - JSON auto-coercion; structured `HttpError` type surfaced through GraphQL `errors` extensions
 - Unit tests in `isched_rest_datasource_tests.cpp`
 
-### Performance Metrics (Phase 6 — T051) 🔄
+### ✅ Performance Metrics (Phase 6 — T051)
 
 - `isched_MetricsCollector` owns all performance counters
 - Interval-window counters: `requestsInInterval`, `errorsInInterval` — reset every 60 minutes via `std::jthread`
 - Cumulative counters: `totalRequestsSinceStartup`, `totalErrorsSinceStartup` — never reset
-- Exposed via both GraphQL Query and Subscription; per-tenant and system-level views
-- Auth-gated: requires `ORG_ADMIN` or higher for tenant metrics; `PLATFORM_ADMIN` for system metrics
+- Exposed via both GraphQL Query and Subscription; per-organization and system-level views
+- Auth-gated: requires `organization_admin` (or an equivalent delegated organization-scoped role) for organization metrics; `platform_admin` (or an equivalent delegated platform-scoped role) for system metrics
 
-### Benchmarks and Security Hardening (Phase 6/7 — T052, T056) 🔄
+### ✅ Benchmarks and Security Hardening (Phase 6/7 — T052, T056)
 
-- `benchmark_suite.cpp` using `CATCH_BENCHMARK` with 4 named thresholds: parse, dispatch, DB read, DB write
-- `REQUIRE(p95_latency_ms <= 20.0)` asserting FR-012 (20ms p95 end-to-end latency)
+- `benchmark_suite.cpp` uses `CATCH_BENCHMARK` for in-process regression guards covering `hello` throughput, concurrent GraphQL POST, WebSocket fan-out, introspection under load, and local p95 latency
+- The `hello` throughput check remains a non-normative regression guard (`~1000 req/s` target); normative acceptance remains the HTTP-level protocol in `performance-protocol.md`
+- `REQUIRE(p95_latency_ms <= 20.0)` asserting the fast local FR-012 regression guard
 - Results documented in `docs/performance.md`
 - `security_scan` CMake target running clang-tidy with security-oriented checks (T056)
+- Threat-model deliverables maintained at `specs/001-universal-backend/threat-model.md` and `docs/security-threat-model.md`
 
 ## Current Planning Status
 
-**Status**: Phase 6 architecture fully decided and documented; implementation in progress.
-**Phases complete**: 0, 1, 1b, 1c, 2, 3, 4, 5, 5b — all 23 ctest tests pass on commit `0103a2b`.
-**Architecture decisions recorded in `tasks.md`**: T047–T052 (Phase 6) and T055–T057 (Phase 7) fully expanded from stubs through `speckit.clarify` + `speckit.analyze` sessions; all 10 analysis findings resolved.
-**Next Action**: Begin Phase 6 implementation with T047-011 (pin `openssl/[>=3.2.0]` in `conanfile.txt`), then T047-000 (`isched_system.db` bootstrap), proceeding through the T047–T052 sub-task sequence in `tasks.md` order.
+**Status**: Implementation for Phases 0-7 is complete and constitution closeout evidence is recorded.
+**Implementation phases complete**: 0, 1, 1b, 1c, 2, 3, 4, 5, 5b, 6, 7.
+**Architecture decisions recorded in `tasks.md`**: T047-T052 (Phase 6) and T055-T057 (Phase 7) are fully expanded from stubs through `speckit.clarify` + `speckit.analyze` sessions.
+**Next Action**: Re-run final cross-artifact consistency pass and prepare final sign-off commit.
 **Gate**: Each sub-task committed individually; `ctest --output-on-failure` must be 100% green before each commit.
+
+## Constitution Review Evidence (Closeout Record)
+
+This section is the authoritative closeout evidence record for constitution compliance review.
+
+- **Closeout Status**: Evidence captured and approved for feature sign-off
+- **Required Evidence Format**: each evidence line MUST include an artifact path plus a concrete reference (`commit SHA`, review note ID, or command/report link)
+- **Review Date**: 2026-04-04 (`RVW-2026-04-04-001`)
+- **Reviewer(s)**: Isched Development Team (`RVW-2026-04-04-001`)
+- **Scope Reviewed**: `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, threat-model docs, and key implementation/test changes
+- **Performance Compliance Evidence**: `specs/001-universal-backend/performance-protocol.md`, `docs/performance.md`, `specs/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-002`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **GraphQL Compliance Evidence**: `src/test/cpp/isched/isched_gql_executor_tests.cpp`, `src/test/cpp/isched/isched_grammar_tests.cpp`, `specs/001-universal-backend/contracts/graphql-schema.md` (`RVW-2026-04-04-003`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **Security & Isolation Evidence**: `specs/001-universal-backend/threat-model.md`, `docs/security-threat-model.md`, `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`, `src/test/cpp/integration/test_session_revocation.cpp` (`RVW-2026-04-04-004`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **Portability Evidence**: `README.md`, `docs/deployment.md`, `conanfile.txt`, `CMakeLists.txt` (`RVW-2026-04-04-005`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **C++ Core Guidelines Evidence**: `.clang-tidy`, `CMakeLists.txt` `security_scan` target (`RVW-2026-04-04-006`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **SC-001 Quickstart Timing Evidence**: `specs/001-universal-backend/quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, `specs/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-007`)
+- **SC-004 Activation Latency Evidence**: `src/test/cpp/integration/test_schema_activation.cpp`, `specs/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-008`)
+- **Approval Decision**: approved
+
