@@ -1,0 +1,4 @@
+type Query {
+  hello_ping: String
+  hello_who(p_name: String): String
+}

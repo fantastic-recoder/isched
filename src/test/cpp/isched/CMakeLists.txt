@@ -97,6 +97,12 @@ target_link_libraries(test_configuration_rollback PRIVATE isched Catch2::Catch2W
     Boost::url SQLite::SQLite3)
 add_test(NAME test_configuration_rollback COMMAND test_configuration_rollback)
 
+add_executable(test_configuration_conflicts ../integration/test_configuration_conflicts.cpp)
+target_link_libraries(test_configuration_conflicts PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl)
+add_test(NAME test_configuration_conflicts COMMAND test_configuration_conflicts)
+
 # Phase 5: WebSocket / Subscription integration tests (T037-T039)
 set(_ws_common_libs isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json
@@ -121,6 +127,12 @@ target_link_libraries(test_user_management PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
     taocpp::pegtl openssl::openssl)
 add_test(NAME test_user_management COMMAND test_user_management)
+
+add_executable(test_bootstrap_platform_admin ../integration/test_bootstrap_platform_admin.cpp)
+target_link_libraries(test_bootstrap_platform_admin PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl)
+add_test(NAME test_bootstrap_platform_admin COMMAND test_bootstrap_platform_admin)
 
 # Phase 6b: Session revocation integration tests (T049-008)
 add_executable(test_session_revocation ../integration/test_session_revocation.cpp)
