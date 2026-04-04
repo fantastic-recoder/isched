@@ -5,10 +5,11 @@ This file provides development guidelines for AI coding agents operating in this
 ## Project Overview
 
 - **Language**: C++23
+- **Frontend**: Angular 21 WebUI (`src/ui/`) with strict TypeScript
 - **Build system**: CMake + Ninja
 - **Dependency manager**: Conan 2.x
 - **Test framework**: Catch2 3.x
-- **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant
+- **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant, with Angular WebUI client
 
 ## Project Structure
 
@@ -70,6 +71,17 @@ cd cmake-build-debug && ctest -N
 ```
 
 ## Code Style Guidelines
+
+### Angular WebUI Conventions (`src/ui/`)
+- Use signal-first state management; use RxJS when stream semantics are required.
+- Default to standalone components/directives/pipes.
+- Use modern template control flow: `@if`, `@for`, `@switch`.
+- Use typed reactive forms for user input flows.
+- Keep strict TypeScript + strict template checks enabled.
+- Prefer zoneless and `OnPush`-compatible patterns where feasible.
+- Consume backend APIs via GraphQL `/graphql` only (HTTP + WebSocket); no REST calls.
+- Do not persist access JWTs in `localStorage`, `sessionStorage`, or IndexedDB.
+- Use Angular dev-server proxy for local `/graphql` routing; avoid hard-coded backend origins.
 
 ### File Naming
 - All library source files use `isched_` prefix (e.g., `isched_Server.hpp`, `isched_Server.cpp`)

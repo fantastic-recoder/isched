@@ -7,7 +7,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { GraphQLService } from './graphql.service';
+import { GraphQLRequestError, GraphQLService, GRAPHQL_ERROR_CODES } from './graphql.service';
 
 describe('GraphQLService', () => {
   let service: GraphQLService;
@@ -46,8 +46,9 @@ describe('GraphQLService', () => {
 
   it('should surface the first GraphQL error as a thrown Error', (done) => {
     service.query<unknown>('{ broken }').subscribe({
-      error: (err: Error) => {
+      error: (err: GraphQLRequestError) => {
         expect(err.message).toBe('Something went wrong');
+        expect(err.code).toBe(GRAPHQL_ERROR_CODES.TRANSIENT_NETWORK);
         done();
       },
     });
@@ -63,5 +64,29 @@ describe('GraphQLService', () => {
     const req = httpMock.expectOne('/graphql');
     expect(req.request.method).toBe('POST');
     req.flush({ data: {} });
+  });
+
+  it('maps extensions.code and fieldErrors to GraphQLRequestError', (done) => {
+    service.mutate<unknown>('mutation { doThing }').subscribe({
+      error: (err: GraphQLRequestError) => {
+        expect(err.code).toBe(GRAPHQL_ERROR_CODES.VALIDATION_FAILED);
+        expect(err.fieldErrors['email'][0]).toBe('Email is required');
+        done();
+      },
+    });
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [
+        {
+          message: 'Validation failed',
+          extensions: {
+            code: 'VALIDATION_FAILED',
+            fieldErrors: {
+              email: ['Email is required'],
+            },
+          },
+        },
+      ],
+    });
   });
 });

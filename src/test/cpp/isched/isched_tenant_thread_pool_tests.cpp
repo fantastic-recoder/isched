@@ -7,7 +7,7 @@
  *
  * Covers:
  *   T050-001  Advisory min/max thread config in TenantConfiguration + DB storage
- *   T050-002  Subscription count tracking in TenantManager
+ *   T050-002  Subscription count tracking in OrgManager
  *   T050-003  Broker count-change callback fires correctly (pool adaptation trigger)
  *   T050-005  Threshold arithmetic and queue drain semantics
  */
@@ -30,7 +30,7 @@ using namespace isched::v0_0_1::backend;
 // ==========================================================================
 
 TEST_CASE("TenantConfiguration: default min_threads and max_threads", "[t050][config]") {
-    TenantManager::TenantConfiguration cfg;
+    OrgManager::TenantConfiguration cfg;
     REQUIRE(cfg.min_threads == 4u);
     REQUIRE(cfg.max_threads == 16u);
     // Ensure they can be overridden
@@ -41,16 +41,16 @@ TEST_CASE("TenantConfiguration: default min_threads and max_threads", "[t050][co
 }
 
 // ==========================================================================
-// T050-002: TenantManager subscription count tracking
+// T050-002: OrgManager subscription count tracking
 // ==========================================================================
 
-TEST_CASE("TenantManager: subscription count starts at zero", "[t050][subscription]") {
-    auto mgr = TenantManager::create();
+TEST_CASE("OrgManager: subscription count starts at zero", "[t050][subscription]") {
+    auto mgr = OrgManager::create();
     REQUIRE(mgr->get_active_subscription_count() == 0u);
 }
 
-TEST_CASE("TenantManager: on_subscription_start increments count", "[t050][subscription]") {
-    auto mgr = TenantManager::create();
+TEST_CASE("OrgManager: on_subscription_start increments count", "[t050][subscription]") {
+    auto mgr = OrgManager::create();
     mgr->on_subscription_start();
     REQUIRE(mgr->get_active_subscription_count() == 1u);
     mgr->on_subscription_start();
@@ -58,8 +58,8 @@ TEST_CASE("TenantManager: on_subscription_start increments count", "[t050][subsc
     REQUIRE(mgr->get_active_subscription_count() == 3u);
 }
 
-TEST_CASE("TenantManager: on_subscription_end decrements count", "[t050][subscription]") {
-    auto mgr = TenantManager::create();
+TEST_CASE("OrgManager: on_subscription_end decrements count", "[t050][subscription]") {
+    auto mgr = OrgManager::create();
     mgr->on_subscription_start();
     mgr->on_subscription_start();
     REQUIRE(mgr->get_active_subscription_count() == 2u);
@@ -70,8 +70,8 @@ TEST_CASE("TenantManager: on_subscription_end decrements count", "[t050][subscri
     REQUIRE(mgr->get_active_subscription_count() == 0u);
 }
 
-TEST_CASE("TenantManager: on_subscription_end does not underflow", "[t050][subscription]") {
-    auto mgr = TenantManager::create();
+TEST_CASE("OrgManager: on_subscription_end does not underflow", "[t050][subscription]") {
+    auto mgr = OrgManager::create();
     // Call end without start — must not underflow (stays at 0).
     mgr->on_subscription_end();
     REQUIRE(mgr->get_active_subscription_count() == 0u);

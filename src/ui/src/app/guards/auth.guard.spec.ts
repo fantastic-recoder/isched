@@ -32,7 +32,6 @@ describe('authGuard', () => {
   }
 
   beforeEach(async () => {
-    sessionStorage.clear();
     await TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
@@ -53,7 +52,6 @@ describe('authGuard', () => {
 
   afterEach(() => {
     httpMock.verify();
-    sessionStorage.clear();
   });
 
   it('redirects to /seed when seedModeActive is true', (done) => {
@@ -87,7 +85,7 @@ describe('authGuard', () => {
     jest.spyOn(gql, 'query').mockReturnValue(
       of({ systemState: { seedModeActive: false } }),
     );
-    auth.setToken('tok_xyz');
+    jest.spyOn(auth, 'isLoggedIn').mockReturnValue(true);
 
     const result$ = runGuard() as ReturnType<typeof runGuard>;
     (result$ as ReturnType<typeof of>).subscribe((result: boolean | UrlTree) => {

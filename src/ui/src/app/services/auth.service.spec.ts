@@ -19,41 +19,40 @@ describe('AuthService', () => {
     });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
-    sessionStorage.clear();
   });
 
   afterEach(() => {
     httpMock.verify();
-    sessionStorage.clear();
   });
 
-  it('setToken / getToken round-trip uses "isched_token" key', () => {
-    service.setToken('tok_abc');
-    expect(sessionStorage.getItem('isched_token')).toBe('tok_abc');
-    expect(service.getToken()).toBe('tok_abc');
+  it('bootstrapSession marks authenticated when currentUser exists', (done) => {
+    service.bootstrapSession().subscribe((isLoggedIn) => {
+      expect(isLoggedIn).toBe(true);
+      expect(service.isLoggedIn()).toBe(true);
+      done();
+    });
+
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
   });
 
-  it('isLoggedIn() returns true when token is set', () => {
-    service.setToken('tok_abc');
-    expect(service.isLoggedIn()).toBe(true);
-  });
-
-  it('isLoggedIn() returns false when no token', () => {
+  it('isLoggedIn() returns false by default', () => {
     expect(service.isLoggedIn()).toBe(false);
   });
 
-  it('clearToken() removes token from sessionStorage', () => {
-    service.setToken('tok_abc');
-    service.clearToken();
-    expect(service.getToken()).toBeNull();
-    expect(service.isLoggedIn()).toBe(false);
+  it('tracks CSRF token in memory', () => {
+    service.setCsrfToken('csrf_123');
+    expect(service.getCsrfToken()).toBe('csrf_123');
   });
 
-  it('logout() calls clearToken and fires logout mutation', () => {
-    service.setToken('tok_abc');
-    service.logout();
-    expect(service.isLoggedIn()).toBe(false);
-    // Drain the logout mutation request
-    httpMock.expectOne('/graphql').flush({ data: {} });
+  it('signOut clears local auth state after mutation', (done) => {
+    service.setCsrfToken('csrf_123');
+    service.signOut().subscribe((ok) => {
+      expect(ok).toBe(true);
+      expect(service.isLoggedIn()).toBe(false);
+      expect(service.getCsrfToken()).toBeNull();
+      done();
+    });
+
+    httpMock.expectOne('/graphql').flush({ data: { logout: true } });
   });
 });

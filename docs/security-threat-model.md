@@ -9,6 +9,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 ## Feature Threat Models
 
 - `specs/001-universal-backend/threat-model.md` — GraphQL transport, bootstrap flow, JWT auth, RBAC, tenant isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
+- `specs/004-add-isched-webui/threat-model.md` — Embedded WebUI serving, proxy-backed local GraphQL flow, CSRF/cookie auth behavior, and organization-context write boundaries
 
 ## Common Security Themes
 
@@ -18,6 +19,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - **Tenant isolation**: tenant boundaries apply to authorization, runtime state, storage, metrics, and integration configuration.
 - **Session revocation**: revoked sessions must be enforced at request time and propagated to long-lived WebSocket connections.
 - **Secret protection**: external integration secrets must not be stored in plaintext and must be protected against accidental disclosure in logs or responses.
+- **WebUI boundary controls**: browser-facing state must avoid persistent token storage and enforce explicit organization context for admin mutations.
 
 ## Reusable Mitigation Checklist
 

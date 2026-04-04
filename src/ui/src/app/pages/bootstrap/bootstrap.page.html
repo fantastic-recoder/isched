@@ -1,0 +1,47 @@
+<div class="min-h-screen flex items-center justify-center bg-base-200 p-4">
+  <div class="card w-full max-w-lg bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h1 class="card-title text-2xl">Initialize Platform</h1>
+      <p class="text-sm text-base-content/70">Complete one-time bootstrap for the first platform admin.</p>
+
+      @if (globalError()) {
+        <div class="alert alert-error" role="alert">{{ globalError() }}</div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3">
+        <label class="form-control">
+          <span class="label-text">Email</span>
+          <input type="email" class="input input-bordered" formControlName="email" />
+          @if (form.controls.email.touched && form.controls.email.errors?.['server']) {
+            <span class="text-error text-xs">{{ form.controls.email.errors?.['server'] }}</span>
+          }
+        </label>
+
+        <label class="form-control">
+          <span class="label-text">Display Name</span>
+          <input type="text" class="input input-bordered" formControlName="displayName" />
+          @if (form.controls.displayName.touched && form.controls.displayName.errors?.['server']) {
+            <span class="text-error text-xs">{{ form.controls.displayName.errors?.['server'] }}</span>
+          }
+        </label>
+
+        <label class="form-control">
+          <span class="label-text">Password</span>
+          <input type="password" class="input input-bordered" formControlName="password" />
+          @if (form.controls.password.touched && form.controls.password.errors?.['server']) {
+            <span class="text-error text-xs">{{ form.controls.password.errors?.['server'] }}</span>
+          }
+        </label>
+
+        <button class="btn btn-primary w-full" type="submit" [disabled]="pending()">
+          @if (pending()) {
+            <span class="loading loading-spinner loading-sm"></span>
+          } @else {
+            Complete Bootstrap
+          }
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+

@@ -18,6 +18,7 @@
 #include <thread>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <unordered_set>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/parse_error.hpp>
 #include <tao/pegtl/string_input.hpp>
@@ -2631,6 +2632,7 @@ namespace isched::v0_0_1::backend {
             }
         } else {
             ResolverCtx my_ctx = tl_resolver_ctx;  // copy thread-local auth context for this field
+            json my_args = process_argument_field(p_field_node, p_error);
 
             // T047-003: RBAC gate — check if the caller holds at least one required role.
             // Only enforced at the top level (p_path is empty).
@@ -2666,9 +2668,35 @@ namespace isched::v0_0_1::backend {
                         return false;
                     }
                 }
+
+                // WebUI org-scope guard: reject writes where requested organizationId
+                // does not match the authenticated context tenant_id.
+                static const std::unordered_set<std::string> k_org_scoped_mutations = {
+                    "createUser", "updateUser", "deleteUser",
+                    "updateTenantConfig", "createDataSource", "updateDataSource", "deleteDataSource"
+                };
+                if (k_org_scoped_mutations.contains(myFieldName) &&
+                    my_args.contains("organizationId") && my_args["organizationId"].is_string() &&
+                    !my_ctx.tenant_id.empty())
+                {
+                    const std::string requested_org = my_args["organizationId"].get<std::string>();
+                    if (requested_org != my_ctx.tenant_id) {
+                        gql::ErrorPath ep;
+                        for (const auto& s : my_field_path) ep.push_back(s);
+                        p_error.push_back(gql::Error{
+                            .code = gql::EErrorCodes::FORBIDDEN,
+                            .message = std::format(
+                                "CONTEXT_MISMATCH: requested organizationId '{}' does not match active context '{}'",
+                                requested_org,
+                                my_ctx.tenant_id),
+                            .path = std::move(ep),
+                        });
+                        p_result[myFieldName] = nullptr;
+                        return false;
+                    }
+                }
             }
 
-            json my_args = process_argument_field(p_field_node, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
             json my_result;

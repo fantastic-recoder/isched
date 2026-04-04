@@ -1,0 +1,30 @@
+<section class="p-6 space-y-4">
+  <h1 class="text-2xl font-semibold">Users</h1>
+
+  @if (warning()) {
+    <div class="alert alert-warning">{{ warning() }}</div>
+  }
+
+  <div class="form-control max-w-sm">
+    <span class="label-text">Organization</span>
+    <select class="select select-bordered" (change)="onOrgChange($any($event.target).value)">
+      <option value="org-a">Org A</option>
+      <option value="org-b">Org B</option>
+    </select>
+  </div>
+
+  <form [formGroup]="form" class="space-y-2" (ngSubmit)="markSaved()">
+    <label class="form-control">
+      <span class="label-text">Login ID</span>
+      <input class="input input-bordered" formControlName="loginId" (input)="markDirty()" />
+    </label>
+
+    <label class="form-control">
+      <span class="label-text">Display Name</span>
+      <input class="input input-bordered" formControlName="displayName" (input)="markDirty()" />
+    </label>
+
+    <button class="btn btn-primary" [disabled]="form.invalid" type="submit">Save</button>
+  </form>
+</section>
+

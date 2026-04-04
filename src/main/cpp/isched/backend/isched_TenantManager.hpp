@@ -50,10 +50,10 @@ namespace isched::v0_0_1::backend {
  *
  * @note Follows the PIMPL pattern; non-copyable, non-movable.
  */
-class TenantManager {
+class OrgManager {
 public:
-    using UniquePtr = std::unique_ptr<TenantManager>;
-    using SharedPtr = std::shared_ptr<TenantManager>;
+    using UniquePtr = std::unique_ptr<OrgManager>;
+    using SharedPtr = std::shared_ptr<OrgManager>;
     using String    = std::string;
     using TenantId  = std::string;
     using TimePoint = std::chrono::steady_clock::time_point;
@@ -148,12 +148,12 @@ public:
      */
     static UniquePtr create(const Configuration& config = Configuration{});
 
-    ~TenantManager();
+    ~OrgManager();
 
-    TenantManager(const TenantManager&)            = delete;
-    TenantManager& operator=(const TenantManager&) = delete;
-    TenantManager(TenantManager&&)                 = delete;
-    TenantManager& operator=(TenantManager&&)      = delete;
+    OrgManager(const OrgManager&)            = delete;
+    OrgManager& operator=(const OrgManager&) = delete;
+    OrgManager(OrgManager&&)                 = delete;
+    OrgManager& operator=(OrgManager&&)      = delete;
 
     /** Start the tenant manager (idempotent if already running). */
     bool start();
@@ -224,7 +224,7 @@ public:
     uint64_t get_active_subscription_count() const noexcept;
 
 private:
-    explicit TenantManager(const Configuration& config);
+    explicit OrgManager(const Configuration& config);
 
     bool initialize();
 

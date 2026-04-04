@@ -1,30 +1,57 @@
 import { Injectable, inject } from '@angular/core';
+import { Observable, map, tap } from 'rxjs';
 import { GraphQLService } from './graphql.service';
 
-const SESSION_KEY = 'isched_token';
+interface CurrentSessionResponse {
+  currentUser: { id: string } | null;
+}
+
+interface SignOutResponse {
+  logout: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly gql = inject(GraphQLService);
+  private csrfToken: string | null = null;
+  private authenticated = false;
 
-  setToken(token: string): void {
-    sessionStorage.setItem(SESSION_KEY, token);
-  }
-
-  getToken(): string | null {
-    return sessionStorage.getItem(SESSION_KEY);
-  }
-
-  clearToken(): void {
-    sessionStorage.removeItem(SESSION_KEY);
+  bootstrapSession(): Observable<boolean> {
+    return this.gql
+      .query<CurrentSessionResponse>('query { currentUser { id } }')
+      .pipe(
+        map((res) => !!res.currentUser),
+        tap((isAuthenticated) => {
+          this.authenticated = isAuthenticated;
+        }),
+      );
   }
 
   isLoggedIn(): boolean {
-    return !!this.getToken();
+    return this.authenticated;
   }
 
-  logout(): void {
-    this.clearToken();
-    this.gql.mutate<unknown>('mutation { logout }').subscribe({ error: () => {} });
+  setCsrfToken(token: string): void {
+    this.csrfToken = token;
+  }
+
+  getCsrfToken(): string | null {
+    return this.csrfToken;
+  }
+
+  clearAuthState(): void {
+    this.authenticated = false;
+    this.csrfToken = null;
+  }
+
+  signOut(): Observable<boolean> {
+    return this.gql
+      .mutate<SignOutResponse>('mutation { logout }')
+      .pipe(
+        map((res) => !!res.logout),
+        tap(() => {
+          this.clearAuthState();
+        }),
+      );
   }
 }

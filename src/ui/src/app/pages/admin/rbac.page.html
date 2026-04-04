@@ -1,0 +1,25 @@
+<section class="p-6 space-y-4">
+  <h1 class="text-2xl font-semibold">RBAC</h1>
+
+  @if (globalError()) {
+    <div class="alert alert-error">{{ globalError() }}</div>
+  }
+
+  <h2 class="text-lg font-medium">Roles</h2>
+  <ul class="menu bg-base-100 rounded-box">
+    @for (role of roles(); track role.id) {
+      <li>{{ role.name }} ({{ role.scope }})</li>
+    }
+  </ul>
+
+  <h2 class="text-lg font-medium">Create Custom Role</h2>
+  <form [formGroup]="createRoleForm" class="space-y-2">
+    <input class="input input-bordered w-full" formControlName="id" placeholder="role_ops" />
+    <input class="input input-bordered w-full" formControlName="name" placeholder="Operations" />
+    <select class="select select-bordered w-full" formControlName="scope">
+      <option value="tenant">Tenant</option>
+      <option value="platform">Platform</option>
+    </select>
+  </form>
+</section>
+

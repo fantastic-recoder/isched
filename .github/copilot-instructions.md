@@ -1,13 +1,14 @@
 # isched Development Guidelines
 
-Updated: 2026-03-13
+Updated: 2026-04-04
 
 ## Active Technologies
 
 - **Language**: C++23 with strict C++ Core Guidelines compliance
+- **Frontend**: Angular 21 with standalone APIs, signals, and strict TypeScript
 - **Build system**: CMake 3.22.6 (provided by Conan `[tool_requires]`) + Ninja 1.12.1
 - **Dependency manager**: Conan 2.x — `conanfile.txt` declares all dependencies
-- **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant
+- **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant, plus Angular WebUI
 - **Key runtime dependencies**: `taocpp-pegtl`, `nlohmann_json`, `spdlog`, `jwt-cpp`, `sqlite3`, `boost/1.84.0` (Boost.URL), `cpp-httplib` (sole HTTP/WebSocket transport), `openssl`, `platformfolders`
 - **Testing**: Catch2 3.x
 
@@ -86,6 +87,9 @@ cmake --build ./cmake-build-debug/ --target docs
 - **Naming**: `isched_` prefix for all library files; `PascalCase` for types, `camelCase` for members
 - **GraphQL-only transport**: no REST, no IPC, no scripting interfaces — all external access is via `/graphql`
 - C++ Core Guidelines enforced; `-Wall -Wextra -Wpedantic` enabled
+- For `src/ui/`: signal-first state, standalone components/directives/pipes, `@if/@for/@switch`, typed reactive forms, strict TS/template checks, and zoneless/`OnPush`-compatible patterns where feasible
+- Browser JWT handling must avoid persistent token storage (`localStorage`/`sessionStorage`/IndexedDB); prefer secure cookie-based flows
+- Local Angular development should use proxy routing for `/graphql` (HTTP + WS), not hard-coded backend origins
 
 ## Workflow Rules
 

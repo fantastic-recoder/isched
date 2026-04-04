@@ -33,6 +33,10 @@
 
 - [ ] GraphQL-only external interface preserved (`/graphql` HTTP/WebSocket only)
 - [ ] Language and build baseline preserved (C++23, Conan-managed dependencies, CMake + Ninja)
+- [ ] WebUI changes (if any) follow Angular standards: signal-first state, standalone APIs, `@if/@for/@switch`, typed reactive forms, strict TypeScript, and zoneless/`OnPush`-compatible patterns
+- [ ] Frontend API calls (if any) use GraphQL `/graphql` only; no REST endpoints or alternate transports introduced
+- [ ] Browser JWT handling (if any) avoids persistent token storage (`localStorage`/`sessionStorage`/IndexedDB) and documents secure cookie or equivalent controls
+- [ ] Local Angular development (if any) uses a proxy for `/graphql` (HTTP + WebSocket) with no hard-coded backend hostnames in client source
 - [ ] Test plan proves required coverage before each user story is marked complete
 - [ ] Security-sensitive changes include both feature-scoped and project-level threat-model updates
 

@@ -619,6 +619,33 @@ private:
                     }
                 }
             }
+        } else if (req_.method() == beast::http::verb::get &&
+                   req_.target() == "/graphql") {
+            // ── Embedded Angular admin UI on GET /graphql (T017a) ──────────────────
+            // Security headers applied to UI responses.
+            res.set("X-Content-Type-Options", "nosniff");
+            res.set("X-Frame-Options", "DENY");
+
+            const auto& registry = UiAssetRegistry::instance();
+            if (!registry.has_index_html()) {
+                // Build artefacts missing — Angular project not yet compiled.
+                res.result(beast::http::status::service_unavailable);
+                res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
+                res.body() = "Admin UI assets unavailable";
+            } else {
+                // Serve index.html (SPA fallback for all GET /graphql requests)
+                const auto idx_entry = registry.find("/index.html");
+                if (idx_entry) {
+                    res.set(beast::http::field::content_type, "text/html; charset=utf-8");
+                    res.body().assign(
+                        reinterpret_cast<const char*>(idx_entry->data.data()),
+                        idx_entry->data.size());
+                } else {
+                    res.result(beast::http::status::service_unavailable);
+                    res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
+                    res.body() = "Admin UI index.html not found";
+                }
+            }
         } else if (req_.method() == beast::http::verb::post &&
                    req_.target() == "/graphql") {
             auto body = nlohmann::json::parse(req_.body(), nullptr, /*exceptions=*/false);
@@ -643,7 +670,7 @@ private:
             }
         } else {
             res.result(beast::http::status::not_found);
-            res.body() = R"({"errors":[{"message":"Not found. Use POST /graphql"}]})";
+            res.body() = R"({"errors":[{"message":"Not found. Use GET /graphql for UI or POST /graphql for GraphQL"}]})";
         }
 
         const double elapsed_ms = std::chrono::duration<double, std::milli>(

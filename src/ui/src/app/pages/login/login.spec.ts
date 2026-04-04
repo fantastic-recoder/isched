@@ -15,7 +15,6 @@ describe('LoginComponent', () => {
   let router: Router;
 
   beforeEach(async () => {
-    sessionStorage.clear();
     await TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
@@ -31,7 +30,6 @@ describe('LoginComponent', () => {
 
   afterEach(() => {
     httpMock.verify();
-    sessionStorage.clear();
   });
 
   function createFixture() {
@@ -40,7 +38,7 @@ describe('LoginComponent', () => {
     return fixture;
   }
 
-  it('stores token in sessionStorage and navigates to /dashboard on success', (done) => {
+  it('bootstraps session and navigates to /dashboard on success', (done) => {
     const fixture = createFixture();
     const comp = fixture.componentInstance;
     const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -51,9 +49,9 @@ describe('LoginComponent', () => {
     httpMock.expectOne('/graphql').flush({
       data: { login: { token: 'tok_xyz', expiresAt: '2099-01-01T00:00:00Z' } },
     });
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
 
     Promise.resolve().then(() => {
-      expect(sessionStorage.getItem('isched_token')).toBe('tok_xyz');
       expect(navSpy).toHaveBeenCalledWith(['/dashboard']);
       done();
     });

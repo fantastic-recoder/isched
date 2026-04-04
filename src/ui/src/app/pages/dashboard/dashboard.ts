@@ -367,8 +367,14 @@ export class DashboardComponent implements OnInit {
 
   signOut(): void {
     if (!confirm('Sign out of isched?')) return;
-    this.auth.logout();
-    void this.router.navigate(['/login']);
+    this.auth.signOut().subscribe({
+      next: () => {
+        void this.router.navigate(['/login']);
+      },
+      error: () => {
+        void this.router.navigate(['/login']);
+      },
+    });
   }
 }
 

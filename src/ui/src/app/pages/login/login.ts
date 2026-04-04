@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { switchMap } from 'rxjs';
 import { GraphQLService } from '../../services/graphql.service';
 import { AuthService } from '../../services/auth.service';
 
@@ -107,10 +108,10 @@ export class LoginComponent {
          }`,
         { email, password },
       )
+      .pipe(switchMap(() => this.auth.bootstrapSession()))
       .subscribe({
-        next: (res) => {
+        next: () => {
           this.pending.set(false);
-          this.auth.setToken(res.login.token);
           void this.router.navigate(['/dashboard']);
         },
         error: (err: Error) => {

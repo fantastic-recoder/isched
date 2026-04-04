@@ -7,10 +7,21 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 To start a local development server, run:
 
 ```bash
-ng serve
+pnpm start
 ```
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+
+### GraphQL Proxy Rule (Required)
+
+- Frontend GraphQL calls must use the relative path `/graphql` only.
+- Do not hard-code backend origins in Angular services.
+- `pnpm start` runs `ng serve --proxy-config proxy.conf.json` so HTTP and WebSocket traffic on `/graphql` is proxied to local backend `:8080`.
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm start
+```
 
 ## Code scaffolding
 
