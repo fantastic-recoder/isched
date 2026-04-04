@@ -1,6 +1,6 @@
 # isched Development Guidelines
 
-Updated: 2026-04-04
+Updated: 2026-04-05
 
 ## Active Technologies
 
@@ -80,6 +80,23 @@ cmake --build ./cmake-build-debug/ --target isched_graphql_tests
 cmake --build ./cmake-build-debug/ --target docs
 ```
 
+### Monitor long-running scripts
+
+When redirecting output to a pipe and reading it with `tail`, use `tee` in between to enable real-time monitoring:
+
+```bash
+# ✓ Good: Monitor output while tailing
+./long_running_script.sh 2>&1 | tee build.log | tail -f
+
+# ✗ Poor: Output buffered, cannot monitor
+./long_running_script.sh > build.log 2>&1 | tail -f
+```
+
+This pattern allows you to:
+- View real-time output as the script runs
+- Preserve complete output in the log file
+- Switch between live monitoring and final results
+
 ## Code Style
 
 - **Ownership**: mandatory smart pointers (`std::unique_ptr`, `std::shared_ptr`), no raw `new`/`delete`
@@ -102,6 +119,7 @@ cmake --build ./cmake-build-debug/ --target docs
 - 001-universal-backend: Architecture pivoted to GraphQL-only HTTP/WebSocket, IPC/scripting removed
 - 001-universal-backend: Build commands documented from `configure.py`
 - 001-universal-backend: Commit-after-each-task rule added
+- Monitoring: Added `tee` pattern for real-time script output monitoring while preserving logs
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
