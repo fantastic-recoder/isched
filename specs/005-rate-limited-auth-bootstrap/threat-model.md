@@ -33,12 +33,11 @@ This feature updates authentication lockout signaling and startup/bootstrap rout
 - `pnpm run test:auth-bootstrap`: PASS
 - `pnpm test`: PASS (16 suites / 86 tests)
 - `pnpm run e2e:bootstrap`: PASS (3/3)
-- `pnpm run e2e:rate-limiting`: FAIL (4/4, login selector precondition failed)
-- `pnpm run e2e:auth-bootstrap`: FAIL (1/7, lockout alert selector expectation mismatch)
-- `pnpm e2e`: FAIL (1/7, same lockout alert selector expectation mismatch)
+- `pnpm run e2e:rate-limiting`: PASS (4/4)
+- `pnpm run e2e:auth-bootstrap`: PASS (7/7)
+- `pnpm e2e`: PASS (7/7)
 
 ## Residual Risks
 
-- Playwright lockout E2E currently has a deterministic regression in `src/ui/e2e/rate-limiting.spec.ts` first scenario, timing out on `.alert.alert-error` expectation while other lockout scenarios pass; closeout requires either selector alignment (`alert-warning` vs `alert-error`) or UI class normalization.
 - Guard revalidation correctness remains dependent on reliable and low-latency `currentUser` responses under degraded network conditions.
 

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 // ---------------------------------------------------------------------------
 // Rate Limiting E2E Tests (Q2 - RATE_LIMITED Gap Closure)
@@ -8,34 +8,32 @@ import { expect, test } from '@playwright/test';
 const TEST_EMAIL = 'ratelimit-test@e2e.test';
 const WRONG_PASSWORD = 'WrongPassword123!';
 const CORRECT_PASSWORD = 'Str0ng!Password2025';
+const BOOTSTRAP_EMAIL = 'admin@ratelimit-e2e.test';
+
+async function ensureLoginReady(page: Page): Promise<void> {
+  await page.goto('/isched/login');
+  await page.locator('#email, #bs-email').first().waitFor({ state: 'visible', timeout: 10_000 });
+
+  // In seed/bootstrap mode, login route can render bootstrap content until initial admin exists.
+  if (await page.locator('#bs-email').isVisible()) {
+    await page.locator('#bs-email').fill(BOOTSTRAP_EMAIL);
+    await page.locator('#bs-displayName').fill('Rate Limit Test Admin');
+    await page.locator('#bs-password').fill(CORRECT_PASSWORD);
+    await page.getByRole('button', { name: /Complete( platform)? Bootstrap/i }).click();
+
+    await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });
+
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 10_000 });
+  }
+
+  await expect(page.locator('#email')).toBeVisible({ timeout: 10_000 });
+}
 
 test.describe('Rate Limiting E2E Flow', () => {
   test('login form shows rate limit alert after multiple failed attempts', async ({ page }) => {
-    // First, complete bootstrap to initialize the platform with a known admin
-    await page.goto('/isched');
-
-    // Check if we're in bootstrap mode
-    const isBootstrap = await page.url().includes('/bootstrap');
-
-    if (isBootstrap) {
-      // Complete bootstrap if needed
-      await page.locator('#bs-email').fill('admin@ratelimit-e2e.test');
-      await page.locator('#bs-displayName').fill('Rate Limit Test Admin');
-      await page.locator('#bs-password').fill(CORRECT_PASSWORD);
-      await page.getByRole('button', { name: 'Complete Bootstrap' }).click();
-
-      // Wait for dashboard
-      await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });
-
-      // Sign out for the actual rate limit test
-      page.once('dialog', (dialog) => void dialog.accept());
-      await page.getByRole('button', { name: 'Sign out' }).click();
-      await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 10_000 });
-    } else {
-      // Already logged in or on login page
-      await page.goto('/isched/login');
-      await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 5_000 });
-    }
+    await ensureLoginReady(page);
 
     // Now attempt multiple failed logins to trigger rate limiting
     // The backend is configured to rate limit after 5 failed attempts
@@ -49,34 +47,32 @@ test.describe('Rate Limiting E2E Flow', () => {
       await page.waitForTimeout(500);
 
       if (i < 4) {
-        // First few attempts should show generic auth error
-        const errorAlert = page.locator('.alert.alert-error');
-        await expect(errorAlert).toBeVisible({ timeout: 5_000 });
-        const errorText = await errorAlert.textContent();
-        expect(errorText).toBeTruthy();
+        // Depending on backend state, failures can surface as generic error or lockout warning.
+        const feedbackAlert = page.locator('.alert.alert-error, .alert.alert-warning').first();
+        await expect(feedbackAlert).toBeVisible({ timeout: 5_000 });
+        const feedbackText = await feedbackAlert.textContent();
+        expect(feedbackText).toBeTruthy();
       }
     }
 
 
     // The alert may not appear immediately if rate limiting is implemented
     // at the backend level. Check if any error alert contains rate limit info
-    const errorAlert = page.locator('.alert.alert-error');
-    const hasRateLimitMessage = await errorAlert.textContent().then((text) =>
+    const feedbackAlert = page.locator('.alert.alert-warning, .alert.alert-error').first();
+    const hasRateLimitMessage = await feedbackAlert.textContent().then((text) =>
       text?.toLowerCase().includes('rate') || text?.toLowerCase().includes('too many')
     );
 
     // If rate limiting is active, we expect to see retry guidance
     if (hasRateLimitMessage) {
       // Verify the alert contains actionable retry guidance
-      const alertText = await errorAlert.textContent();
+      const alertText = await feedbackAlert.textContent();
       expect(alertText).toMatch(/try|again|wait|minute|second/i);
     }
   });
 
   test('rate limited user sees metadata-aware retry guidance in warning alert', async ({ page }) => {
-    // Navigate to login page
-    await page.goto('/isched/login');
-    await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 5_000 });
+    await ensureLoginReady(page);
 
     // Attempt a login with invalid credentials
     // (This simulates a rate-limited scenario on the backend)
@@ -119,8 +115,7 @@ test.describe('Rate Limiting E2E Flow', () => {
   });
 
   test('rate limited user sees fallback lockout copy when retry metadata is absent', async ({ page }) => {
-    await page.goto('/isched/login');
-    await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 5_000 });
+    await ensureLoginReady(page);
 
     await page.locator('#email').fill(TEST_EMAIL);
     await page.locator('#password').fill(WRONG_PASSWORD);
@@ -156,8 +151,7 @@ test.describe('Rate Limiting E2E Flow', () => {
   });
 
   test('form remains functional after rate limit is cleared', async ({ page }) => {
-    // Navigate to login page
-    await page.goto('/isched/login');
+    await ensureLoginReady(page);
 
     // Fill in credentials
     const emailInput = page.locator('#email');

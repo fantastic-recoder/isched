@@ -25,9 +25,10 @@ This document summarizes the security posture and recurring mitigations for Isch
   - Backend gate: `ctest --output-on-failure` PASS (39/39)
   - Focused frontend unit gates: PASS (`test:login-lockout`, `test:startup-routing`, `test:auth-bootstrap`, full `pnpm test`)
   - Focused bootstrap E2E: PASS (`pnpm run e2e:bootstrap`)
+  - Lockout/combined/full Playwright E2E gates: PASS (`pnpm run e2e:rate-limiting`, `pnpm run e2e:auth-bootstrap`, `pnpm e2e`)
 - **Open blocker**:
-  - `pnpm run e2e:rate-limiting` and `pnpm e2e` fail on one lockout scenario in `src/ui/e2e/rate-limiting.spec.ts` waiting for `.alert.alert-error`; observed behavior indicates selector/class mismatch in the assertion path, not an auth bypass.
-- **Risk posture**: No new critical auth/session exposure identified; remaining risk is release-confidence noise until the lockout E2E assertion is aligned.
+  - None for Feature 005 closeout gates after lockout selector/classification alignment and bootstrap/login precondition stabilization in `src/ui/e2e/rate-limiting.spec.ts`.
+- **Risk posture**: No new critical auth/session exposure identified from Feature 005 closeout validation; lockout E2E release-confidence blocker is resolved.
 
 ## Common Security Themes
 

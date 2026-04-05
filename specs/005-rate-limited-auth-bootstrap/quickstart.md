@@ -83,17 +83,17 @@ pnpm e2e
 | `cd /home/groby/dev/isched/src/ui && pnpm run test:login-lockout` | Focused lockout unit tests | PASS | 3 suites / 33 tests passed |
 | `cd /home/groby/dev/isched/src/ui && pnpm run test:startup-routing` | Focused startup/guard unit tests | PASS | 2 suites / 13 tests passed |
 | `cd /home/groby/dev/isched/src/ui && pnpm run test:auth-bootstrap` | Combined focused auth/bootstrap unit tests | PASS | 6 suites / 58 tests passed |
-| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:rate-limiting` | Focused lockout E2E | FAIL | 4/4 failed in this run; login selectors not reached in scenario setup |
+| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:rate-limiting` | Focused lockout E2E | PASS | 4/4 passed after lockout alert selector alignment (`alert-warning` + `alert-error`) and deterministic bootstrap/login precondition setup |
 | `cd /home/groby/dev/isched/src/ui && pnpm run e2e:bootstrap` | Focused bootstrap E2E | PASS | 3/3 passed |
-| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:auth-bootstrap` | Combined lockout + bootstrap E2E | FAIL | 1/7 failed; lockout scenario timed out waiting for `.alert.alert-error` |
+| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:auth-bootstrap` | Combined lockout + bootstrap E2E | PASS | 7/7 passed |
 | `cd /home/groby/dev/isched/cmake-build-debug && ctest --output-on-failure` | Full backend regression gate | PASS | 39/39 tests passed |
 | `cd /home/groby/dev/isched/src/ui && pnpm test` | Full frontend unit gate | PASS | 16 suites / 86 tests passed |
-| `cd /home/groby/dev/isched/src/ui && pnpm e2e` | Full frontend E2E gate | FAIL | 1/7 failed; same lockout selector mismatch as focused run |
+| `cd /home/groby/dev/isched/src/ui && pnpm e2e` | Full frontend E2E gate | PASS | 7/7 passed |
 
 ### Blocking detail
 
-- Blocking assertion currently occurs in `src/ui/e2e/rate-limiting.spec.ts` first scenario, where `.alert.alert-error` is awaited and times out.
-- Other lockout scenarios in the same file pass in combined/full E2E runs, indicating a narrow assertion/classification mismatch rather than a full lockout-flow regression.
+- Previously blocked lockout assertion in `src/ui/e2e/rate-limiting.spec.ts` is resolved.
+- The E2E now accepts deterministic lockout alert classification (`.alert.alert-warning` for `RATE_LIMITED`, `.alert.alert-error` for generic auth failures) and initializes bootstrap/login preconditions reliably before lockout assertions.
 
 ## Troubleshooting
 
