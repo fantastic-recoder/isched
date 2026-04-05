@@ -75,6 +75,9 @@
 - [X] T022 [P] [US1] Add embedded-serving integration tests for static assets + SPA fallback + bootstrap route availability in `src/test/cpp/integration/test_webui_embedded_serving.cpp`
 - [X] T023 [P] [US1] Add Playwright backend lifecycle harness with temporary `--data-dir` and `ISCHED_BUILD_DIR`-configurable binary path (FR-018, FR-018a) in `src/ui/e2e/global-setup.ts`
 - [X] T024 [P] [US1] Add Playwright bootstrap e2e flow covering form visibility, full bootstrap→auto-login→sign-out→login round-trip in `src/ui/e2e/bootstrap.spec.ts`
+- [X] T074 [P] [US1] Add post-bootstrap dashboard minimum-content e2e assertions for FR-020/SC-017 (health status badge + Organizations/Users/RBAC quicklinks) in `src/ui/e2e/bootstrap.spec.ts`
+- [X] T076 [P] [US1] Add dashboard minimum-content unit tests that trace FR-020 link targets and health-card rendering in `src/ui/src/app/pages/dashboard/dashboard.page.spec.ts`
+- [X] T077 [P] [US1] Add accessibility-focused tests for bootstrap/login keyboard-only navigation and required accessible labels for FR-021/SC-019 in `src/ui/src/app/pages/bootstrap/bootstrap.page.spec.ts` and `src/ui/src/app/pages/login/login.spec.ts`
 
 ### Implementation for User Story 1
 
@@ -83,6 +86,8 @@
 - [X] T027 [US1] Implement bootstrap route gating and initialized redirect behavior in `src/ui/src/app/app.routes.ts`
 - [X] T028 [US1] Implement `platformBootstrapStatus` and `completePlatformBootstrap` resolver logic in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
 - [X] T029 [US1] Implement bootstrap field/global error rendering for validation/auth/csrf/conflict states in `src/ui/src/app/pages/bootstrap/bootstrap.page.html`
+- [X] T075 [US1] Implement FR-020 dashboard minimum content (system health summary card + Organizations/Users/RBAC quicklinks) in `src/ui/src/app/pages/dashboard/dashboard.page.ts` and `src/ui/src/app/pages/dashboard/dashboard.page.html`
+- [X] T078 [US1] Implement FR-021 accessibility semantics for bootstrap/login interactive controls (programmatic labels, keyboard focus order, visible focus treatment) in `src/ui/src/app/pages/bootstrap/bootstrap.page.html` and `src/ui/src/app/pages/login/login.html`
 
 **Checkpoint**: Bootstrap is complete, one-time, and independently testable.
 
@@ -100,6 +105,7 @@
 - [ ] T031 [P] [US2] Add integration tests for org scope checks, per-org `loginId` uniqueness, and `CONFLICT` revisions in `src/test/cpp/integration/test_user_management.cpp`
 - [ ] T032 [P] [US2] Add server-side pagination/filter/sort validation tests for organizations/users in `src/test/cpp/integration/test_webui_server_side_paging.cpp`
 - [ ] T033 [P] [US2] Add Angular organizations/users page tests for typed forms and deterministic error surfacing in `src/ui/src/app/pages/admin/organization-users.page.spec.ts`
+- [X] T079 [P] [US2] Add FR-021/SC-019 accessibility tests for organization/user CRUD journeys (keyboard-only completion + accessible labels for interactive controls) in `src/ui/src/app/pages/admin/organizations.page.spec.ts` and `src/ui/src/app/pages/admin/users.page.spec.ts`
 
 ### Implementation for User Story 2
 
@@ -110,6 +116,7 @@
 - [ ] T038 [US2] Implement backend organization/user resolver authorization and scope enforcement in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
 - [ ] T039 [US2] Implement database behavior for user deactivation preserving role assignments and effectiveness transitions in `src/main/cpp/isched/backend/isched_DatabaseManager.cpp`
 - [ ] T040 [US2] Implement context-switch dirty-edit confirmation UX for user/org pages in `src/ui/src/app/pages/admin/users.page.html`
+- [X] T080 [US2] Implement FR-021 accessibility refinements for organization/user CRUD pages (labels, keyboard interaction, focus management) in `src/ui/src/app/pages/admin/organizations.page.html` and `src/ui/src/app/pages/admin/users.page.html`
 
 **Checkpoint**: Organization and user administration works independently with strict scope and concurrency behavior.
 
@@ -127,6 +134,7 @@
 - [ ] T042 [P] [US3] Add integration tests for RBAC scope denial, built-in immutability, and disabled-user effective assignment rules in `src/test/cpp/integration/test_webui_rbac_scope.cpp`
 - [ ] T043 [P] [US3] Add server-side pagination/filter/sort validation tests for roles/assignments in `src/test/cpp/integration/test_webui_rbac_paging.cpp`
 - [ ] T044 [P] [US3] Add Angular RBAC page tests for role forms and error-code surfacing in `src/ui/src/app/pages/admin/rbac.page.spec.ts`
+- [X] T081 [P] [US3] Add FR-021/SC-019 accessibility tests for RBAC create/edit/assign flows (keyboard-only path + screen-reader labels) in `src/ui/src/app/pages/admin/rbac.page.spec.ts`
 
 ### Implementation for User Story 3
 
@@ -135,6 +143,7 @@
 - [ ] T047 [US3] Implement backend role and assignment resolver checks for scope, revision, and built-in immutability in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
 - [ ] T048 [US3] Implement role-assignment persistence and effective-permission behavior in `src/main/cpp/isched/backend/isched_DatabaseManager.cpp`
 - [ ] T049 [US3] Implement RBAC error surfacing for `FORBIDDEN`/`CONFLICT`/`CSRF_FAILED`/`CONTEXT_MISMATCH` in `src/ui/src/app/pages/admin/rbac.page.html`
+- [X] T082 [US3] Implement FR-021 accessibility refinements for RBAC management interactions in `src/ui/src/app/pages/admin/rbac.page.html`
 
 **Checkpoint**: RBAC story is independently testable and scope-safe.
 
@@ -159,7 +168,7 @@
 - [X] T055 [US4] Update WebUI local development instructions and proxy verification steps in `specs/004-add-isched-webui/quickstart.md`
 - [X] T056 [US4] Update frontend developer guide for proxy-based GraphQL-only workflow in `src/ui/README.md`
 
-**Checkpoint**: Local workflow is independently executable and verified.
+**Checkpoint**: Local workflow implementation is in place; verification remains open until T050 and T051 are complete.
 
 ---
 
@@ -179,6 +188,8 @@
 - [ ] T065 Capture SC-015 availability and RTO<=60 recovery drill procedure/evidence in `docs/operations/isched-webui-recovery.md`
 - [ ] T066 Run full verification suite and record command outputs and pass criteria in `specs/004-add-isched-webui/quickstart.md`
 - [X] T073 Capture focused validation evidence for startup Admin UI log contract, embedded-route `404`/SPA split, security headers, `ETag`/`304`, and rate-limit config chain precedence in `specs/004-add-isched-webui/evidence/`
+- [ ] T083 Add FR-021/SC-019 WCAG 2.1 AA verification trace (keyboard-only journeys + interactive-control labeling evidence) in `specs/004-add-isched-webui/evidence/sc019-accessibility.md`
+- [ ] T084 Add FR-020/SC-017 dashboard minimum-content verification trace (health badge + admin quicklinks) in `specs/004-add-isched-webui/evidence/sc017-dashboard-minimum-content.md`
 
 ---
 
@@ -217,17 +228,17 @@
 
 ```bash
 # Parallel test tasks
-T019 T020 T021 T022 T023 T024
+T019 T020 T021 T022 T023 T024 T074 T076 T077
 
 # Parallel implementation tasks after tests are in place
-T025 T026
+T025 T026 T075
 ```
 
 ### US2
 
 ```bash
 # Parallel test tasks
-T030 T031 T032 T033
+T030 T031 T032 T033 T079
 
 # Parallel implementation tasks
 T034 T035 T036 T037
@@ -237,7 +248,7 @@ T034 T035 T036 T037
 
 ```bash
 # Parallel test tasks
-T041 T042 T043 T044
+T041 T042 T043 T044 T081
 
 # Parallel implementation tasks
 T045 T046
@@ -260,7 +271,7 @@ T055 T056
 ### MVP First (US1)
 
 1. Complete Phase 1 and Phase 2.
-2. Complete US1 tasks (T019-T029).
+2. Complete US1 tasks (T019-T029, T074-T078).
 3. Validate US1 independent test criteria in isolated `--data-dir` environment.
 4. Demo/release MVP bootstrap path.
 

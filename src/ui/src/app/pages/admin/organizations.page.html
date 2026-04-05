@@ -1,12 +1,88 @@
-<section class="p-6">
-  <h1 class="text-2xl font-semibold">Organizations</h1>
+<section class="p-6 space-y-4">
+  <h1 id="organizations-heading" class="text-2xl font-semibold">Organizations</h1>
+
   @if (error()) {
-    <div class="alert alert-error mt-3">{{ error() }}</div>
+    <div class="alert alert-error" role="alert" aria-live="polite">{{ error() }}</div>
   }
-  <ul class="menu bg-base-100 rounded-box mt-4">
+
+  @if (statusMessage()) {
+    <div
+      #statusAlert
+      id="organizations-status"
+      class="alert alert-success focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      role="status"
+      aria-live="polite"
+      tabindex="-1"
+    >
+      {{ statusMessage() }}
+    </div>
+  }
+
+  <form
+    id="org-create-form"
+    class="card bg-base-100 border border-base-300 p-4 gap-3 max-w-xl"
+    [formGroup]="createForm"
+    (ngSubmit)="createOrganization()"
+    aria-label="Create organization form"
+  >
+    <label class="form-control" for="org-name-input">
+      <span class="label-text">Organization Name</span>
+      <input
+        id="org-name-input"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="text"
+        formControlName="name"
+        aria-required="true"
+        aria-describedby="org-name-help"
+        autocomplete="organization"
+      />
+    </label>
+    <p id="org-name-help" class="text-xs text-base-content/70">
+      Create a new organization before adding scoped users and role assignments.
+    </p>
+    <button
+      id="org-create-submit"
+      class="btn btn-primary w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      type="submit"
+      aria-label="Create organization"
+      [disabled]="createForm.invalid"
+    >
+      Create Organization
+    </button>
+  </form>
+
+  <ul id="organizations-list" class="menu bg-base-100 rounded-box" aria-label="Organization list">
     @for (org of organizations(); track org.id) {
-      <li>{{ org.name }} ({{ org.status }})</li>
+      <li class="border-b border-base-200 last:border-b-0 py-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span class="font-medium">{{ org.name }}</span>
+            <span class="badge badge-outline ml-2" [attr.aria-label]="'Organization status ' + org.status">{{ org.status }}</span>
+          </div>
+          <div class="flex gap-2">
+            <button
+              class="btn btn-sm btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              [id]="'org-edit-' + org.id"
+              type="button"
+              [attr.aria-label]="'Edit organization ' + org.name"
+              (click)="editOrganization(org.id)"
+              (keydown)="onEditKeydown($event, org.id)"
+            >
+              Edit
+            </button>
+            <button
+              class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              [id]="'org-toggle-' + org.id"
+              type="button"
+              [attr.aria-label]="(org.status === 'ACTIVE' ? 'Deactivate organization ' : 'Reactivate organization ') + org.name"
+              (click)="toggleOrganizationStatus(org.id)"
+              (keydown)="onToggleKeydown($event, org.id)"
+            >
+              {{ org.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate' }}
+            </button>
+          </div>
+        </div>
+      </li>
     }
   </ul>
 </section>
-

@@ -131,6 +131,52 @@ describe('BootstrapPage', () => {
     expect(btn?.disabled).toBe(true);
   });
 
+  it('exposes required accessible labels and semantics for bootstrap controls', () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const form = root.querySelector('form');
+    const email = root.querySelector<HTMLInputElement>('#bs-email');
+    const displayName = root.querySelector<HTMLInputElement>('#bs-displayName');
+    const password = root.querySelector<HTMLInputElement>('#bs-password');
+    const toggle = root.querySelector<HTMLButtonElement>('#bs-password-toggle');
+    const submit = root.querySelector<HTMLButtonElement>('#bs-submit');
+
+    expect(form?.getAttribute('aria-label')).toBe('Platform bootstrap form');
+    expect(root.querySelector('label[for="bs-email"]')?.textContent).toContain('Email');
+    expect(root.querySelector('label[for="bs-displayName"]')?.textContent).toContain('Display Name');
+    expect(root.querySelector('label[for="bs-password"]')?.textContent).toContain('Password');
+    expect(email?.getAttribute('aria-required')).toBe('true');
+    expect(displayName?.getAttribute('aria-required')).toBe('true');
+    expect(password?.getAttribute('aria-required')).toBe('true');
+    expect(email?.getAttribute('aria-describedby')).toContain('bs-email-help');
+    expect(displayName?.getAttribute('aria-describedby')).toContain('bs-displayName-help');
+    expect(password?.getAttribute('aria-describedby')).toContain('bs-password-help');
+    expect(toggle?.getAttribute('aria-label')).toBe('Show password');
+    expect(submit?.getAttribute('aria-label')).toBe('Complete platform bootstrap');
+    expect(submit?.className).toContain('focus-visible:outline');
+  });
+
+  it('keeps keyboard focus order in a linear top-down sequence', () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>('#bs-email, #bs-displayName, #bs-password, #bs-password-toggle, #bs-submit'),
+    );
+
+    expect(focusables.map((el) => el.id)).toEqual([
+      'bs-email',
+      'bs-displayName',
+      'bs-password',
+      'bs-password-toggle',
+      'bs-submit',
+    ]);
+    expect(focusables.every((el) => el.tabIndex >= 0)).toBe(true);
+  });
+
   it('maps GraphQL validation field errors onto typed form controls', async () => {
     const fixture = TestBed.createComponent(BootstrapPage);
     const comp = fixture.componentInstance;

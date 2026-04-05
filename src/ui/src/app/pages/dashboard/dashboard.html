@@ -7,17 +7,9 @@
         <span class="text-sm text-base-content/50 ml-2">v{{ version() }}</span>
       }
       @if (health()) {
-        @switch (health()) {
-          @case ('UP') {
-            <span class="badge badge-success badge-sm ml-3">Healthy</span>
-          }
-          @case ('DOWN') {
-            <span class="badge badge-error badge-sm ml-3">Down</span>
-          }
-          @default {
-            <span class="badge badge-warning badge-sm ml-3">{{ health() }}</span>
-          }
-        }
+        <span class="badge badge-sm ml-3" [class]="'badge badge-sm ml-3 ' + healthBadgeClass()">
+          {{ healthBadgeLabel() }}
+        </span>
       }
     </div>
     <div class="flex-none">
@@ -26,6 +18,38 @@
   </div>
 
   <main class="container mx-auto p-6">
+    <section class="grid gap-4 mb-6 md:grid-cols-2">
+      <article class="card bg-base-100 shadow" data-testid="dashboard-health-card">
+        <div class="card-body">
+          <h2 class="card-title">System Health</h2>
+          <p class="text-sm text-base-content/70">Current backend status from the GraphQL health probe.</p>
+          <div>
+            <span
+              class="badge badge-md"
+              [class]="'badge badge-md ' + healthBadgeClass()"
+              data-testid="dashboard-health-badge"
+            >
+              {{ healthBadgeLabel() }}
+            </span>
+          </div>
+        </div>
+      </article>
+
+      <article class="card bg-base-100 shadow" data-testid="dashboard-quicklinks-card">
+        <div class="card-body">
+          <h2 class="card-title">Administration</h2>
+          <p class="text-sm text-base-content/70">Quick links to core management surfaces.</p>
+          <div class="flex flex-wrap gap-2">
+            <a class="btn btn-outline btn-sm" routerLink="/admin/organizations" data-testid="quicklink-organizations">
+              Organizations
+            </a>
+            <a class="btn btn-outline btn-sm" routerLink="/admin/users" data-testid="quicklink-users">Users</a>
+            <a class="btn btn-outline btn-sm" routerLink="/admin/rbac" data-testid="quicklink-rbac">RBAC</a>
+          </div>
+        </div>
+      </article>
+    </section>
+
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">Organizations</h1>
       <button class="btn btn-primary btn-sm" onclick="create_org_modal.showModal()">

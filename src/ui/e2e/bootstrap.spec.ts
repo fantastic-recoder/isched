@@ -10,6 +10,22 @@ const ADMIN_DISPLAY_NAME = 'E2E Admin';
 const ADMIN_PASSWORD = 'Str0ng!Password2025'; // ≥ 12 chars, satisfies validator
 const BOOTSTRAP_BANNER_TEXT = 'Bootstrap mode active';
 
+const assertDashboardMinimumContent = async (page: import('@playwright/test').Page) => {
+  await expect(page.locator('[data-testid="dashboard-health-badge"]')).toContainText('Healthy');
+
+  const organizationsLink = page.locator('[data-testid="quicklink-organizations"]');
+  const usersLink = page.locator('[data-testid="quicklink-users"]');
+  const rbacLink = page.locator('[data-testid="quicklink-rbac"]');
+
+  await expect(organizationsLink).toBeVisible();
+  await expect(usersLink).toBeVisible();
+  await expect(rbacLink).toBeVisible();
+
+  await expect(organizationsLink).toHaveAttribute('href', /\/admin\/organizations$/);
+  await expect(usersLink).toHaveAttribute('href', /\/admin\/users$/);
+  await expect(rbacLink).toHaveAttribute('href', /\/admin\/rbac$/);
+};
+
 // ---------------------------------------------------------------------------
 // Test 1 — UI shape check (no state mutation)
 // ---------------------------------------------------------------------------
@@ -56,6 +72,7 @@ test('complete bootstrap, auto-login, sign out, and log back in', async ({ page 
   await expect(page.getByText('isched', { exact: false })).toBeVisible();
   // Bootstrap mode should be off after successful completion.
   await expect(page.getByText(BOOTSTRAP_BANNER_TEXT)).toHaveCount(0);
+  await assertDashboardMinimumContent(page);
 
   // ── Step 4: sign out ───────────────────────────────────────────────────
   // The sign-out button triggers a browser confirm() dialog — accept it.
@@ -75,4 +92,5 @@ test('complete bootstrap, auto-login, sign out, and log back in', async ({ page 
   await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });
   await expect(page.getByText('isched', { exact: false })).toBeVisible();
   await expect(page.getByText(BOOTSTRAP_BANNER_TEXT)).toHaveCount(0);
+  await assertDashboardMinimumContent(page);
 });

@@ -1,30 +1,122 @@
 <section class="p-6 space-y-4">
-  <h1 class="text-2xl font-semibold">Users</h1>
+  <h1 id="users-heading" class="text-2xl font-semibold">Users</h1>
 
   @if (warning()) {
-    <div class="alert alert-warning">{{ warning() }}</div>
+    <div
+      #warningAlert
+      id="users-warning"
+      class="alert alert-warning focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      role="alert"
+      aria-live="polite"
+      tabindex="-1"
+    >
+      {{ warning() }}
+    </div>
+  }
+
+  @if (statusMessage()) {
+    <div
+      #statusAlert
+      id="users-status"
+      class="alert alert-success focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      role="status"
+      aria-live="polite"
+      tabindex="-1"
+    >
+      {{ statusMessage() }}
+    </div>
   }
 
   <div class="form-control max-w-sm">
-    <span class="label-text">Organization</span>
-    <select class="select select-bordered" (change)="onOrgChange($any($event.target).value)">
+    <label class="label" for="user-org-select">
+      <span class="label-text">Organization</span>
+    </label>
+    <select
+      id="user-org-select"
+      class="select select-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      aria-label="Select organization context"
+      aria-describedby="user-org-help"
+      (change)="onOrgChange($any($event.target).value)"
+    >
       <option value="org-a">Org A</option>
       <option value="org-b">Org B</option>
     </select>
+    <p id="user-org-help" class="text-xs text-base-content/70 mt-1">
+      Switch context before creating or editing users.
+    </p>
   </div>
 
-  <form [formGroup]="form" class="space-y-2" (ngSubmit)="markSaved()">
-    <label class="form-control">
+  <form
+    id="users-form"
+    [formGroup]="form"
+    class="card bg-base-100 border border-base-300 p-4 gap-3 max-w-xl"
+    (ngSubmit)="markSaved()"
+    aria-label="Organization user form"
+  >
+    <label class="form-control" for="users-loginId">
       <span class="label-text">Login ID</span>
-      <input class="input input-bordered" formControlName="loginId" (input)="markDirty()" />
+      <input
+        #loginIdInput
+        id="users-loginId"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="loginId"
+        aria-required="true"
+        aria-describedby="users-loginId-help"
+        (input)="markDirty()"
+      />
     </label>
+    <p id="users-loginId-help" class="text-xs text-base-content/70">
+      Login ID must be unique within the selected organization.
+    </p>
 
-    <label class="form-control">
+    <label class="form-control" for="users-displayName">
       <span class="label-text">Display Name</span>
-      <input class="input input-bordered" formControlName="displayName" (input)="markDirty()" />
+      <input
+        id="users-displayName"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="displayName"
+        aria-required="true"
+        aria-describedby="users-displayName-help"
+        (input)="markDirty()"
+      />
     </label>
+    <p id="users-displayName-help" class="text-xs text-base-content/70">
+      Display name appears in audit logs and membership views.
+    </p>
 
-    <button class="btn btn-primary" [disabled]="form.invalid" type="submit">Save</button>
+    <div class="flex flex-wrap gap-2 pt-1">
+      <button
+        id="users-save-submit"
+        class="btn btn-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        [disabled]="form.invalid"
+        type="submit"
+        aria-label="Save user changes"
+      >
+        Save
+      </button>
+      <button
+        id="users-deactivate"
+        class="btn btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        [disabled]="!userActive()"
+        aria-label="Deactivate selected user"
+        (click)="deactivateSelectedUser()"
+        (keydown)="onDeactivateKeydown($event)"
+      >
+        Deactivate
+      </button>
+      <button
+        id="users-reactivate"
+        class="btn btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        [disabled]="userActive()"
+        aria-label="Reactivate selected user"
+        (click)="reactivateSelectedUser()"
+        (keydown)="onReactivateKeydown($event)"
+      >
+        Reactivate
+      </button>
+    </div>
   </form>
 </section>
 

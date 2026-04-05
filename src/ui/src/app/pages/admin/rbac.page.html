@@ -1,25 +1,159 @@
 <section class="p-6 space-y-4">
-  <h1 class="text-2xl font-semibold">RBAC</h1>
+  <h1 id="rbac-heading" class="text-2xl font-semibold">RBAC</h1>
 
   @if (globalError()) {
-    <div class="alert alert-error">{{ globalError() }}</div>
+    <div class="alert alert-error" role="alert" aria-live="polite">{{ globalError() }}</div>
+  }
+
+  @if (statusMessage()) {
+    <div
+      #statusAlert
+      id="rbac-status"
+      class="alert alert-success focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      role="status"
+      aria-live="polite"
+      tabindex="-1"
+    >
+      {{ statusMessage() }}
+    </div>
   }
 
   <h2 class="text-lg font-medium">Roles</h2>
-  <ul class="menu bg-base-100 rounded-box">
+  <ul id="rbac-role-list" class="menu bg-base-100 rounded-box" aria-label="Role list">
     @for (role of roles(); track role.id) {
-      <li>{{ role.name }} ({{ role.scope }})</li>
+      <li class="border-b border-base-200 last:border-b-0 py-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span class="font-medium">{{ role.name }}</span>
+            <span class="badge badge-outline ml-2" [attr.aria-label]="'Role scope ' + role.scope">{{ role.scope }}</span>
+          </div>
+          <div class="flex gap-2">
+            <button
+              class="btn btn-sm btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              [id]="'rbac-edit-' + role.id"
+              type="button"
+              [attr.aria-label]="'Edit role ' + role.name"
+              (click)="beginEditRole(role.id)"
+              (keydown)="onEditKeydown($event, role.id)"
+            >
+              Edit
+            </button>
+            <button
+              class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+              [id]="'rbac-select-assign-' + role.id"
+              type="button"
+              [attr.aria-label]="'Assign role ' + role.name"
+              (click)="prepareAssignRole(role.id)"
+              (keydown)="onAssignKeydown($event, role.id)"
+            >
+              Assign
+            </button>
+          </div>
+        </div>
+      </li>
     }
   </ul>
 
-  <h2 class="text-lg font-medium">Create Custom Role</h2>
-  <form [formGroup]="createRoleForm" class="space-y-2">
-    <input class="input input-bordered w-full" formControlName="id" placeholder="role_ops" />
-    <input class="input input-bordered w-full" formControlName="name" placeholder="Operations" />
-    <select class="select select-bordered w-full" formControlName="scope">
-      <option value="tenant">Tenant</option>
-      <option value="platform">Platform</option>
-    </select>
+  <h2 class="text-lg font-medium">Create or Edit Custom Role</h2>
+  <form
+    id="rbac-role-form"
+    [formGroup]="createRoleForm"
+    class="card bg-base-100 border border-base-300 p-4 gap-3 max-w-xl"
+    (ngSubmit)="submitRoleForm()"
+    aria-label="Create or edit custom role form"
+  >
+    <label class="form-control" for="rbac-role-id-input">
+      <span class="label-text">Role ID</span>
+      <input
+        id="rbac-role-id-input"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="id"
+        aria-required="true"
+        aria-describedby="rbac-role-id-help"
+      />
+    </label>
+    <p id="rbac-role-id-help" class="text-xs text-base-content/70">Use a stable identifier such as role_ops.</p>
+
+    <label class="form-control" for="rbac-role-name-input">
+      <span class="label-text">Role Name</span>
+      <input
+        id="rbac-role-name-input"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="name"
+        aria-required="true"
+        aria-describedby="rbac-role-name-help"
+      />
+    </label>
+    <p id="rbac-role-name-help" class="text-xs text-base-content/70">Role name is announced in assignment controls.</p>
+
+    <label class="form-control" for="rbac-role-scope-select">
+      <span class="label-text">Scope</span>
+      <select
+        id="rbac-role-scope-select"
+        class="select select-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="scope"
+        aria-label="Select role scope"
+      >
+        <option value="tenant">Tenant</option>
+        <option value="platform">Platform</option>
+      </select>
+    </label>
+
+    <button
+      id="rbac-role-submit"
+      class="btn btn-primary w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      type="submit"
+      [attr.aria-label]="editingRoleId() ? 'Save role changes' : 'Create custom role'"
+      [disabled]="createRoleForm.invalid"
+    >
+      {{ editingRoleId() ? 'Save Role Changes' : 'Create Custom Role' }}
+    </button>
+  </form>
+
+  <h2 class="text-lg font-medium">Assign Role</h2>
+  <form
+    id="rbac-assign-form"
+    [formGroup]="assignmentForm"
+    class="card bg-base-100 border border-base-300 p-4 gap-3 max-w-xl"
+    (ngSubmit)="assignRole()"
+    aria-label="Assign role form"
+  >
+    <label class="form-control" for="rbac-assign-user-input">
+      <span class="label-text">User ID</span>
+      <input
+        #assignUserInput
+        id="rbac-assign-user-input"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="userId"
+        aria-required="true"
+        aria-describedby="rbac-assign-user-help"
+      />
+    </label>
+    <p id="rbac-assign-user-help" class="text-xs text-base-content/70">Provide the target user identifier in the selected organization.</p>
+
+    <label class="form-control" for="rbac-assign-role-select">
+      <span class="label-text">Role</span>
+      <select
+        id="rbac-assign-role-select"
+        class="select select-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        formControlName="roleId"
+        aria-label="Choose role to assign"
+      >
+        @for (role of roles(); track role.id) {
+          <option [value]="role.id">{{ role.name }}</option>
+        }
+      </select>
+    </label>
+
+    <button
+      id="rbac-assign-submit"
+      class="btn btn-secondary w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      type="submit"
+      aria-label="Assign selected role"
+      [disabled]="assignmentForm.invalid"
+    >
+      Assign Role
+    </button>
   </form>
 </section>
 
