@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, Router } from '@angular/router';
 import { BootstrapPage } from './bootstrap.page';
+import { SessionBootstrapStateService } from '../../services/session-bootstrap-state.service';
 
 /** Flush microtask queue so chained observables propagate. */
 const flushMicrotasks = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -10,6 +11,7 @@ const flushMicrotasks = () => new Promise<void>((r) => setTimeout(r, 0));
 describe('BootstrapPage', () => {
   let httpMock: HttpTestingController;
   let router: Router;
+  let sessionBootstrapState: SessionBootstrapStateService;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -26,6 +28,7 @@ describe('BootstrapPage', () => {
 
     httpMock = TestBed.inject(HttpTestingController);
     router = TestBed.inject(Router);
+    sessionBootstrapState = TestBed.inject(SessionBootstrapStateService);
   });
 
   afterEach(() => {
@@ -92,7 +95,98 @@ describe('BootstrapPage', () => {
     );
     await flushMicrotasks();
 
-    expect(navSpy).toHaveBeenCalledWith(['/login']);
+    expect(navSpy).toHaveBeenCalledWith([
+      '/login',
+    ], {
+      queryParams: {
+        notice: 'bootstrap-recovery',
+        email: 'admin@example.com',
+      },
+      replaceUrl: true,
+    });
+
+    fixture.detectChanges();
+    expect(comp.recoveryNotice()?.title).toBe('Automatic sign-in did not finish');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="bootstrap-recovery-notice"]')?.textContent)
+      .toContain('Bootstrap completed successfully. Sign in with the administrator credentials you just created to continue.');
+  });
+
+  it('suppresses duplicate bootstrap submits while completion is already in flight', () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    comp.form.setValue({
+      email: 'admin@example.com',
+      displayName: 'Admin',
+      password: 'LongEnoughPassword123',
+    });
+
+    comp.submit();
+    comp.submit();
+
+    const bootstrapRequest = httpMock.expectOne('/graphql');
+    expect(bootstrapRequest.request.body.query).toContain('bootstrapPlatformAdmin');
+    httpMock.expectNone('/graphql');
+  });
+
+  it('redirects to login with a bootstrap-unavailable notice when availability is already known to be false', () => {
+    sessionBootstrapState.markBootstrapAvailability(false, 'GuardProbe');
+
+    const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(BootstrapPage);
+    fixture.detectChanges();
+
+    expect(navSpy).toHaveBeenCalledWith([
+      '/login',
+    ], {
+      queryParams: { notice: 'bootstrap-unavailable' },
+      replaceUrl: true,
+    });
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="bootstrap-unavailable-notice"]')?.textContent)
+      .toContain('Bootstrap is no longer available. Sign in with an existing platform administrator account to continue.');
+  });
+
+  it('redirects to login with a bootstrap-unavailable notice when completion becomes unavailable during submit', async () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    fixture.detectChanges();
+
+    comp.form.setValue({
+      email: 'admin@example.com',
+      displayName: 'Admin',
+      password: 'LongEnoughPassword123',
+    });
+    comp.submit();
+
+    httpMock.expectOne('/graphql').flush(
+      {
+        errors: [
+          {
+            message: 'Bootstrap is no longer available',
+            extensions: {
+              code: 'CONFLICT',
+            },
+          },
+        ],
+      },
+      { status: 200, statusText: 'OK' },
+    );
+    await flushMicrotasks();
+
+    expect(navSpy).toHaveBeenCalledWith([
+      '/login',
+    ], {
+      queryParams: { notice: 'bootstrap-unavailable' },
+      replaceUrl: true,
+    });
+
+    fixture.detectChanges();
+    expect(comp.bootstrapUnavailableNotice()?.category).toBe('BootstrapUnavailable');
+    expect((fixture.nativeElement as HTMLElement).querySelector('[data-testid="bootstrap-unavailable-notice"]')?.textContent)
+      .toContain('Bootstrap already completed');
   });
 
   it('password toggle switches input type', () => {
@@ -216,6 +310,7 @@ describe('BootstrapPage', () => {
   it('surfaces non-validation GraphQL errors as global alerts without mutating field errors', async () => {
     const fixture = TestBed.createComponent(BootstrapPage);
     const comp = fixture.componentInstance;
+    const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
     fixture.detectChanges();
 
     comp.form.setValue({
@@ -240,7 +335,14 @@ describe('BootstrapPage', () => {
     );
     await flushMicrotasks();
 
-    expect(comp.globalError()).toBe('Bootstrap is no longer available.');
+    expect(navSpy).toHaveBeenCalledWith([
+      '/login',
+    ], {
+      queryParams: { notice: 'bootstrap-unavailable' },
+      replaceUrl: true,
+    });
+    expect(comp.globalError()).toBeNull();
+    expect(comp.bootstrapUnavailableNotice()?.title).toBe('Bootstrap already completed');
     expect(comp.email.errors?.['server']).toBeUndefined();
     expect(comp.password.errors?.['server']).toBeUndefined();
   });

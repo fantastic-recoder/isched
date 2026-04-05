@@ -41,7 +41,48 @@ test('bootstrap form is visible in seed mode', async ({ page }) => {
   // Use ID to avoid matching the adjacent "Show password" aria-label button.
   await expect(page.locator('#bs-password')).toBeVisible();
 
-  await expect(page.getByRole('button', { name: 'Complete Bootstrap' })).toBeVisible();
+  await expect(page.locator('#bs-submit')).toBeVisible();
+});
+
+test('redirects to sign-in with a bootstrap-unavailable notice when bootstrap completion becomes unavailable', async ({ page }) => {
+  await page.route('**/graphql', (route) => {
+    const payload = route.request().postDataJSON() as { query?: string } | null;
+    const query = payload?.query ?? '';
+
+    if (query.includes('bootstrapPlatformAdmin(')) {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          errors: [
+            {
+              message: 'Bootstrap is no longer available',
+              extensions: {
+                code: 'CONFLICT',
+              },
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
+    route.continue();
+  });
+
+  await page.goto('/isched');
+  await expect(page).toHaveURL(/\/isched\/bootstrap(?:$|\?)/, { timeout: 10_000 });
+
+  await page.locator('#bs-email').fill(ADMIN_EMAIL);
+  await page.locator('#bs-displayName').fill(ADMIN_DISPLAY_NAME);
+  await page.locator('#bs-password').fill(ADMIN_PASSWORD);
+  await page.locator('#bs-submit').click();
+
+  await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 10_000 });
+  const loginAlert = page.locator('[data-testid="login-alert"]');
+  await expect(loginAlert).toBeVisible();
+  await expect(loginAlert).toContainText('Bootstrap already completed');
+  await expect(loginAlert).toContainText('existing platform administrator account');
 });
 
 // ---------------------------------------------------------------------------
@@ -63,7 +104,7 @@ test('complete bootstrap, auto-login, sign out, and log back in', async ({ page 
   await page.locator('#bs-displayName').fill(ADMIN_DISPLAY_NAME);
   await page.locator('#bs-password').fill(ADMIN_PASSWORD);
 
-  await page.getByRole('button', { name: 'Complete Bootstrap' }).click();
+  await page.locator('#bs-submit').click();
 
   // ── Step 3: after successful bootstrap the page auto-logs in and navigates
   //           to the dashboard ─────────────────────────────────────────────
@@ -86,7 +127,7 @@ test('complete bootstrap, auto-login, sign out, and log back in', async ({ page 
   // ── Step 5: log back in with the credentials created during bootstrap ──
   await page.locator('#email').fill(ADMIN_EMAIL);
   await page.locator('#password').fill(ADMIN_PASSWORD);
-  await page.getByRole('button', { name: 'Sign In' }).click();
+  await page.locator('#login-submit').click();
 
   // Should arrive at the dashboard again.
   await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });

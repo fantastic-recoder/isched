@@ -4,6 +4,24 @@
       <h1 class="card-title text-2xl">Initialize Platform</h1>
       <p class="text-sm text-base-content/70 mb-4">Complete one-time bootstrap for the first platform admin.</p>
 
+      @if (bootstrapUnavailableNotice()) {
+        <div class="alert alert-info mb-4" role="alert" aria-live="polite" data-testid="bootstrap-unavailable-notice">
+          <div>
+            <p class="font-semibold">{{ bootstrapUnavailableNotice()!.title }}</p>
+            <p>{{ bootstrapUnavailableNotice()!.body }}</p>
+          </div>
+        </div>
+      }
+
+      @if (recoveryNotice()) {
+        <div class="alert alert-info mb-4" role="alert" aria-live="polite" data-testid="bootstrap-recovery-notice">
+          <div>
+            <p class="font-semibold">{{ recoveryNotice()!.title }}</p>
+            <p>{{ recoveryNotice()!.body }}</p>
+          </div>
+        </div>
+      }
+
       @if (globalError()) {
         <div class="alert alert-error mb-4" role="alert">{{ globalError() }}</div>
       }

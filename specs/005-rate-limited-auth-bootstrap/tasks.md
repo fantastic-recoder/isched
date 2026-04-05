@@ -90,18 +90,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Add bootstrap completion success/failure transition tests in `src/ui/src/app/pages/bootstrap/bootstrap.page.spec.ts`
-- [ ] T027 [P] [US3] Add duplicate-submit single-flight tests for sign-in interactions in `src/ui/src/app/pages/login/login.spec.ts`
-- [ ] T028 [P] [US3] Add E2E coverage for bootstrap handoff and bootstrap-unavailable redirect notice in `src/ui/e2e/bootstrap.spec.ts`
-- [ ] T029 [P] [US3] Add backend bootstrap-unavailable behavior regression checks in `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`
+- [X] T026 [P] [US3] Add bootstrap completion success/failure transition tests in `src/ui/src/app/pages/bootstrap/bootstrap.page.spec.ts`
+- [X] T027 [P] [US3] Add duplicate-submit single-flight tests for sign-in interactions in `src/ui/src/app/pages/login/login.spec.ts`
+- [X] T028 [P] [US3] Add E2E coverage for bootstrap handoff and bootstrap-unavailable redirect notice in `src/ui/e2e/bootstrap.spec.ts`
+- [X] T029 [P] [US3] Add backend bootstrap-unavailable behavior regression checks in `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Implement single-flight suppression for repeated sign-in submissions in `src/ui/src/app/pages/login/login.ts`
-- [ ] T031 [US3] Implement single-flight suppression for bootstrap completion submits in `src/ui/src/app/pages/bootstrap/bootstrap.page.ts`
-- [ ] T032 [US3] Implement bootstrap success-to-auth chaining with deterministic login fallback in `src/ui/src/app/pages/bootstrap/bootstrap.page.ts`
-- [ ] T033 [US3] Add immediate bootstrap-unavailable redirect and notice handoff path in `src/ui/src/app/pages/bootstrap/bootstrap.page.ts`
-- [ ] T034 [US3] Render bootstrap-unavailable and recovery notices in `src/ui/src/app/pages/bootstrap/bootstrap.page.html`
+- [X] T030 [US3] Implement single-flight suppression for repeated sign-in submissions in `src/ui/src/app/pages/login/login.ts`
+- [X] T031 [US3] Implement single-flight suppression for bootstrap completion submits in `src/ui/src/app/pages/bootstrap/bootstrap.page.ts`
+- [X] T032 [US3] Implement bootstrap success-to-auth chaining with deterministic login fallback in `src/ui/src/app/pages/bootstrap/bootstrap.page.ts`
+- [X] T033 [US3] Add immediate bootstrap-unavailable redirect and notice handoff path in `src/ui/src/app/pages/bootstrap/bootstrap.page.ts`
+- [X] T034 [US3] Render bootstrap-unavailable and recovery notices in `src/ui/src/app/pages/bootstrap/bootstrap.page.html`
 
 **Checkpoint**: All three user stories are independently functional and verifiable.
 

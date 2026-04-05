@@ -146,6 +146,40 @@ describe('LoginComponent', () => {
     httpMock.expectNone('/graphql');
   });
 
+  it('suppresses duplicate sign-in submits while the current request is in flight', () => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'somepassword' });
+
+    comp.onSubmit();
+    comp.onSubmit();
+
+    const loginRequest = httpMock.expectOne('/graphql');
+    expect(loginRequest.request.body.query).toContain('login');
+    httpMock.expectNone('/graphql');
+  });
+
+  it('allows a new sign-in attempt after the previous in-flight request resolves', async () => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'wrong' });
+
+    comp.onSubmit();
+    httpMock.expectOne('/graphql').flush({ errors: [{ message: 'Invalid credentials' }] });
+    await Promise.resolve();
+
+    comp.onSubmit();
+    const retryRequest = httpMock.expectOne('/graphql');
+    expect(retryRequest.request.body.query).toContain('login');
+    retryRequest.flush({ errors: [{ message: 'Invalid credentials' }] });
+    await Promise.resolve();
+
+    expect(comp.pending()).toBe(false);
+    expect(comp.authAlert()?.category).toBe('AuthFailure');
+  });
+
   it('provides accessible labels and required semantics for interactive login controls', () => {
     const fixture = createFixture();
     const root = fixture.nativeElement as HTMLElement;
