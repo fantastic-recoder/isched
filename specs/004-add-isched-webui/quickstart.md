@@ -1,39 +1,42 @@
 # Quickstart: Local WebUI Development
 
 **Feature**: `004-add-isched-webui`  
-**Audience**: Developers running Angular WebUI against local isched backend
+**Audience**: Developers running Angular WebUI against local `isched_srv`
 
 ## Goal
 
-Run backend and Angular WebUI locally with proxy routing for `/graphql` (HTTP + WebSocket), without hard-coded backend origins in frontend source.
+Run backend and Angular WebUI locally with proxy routing for `/graphql` (HTTP + WebSocket), while using isolated backend data and the cookie-auth + CSRF model.
 
 ## Prerequisites
 
-- Built backend (`python3 configure.py` completed at least once)
-- Node.js + pnpm installed
-- Workspace dependency install completed for `src/ui`
+- Backend configured and built (for example via `python3 configure.py`)
+- Node.js and `pnpm` available
+- Frontend dependencies installable in `src/ui`
 
-## 1) Start backend in background
+## 1) Start backend with isolated data dir
 
-From repository root:
+Default storage (without `--data-dir`) is `<DataHome>/isched` via `sago::getDataHome()`.
+For repeatable local testing, use a temporary override directory:
 
 ```bash
 cd /home/groby/dev/isched
-./cmake-build-debug/isched_srv > /tmp/isched_srv.log 2>&1 &
+TMP_DATA_DIR="$(mktemp -d)"
+./cmake-build-debug/src/main/cpp/isched/isched_srv --data-dir "$TMP_DATA_DIR" 2>&1 | tee /tmp/isched_srv.log &
 echo $! > /tmp/isched_srv.pid
+echo "$TMP_DATA_DIR" > /tmp/isched_srv.data_dir
 ```
 
-Verify backend is reachable:
+Optional connectivity check:
 
 ```bash
 curl -sS http://localhost:8080/graphql \
   -H 'Content-Type: application/json' \
-  -d '{"query":"query { version }"}'
+  -d '{"query":"query { __typename }"}'
 ```
 
-## 2) Configure Angular dev proxy
+## 2) Configure Angular proxy for GraphQL HTTP + WS
 
-Create/update `src/ui/proxy.conf.json`:
+Ensure `src/ui/proxy.conf.json` routes `/graphql` to local backend:
 
 ```json
 {
@@ -47,7 +50,7 @@ Create/update `src/ui/proxy.conf.json`:
 }
 ```
 
-Run Angular dev server with proxy:
+Run the UI in standalone development mode:
 
 ```bash
 cd /home/groby/dev/isched/src/ui
@@ -57,47 +60,43 @@ pnpm exec ng serve --proxy-config proxy.conf.json
 
 Open `http://localhost:4200`.
 
-## 3) Verify GraphQL proxy behavior
+## 3) Verify required behavior
 
-- Confirm browser network requests go to `/graphql` (same origin `:4200`) and are proxied to backend `:8080`.
-- Confirm no frontend code uses hard-coded backend origin for dev mode.
-- Confirm authenticated mutation requests include CSRF partner token/header as required by backend contract.
+- Browser requests target `/graphql` (same origin) and are proxied to backend.
+- No hard-coded backend hostnames are required in frontend source.
+- Bootstrap route is reachable only when backend reports bootstrap allowed.
+- State-changing mutations require valid auth session + CSRF.
+- Organization/user/role list screens use server-driven paging/filter/sort.
 
-## 4) Validate key flows
+## 4) Run key automated checks (recommended)
 
-- First-run bootstrap appears only when backend reports bootstrap allowed.
-- Organization create/edit respects platform admin and organization admin boundaries.
-- User create/edit is blocked without explicit organization context.
-- Role create/assign denies out-of-scope attempts with clear feedback.
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm test
+pnpm exec playwright install chromium
+pnpm e2e:bootstrap
+```
+
+```bash
+cd /home/groby/dev/isched/cmake-build-debug
+ctest --output-on-failure
+```
 
 ## Troubleshooting
 
-- `ECONNREFUSED` from `/graphql`: backend not running or wrong port; inspect `/tmp/isched_srv.log`.
-- `404` on `/graphql`: proxy misconfigured; confirm `proxy.conf.json` path and `ng serve --proxy-config` usage.
-- WebSocket subscription failures: confirm `ws: true` in proxy config.
-- `CSRF_FAILED` errors on mutations: refresh session/bootstrap auth flow and retry with valid CSRF token pair.
-- Immediate auth failures: verify secure cookie behavior and backend origin/proxy alignment.
+- `ECONNREFUSED` on `/graphql`: backend not running or wrong target port.
+- `404` on `/graphql`: proxy not loaded; verify `--proxy-config proxy.conf.json`.
+- WebSocket failures: confirm proxy has `"ws": true`.
+- `CSRF_FAILED` on mutation: refresh/re-auth and retry with valid CSRF token pairing.
+- `CONFLICT` on edit: refresh entity state and re-apply pending changes with current revision.
 
-## Stop local processes
+## 5) Stop local background services and clean temp data
 
 ```bash
 kill "$(cat /tmp/isched_srv.pid)"
 rm -f /tmp/isched_srv.pid
+rm -rf "$(cat /tmp/isched_srv.data_dir)"
+rm -f /tmp/isched_srv.data_dir
 ```
 
-## Verification Evidence (2026-04-04)
-
-Executed during implementation:
-
-```bash
-cd /home/groby/dev/isched/src/ui && pnpm test
-cmake --build /home/groby/dev/isched/cmake-build-debug --target isched_graphql_tests
-cd /home/groby/dev/isched/cmake-build-debug && ctest -R isched_graphql_tests --output-on-failure
-```
-
-Observed results:
-
-- Angular tests: `11 passed, 11 total`.
-- C++ build gate: `isched_graphql_tests` target built successfully.
-- Backend test gate: `1/1 tests passed` for `isched_graphql_tests`.
 

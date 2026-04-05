@@ -105,6 +105,8 @@ This pattern allows you to:
 - **GraphQL-only transport**: no REST, no IPC, no scripting interfaces — all external access is via `/graphql`
 - C++ Core Guidelines enforced; `-Wall -Wextra -Wpedantic` enabled
 - For `src/ui/`: signal-first state, standalone components/directives/pipes, `@if/@for/@switch`, typed reactive forms, strict TS/template checks, and zoneless/`OnPush`-compatible patterns where feasible
+- For `src/ui/`: templates and styles MUST be in separate files — use `templateUrl` and `styleUrl`, never inline `template` or `styles`; each component gets a `.html` and `.scss` file alongside its `.ts` file
+- For `src/ui/`: CSS framework is Tailwind CSS 3.x + DaisyUI 4.x — use DaisyUI component classes (`btn`, `card`, `alert`, `modal`) for consistent styling; extend with Tailwind utilities as needed
 - Browser JWT handling must avoid persistent token storage (`localStorage`/`sessionStorage`/IndexedDB); prefer secure cookie-based flows
 - Local Angular development should use proxy routing for `/graphql` (HTTP + WS), not hard-coded backend origins
 
@@ -120,6 +122,8 @@ This pattern allows you to:
 - 001-universal-backend: Build commands documented from `configure.py`
 - 001-universal-backend: Commit-after-each-task rule added
 - Monitoring: Added `tee` pattern for real-time script output monitoring while preserving logs
+- 004-add-isched-webui: Added Tailwind CSS 3.x + DaisyUI 4.x with `corporate` theme
+- 004-add-isched-webui: Enforced separate template/style files convention (`templateUrl`/`styleUrl`)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

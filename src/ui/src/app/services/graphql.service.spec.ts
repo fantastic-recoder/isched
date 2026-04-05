@@ -89,4 +89,17 @@ describe('GraphQLService', () => {
       ],
     });
   });
+
+  it('maps HTTP transport errors to TRANSIENT_NETWORK', (done) => {
+    service.query<{ hello: string }>('{ hello }').subscribe({
+      error: (err: GraphQLRequestError) => {
+        expect(err.code).toBe(GRAPHQL_ERROR_CODES.TRANSIENT_NETWORK);
+        expect(err.message).toBe('GraphQL request failed');
+        done();
+      },
+    });
+
+    const req = httpMock.expectOne('/graphql');
+    req.flush('boom', { status: 503, statusText: 'Service Unavailable' });
+  });
 });

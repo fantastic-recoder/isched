@@ -58,7 +58,7 @@ target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain 
 add_test(NAME test_server_startup COMMAND test_server_startup)
 
 add_executable(test_builtin_schema ../integration/test_builtin_schema.cpp)
-target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl Boost::url)
+target_link_libraries(test_builtin_schema PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl Boost::url taocpp::pegtl)
 add_test(NAME test_builtin_schema COMMAND test_builtin_schema)
 
 add_executable(test_health_queries ../integration/test_health_queries.cpp)
@@ -82,19 +82,19 @@ add_test(NAME isched_multi_dim_map_tests COMMAND isched_multi_dim_map_tests)
 add_executable(test_configuration_snapshots ../integration/test_configuration_snapshots.cpp)
 target_link_libraries(test_configuration_snapshots PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
-    Boost::url SQLite::SQLite3)
+    Boost::url SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME test_configuration_snapshots COMMAND test_configuration_snapshots)
 
 add_executable(test_schema_activation ../integration/test_schema_activation.cpp)
 target_link_libraries(test_schema_activation PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
-    Boost::url SQLite::SQLite3)
+    Boost::url SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME test_schema_activation COMMAND test_schema_activation)
 
 add_executable(test_configuration_rollback ../integration/test_configuration_rollback.cpp)
 target_link_libraries(test_configuration_rollback PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
-    Boost::url SQLite::SQLite3)
+    Boost::url SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME test_configuration_rollback COMMAND test_configuration_rollback)
 
 add_executable(test_configuration_conflicts ../integration/test_configuration_conflicts.cpp)
@@ -107,7 +107,7 @@ add_test(NAME test_configuration_conflicts COMMAND test_configuration_conflicts)
 set(_ws_common_libs isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json
     httplib::httplib openssl::openssl
-    Boost::url Boost::system Boost::thread SQLite::SQLite3)
+    Boost::url Boost::system Boost::thread SQLite::SQLite3 taocpp::pegtl)
 
 add_executable(test_graphql_websocket ../integration/test_graphql_websocket.cpp)
 target_link_libraries(test_graphql_websocket PRIVATE ${_ws_common_libs})
@@ -125,13 +125,13 @@ add_test(NAME test_client_compatibility COMMAND test_client_compatibility)
 add_executable(test_user_management ../integration/test_user_management.cpp)
 target_link_libraries(test_user_management PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
-    taocpp::pegtl openssl::openssl)
+    taocpp::pegtl httplib::httplib openssl::openssl)
 add_test(NAME test_user_management COMMAND test_user_management)
 
 add_executable(test_bootstrap_platform_admin ../integration/test_bootstrap_platform_admin.cpp)
 target_link_libraries(test_bootstrap_platform_admin PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
-    taocpp::pegtl openssl::openssl)
+    taocpp::pegtl httplib::httplib openssl::openssl)
 add_test(NAME test_bootstrap_platform_admin COMMAND test_bootstrap_platform_admin)
 
 # Phase 6b: Session revocation integration tests (T049-008)
@@ -154,6 +154,12 @@ target_link_libraries(test_webui_security_foundation PRIVATE isched Catch2::Catc
     spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
     taocpp::pegtl openssl::openssl Boost::url)
 add_test(NAME test_webui_security_foundation COMMAND test_webui_security_foundation)
+
+add_executable(test_webui_jwt_leakage ../integration/test_webui_jwt_leakage.cpp)
+target_link_libraries(test_webui_jwt_leakage PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl Boost::url)
+add_test(NAME test_webui_jwt_leakage COMMAND test_webui_jwt_leakage)
 
 # Phase 003: Seed-mode GraphQL resolvers (T-UI-F-002, T-UI-F-003, T-UI-F-004)
 add_executable(test_seed_mode ../integration/test_seed_mode.cpp)
@@ -204,4 +210,52 @@ target_link_libraries(benchmark_profile PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
     taocpp::pegtl httplib::httplib openssl::openssl
     Boost::url Boost::system Boost::thread)
+
+# Global C++ test timeout policy split by suite type.
+set(_isched_fast_unit_tests
+    isched_grammar_tests
+    isched_graphql_tests
+    isched_gql_executor_tests
+    isched_srv_test
+    basic_server_test
+    tenant_manager_test
+    isched_resolver_tests
+    database_test
+    isched_auth_tests
+    isched_subscription_broker_tests
+    isched_config_tests
+    isched_fs_utils_tests
+    isched_ast_node_tests
+    isched_multi_dim_map_tests
+    test_webui_security_foundation
+    test_webui_jwt_leakage
+    isched_rest_datasource_tests
+    isched_tenant_thread_pool_tests
+    isched_metrics_tests
+)
+
+set(_isched_integration_tests
+    test_server_startup
+    test_builtin_schema
+    test_health_queries
+    test_configuration_snapshots
+    test_schema_activation
+    test_configuration_rollback
+    test_configuration_conflicts
+    test_graphql_websocket
+    test_graphql_subscriptions
+    test_client_compatibility
+    test_user_management
+    test_bootstrap_platform_admin
+    test_session_revocation
+    test_admin_ui
+    test_seed_mode
+)
+
+# Fast suites: 60s, integration suites: 180s.
+set_tests_properties(${_isched_fast_unit_tests} PROPERTIES TIMEOUT 60)
+set_tests_properties(${_isched_integration_tests} PROPERTIES TIMEOUT 180)
+
+# Benchmark suite is intentionally heavier.
+set_tests_properties(benchmark_suite PROPERTIES TIMEOUT 300)
 

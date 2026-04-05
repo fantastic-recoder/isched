@@ -76,7 +76,8 @@ struct SyncWs {
 
     void connect(int port) {
         auto endpoints = resolver.resolve("127.0.0.1", std::to_string(port));
-        net::connect(ws.next_layer().socket(), endpoints);
+        ws.next_layer().expires_after(std::chrono::seconds(10));
+        beast::get_lowest_layer(ws).connect(endpoints);
         ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
             req.set(beast::http::field::sec_websocket_protocol, "graphql-transport-ws");
         }));
@@ -84,19 +85,23 @@ struct SyncWs {
     }
 
     nlohmann::json send_recv(const nlohmann::json& msg) {
+        ws.next_layer().expires_after(std::chrono::seconds(10));
         ws.write(net::buffer(msg.dump()));
         buf.consume(buf.size());
+        ws.next_layer().expires_after(std::chrono::seconds(30));
         ws.read(buf);
         return nlohmann::json::parse(beast::buffers_to_string(buf.data()));
     }
 
     nlohmann::json recv() {
         buf.consume(buf.size());
+        ws.next_layer().expires_after(std::chrono::seconds(30));
         ws.read(buf);
         return nlohmann::json::parse(beast::buffers_to_string(buf.data()));
     }
 
     void send(const nlohmann::json& msg) {
+        ws.next_layer().expires_after(std::chrono::seconds(10));
         ws.write(net::buffer(msg.dump()));
     }
 

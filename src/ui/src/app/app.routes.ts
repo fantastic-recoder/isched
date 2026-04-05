@@ -15,6 +15,20 @@ const bootstrapGate = () => {
   );
 };
 
+/**
+ * Prevents navigating to /login while seed mode is still active.
+ * If no platform admin exists yet the user must complete bootstrap first.
+ */
+const loginGate = () => {
+  const bootstrapService = inject(BootstrapService);
+  const router = inject(Router);
+  return bootstrapService.bootstrapStatus().pipe(
+    map(({ systemState }) => {
+      return systemState.seedModeActive ? router.createUrlTree(['/bootstrap']) : true;
+    }),
+  );
+};
+
 export const routes: Routes = [
   { path: '', redirectTo: 'bootstrap', pathMatch: 'full' },
   {
@@ -30,6 +44,7 @@ export const routes: Routes = [
   },
   {
     path: 'login',
+    canActivate: [loginGate],
     loadComponent: () =>
       import('./pages/login/login').then((m) => m.LoginComponent),
   },

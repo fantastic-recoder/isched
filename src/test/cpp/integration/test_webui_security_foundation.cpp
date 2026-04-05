@@ -12,11 +12,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <isched/backend/isched_Server.hpp>
 #include <isched/backend/isched_DatabaseManager.hpp>
+#include <isched/backend/isched_gql_error.hpp>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
 using json = nlohmann::json;
 using namespace isched::v0_0_1::backend;
+using isched::v0_0_1::gql::EErrorCodes;
 
 TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf]") {
     auto server = Server::create();
@@ -50,6 +52,59 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
         const auto& first_error = resp_json["errors"][0];
         REQUIRE(first_error.contains("message"));
         REQUIRE(first_error["message"].get<std::string>().find("CSRF") != std::string::npos);
+        REQUIRE(first_error.contains("code"));
+        REQUIRE(first_error["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
+    }
+
+    SECTION("Mutation with CSRF token but no Origin/Referer is rejected") {
+        const std::string mutation_query = R"(
+            mutation {
+                completePlatformBootstrap(input: {
+                    email: "admin@example.com"
+                    password: "SecurePassword123!"
+                }) {
+                    success
+                }
+            }
+        )";
+
+        std::unordered_map<std::string, std::string> headers;
+        headers["X-CSRF-Token"] = "valid-csrf-token-value";
+
+        const auto response = server->execute_graphql(mutation_query, "{}", "", "127.0.0.1", headers);
+        const auto resp_json = json::parse(response);
+
+        REQUIRE(resp_json.contains("errors"));
+        REQUIRE(resp_json["errors"].is_array());
+        REQUIRE(resp_json["errors"].size() > 0);
+        REQUIRE(resp_json["errors"][0]["message"].get<std::string>().find("Origin/Referer") != std::string::npos);
+        REQUIRE(resp_json["errors"][0]["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
+    }
+
+    SECTION("Mutation with mismatched Origin is rejected") {
+        const std::string mutation_query = R"(
+            mutation {
+                completePlatformBootstrap(input: {
+                    email: "admin@example.com"
+                    password: "SecurePassword123!"
+                }) {
+                    success
+                }
+            }
+        )";
+
+        std::unordered_map<std::string, std::string> headers;
+        headers["X-CSRF-Token"] = "valid-csrf-token-value";
+        headers["Origin"] = "http://evil.example:9999";
+
+        const auto response = server->execute_graphql(mutation_query, "{}", "", "127.0.0.1", headers);
+        const auto resp_json = json::parse(response);
+
+        REQUIRE(resp_json.contains("errors"));
+        REQUIRE(resp_json["errors"].is_array());
+        REQUIRE(resp_json["errors"].size() > 0);
+        REQUIRE(resp_json["errors"][0]["message"].get<std::string>().find("Origin/Referer") != std::string::npos);
+        REQUIRE(resp_json["errors"][0]["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
     }
 
     SECTION("Query without CSRF token is allowed") {
@@ -93,6 +148,7 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
 
         std::unordered_map<std::string, std::string> headers;
         headers["X-CSRF-Token"] = "valid-csrf-token-value";
+        headers["Origin"] = "http://localhost:8080";
 
         const auto response = server->execute_graphql(mutation_query, "{}", "", "127.0.0.1", headers);
         const auto resp_json = json::parse(response);
@@ -104,6 +160,7 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
                     const auto msg = error["message"].get<std::string>();
                     // The error should not be about CSRF token specifically
                     REQUIRE(msg.find("CSRF token missing") == std::string::npos);
+                    REQUIRE(msg.find("Origin/Referer validation failed") == std::string::npos);
                 }
             }
         }
@@ -124,6 +181,7 @@ TEST_CASE("WebUI Security Foundation - GraphQL-Only Endpoint", "[webui][security
         // Should parse as valid JSON response
         const auto resp_json = json::parse(response);
         REQUIRE(resp_json.contains("extensions"));
+        REQUIRE(resp_json["extensions"]["endpoint"].get<std::string>() == "/graphql");
     }
 }
 
@@ -142,6 +200,7 @@ TEST_CASE("WebUI Security Foundation - Error Code Mapping", "[webui][security][e
 
         REQUIRE(resp_json.contains("errors"));
         REQUIRE(!resp_json["errors"].empty());
+        REQUIRE(resp_json["errors"][0]["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
     }
 }
 

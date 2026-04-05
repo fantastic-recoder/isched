@@ -17,6 +17,14 @@ Also include a section that references modern Angular coding conventions expecte
 - Q: Which CSRF protection model is required for state-changing GraphQL mutations? → A: Use double-submit CSRF token validation plus strict Origin/Referer validation for state-changing mutations.
 - Q: What happens to role assignments when a user is deactivated and later re-enabled? → A: Deactivated users keep role assignments; assignments are inactive while user is disabled and auto-reactivate when user is re-enabled.
 
+### Session 2026-04-05
+
+- Q: Which concurrency model is required for admin edit mutations? → A: Use optimistic concurrency with version check; stale version submissions are rejected with `CONFLICT`.
+- Q: What is the required lifecycle operation scope for organization/user/RBAC management in this feature? → A: Scope is create/edit/assign/deactivate only; delete/archive operations are out of scope.
+- Q: What scale baseline must WebUI administration flows support in this feature? → A: Use a medium-scale baseline of 10,000 users and 1,000 roles per organization, with mandatory server-side pagination, filtering, and sorting for admin listings.
+- Q: What baseline reliability target applies to admin WebUI/GraphQL operations for this feature? → A: Baseline reliability is 99.5% monthly availability for admin WebUI/GraphQL operations, with documented RTO <= 60 minutes.
+- Q: What auditability baseline is required for admin mutations in this feature? → A: Record immutable audit events for all admin mutations (organization/user/role/assignment/bootstrap) including actor, organization scope, action, target, outcome, and timestamp, with minimum 90-day retention.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - First-Time Platform Bootstrap (Priority: P1)
@@ -88,6 +96,7 @@ As a developer, I can run the WebUI independently in local development with a do
 - What happens when a JWT expires during a multi-step edit flow? The UI must require re-authentication and preserve unsaved changes in memory until user decision.
 - How does the system handle switching organization context during pending edits? The UI must warn about context switch risk and prevent cross-organization accidental writes.
 - What happens when network interruptions occur during role assignment? The UI must show operation status clearly and prevent duplicate submissions.
+- What happens when concurrent edits target the same organization, user, or custom role? The system must enforce optimistic version checks and reject stale submissions with `CONFLICT` so the UI can refresh and reconcile before retry.
 - How are backend authorization and validation errors surfaced? The UI must map each GraphQL error to field-level errors where possible and otherwise to global actionable alerts within the same interaction cycle.
 - How are CSRF validation failures handled for state-changing mutations? The UI must surface a clear re-authentication/retry path and block mutation completion.
 - What happens to role assignments when a user is disabled? Assignments must remain stored but inactive until the user is re-enabled.
@@ -107,6 +116,9 @@ As a developer, I can run the WebUI independently in local development with a do
 - **FR-006a**: The system MUST provide RBAC management including built-in roles, custom role definition, and role assignment to users, limited to each administrator's organization scope unless platform-level permission is explicitly granted.
 - **FR-006b**: The system MUST enforce user login identifier uniqueness per organization and MUST allow the same login identifier to exist in different organizations.
 - **FR-006c**: The system MUST retain a user's existing role assignments when that user is deactivated, MUST treat those assignments as inactive while the user remains disabled, and MUST automatically reactivate those assignments when the user is re-enabled.
+- **FR-006d**: Edit mutations for organizations, users, and custom roles MUST require an explicit version/revision check for optimistic concurrency; stale version submissions MUST fail atomically with `CONFLICT` and MUST NOT perform partial writes.
+- **FR-006e**: For this feature, organization/user/RBAC lifecycle management scope MUST be limited to create, edit, assign, and deactivate/reactivate flows; hard delete and archive/restore flows are explicitly out of scope.
+- **FR-006f**: Organization, user, role, and role-assignment listing/query flows in WebUI admin screens MUST use server-side pagination, filtering, and sorting (GraphQL query arguments resolved on the server), and MUST NOT rely on client-side full-dataset loading for these resources.
 - **FR-007**: The system MUST enforce authorization checks for all organization, user, and RBAC mutations and MUST return clear denial feedback to unauthorized users.
 - **FR-008**: The WebUI MUST integrate with backend data operations exclusively through GraphQL requests to the `/graphql` endpoint.
 - **FR-009**: The WebUI MUST use a JWT-based authentication model for protected operations and MUST handle token expiration, invalid token states, and sign-out safely.
@@ -118,11 +130,20 @@ As a developer, I can run the WebUI independently in local development with a do
 - **FR-011**: The system MUST enforce explicit multi-organization context selection for administrative operations and MUST prevent cross-organization writes caused by stale context.
 - **FR-012**: The WebUI MUST surface backend validation, authentication, authorization, and connectivity errors in a user-actionable manner.
 - **FR-012a**: Error surfacing MUST be measurable: `VALIDATION_FAILED` maps to field-level messages for all invalid input fields, and `UNAUTHENTICATED`, `FORBIDDEN`, `CSRF_FAILED`, `CONTEXT_MISMATCH`, `TRANSIENT_NETWORK` map to deterministic global alerts with retry or re-auth actions.
+- **FR-012b**: `CONFLICT` responses from stale-version edit attempts MUST surface deterministic conflict guidance, including a refresh/reload action and a safe path to re-apply pending edits.
 - **FR-013**: The WebUI MUST provide a standalone local development mode with documented proxy configuration to a locally running isched backend.
 - **FR-013a**: Dev proxy scope MUST include `/graphql` HTTP routing and WebSocket upgrade routing verification; business subscription features are optional unless explicitly required by a user story.
+- **FR-013b**: For embedded WebUI build acceptance, Angular unit tests are part of the required green unit-test suite; npm/UI build execution MUST fail when Angular unit tests are not green.
 - **FR-014**: The local development documentation MUST include a runnable workflow for backend startup in the background, WebUI startup, proxy troubleshooting, and expected verification steps.
 - **FR-015**: The WebUI visual system MUST align with Tailwind CSS and DaisyUI design components for consistent styling and interaction patterns.
 - **FR-016**: The feature MUST include measurable performance and scalability verification for embedded WebUI serving and GraphQL admin flows: static asset GET p95 <= 200 ms (local non-dev runtime), representative admin GraphQL operations p95 <= 300 ms at 50 concurrent virtual users for 5 minutes, and error rate < 1% excluding intentionally rejected auth/CSRF cases.
+- **FR-016a**: Performance/scalability verification datasets MUST include at least 10,000 users and 1,000 roles within a single organization when validating admin list/search/sort flows, using the required server-side pagination/filter/sort behavior.
+- **FR-016b**: For this feature baseline, admin WebUI and `/graphql` admin operations MUST target 99.5% monthly availability, and operations documentation MUST define an incident recovery procedure with RTO <= 60 minutes.
+- **FR-017**: The `isched_srv` process MUST support a `--data-dir` CLI override (and `--data-dir=<path>` form) so test and local workflows can run against isolated temporary data directories without mutating shared host state.
+- **FR-017a**: When `--data-dir` is not supplied, the server default data directory MUST be `<DataHome>/isched` resolved from `sago::getDataHome()`, and all platform/tenant databases MUST be rooted under that directory.
+- **FR-018**: The repository MUST provide Playwright integration coverage that starts the real backend process with a temporary `--data-dir` and verifies bootstrap UI availability and routing at `/graphql/bootstrap` in seed mode.
+- **FR-019**: The system MUST emit immutable audit events for every successful or failed admin mutation affecting bootstrap, organization management, user management, role management, and role assignments; each event MUST include actor identity, organization scope, action, target, outcome, and timestamp.
+- **FR-019a**: Audit events for admin mutations MUST be retained for a minimum of 90 days and MUST remain queryable for security and operational investigations during the retention window.
 
 ### Architecture and Integration Constraints
 
@@ -142,18 +163,26 @@ As a developer, I can run the WebUI independently in local development with a do
 - Templates should use modern control flow syntax (`@if`, `@for`, `@switch`) in new feature code.
 - Forms for create/edit flows should use typed reactive forms.
 - NgModule-centric architecture should be avoided unless a third-party integration explicitly requires it.
+- Templates and styles MUST be in separate files — use `templateUrl` and `styleUrl`, never inline `template` or `styles`. Each component gets a `.html` and `.scss` file alongside its `.ts` file.
+- CSS framework: Tailwind CSS 3.x + DaisyUI 4.x — use DaisyUI component classes (e.g. `btn`, `card`, `alert`, `modal`) for consistent styling; extend with Tailwind utilities as needed.
 
 ### Key Entities *(include if feature involves data)*
 
 - **PlatformBootstrap**: One-time initialization state and initial admin bootstrap submission outcome.
 - **Organization**: Tenant boundary with identifying profile fields and lifecycle metadata used for scope selection.
+  - Edit operations include a version/revision value for optimistic concurrency checks.
 - **User**: Identity record scoped to an organization, with profile attributes, status, and role assignments.
   - Login identifier must be unique within its organization scope and may be reused by a different organization.
+  - Edit operations include a version/revision value for optimistic concurrency checks.
 - **Role**: Access control definition that can be built-in or custom, containing a permission set and organization scope.
+  - Custom role edit operations include a version/revision value for optimistic concurrency checks.
 - **RoleAssignment**: Mapping between user and role within an organization context.
   - Assignments are retained across user deactivation/reactivation and are effective only while the user status is active.
 - **AuthSession**: Authenticated user session represented by JWT lifecycle state relevant to UI access control.
   - JWT value is opaque to the WebUI and is only conveyed via secure HttpOnly SameSite cookie(s).
+- **AuditEvent**: Immutable record of an admin mutation attempt/outcome used for traceability and investigations.
+  - Required fields: actor identity, organization scope, action, target, outcome, timestamp.
+  - Retention policy: minimum 90 days.
 
 ### Assumptions
 
@@ -186,4 +215,9 @@ As a developer, I can run the WebUI independently in local development with a do
 - **SC-009**: In non-development runtime integration tests, 100% of validated WebUI entry routes are served by backend static asset hosting with SPA fallback behavior and no dependency on Angular dev server.
 - **SC-010**: In automated log/telemetry redaction tests, 0 JWT token values appear in captured frontend logs, backend logs, GraphQL error payloads, or telemetry events across representative auth success/failure scenarios.
 - **SC-011**: In performance verification runs with 50 concurrent virtual users for 5 minutes, p95 latency remains <= 200 ms for embedded WebUI static asset GETs and <= 300 ms for representative admin GraphQL operations, with non-intentional error rate < 1%.
+- **SC-011a**: In admin list/query verification against a dataset containing at least 10,000 users and 1,000 roles in one organization, 100% of validated organization/user/role screens execute pagination, filtering, and sorting server-side (verified by GraphQL request parameters and bounded response page size), with no client-side full-dataset fetches.
 - **SC-012**: In acceptance tests, 100% of checked GraphQL error codes (`VALIDATION_FAILED`, `UNAUTHENTICATED`, `FORBIDDEN`, `CSRF_FAILED`, `CONTEXT_MISMATCH`, `TRANSIENT_NETWORK`) surface through the required field/global UI channels.
+- **SC-013**: In CI/local automation, the Playwright bootstrap integration test passes in 100% of runs where the backend is started with an isolated temporary `--data-dir`, proving seed-mode bootstrap UI rendering at `/graphql/bootstrap`.
+- **SC-014**: In concurrent-edit tests, 100% of stale-version organization/user/custom-role edit attempts are rejected with `CONFLICT`, and 100% of validated conflict responses surface refresh/reconcile guidance in the UI.
+- **SC-015**: In a representative 30-day staging or synthetic uptime window, measured availability for admin WebUI and `/graphql` admin operations is >= 99.5%, and at least one documented recovery drill demonstrates restoration within RTO <= 60 minutes.
+- **SC-016**: In audit-verification tests across representative bootstrap, organization, user, role, and role-assignment admin mutation flows (success and failure cases), 100% of validated mutations produce immutable audit events containing actor identity, organization scope, action, target, outcome, and timestamp, and retention checks confirm event availability for at least 90 days.

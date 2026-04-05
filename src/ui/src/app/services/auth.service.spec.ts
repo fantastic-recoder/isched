@@ -29,9 +29,22 @@ describe('AuthService', () => {
     service.bootstrapSession().subscribe((isLoggedIn) => {
       expect(isLoggedIn).toBe(true);
       expect(service.isLoggedIn()).toBe(true);
+      expect(service.getCsrfToken()).toMatch(/^csrf_/);
       done();
     });
 
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
+  });
+
+  it('signIn authenticates through bootstrapSession without exposing token storage', (done) => {
+    service.signIn('admin@example.com', 'password').subscribe((ok) => {
+      expect(ok).toBe(true);
+      expect(service.isLoggedIn()).toBe(true);
+      expect(service.getCsrfToken()).toMatch(/^csrf_/);
+      done();
+    });
+
+    httpMock.expectOne('/graphql').flush({ data: { login: { token: 'opaque-cookie-token' } } });
     httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
   });
 
@@ -50,6 +63,36 @@ describe('AuthService', () => {
       expect(ok).toBe(true);
       expect(service.isLoggedIn()).toBe(false);
       expect(service.getCsrfToken()).toBeNull();
+      done();
+    });
+
+    httpMock.expectOne('/graphql').flush({ data: { logout: true } });
+  });
+
+  it('does not write auth state to localStorage/sessionStorage during bootstrap', (done) => {
+    const localSetSpy = jest.spyOn(Object.getPrototypeOf(window.localStorage), 'setItem');
+    const sessionSetSpy = jest.spyOn(Object.getPrototypeOf(window.sessionStorage), 'setItem');
+
+    service.bootstrapSession().subscribe(() => {
+      expect(localSetSpy).not.toHaveBeenCalled();
+      expect(sessionSetSpy).not.toHaveBeenCalled();
+      localSetSpy.mockRestore();
+      sessionSetSpy.mockRestore();
+      done();
+    });
+
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
+  });
+
+  it('does not write auth state to localStorage/sessionStorage during signOut', (done) => {
+    const localSetSpy = jest.spyOn(Object.getPrototypeOf(window.localStorage), 'setItem');
+    const sessionSetSpy = jest.spyOn(Object.getPrototypeOf(window.sessionStorage), 'setItem');
+
+    service.signOut().subscribe(() => {
+      expect(localSetSpy).not.toHaveBeenCalled();
+      expect(sessionSetSpy).not.toHaveBeenCalled();
+      localSetSpy.mockRestore();
+      sessionSetSpy.mockRestore();
       done();
     });
 

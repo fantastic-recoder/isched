@@ -2673,6 +2673,7 @@ namespace isched::v0_0_1::backend {
                 // does not match the authenticated context tenant_id.
                 static const std::unordered_set<std::string> k_org_scoped_mutations = {
                     "createUser", "updateUser", "deleteUser",
+                    "createRole", "updateRole", "assignRole", "unassignRole",
                     "updateTenantConfig", "createDataSource", "updateDataSource", "deleteDataSource"
                 };
                 if (k_org_scoped_mutations.contains(myFieldName) &&
@@ -2684,7 +2685,7 @@ namespace isched::v0_0_1::backend {
                         gql::ErrorPath ep;
                         for (const auto& s : my_field_path) ep.push_back(s);
                         p_error.push_back(gql::Error{
-                            .code = gql::EErrorCodes::FORBIDDEN,
+                            .code = gql::EErrorCodes::CONTEXT_MISMATCH,
                             .message = std::format(
                                 "CONTEXT_MISMATCH: requested organizationId '{}' does not match active context '{}'",
                                 requested_org,

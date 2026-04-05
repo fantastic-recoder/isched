@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, throwError, switchMap } from 'rxjs';
+import { Observable, catchError, switchMap, throwError } from 'rxjs';
 
 export const GRAPHQL_ERROR_CODES = {
   UNAUTHENTICATED: 'UNAUTHENTICATED',
@@ -61,7 +61,28 @@ export class GraphQLService {
               () => new GraphQLRequestError(first.message, code, first.extensions?.fieldErrors ?? {}),
             );
           }
+          if (typeof res.data === 'undefined') {
+            return throwError(
+              () =>
+                new GraphQLRequestError(
+                  'GraphQL response did not include data',
+                  GRAPHQL_ERROR_CODES.TRANSIENT_NETWORK,
+                ),
+            );
+          }
           return [res.data as T];
+        }),
+        catchError((err: unknown) => {
+          if (err instanceof GraphQLRequestError) {
+            return throwError(() => err);
+          }
+          return throwError(
+            () =>
+              new GraphQLRequestError(
+                'GraphQL request failed',
+                GRAPHQL_ERROR_CODES.TRANSIENT_NETWORK,
+              ),
+          );
         }),
       );
   }

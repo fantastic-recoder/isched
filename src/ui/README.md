@@ -2,6 +2,22 @@
 
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.3.
 
+## Tech Stack
+
+- **Angular 21** with standalone components, signals, and strict TypeScript
+- **Tailwind CSS 3.x** + **DaisyUI 4.x** for styling — use DaisyUI component classes (`btn`, `card`, `alert`, `modal`, `table`, etc.) and extend with Tailwind utilities
+- **DaisyUI theme**: `corporate` (set via `data-theme="corporate"` on `<html>`)
+- **GraphQL-only** backend integration via `/graphql` endpoint
+
+## Coding Conventions
+
+- **Templates and styles MUST be in separate files** — use `templateUrl` and `styleUrl`, never inline `template` or `styles`. Each component gets a `.html` and `.scss` file alongside its `.ts` file.
+- Signal-first state management; RxJS only when stream semantics are needed.
+- Standalone components/directives/pipes; no NgModule-centric architecture.
+- Modern template control flow: `@if`, `@for`, `@switch`.
+- Typed reactive forms for user input flows.
+- `OnPush` change detection where feasible.
+
 ## Development server
 
 To start a local development server, run:
@@ -55,15 +71,29 @@ To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use th
 ng test
 ```
 
-## Running end-to-end tests
+## Running Playwright integration tests
 
-For end-to-end (e2e) testing, run:
+Playwright tests start the real backend server (`isched_srv`) with a temporary `--data-dir` so the system starts in seed mode and the bootstrap UI can be validated end-to-end.
 
 ```bash
-ng e2e
+cd /home/groby/dev/isched/src/ui
+pnpm e2e:install
+pnpm e2e:bootstrap
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+If `pnpm e2e:install` fails because distro package managers are unavailable in your environment, install only the browser binaries:
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm exec playwright install chromium
+```
+
+Run the complete Playwright suite:
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm e2e
+```
 
 ## Additional Resources
 

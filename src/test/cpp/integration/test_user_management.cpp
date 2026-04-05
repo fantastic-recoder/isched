@@ -22,6 +22,8 @@
 #include <isched/backend/isched_AuthenticationMiddleware.hpp>
 #include <isched/backend/isched_gql_error.hpp>
 
+#include "../isched/isched_graphql_test_helpers.hpp"
+
 using namespace isched::v0_0_1::backend;
 using isched::v0_0_1::gql::EErrorCodes;
 using json = nlohmann::json;
@@ -34,11 +36,8 @@ static const std::string g_run_suffix = std::to_string(
 // Helper: build an authenticated ResolverCtx for a platform admin
 // ---------------------------------------------------------------------------
 static ResolverCtx platform_admin_ctx(const std::string& tenant_id = "org_test") {
-    ResolverCtx ctx;
-    ctx.tenant_id       = tenant_id;
-    ctx.current_user_id = "admin_001";
-    ctx.user_name       = "Admin User";
-    ctx.roles           = {std::string(Role::PLATFORM_ADMIN)};
+    ResolverCtx ctx = isched::test::platform_admin_ctx(tenant_id);
+    ctx.user_name = "Admin User";
     return ctx;
 }
 
@@ -46,11 +45,8 @@ static ResolverCtx platform_admin_ctx(const std::string& tenant_id = "org_test")
 // Helper: build an authenticated ResolverCtx for a tenant admin
 // ---------------------------------------------------------------------------
 static ResolverCtx tenant_admin_ctx(const std::string& tenant_id = "org_test") {
-    ResolverCtx ctx;
-    ctx.tenant_id       = tenant_id;
-    ctx.current_user_id = "tadmin_001";
-    ctx.user_name       = "Tenant Admin";
-    ctx.roles           = {std::string(Role::TENANT_ADMIN)};
+    ResolverCtx ctx = isched::test::tenant_admin_ctx(tenant_id);
+    ctx.user_name = "Tenant Admin";
     return ctx;
 }
 
@@ -58,23 +54,18 @@ static ResolverCtx tenant_admin_ctx(const std::string& tenant_id = "org_test") {
 // Helper: build an anonymous (no roles) ResolverCtx
 // ---------------------------------------------------------------------------
 static ResolverCtx anonymous_ctx() {
-    ResolverCtx ctx;
-    ctx.current_user_id = "";
-    ctx.roles           = {};
-    return ctx;
+    return isched::test::anonymous_ctx();
 }
 
 // ---------------------------------------------------------------------------
 // Helper: check that a response has no errors
 // ---------------------------------------------------------------------------
 static void require_success(const ExecutionResult& result, const std::string& op = "") {
-    if (!result.is_success()) {
-        std::string msg = op.empty() ? "GraphQL error" : op + " failed";
-        if (!result.errors.empty()) {
-            msg += ": ";
-            msg += result.errors[0].message;
-        }
-        FAIL(msg);
+    const std::string operation_name = op.empty() ? "GraphQL operation" : op;
+    try {
+        isched::test::require_success(result, operation_name);
+    } catch (const std::exception& ex) {
+        FAIL(ex.what());
     }
 }
 

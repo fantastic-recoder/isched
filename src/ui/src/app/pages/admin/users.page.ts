@@ -8,6 +8,7 @@ import { OrgContextService } from '../../services/org-context.service';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './users.page.html',
+  styleUrl: './users.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UsersPage {

@@ -107,6 +107,9 @@ public:
             httplib::Headers headers;
             headers.emplace("X-CSRF-Token", current_auth.csrf_token);
             headers.emplace("Authorization", "Bearer " + current_auth.token);
+            const std::string origin = "http://localhost:" + std::to_string(k_http_port);
+            headers.emplace("Origin", origin);
+            headers.emplace("Referer", origin + "/graphql");
             res = client.Post("/graphql", headers, body.dump(), "application/json");
         }
 
@@ -126,7 +129,10 @@ struct SyncWs2 {
 
     void connect(int port) {
         auto eps = resolver.resolve("127.0.0.1", std::to_string(port));
-        net::connect(ws.next_layer().socket(), eps);
+        // Timeout on TCP connect so the test fails fast if the port
+        // is unreachable instead of blocking until CTest kills us.
+        ws.next_layer().expires_after(std::chrono::seconds(10));
+        beast::get_lowest_layer(ws).connect(eps);
         ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
             req.set(beast::http::field::sec_websocket_protocol, "graphql-transport-ws");
         }));
@@ -135,11 +141,15 @@ struct SyncWs2 {
 
     nlohmann::json recv() {
         buf.consume(buf.size());
+        // Apply a 30-second timeout so the test fails fast instead of
+        // blocking until the CTest timeout (180 s) is reached.
+        ws.next_layer().expires_after(std::chrono::seconds(30));
         ws.read(buf);
         return nlohmann::json::parse(beast::buffers_to_string(buf.data()));
     }
 
     void send(const nlohmann::json& msg) {
+        ws.next_layer().expires_after(std::chrono::seconds(10));
         ws.write(net::buffer(msg.dump()));
     }
 

@@ -82,6 +82,8 @@ cd cmake-build-debug && ctest -N
 - Consume backend APIs via GraphQL `/graphql` only (HTTP + WebSocket); no REST calls.
 - Do not persist access JWTs in `localStorage`, `sessionStorage`, or IndexedDB.
 - Use Angular dev-server proxy for local `/graphql` routing; avoid hard-coded backend origins.
+- **Templates and styles MUST be in separate files** — use `templateUrl` and `styleUrl`, never inline `template` or `styles`. Each component gets a `.html` and `.scss` file alongside its `.ts` file.
+- **CSS framework**: Tailwind CSS 3.x + DaisyUI 4.x — use DaisyUI component classes (e.g. `btn`, `card`, `alert`, `modal`) for consistent styling; extend with Tailwind utilities as needed.
 
 ### File Naming
 - All library source files use `isched_` prefix (e.g., `isched_Server.hpp`, `isched_Server.cpp`)

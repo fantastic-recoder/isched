@@ -5,6 +5,8 @@ import type { Config } from 'jest';
 const config: Config = {
   coverageDirectory: 'coverage',
   collectCoverageFrom: ['src/**/*.ts', '!src/**/*.spec.ts'],
+  testMatch: ['<rootDir>/src/**/*.spec.ts'],
+  testPathIgnorePatterns: ['<rootDir>/e2e/'],
 };
 
 export default config;

@@ -29,12 +29,70 @@
 #include <string>
 #include <memory>
 #include <stdexcept>
+#include <algorithm>
+#include <vector>
 #include <nlohmann/json.hpp>
+
+#include <isched/backend/isched_ExecutionResult.hpp>
+#include <isched/backend/isched_GqlExecutor.hpp>
+#include <isched/backend/isched_AuthenticationMiddleware.hpp>
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.h"
 
 namespace isched::test {
+
+inline isched::v0_0_1::backend::ResolverCtx make_resolver_ctx(
+    const std::string& tenant_id,
+    const std::string& user_id,
+    const std::vector<std::string>& roles) {
+    isched::v0_0_1::backend::ResolverCtx ctx;
+    ctx.tenant_id = tenant_id;
+    ctx.current_user_id = user_id;
+    ctx.roles = roles;
+    return ctx;
+}
+
+inline isched::v0_0_1::backend::ResolverCtx platform_admin_ctx(
+    const std::string& tenant_id = "org_test") {
+    return make_resolver_ctx(
+        tenant_id,
+        "platform_admin_test",
+        {std::string(isched::v0_0_1::backend::Role::PLATFORM_ADMIN)});
+}
+
+inline isched::v0_0_1::backend::ResolverCtx tenant_admin_ctx(
+    const std::string& tenant_id = "org_test") {
+    return make_resolver_ctx(
+        tenant_id,
+        "tenant_admin_test",
+        {std::string(isched::v0_0_1::backend::Role::TENANT_ADMIN)});
+}
+
+inline isched::v0_0_1::backend::ResolverCtx anonymous_ctx() {
+    return make_resolver_ctx("", "", {});
+}
+
+inline std::string first_error_message(const isched::v0_0_1::backend::ExecutionResult& result) {
+    if (result.errors.empty()) {
+        return {};
+    }
+    return result.errors.front().message;
+}
+
+inline bool has_error_code(
+    const isched::v0_0_1::backend::ExecutionResult& result,
+    const isched::v0_0_1::gql::EErrorCodes code) {
+    return std::any_of(result.errors.begin(), result.errors.end(),
+        [code](const auto& err) { return err.code == code; });
+}
+
+inline void require_success(const isched::v0_0_1::backend::ExecutionResult& result,
+                           const std::string& operation_name) {
+    if (!result.is_success()) {
+        throw std::runtime_error(operation_name + " failed: " + first_error_message(result));
+    }
+}
 
 /**
  * @brief Authentication payload returned from bootstrap/login mutations
@@ -97,6 +155,8 @@ public:
 
         httplib::Headers headers;
         headers.emplace("X-CSRF-Token", auth.csrf_token);
+        headers.emplace("Origin", browser_origin());
+        headers.emplace("Referer", browser_referer());
         if (!auth.token.empty()) {
             headers.emplace("Authorization", "Bearer " + auth.token);
         }
@@ -117,6 +177,8 @@ public:
 
         httplib::Headers headers;
         headers.emplace("X-CSRF-Token", csrf_token);
+        headers.emplace("Origin", browser_origin());
+        headers.emplace("Referer", browser_referer());
 
         return execute_request("/graphql", body.dump(), "application/json", headers);
     }
@@ -278,6 +340,14 @@ private:
     int port_;
     bool use_ssl_;
     std::unique_ptr<httplib::Client> client_;
+
+    std::string browser_origin() const {
+        return std::string("http://") + host_ + ":" + std::to_string(port_);
+    }
+
+    std::string browser_referer() const {
+        return browser_origin() + "/graphql";
+    }
 
     /**
      * @brief Execute a raw HTTP request

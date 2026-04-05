@@ -1,89 +1,90 @@
 # Data Model: Isched WebUI
 
 **Phase**: 1 (Design & Contracts)  
-**Created**: 2026-04-04  
+**Updated**: 2026-04-05  
 **Feature**: `004-add-isched-webui`
 
 ## Entity: PlatformBootstrap
 
-**Purpose**: Represents one-time platform initialization capability and bootstrap submission outcome.
+**Purpose**: Captures one-time platform initialization status and completion metadata.
 
 **Fields**:
-- `isBootstrapAllowed: Boolean` — true only before initial setup.
-- `initialAdminLoginId: String` — required bootstrap input (organization/platform policy-defined format).
-- `initialAdminDisplayName: String` — required bootstrap input.
-- `submittedAt: DateTime` — audit timestamp.
-- `completedBySessionId: ID` — resulting authenticated session id (opaque to UI token value).
+- `isBootstrapAllowed: Boolean`
+- `bootstrapState: Enum(PendingInitialization, Initialized)`
+- `initialAdminLoginId: String`
+- `initialAdminDisplayName: String`
+- `completedAt: DateTime?`
+- `completedByActorId: ID?`
 
 **Validation Rules**:
-- Allowed exactly once globally.
-- Required fields must pass typed-form validation before submit.
-- Any second attempt returns blocked/redirect behavior.
-
-**State Transitions**:
-- `PendingInitialization -> Initializing -> Initialized`
-- `Initialized` is terminal for bootstrap flow.
+- Allowed exactly once platform-wide.
+- Route available unauthenticated only while `isBootstrapAllowed = true`.
+- Repeated attempts are denied and routed to normal authentication.
 
 ## Entity: Organization
 
-**Purpose**: Tenant boundary and administrative scope root.
+**Purpose**: Tenant boundary and top-level scope for admin operations.
 
 **Fields**:
 - `id: ID`
 - `name: String`
-- `slug: String` (or equivalent unique org identifier)
+- `slug: String`
 - `status: Enum(Active, Suspended)`
-- `profile: OrganizationProfile` (domain/contact/metadata as supported)
+- `profile: OrganizationProfile`
+- `revision: Int` (optimistic concurrency)
 - `createdAt: DateTime`
 - `updatedAt: DateTime`
 
 **Relationships**:
 - `Organization 1..* User`
-- `Organization 1..* Role (custom)`
+- `Organization 1..* Role` (custom roles)
 - `Organization 1..* RoleAssignment`
 
 **Validation Rules**:
-- Creation restricted to platform admin scope.
-- Edit restricted to platform admin or same-organization admin.
-- Organization context must be explicit for downstream admin operations.
+- Create allowed to platform admins only.
+- Edit allowed to platform admins and same-org admins only.
+- Updates require `revision` match; stale writes fail with `CONFLICT`.
 
 ## Entity: User
 
-**Purpose**: Identity record scoped to one organization.
+**Purpose**: Organization-scoped identity and lifecycle state.
 
 **Fields**:
 - `id: ID`
 - `organizationId: ID`
 - `loginId: String`
 - `displayName: String`
-- `email: String?` (optional depending on backend policy)
+- `email: String?`
 - `status: Enum(Active, Disabled)`
+- `revision: Int` (optimistic concurrency)
 - `createdAt: DateTime`
 - `updatedAt: DateTime`
 
 **Relationships**:
-- `User *..* Role` through `RoleAssignment`
+- `User *..* Role` via `RoleAssignment`
 - `User 1..* AuthSession`
 
 **Validation Rules**:
-- `loginId` unique within `organizationId`.
-- Same `loginId` may exist in other organizations.
-- User CRUD restricted to selected org context and caller scope.
+- `loginId` unique per `organizationId`.
+- Same `loginId` may exist in different organizations.
+- Create/edit limited to selected organization context and caller scope.
+- Updates require `revision` match; stale writes fail with `CONFLICT`.
 
 **State Transitions**:
 - `Active <-> Disabled`
-- Transition to `Disabled` retains assignments but suppresses assignment effectiveness.
+- Disabling preserves assignments but marks them ineffective.
 
 ## Entity: Role
 
-**Purpose**: RBAC role definition used for permission assignment.
+**Purpose**: RBAC role definition (built-in or custom) used for permission grants.
 
 **Fields**:
 - `id: ID`
-- `organizationId: ID?` (`null`/platform scope for built-in global roles if applicable)
+- `organizationId: ID?` (nullable for platform built-in scope)
 - `name: String`
 - `kind: Enum(BuiltIn, Custom)`
 - `permissions: String[]`
+- `revision: Int` (custom roles only; optimistic concurrency)
 - `createdAt: DateTime`
 - `updatedAt: DateTime`
 
@@ -92,72 +93,98 @@
 
 **Validation Rules**:
 - Built-in roles are assignable but structurally immutable.
-- Custom roles editable only within authorized scope.
-- Permission set must be recognized by backend authorization model.
+- Custom roles editable in authorized scope only.
+- Custom role updates require `revision` match; stale writes fail with `CONFLICT`.
 
 ## Entity: RoleAssignment
 
-**Purpose**: Assignment mapping between a user and a role in organization scope.
+**Purpose**: Assignment linking a user to a role inside one organization.
 
 **Fields**:
 - `id: ID`
 - `organizationId: ID`
 - `userId: ID`
 - `roleId: ID`
-- `effective: Boolean` (derived from user status + assignment active flag)
+- `storedActive: Boolean`
+- `effective: Boolean` (derived: `storedActive && user.status == Active`)
 - `assignedAt: DateTime`
-- `assignedBy: ID`
+- `assignedByActorId: ID`
 
 **Validation Rules**:
-- Assignment organization must match both user and role scope constraints.
-- Duplicate role assignments for same user/role/org are rejected.
-- Unauthorized assignment mutations are denied with clear error.
-
-**State Transitions**:
-- `Assigned -> InactiveByUserDisable -> Assigned` (automatic reactivation on user enable)
-- `Assigned -> Removed` (explicit unassign)
+- `organizationId` must match role/user organization scope.
+- Duplicate user-role assignment in same org is rejected.
+- Assignment/unassignment restricted by RBAC permissions.
 
 ## Entity: AuthSession
 
-**Purpose**: Cookie-authenticated UI session state for authorization and expiry handling.
+**Purpose**: Session state for authenticated WebUI interactions.
 
 **Fields**:
 - `sessionId: ID`
 - `subjectUserId: ID`
-- `organizationScope: ID?`
+- `activeOrganizationId: ID?`
 - `status: Enum(Authenticated, Expired, Revoked, Anonymous)`
-- `csrfToken: String` (double-submit partner token, non-JWT)
+- `csrfToken: String`
 - `expiresAt: DateTime`
 
 **Validation Rules**:
-- JWT value remains opaque to WebUI JavaScript.
-- CSRF token must accompany state-changing mutations and pass strict Origin/Referer checks.
-- Expired/revoked sessions trigger re-auth flow and safe form-state handling.
+- JWT remains opaque to WebUI code (cookie transport only).
+- Mutation requests must pass CSRF + Origin/Referer checks.
+- Expired/revoked sessions map to `UNAUTHENTICATED` and re-auth flow.
 
 ## Entity: UiOrganizationContext
 
-**Purpose**: Current explicit organization scope selected by the administrator in WebUI.
+**Purpose**: Current explicit organization selected in UI scope controls.
 
 **Fields**:
 - `selectedOrganizationId: ID`
 - `selectedAt: DateTime`
-- `dirtyFormGuardActive: Boolean`
+- `isDirtyEditState: Boolean`
 
 **Validation Rules**:
-- Required for org-scoped create/edit/assign mutations.
-- Context switch with unsaved edits requires explicit confirm/discard path.
-- Mutation payload org id must match currently selected context.
+- Required for org-scoped user/role/assignment operations.
+- Context switch with dirty forms requires confirm/discard action.
+- Mutation payload org scope must match selected context or fail `CONTEXT_MISMATCH`.
 
-## Relationship Summary
+## Entity: AuditEvent
 
-- `Organization` owns `User`, custom `Role`, `RoleAssignment`.
-- `RoleAssignment` binds `User` and `Role` within one organization context.
-- `AuthSession` controls authenticated access; `UiOrganizationContext` controls scoped administration behavior.
+**Purpose**: Immutable evidence trail for admin mutation attempts/outcomes.
+
+**Fields**:
+- `id: ID`
+- `actorId: ID?`
+- `organizationScope: ID?`
+- `action: String` (bootstrap/org/user/role/assignment mutation verb)
+- `targetType: String`
+- `targetId: ID?`
+- `outcome: Enum(Success, Failure)`
+- `failureCode: String?`
+- `timestamp: DateTime`
+
+**Validation Rules**:
+- Emitted for successful and failed admin mutations.
+- Immutable once written.
+- Retention minimum: 90 days.
+
+## Query Models (Server-Side List Operations)
+
+- `OrganizationListQuery(page, pageSize, sort, filter)`
+- `UserListQuery(organizationId, page, pageSize, sort, filter)`
+- `RoleListQuery(organizationId, page, pageSize, sort, filter)`
+- `RoleAssignmentListQuery(organizationId, userId?, page, pageSize, sort, filter)`
+
+All list models require bounded page size and explicit sort/filter args for scale baseline compliance.
+
+## Lifecycle Scope Boundaries
+
+- In scope: create, edit, assign/unassign, deactivate/reactivate.
+- Out of scope: hard delete, archive/restore.
 
 ## Derived Invariants
 
-- No cross-organization write can occur without explicit organization context match.
-- Disabled users retain role assignments but have no effective permissions until re-enabled.
-- Bootstrap operations are unavailable once initialization is complete.
-- All mutation operations must satisfy both authorization and CSRF constraints.
+- No cross-organization writes occur without explicit matching organization context.
+- Stale edit revisions are rejected atomically with `CONFLICT`.
+- Disabled users keep stored assignments but have no effective permissions.
+- Admin list screens must never rely on full-dataset client loading.
+- All admin mutations produce immutable audit events.
 

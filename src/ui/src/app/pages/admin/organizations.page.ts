@@ -6,19 +6,8 @@ import { Organization, OrganizationService } from '../../services/organization.s
   selector: 'app-organizations-page',
   standalone: true,
   imports: [CommonModule],
-  template: `
-    <section class="p-6">
-      <h1 class="text-2xl font-semibold">Organizations</h1>
-      @if (error()) {
-        <div class="alert alert-error mt-3">{{ error() }}</div>
-      }
-      <ul class="menu bg-base-100 rounded-box mt-4">
-        @for (org of organizations(); track org.id) {
-          <li>{{ org.name }} ({{ org.status }})</li>
-        }
-      </ul>
-    </section>
-  `,
+  templateUrl: './organizations.page.html',
+  styleUrl: './organizations.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrganizationsPage {

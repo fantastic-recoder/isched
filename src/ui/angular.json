@@ -11,7 +11,9 @@
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
-          "style": "scss"
+          "style": "scss",
+          "inlineTemplate": false,
+          "inlineStyle": false
         }
       },
       "root": "",
@@ -37,6 +39,7 @@
           },
           "configurations": {
             "production": {
+              "baseHref": "/graphql/",
               "budgets": [
                 {
                   "type": "initial",

@@ -100,11 +100,12 @@ file(GLOB_RECURSE UI_SOURCES "${CMAKE_SOURCE_DIR}/src/ui/src/*")
 
 if(PNPM_EXE)
     add_custom_target(isched_ui_build
+        COMMAND ${PNPM_EXE} --filter isched-ui run test
         COMMAND ${PNPM_EXE} --filter isched-ui run build
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         DEPENDS ${UI_SOURCES}
         BYPRODUCTS "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html"
-        COMMENT "Building Angular Admin UI (pnpm --filter isched-ui run build)"
+        COMMENT "Running Angular unit tests and building Admin UI (pnpm --filter isched-ui run test/build)"
         VERBATIM)
 
     add_custom_target(isched_ui_embed
