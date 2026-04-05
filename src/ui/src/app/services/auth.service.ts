@@ -20,6 +20,7 @@ interface SignOutResponse {
 export class AuthService {
   private readonly gql = inject(GraphQLService);
   private csrfToken: string | null = null;
+  private accessToken: string | null = null;
   private authenticated = false;
 
   signIn(email: string, password: string): Observable<boolean> {
@@ -33,10 +34,16 @@ export class AuthService {
         { email, password },
       )
       .pipe(
-        map((res) => !!res.login),
+        map((res) => {
+          if (res.login?.token) {
+            this.accessToken = res.login.token;
+            return true;
+          }
+          this.clearAuthState();
+          return false;
+        }),
         switchMap((ok) => {
           if (!ok) {
-            this.clearAuthState();
             return [false];
           }
           return this.bootstrapSession();
@@ -66,6 +73,10 @@ export class AuthService {
     return this.authenticated;
   }
 
+  getToken(): string | null {
+    return this.accessToken;
+  }
+
   setCsrfToken(token: string): void {
     this.csrfToken = token;
   }
@@ -76,6 +87,7 @@ export class AuthService {
 
   clearAuthState(): void {
     this.authenticated = false;
+    this.accessToken = null;
     this.csrfToken = null;
   }
 

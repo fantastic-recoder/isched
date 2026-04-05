@@ -8,22 +8,28 @@ function isGraphqlEndpoint(url: string): boolean {
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
-  const body = req.body as { query?: string } | null;
-  const isMutation =
-    isGraphqlEndpoint(req.url) &&
-    typeof body?.query === 'string' &&
-    body.query.trimStart().startsWith('mutation');
 
   if (!isGraphqlEndpoint(req.url)) {
     return next(req);
   }
 
+  const body = req.body as { query?: string } | null;
+  const isMutation =
+    typeof body?.query === 'string' &&
+    body.query.trimStart().startsWith('mutation');
+
+  // Build headers: attach Bearer token + CSRF token as needed.
+  const headers: Record<string, string> = {};
+  const token = auth.getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   if (isMutation) {
     const csrf = auth.getCsrfToken();
     if (csrf) {
-      return next(req.clone({ setHeaders: { 'X-CSRF-Token': csrf }, withCredentials: true }));
+      headers['X-CSRF-Token'] = csrf;
     }
-    return next(req.clone({ withCredentials: true }));
   }
-  return next(req.clone({ withCredentials: true }));
+
+  return next(req.clone({ setHeaders: headers, withCredentials: true }));
 };

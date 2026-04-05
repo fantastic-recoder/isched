@@ -1281,8 +1281,22 @@ namespace isched::v0_0_1::backend {
         // Phase 6 stub resolvers (T047-000a)
         // Full implementations added in T047-009, T047-015, T047-016.
         // ---------------------------------------------------------------
-        register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx&) -> json {
-            return nullptr; // not yet authenticated — implemented in T047-016
+        register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx& ctx) -> json {
+            if (ctx.current_user_id.empty()) {
+                return nullptr; // unauthenticated request
+            }
+            json user = {
+                {"id",    ctx.current_user_id},
+                {"name",  ctx.user_name},
+                {"roles", json::array()}
+            };
+            for (const auto& role : ctx.roles) {
+                user["roles"].push_back(role);
+            }
+            if (!ctx.tenant_id.empty()) {
+                user["tenantId"] = ctx.tenant_id;
+            }
+            return user;
         });
         // ---------------------------------------------------------------
         // T047-015: user / users query resolvers
