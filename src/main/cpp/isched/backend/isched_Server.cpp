@@ -623,16 +623,31 @@ private:
                     res.body() = R"({"errors":[{"message":"Missing or empty 'query' field"}]})";
                 } else {
                     // Extract request headers for CSRF validation (T010)
+                    // NOTE: header names are compared case-insensitively
+                    // because reverse proxies (e.g. Node.js http-proxy used
+                    // by Angular/Vite dev server) normalise names to lowercase.
                     std::unordered_map<std::string, std::string> req_headers;
 
-                    // Extract standard headers
+                    auto iequals = [](std::string_view a, std::string_view b) {
+                        if (a.size() != b.size()) return false;
+                        for (std::size_t i = 0; i < a.size(); ++i)
+                            if (std::tolower(static_cast<unsigned char>(a[i])) !=
+                                std::tolower(static_cast<unsigned char>(b[i])))
+                                return false;
+                        return true;
+                    };
+
+                    // Extract standard headers (store under canonical names)
                     for (auto const& field : req_) {
-                        const auto name = std::string(field.name_string());
-                        if (name == "X-CSRF-Token" ||
-                            name == "Origin" ||
-                            name == "Referer" ||
-                            name == "Authorization") {
-                            req_headers[name] = std::string(field.value());
+                        const auto name = field.name_string();
+                        if (iequals(name, "X-CSRF-Token")) {
+                            req_headers["X-CSRF-Token"] = std::string(field.value());
+                        } else if (iequals(name, "Origin")) {
+                            req_headers["Origin"] = std::string(field.value());
+                        } else if (iequals(name, "Referer")) {
+                            req_headers["Referer"] = std::string(field.value());
+                        } else if (iequals(name, "Authorization")) {
+                            req_headers["Authorization"] = std::string(field.value());
                         }
                     }
 
