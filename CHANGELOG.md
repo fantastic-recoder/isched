@@ -1,3 +1,24 @@
+## [Feature 005] RATE_LIMITED + Auth Bootstrap Consistency (Phase 6) — 2026-04-05
+
+### Added
+- Final mitigation/evidence closeout for feature threat modeling in `specs/005-rate-limited-auth-bootstrap/threat-model.md`.
+- Project-level security summary snapshot for Feature 005 in `docs/security-threat-model.md`.
+- Recorded full feature regression command matrix with observed outcomes in `specs/005-rate-limited-auth-bootstrap/quickstart.md`.
+
+### Validation
+- Backend focused gate: `ctest -R 'test_rate_limiting|test_seed_mode|isched_auth_tests' --output-on-failure` -> PASS.
+- Backend full gate: `ctest --output-on-failure` -> PASS (39/39).
+- Frontend focused unit gates: `pnpm run test:login-lockout`, `pnpm run test:startup-routing`, `pnpm run test:auth-bootstrap` -> PASS.
+- Frontend full unit gate: `pnpm test` -> PASS (16 suites / 86 tests).
+- Playwright focused gate: `pnpm run e2e:bootstrap` -> PASS (3/3).
+- Playwright lockout/full gates: `pnpm run e2e:rate-limiting`, `pnpm run e2e:auth-bootstrap`, `pnpm e2e` -> PASS (4/4, 7/7, 7/7).
+
+### Blockers
+- Previously reported lockout E2E selector/classification mismatch in `src/ui/e2e/rate-limiting.spec.ts` is resolved.
+
+### Status
+- Phase 6 tasks T035-T038 remain complete, and Feature 005 E2E closeout gates are green after lockout assertion alignment.
+
 ## [Feature 001] Universal Backend Closeout — 2026-04-04
 
 ### Added

@@ -20,12 +20,14 @@
 
 #include <isched/backend/isched_common.hpp>
 #include <isched/backend/isched_Server.hpp>
+#include "../isched/isched_graphql_test_helpers.hpp"
 
 using namespace isched::v0_0_1::backend;
 
 class BuiltinSchemaTestFixture {
 public:
     std::unique_ptr<Server> server;
+    std::unique_ptr<isched::test::GraphQLTestClient> client;
 
     BuiltinSchemaTestFixture() {
         Server::Configuration config;
@@ -34,6 +36,7 @@ public:
         config.enable_introspection = true;
         config.max_query_complexity = 500;
         server = Server::create(config);
+        client = std::make_unique<isched::test::GraphQLTestClient>("localhost", 18081);
     }
 
     ~BuiltinSchemaTestFixture() {
@@ -45,18 +48,18 @@ public:
     // Helper: POST a GraphQL query body, return parsed JSON response
     nlohmann::json post_graphql(const std::string& query,
                                 const std::string& variables_str = "{}") {
-        httplib::Client client("localhost", 18081);
-        client.set_connection_timeout(2);
-        client.set_read_timeout(5);
-
         nlohmann::json body = {{"query", query}};
         if (variables_str != "{}") {
             body["variables"] = nlohmann::json::parse(variables_str);
         }
-        auto res = client.Post("/graphql", body.dump(), "application/json");
-        REQUIRE(res != nullptr);
-        REQUIRE(res->status == 200);
-        return nlohmann::json::parse(res->body);
+        return client->post_query(query);
+    }
+
+    // Helper: POST a GraphQL mutation with CSRF token
+    nlohmann::json post_mutation(const std::string& mutation) {
+        // Get CSRF token from a query
+        std::string csrf_token = client->get_csrf_token();
+        return client->post_mutation_with_csrf(mutation, csrf_token);
     }
 };
 
@@ -95,7 +98,7 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: uptime", "[integrati
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in mutation: echo", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql(R"(mutation { echo(message: "hello world") })");
+    auto resp = post_mutation(R"(mutation { echo(message: "hello world") })");
     REQUIRE(resp.contains("data"));
     REQUIRE(resp["data"]["echo"] == "hello world");
 
@@ -182,9 +185,11 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "GraphQL is the only external endpoin
     auto metrics_res = client.Get("/metrics");
     REQUIRE((metrics_res == nullptr || metrics_res->status == 404));
 
-    // GET / (UI/playground) should not serve a frontend
+    // GET / now canonicalizes browser entry to /isched.
     auto root_res = client.Get("/");
-    REQUIRE((root_res == nullptr || root_res->status == 404));
+    REQUIRE(root_res != nullptr);
+    REQUIRE(root_res->status == 302);
+    REQUIRE(root_res->get_header_value("Location") == "/isched");
 
     server->stop();
 }

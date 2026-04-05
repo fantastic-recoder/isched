@@ -17,29 +17,13 @@
 #include <isched/backend/isched_DatabaseManager.hpp>
 #include <isched/backend/isched_GqlExecutor.hpp>
 
+#include "../isched/isched_graphql_test_helpers.hpp"
+
 using namespace isched::v0_0_1::backend;
 using json = nlohmann::json;
 
 static const std::string g_run_suffix = std::to_string(
     std::chrono::system_clock::now().time_since_epoch().count());
-
-static ResolverCtx anonymous_ctx() {
-    ResolverCtx ctx;
-    ctx.current_user_id = "";
-    ctx.roles = {};
-    return ctx;
-}
-
-static void require_success(const ExecutionResult& result, const std::string& op) {
-    if (!result.is_success()) {
-        std::string msg = op + " failed";
-        if (!result.errors.empty()) {
-            msg += ": ";
-            msg += result.errors.front().message;
-        }
-        FAIL(msg);
-    }
-}
 
 static void reset_platform_admins(DatabaseManager& db) {
     auto list_res = db.list_platform_admins();
@@ -81,9 +65,9 @@ TEST_CASE("bootstrapPlatformAdmin succeeds exactly once and persists first platf
              bootstrapPlatformAdmin(input: $input) { token expiresAt }
            })",
         first_vars.dump(),
-        anonymous_ctx());
+        isched::test::anonymous_ctx());
 
-    require_success(first, "bootstrapPlatformAdmin first call");
+    REQUIRE_NOTHROW(isched::test::require_success(first, "bootstrapPlatformAdmin first call"));
     REQUIRE(first.data.contains("bootstrapPlatformAdmin"));
     REQUIRE(!first.data["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
     REQUIRE(!first.data["bootstrapPlatformAdmin"]["expiresAt"].get<std::string>().empty());
@@ -93,15 +77,23 @@ TEST_CASE("bootstrapPlatformAdmin succeeds exactly once and persists first platf
     REQUIRE(admins_after_first.value().size() == 1);
     REQUIRE(admins_after_first.value().front().email == email);
 
+    auto status_after_bootstrap = exec->execute(
+        R"(query { systemState { seedModeActive } })",
+        "{}",
+        isched::test::anonymous_ctx());
+    REQUIRE_NOTHROW(isched::test::require_success(status_after_bootstrap, "systemState after bootstrap"));
+    REQUIRE(status_after_bootstrap.data.contains("systemState"));
+    REQUIRE_FALSE(status_after_bootstrap.data["systemState"]["seedModeActive"].get<bool>());
+
     // Realistic follow-up flow: the persisted platform admin can immediately log in.
     auto login = exec->execute(
         R"(mutation($email: String!, $password: String!) {
              login(email: $email, password: $password) { token expiresAt }
            })",
         json{{"email", email}, {"password", password}}.dump(),
-        anonymous_ctx());
+        isched::test::anonymous_ctx());
 
-    require_success(login, "platform login after bootstrap");
+    REQUIRE_NOTHROW(isched::test::require_success(login, "platform login after bootstrap"));
     REQUIRE(!login.data["login"]["token"].get<std::string>().empty());
 }
 
@@ -117,22 +109,47 @@ TEST_CASE("bootstrapPlatformAdmin rejects subsequent unauthenticated attempts wi
              bootstrapPlatformAdmin(input: $input) { token expiresAt }
            })",
         json{{"input", {{"email", first_email}, {"password", "FirstPass!123"}, {"displayName", "First"}}}}.dump(),
-        anonymous_ctx());
-    require_success(first, "bootstrapPlatformAdmin initial provisioning");
+        isched::test::anonymous_ctx());
+    REQUIRE_NOTHROW(isched::test::require_success(first, "bootstrapPlatformAdmin initial provisioning"));
 
     auto second = exec->execute(
         R"(mutation($input: BootstrapPlatformAdminInput!) {
              bootstrapPlatformAdmin(input: $input) { token expiresAt }
            })",
         json{{"input", {{"email", second_email}, {"password", "SecondPass!123"}, {"displayName", "Second"}}}}.dump(),
-        anonymous_ctx());
+        isched::test::anonymous_ctx());
 
     REQUIRE_FALSE(second.is_success());
     REQUIRE_FALSE(second.errors.empty());
+    REQUIRE(second.errors.front().message.find("bootstrapPlatformAdmin is no longer available") != std::string::npos);
+
+    const auto second_json = second.to_json();
+    REQUIRE(second_json.contains("errors"));
+    REQUIRE(second_json["errors"].is_array());
+    REQUIRE_FALSE(second_json["errors"].empty());
+    REQUIRE(second_json["errors"][0]["message"].get<std::string>().find("bootstrapPlatformAdmin is no longer available") != std::string::npos);
+    REQUIRE(second_json["errors"][0].contains("extensions"));
+    REQUIRE(second_json["errors"][0]["extensions"].contains("code"));
+
+    auto status_after_rejection = exec->execute(
+        R"(query { systemState { seedModeActive } })",
+        "{}",
+        isched::test::anonymous_ctx());
+    REQUIRE_NOTHROW(isched::test::require_success(status_after_rejection, "systemState after bootstrap rejection"));
+    REQUIRE_FALSE(status_after_rejection.data["systemState"]["seedModeActive"].get<bool>());
 
     auto admins_after_second = db->list_platform_admins();
     REQUIRE(admins_after_second);
     REQUIRE(admins_after_second.value().size() == 1);
     REQUIRE(admins_after_second.value().front().email == first_email);
+
+    auto login_after_rejection = exec->execute(
+        R"(mutation($email: String!, $password: String!) {
+             login(email: $email, password: $password) { token expiresAt }
+           })",
+        json{{"email", first_email}, {"password", "FirstPass!123"}}.dump(),
+        isched::test::anonymous_ctx());
+    REQUIRE_NOTHROW(isched::test::require_success(login_after_rejection, "platform login after bootstrap rejection"));
+    REQUIRE_FALSE(login_after_rejection.data["login"]["token"].get<std::string>().empty());
 }
 

@@ -1,6 +1,6 @@
 # Security Threat Model Summary
 
-**Updated**: 2026-04-04
+**Updated**: 2026-04-05
 
 ## Purpose
 
@@ -9,6 +9,26 @@ This document summarizes the security posture and recurring mitigations for Isch
 ## Feature Threat Models
 
 - `specs/001-universal-backend/threat-model.md` — GraphQL transport, bootstrap flow, JWT auth, RBAC, tenant isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
+- `specs/004-add-isched-webui/threat-model.md` — Embedded WebUI serving, proxy-backed local GraphQL flow, CSRF/cookie auth behavior, and organization-context write boundaries
+- `specs/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling
+
+## Feature 005 Security Closeout Snapshot (2026-04-05)
+
+- **Scope**: `005-rate-limited-auth-bootstrap` (auth lockout signaling, startup/guard session consistency, bootstrap transition controls)
+- **Validated mitigations**:
+  - Deterministic lockout classification through `extensions.code = RATE_LIMITED` with fallback guidance when `retryAfterMs` is absent
+  - One-time guarded-route session revalidation to reduce stale-session drift after startup
+  - Single-flight suppression on login/bootstrap submit paths to prevent race-condition amplification
+  - Immediate bootstrap-unavailable redirect to sign-in with explicit operator notice
+  - Browser posture remains no persistent JWT storage for app-owned state
+- **Validation evidence**:
+  - Backend gate: `ctest --output-on-failure` PASS (39/39)
+  - Focused frontend unit gates: PASS (`test:login-lockout`, `test:startup-routing`, `test:auth-bootstrap`, full `pnpm test`)
+  - Focused bootstrap E2E: PASS (`pnpm run e2e:bootstrap`)
+  - Lockout/combined/full Playwright E2E gates: PASS (`pnpm run e2e:rate-limiting`, `pnpm run e2e:auth-bootstrap`, `pnpm e2e`)
+- **Open blocker**:
+  - None for Feature 005 closeout gates after lockout selector/classification alignment and bootstrap/login precondition stabilization in `src/ui/e2e/rate-limiting.spec.ts`.
+- **Risk posture**: No new critical auth/session exposure identified from Feature 005 closeout validation; lockout E2E release-confidence blocker is resolved.
 
 ## Common Security Themes
 
@@ -18,6 +38,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - **Tenant isolation**: tenant boundaries apply to authorization, runtime state, storage, metrics, and integration configuration.
 - **Session revocation**: revoked sessions must be enforced at request time and propagated to long-lived WebSocket connections.
 - **Secret protection**: external integration secrets must not be stored in plaintext and must be protected against accidental disclosure in logs or responses.
+- **WebUI boundary controls**: browser-facing state must avoid persistent token storage and enforce explicit organization context for admin mutations.
 
 ## Reusable Mitigation Checklist
 

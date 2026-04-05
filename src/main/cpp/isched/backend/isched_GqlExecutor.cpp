@@ -11,13 +11,16 @@
 #include "isched_GqlExecutor.hpp"
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cstdlib>
 #include <ctime>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <unordered_set>
 #include <tao/pegtl.hpp>
 #include <tao/pegtl/parse_error.hpp>
 #include <tao/pegtl/string_input.hpp>
@@ -821,6 +824,43 @@ namespace isched::v0_0_1::backend {
             return nullptr;
         });
 
+        register_resolver({}, "platformBootstrapStatus",
+            [this](const json&, const json&, const ResolverCtx&) -> json {
+                if (!m_database) {
+                    throw std::runtime_error("platformBootstrapStatus: database not available");
+                }
+
+                if (auto init_res = m_database->ensure_system_db(); !init_res) {
+                    throw std::runtime_error("platformBootstrapStatus: failed to initialize system database");
+                }
+
+                const auto admins = m_database->list_platform_admins();
+                if (!admins) {
+                    throw std::runtime_error("platformBootstrapStatus: failed to query platform admins");
+                }
+
+                const bool is_bootstrap_allowed = std::ranges::none_of(
+                    admins.value(), [](const PlatformAdminRecord& admin) { return admin.is_active; });
+
+                return json{
+                    {"isBootstrapAllowed", is_bootstrap_allowed},
+                    {"bootstrapState", is_bootstrap_allowed ? "PendingInitialization" : "Initialized"}
+                };
+            });
+
+        register_resolver({}, "completePlatformBootstrap",
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                json bootstrap_args = json::object();
+                bootstrap_args["input"] = args.value("input", json::object());
+                const auto bootstrap_result = m_resolvers.get_resolver({}, "bootstrapPlatformAdmin")(json::object(), bootstrap_args, ctx);
+
+                return json{
+                    {"success", !bootstrap_result.is_null()},
+                    {"bootstrapState", "Initialized"},
+                    {"requiresRedirectToLogin", false}
+                };
+            });
+
         // ---------------------------------------------------------------
         // T047-000b: bootstrapPlatformAdmin (one-time, unauthenticated)
         // ---------------------------------------------------------------
@@ -1280,8 +1320,22 @@ namespace isched::v0_0_1::backend {
         // Phase 6 stub resolvers (T047-000a)
         // Full implementations added in T047-009, T047-015, T047-016.
         // ---------------------------------------------------------------
-        register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx&) -> json {
-            return nullptr; // not yet authenticated — implemented in T047-016
+        register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx& ctx) -> json {
+            if (ctx.current_user_id.empty()) {
+                return nullptr; // unauthenticated request
+            }
+            json user = {
+                {"id",    ctx.current_user_id},
+                {"name",  ctx.user_name},
+                {"roles", json::array()}
+            };
+            for (const auto& role : ctx.roles) {
+                user["roles"].push_back(role);
+            }
+            if (!ctx.tenant_id.empty()) {
+                user["tenantId"] = ctx.tenant_id;
+            }
+            return user;
         });
         // ---------------------------------------------------------------
         // T047-015: user / users query resolvers
@@ -1982,12 +2036,43 @@ namespace isched::v0_0_1::backend {
                 if (args.contains("organizationId") && !args["organizationId"].is_null())
                     org_id = args["organizationId"].get<std::string>();
 
+                std::string normalized_email = email;
+                std::transform(normalized_email.begin(), normalized_email.end(), normalized_email.begin(),
+                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                const std::string lockout_identity = org_id.empty()
+                    ? "platform:" + normalized_email
+                    : "org:" + org_id + ":" + normalized_email;
+
                 if (email.empty() || password.empty())
                     throw std::invalid_argument("login: email and password are required");
                 if (!m_auth)
                     throw std::runtime_error("login: authentication middleware not configured");
 
+                const auto lockout_config = m_auth->get_rate_limit_config();
+                const int lockout_window_ms = lockout_config.window_ms;
+                const int lockout_max_attempts = lockout_config.max_attempts;
+
+                const auto throw_rate_limited = [this, &lockout_identity]() -> void {
+                    const int retry_after_ms = m_auth->get_rate_limit_reset_ms(lockout_identity);
+                    throw std::runtime_error(
+                        "RATE_LIMITED: Too many authentication attempts. retryAfterMs=" + std::to_string(retry_after_ms));
+                };
+
+                if (m_auth->is_rate_limited(lockout_identity)) {
+                    throw_rate_limited();
+                }
+
                 auto& db = *m_database;
+
+                auto fail_login_attempt = [this, &lockout_identity, lockout_window_ms, lockout_max_attempts]() {
+                    m_auth->record_failed_attempt(lockout_identity, lockout_window_ms, lockout_max_attempts);
+                    if (m_auth->is_rate_limited(lockout_identity)) {
+                        const int retry_after_ms = m_auth->get_rate_limit_reset_ms(lockout_identity);
+                        throw std::runtime_error(
+                            "RATE_LIMITED: Too many authentication attempts. retryAfterMs=" + std::to_string(retry_after_ms));
+                    }
+                    throw std::runtime_error("Invalid credentials");
+                };
 
                 // --- locate user and stored hash ----------------------------
                 std::string user_id, user_name, stored_hash, tenant_id;
@@ -1996,8 +2081,9 @@ namespace isched::v0_0_1::backend {
                 if (org_id.empty()) {
                     // Platform-level login — look up in isched_system.db
                     auto res = db.get_platform_admin_by_email(email);
-                    if (!res)
-                        throw std::runtime_error("Invalid credentials");
+                    if (!res) {
+                        fail_login_attempt();
+                    }
                     const auto& admin = res.value();
                     if (!admin.is_active)
                         throw std::runtime_error("Account is disabled");
@@ -2009,8 +2095,9 @@ namespace isched::v0_0_1::backend {
                 } else {
                     // Tenant user login — look up in per-org DB
                     auto res = db.get_user_by_email(org_id, email);
-                    if (!res)
-                        throw std::runtime_error("Invalid credentials");
+                    if (!res) {
+                        fail_login_attempt();
+                    }
                     const auto& u = res.value();
                     if (!u.is_active)
                         throw std::runtime_error("Account is disabled");
@@ -2022,8 +2109,11 @@ namespace isched::v0_0_1::backend {
                 }
 
                 // --- verify Argon2id password hash --------------------------
-                if (!verify_password(password, stored_hash))
-                    throw std::runtime_error("Invalid credentials");
+                if (!verify_password(password, stored_hash)) {
+                    fail_login_attempt();
+                }
+
+                m_auth->reset_failed_attempts(lockout_identity);
 
                 // --- issue JWT + persist session ----------------------------
                 // Session creation is owned by AuthenticationMiddleware (T049-002).
@@ -2631,6 +2721,7 @@ namespace isched::v0_0_1::backend {
             }
         } else {
             ResolverCtx my_ctx = tl_resolver_ctx;  // copy thread-local auth context for this field
+            json my_args = process_argument_field(p_field_node, p_error);
 
             // T047-003: RBAC gate — check if the caller holds at least one required role.
             // Only enforced at the top level (p_path is empty).
@@ -2666,9 +2757,36 @@ namespace isched::v0_0_1::backend {
                         return false;
                     }
                 }
+
+                // WebUI org-scope guard: reject writes where requested organizationId
+                // does not match the authenticated context tenant_id.
+                static const std::unordered_set<std::string> k_org_scoped_mutations = {
+                    "createUser", "updateUser", "deleteUser",
+                    "createRole", "updateRole", "assignRole", "unassignRole",
+                    "updateTenantConfig", "createDataSource", "updateDataSource", "deleteDataSource"
+                };
+                if (k_org_scoped_mutations.contains(myFieldName) &&
+                    my_args.contains("organizationId") && my_args["organizationId"].is_string() &&
+                    !my_ctx.tenant_id.empty())
+                {
+                    const std::string requested_org = my_args["organizationId"].get<std::string>();
+                    if (requested_org != my_ctx.tenant_id) {
+                        gql::ErrorPath ep;
+                        for (const auto& s : my_field_path) ep.push_back(s);
+                        p_error.push_back(gql::Error{
+                            .code = gql::EErrorCodes::CONTEXT_MISMATCH,
+                            .message = std::format(
+                                "CONTEXT_MISMATCH: requested organizationId '{}' does not match active context '{}'",
+                                requested_org,
+                                my_ctx.tenant_id),
+                            .path = std::move(ep),
+                        });
+                        p_result[myFieldName] = nullptr;
+                        return false;
+                    }
+                }
             }
 
-            json my_args = process_argument_field(p_field_node, p_error);
             spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
             json my_result;
@@ -2677,10 +2795,18 @@ namespace isched::v0_0_1::backend {
             } catch (const std::exception& ex) {
                 gql::ErrorPath ep;
                 for (const auto& s : my_field_path) ep.push_back(s);
+
+                gql::EErrorCodes error_code = gql::EErrorCodes::UNKNOWN_ERROR;
+                std::string error_message = std::format("Resolver for field {} threw: {}",
+                                            concat_vector(my_field_path, "."), ex.what());
+                if (const std::string_view msg = ex.what(); msg.rfind("RATE_LIMITED", 0) == 0) {
+                    error_code = gql::EErrorCodes::RATE_LIMITED;
+                    error_message = ex.what();
+                }
+
                 p_error.push_back(gql::Error{
-                    .code    = gql::EErrorCodes::UNKNOWN_ERROR,
-                    .message = std::format("Resolver for field {} threw: {}",
-                                           concat_vector(my_field_path, "."), ex.what()),
+                    .code    = error_code,
+                    .message = error_message,
                     .path    = std::move(ep),
                 });
                 p_result[myFieldName] = nullptr;

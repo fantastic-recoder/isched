@@ -15,7 +15,6 @@ describe('LoginComponent', () => {
   let router: Router;
 
   beforeEach(async () => {
-    sessionStorage.clear();
     await TestBed.configureTestingModule({
       imports: [LoginComponent],
       providers: [
@@ -31,7 +30,6 @@ describe('LoginComponent', () => {
 
   afterEach(() => {
     httpMock.verify();
-    sessionStorage.clear();
   });
 
   function createFixture() {
@@ -40,7 +38,7 @@ describe('LoginComponent', () => {
     return fixture;
   }
 
-  it('stores token in sessionStorage and navigates to /dashboard on success', (done) => {
+  it('bootstraps session and navigates to /dashboard on success', (done) => {
     const fixture = createFixture();
     const comp = fixture.componentInstance;
     const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -51,15 +49,15 @@ describe('LoginComponent', () => {
     httpMock.expectOne('/graphql').flush({
       data: { login: { token: 'tok_xyz', expiresAt: '2099-01-01T00:00:00Z' } },
     });
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
 
     Promise.resolve().then(() => {
-      expect(sessionStorage.getItem('isched_token')).toBe('tok_xyz');
       expect(navSpy).toHaveBeenCalledWith(['/dashboard']);
       done();
     });
   });
 
-  it('shows error banner on server error', (done) => {
+  it('shows generic auth alert on non-lockout sign-in failure', (done) => {
     const fixture = createFixture();
     const comp = fixture.componentInstance;
 
@@ -71,10 +69,61 @@ describe('LoginComponent', () => {
     );
 
     Promise.resolve().then(() => {
-      expect(comp.errorMsg()).toBe('Invalid credentials');
+      expect(comp.authAlert()?.category).toBe('AuthFailure');
+      expect(comp.authAlert()?.body).toBe('Invalid credentials');
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.querySelector('.alert-error')).toBeTruthy();
+      done();
+    });
+  });
+
+  it('shows deterministic lockout guidance with retry metadata', (done) => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'wrong' });
+    comp.onSubmit();
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [{
+        message: 'rate limited',
+        extensions: { code: 'RATE_LIMITED', retryAfterMs: 15000 },
+      }],
+    });
+
+    Promise.resolve().then(() => {
+      expect(comp.lockoutAlert()?.category).toBe('AuthRateLimited');
+      expect(comp.lockoutAlert()?.body).toContain('about 15 seconds');
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.alert-warning')?.textContent).toContain('Retry in about 15 seconds');
+      done();
+    });
+  });
+
+  it('shows fallback lockout guidance when retry metadata is absent', (done) => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'wrong' });
+    comp.onSubmit();
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [{
+        message: 'rate limited',
+        extensions: { code: 'RATE_LIMITED' },
+      }],
+    });
+
+    Promise.resolve().then(() => {
+      expect(comp.lockoutAlert()?.category).toBe('AuthRateLimited');
+      expect(comp.lockoutAlert()?.body).toBe(
+        'Too many failed sign-in attempts. Please wait a few minutes before trying again.',
+      );
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.alert-warning')?.textContent).toContain('Please wait a few minutes');
       done();
     });
   });
@@ -95,6 +144,79 @@ describe('LoginComponent', () => {
     // empty form
     comp.onSubmit();
     httpMock.expectNone('/graphql');
+  });
+
+  it('suppresses duplicate sign-in submits while the current request is in flight', () => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'somepassword' });
+
+    comp.onSubmit();
+    comp.onSubmit();
+
+    const loginRequest = httpMock.expectOne('/graphql');
+    expect(loginRequest.request.body.query).toContain('login');
+    httpMock.expectNone('/graphql');
+  });
+
+  it('allows a new sign-in attempt after the previous in-flight request resolves', async () => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'wrong' });
+
+    comp.onSubmit();
+    httpMock.expectOne('/graphql').flush({ errors: [{ message: 'Invalid credentials' }] });
+    await Promise.resolve();
+
+    comp.onSubmit();
+    const retryRequest = httpMock.expectOne('/graphql');
+    expect(retryRequest.request.body.query).toContain('login');
+    retryRequest.flush({ errors: [{ message: 'Invalid credentials' }] });
+    await Promise.resolve();
+
+    expect(comp.pending()).toBe(false);
+    expect(comp.authAlert()?.category).toBe('AuthFailure');
+  });
+
+  it('provides accessible labels and required semantics for interactive login controls', () => {
+    const fixture = createFixture();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const form = root.querySelector('form');
+    const email = root.querySelector<HTMLInputElement>('#email');
+    const password = root.querySelector<HTMLInputElement>('#password');
+    const toggle = root.querySelector<HTMLButtonElement>('#login-password-toggle');
+    const submit = root.querySelector<HTMLButtonElement>('#login-submit');
+
+    expect(form?.getAttribute('aria-label')).toBe('Sign in form');
+    expect(root.querySelector('label[for="email"]')?.textContent).toContain('Email');
+    expect(root.querySelector('label[for="password"]')?.textContent).toContain('Password');
+    expect(email?.getAttribute('aria-required')).toBe('true');
+    expect(password?.getAttribute('aria-required')).toBe('true');
+    expect(email?.getAttribute('aria-describedby')).toContain('login-email-help');
+    expect(password?.getAttribute('aria-describedby')).toContain('login-password-help');
+    expect(toggle?.getAttribute('aria-label')).toBe('Show password');
+    expect(submit?.getAttribute('aria-label')).toBe('Sign in to isched');
+    expect(submit?.className).toContain('focus-visible:outline');
+  });
+
+  it('keeps keyboard-only tab order aligned with visual order', () => {
+    const fixture = createFixture();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>('#email, #password, #login-password-toggle, #login-submit'),
+    );
+
+    expect(focusables.map((el) => el.id)).toEqual([
+      'email',
+      'password',
+      'login-password-toggle',
+      'login-submit',
+    ]);
+    expect(focusables.every((el) => el.tabIndex >= 0)).toBe(true);
   });
 });
 

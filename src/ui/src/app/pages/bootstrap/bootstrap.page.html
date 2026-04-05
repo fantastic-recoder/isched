@@ -1,0 +1,120 @@
+<div class="min-h-screen flex items-center justify-center bg-base-200 p-4">
+  <div class="card w-full max-w-lg bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h1 class="card-title text-2xl">Initialize Platform</h1>
+      <p class="text-sm text-base-content/70 mb-4">Complete one-time bootstrap for the first platform admin.</p>
+
+      @if (bootstrapUnavailableNotice()) {
+        <div class="alert alert-info mb-4" role="alert" aria-live="polite" data-testid="bootstrap-unavailable-notice">
+          <div>
+            <p class="font-semibold">{{ bootstrapUnavailableNotice()!.title }}</p>
+            <p>{{ bootstrapUnavailableNotice()!.body }}</p>
+          </div>
+        </div>
+      }
+
+      @if (recoveryNotice()) {
+        <div class="alert alert-info mb-4" role="alert" aria-live="polite" data-testid="bootstrap-recovery-notice">
+          <div>
+            <p class="font-semibold">{{ recoveryNotice()!.title }}</p>
+            <p>{{ recoveryNotice()!.body }}</p>
+          </div>
+        </div>
+      }
+
+      @if (globalError()) {
+        <div class="alert alert-error mb-4" role="alert">{{ globalError() }}</div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate aria-label="Platform bootstrap form">
+        <!-- Email -->
+        <div class="form-control mb-3">
+          <label class="label" for="bs-email">
+            <span class="label-text">Email</span>
+          </label>
+          <input id="bs-email" type="email" formControlName="email"
+                 placeholder="admin@example.com"
+                 autocomplete="email"
+                 aria-required="true"
+                 [attr.aria-invalid]="email.invalid && email.touched"
+                 aria-describedby="bs-email-help bs-email-error"
+                 class="input input-bordered w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                 [class.input-error]="email.invalid && email.touched" />
+          <p id="bs-email-help" class="text-xs text-base-content/70 mt-1">Use the account email for the initial platform administrator.</p>
+          @if (email.touched && email.hasError('required')) {
+            <p id="bs-email-error" class="text-error text-xs mt-1">Email is required.</p>
+          } @else if (email.touched && email.hasError('email')) {
+            <p id="bs-email-error" class="text-error text-xs mt-1">Must be a valid email address.</p>
+          } @else if (email.touched && email.errors?.['server']) {
+            <p id="bs-email-error" class="text-error text-xs mt-1">{{ email.errors?.['server'] }}</p>
+          }
+        </div>
+
+        <!-- Display Name -->
+        <div class="form-control mb-3">
+          <label class="label" for="bs-displayName">
+            <span class="label-text">Display Name</span>
+          </label>
+          <input id="bs-displayName" type="text" formControlName="displayName"
+                 placeholder="Platform Admin"
+                  autocomplete="name"
+                  aria-required="true"
+                  [attr.aria-invalid]="displayName.invalid && displayName.touched"
+                  aria-describedby="bs-displayName-help bs-displayName-error"
+                  class="input input-bordered w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                 [class.input-error]="displayName.invalid && displayName.touched" />
+          <p id="bs-displayName-help" class="text-xs text-base-content/70 mt-1">Visible name shown in audit trails and user listings.</p>
+          @if (displayName.touched && displayName.hasError('required')) {
+            <p id="bs-displayName-error" class="text-error text-xs mt-1">Display name is required.</p>
+          } @else if (displayName.touched && displayName.hasError('minlength')) {
+            <p id="bs-displayName-error" class="text-error text-xs mt-1">Display name must be at least 2 characters.</p>
+          } @else if (displayName.touched && displayName.errors?.['server']) {
+            <p id="bs-displayName-error" class="text-error text-xs mt-1">{{ displayName.errors?.['server'] }}</p>
+          }
+        </div>
+
+        <!-- Password -->
+        <div class="form-control mb-6">
+          <label class="label" for="bs-password">
+            <span class="label-text">Password <span class="text-base-content/40">(min 12 characters)</span></span>
+          </label>
+          <div class="relative">
+            <input id="bs-password"
+                   [type]="showPw() ? 'text' : 'password'"
+                   formControlName="password"
+                   placeholder="••••••••••••"
+                    autocomplete="new-password"
+                    aria-required="true"
+                    [attr.aria-invalid]="password.invalid && password.touched"
+                    aria-describedby="bs-password-help bs-password-error"
+                    class="input input-bordered w-full pr-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                   [class.input-error]="password.invalid && password.touched" />
+            <button id="bs-password-toggle" type="button"
+                    class="absolute inset-y-0 right-3 flex items-center text-base-content/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded"
+                    (click)="showPw.set(!showPw())"
+                    [attr.aria-label]="showPw() ? 'Hide password' : 'Show password'">
+              {{ showPw() ? '🙈' : '👁' }}
+            </button>
+          </div>
+          <p id="bs-password-help" class="text-xs text-base-content/70 mt-1">Password must be at least 12 characters.</p>
+          @if (password.touched && password.hasError('required')) {
+            <p id="bs-password-error" class="text-error text-xs mt-1">Password is required.</p>
+          } @else if (password.touched && password.hasError('minlength')) {
+            <p id="bs-password-error" class="text-error text-xs mt-1">Password must be at least 12 characters.</p>
+          } @else if (password.touched && password.errors?.['server']) {
+            <p id="bs-password-error" class="text-error text-xs mt-1">{{ password.errors?.['server'] }}</p>
+          }
+        </div>
+
+        <button id="bs-submit" type="submit" class="btn btn-primary w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" [disabled]="pending()" aria-label="Complete platform bootstrap">
+          @if (pending()) {
+            <span class="loading loading-spinner loading-sm"></span>
+          } @else {
+            Complete Bootstrap
+          }
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+

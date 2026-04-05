@@ -69,6 +69,30 @@ cmake --build cmake-build-debug --target docs
 - Get Ninja
 - Run the ./configure.py script
 
+For embedded WebUI builds, the `isched_ui_build` CMake target now enforces green Angular unit tests (`pnpm --filter isched-ui run test`) before running the Angular production build. If unit tests fail, the UI build is treated as failed.
+
+## Running Server With Isolated Data Directory
+
+Default server data directory (when `--data-dir` is not provided):
+
+`<DataHome>/isched` (resolved via `sago::getDataHome()`), e.g. `${XDG_DATA_HOME:-$HOME/.local/share}/isched` on Linux.
+
+Use the server CLI option `--data-dir` to isolate runtime databases for local testing and automation:
+
+```bash
+cd /home/groby/dev/isched
+TMP_DATA_DIR="$(mktemp -d)"
+./cmake-build-debug/src/main/cpp/isched/isched_srv --data-dir "$TMP_DATA_DIR"
+```
+
+Equivalent inline form:
+
+```bash
+./cmake-build-debug/src/main/cpp/isched/isched_srv --data-dir=/tmp/isched-data
+```
+
+WebUI remains served at `GET /graphql`, with SPA routes under `/graphql/*`.
+
 Build on Ubuntu with Docker
 ---------------------------
 

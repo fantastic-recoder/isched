@@ -21,16 +21,16 @@ int main() {
     std::cout << "=== iSched Tenant Manager Test ===" << std::endl;
     
     try {
-        TenantManager::Configuration config;
+        OrgManager::Configuration config;
         config.database_root_path = "/tmp/isched_tenant_test_" + std::to_string(std::time(nullptr));
         config.max_tenants = 100;
         
-        std::cout << "Creating TenantManager with configuration:" << std::endl;
+        std::cout << "Creating OrgManager with configuration:" << std::endl;
         std::cout << "  database_root: " << config.database_root_path << std::endl;
         std::cout << "  max_tenants:   " << config.max_tenants << std::endl;
         
-        auto manager = TenantManager::create(config);
-        std::cout << "✓ TenantManager created" << std::endl;
+        auto manager = OrgManager::create(config);
+        std::cout << "✓ OrgManager created" << std::endl;
         
         // Configuration getter
         const auto& stored = manager->get_configuration();
@@ -42,7 +42,7 @@ int main() {
         }
         
         // Initial status
-        if (manager->get_status() == TenantManager::Status::STOPPED) {
+        if (manager->get_status() == OrgManager::Status::STOPPED) {
             std::cout << "✓ Initial status STOPPED" << std::endl;
         } else {
             std::cout << "✗ Initial status check failed" << std::endl;
@@ -51,13 +51,13 @@ int main() {
         
         // Start
         if (manager->start()) {
-            std::cout << "✓ TenantManager started" << std::endl;
+            std::cout << "✓ OrgManager started" << std::endl;
         } else {
-            std::cout << "✗ TenantManager start failed" << std::endl;
+            std::cout << "✗ OrgManager start failed" << std::endl;
             return 1;
         }
         
-        if (manager->get_status() == TenantManager::Status::RUNNING) {
+        if (manager->get_status() == OrgManager::Status::RUNNING) {
             std::cout << "✓ Status RUNNING" << std::endl;
         } else {
             std::cout << "✗ Status RUNNING check failed" << std::endl;
@@ -65,7 +65,7 @@ int main() {
         }
         
         // Create tenants
-        TenantManager::TenantConfiguration tenant_cfg;
+        OrgManager::TenantConfiguration tenant_cfg;
         tenant_cfg.organization_name = "Test Org";
         tenant_cfg.user_limit = 50;
         
@@ -146,13 +146,13 @@ int main() {
         
         // Stop
         if (manager->stop()) {
-            std::cout << "✓ TenantManager stopped" << std::endl;
+            std::cout << "✓ OrgManager stopped" << std::endl;
         } else {
-            std::cout << "✗ TenantManager stop failed" << std::endl;
+            std::cout << "✗ OrgManager stop failed" << std::endl;
             return 1;
         }
         
-        if (manager->get_status() == TenantManager::Status::STOPPED) {
+        if (manager->get_status() == OrgManager::Status::STOPPED) {
             std::cout << "✓ Final status STOPPED" << std::endl;
         } else {
             std::cout << "✗ Final status check failed" << std::endl;

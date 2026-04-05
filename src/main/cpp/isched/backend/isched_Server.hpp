@@ -29,6 +29,7 @@
 #pragma once
 
 #include "isched_common.hpp"
+#include <isched/shared/config/isched_config.hpp>
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -97,7 +98,7 @@ public:
             , min_threads(4)
             , max_threads(100)
             , response_timeout(20)
-            , work_directory("./data")
+            , work_directory(getDataHome() + "/isched")
             , enable_introspection(true)
             , max_query_complexity(1000)
         {}
@@ -280,15 +281,31 @@ public:
     String get_health() const;
 
     /**
+     * @brief Query whether the server is in bootstrap/seed mode.
+     *
+     * Seed mode is active when no active platform administrator exists.
+     * The result is obtained by executing the built-in
+     * `{ systemState { seedModeActive } }` GraphQL query.
+     *
+     * @return true if seed mode is active (no platform admin created yet),
+     *         false otherwise or if the query cannot be evaluated.
+     * @note The server must be running before calling this method.
+     */
+    [[nodiscard]] bool is_seed_mode_active();
+
+    /**
      * @brief Execute a GraphQL operation against the server's active schema.
      * @param query GraphQL query string
      * @param variables_json GraphQL variables as a JSON string
      * @param authorization_header Value of the HTTP Authorization header (optional)
+     * @param remote_ip Client IP address for rate-limiting and logging
+     * @param request_headers Additional request headers (X-CSRF-Token, Origin, Referer for CSRF validation)
      * @return JSON-encoded GraphQL response payload
      */
     String execute_graphql(const String& query, const String& variables_json = "{}",
                            const String& authorization_header = "",
-                           const String& remote_ip = "");
+                           const String& remote_ip = "",
+                           const std::unordered_map<std::string, std::string>& request_headers = {});
 
 private:
     /**

@@ -81,6 +81,23 @@ struct ServerConfig {
 };
 
 /**
+ * @brief Resolved authentication lockout policy sourced from env/config chain.
+ */
+struct AuthRateLimitConfig {
+    int window_ms = 15 * 60 * 1000;
+    int max_attempts = 5;
+    std::string window_source = "built-in-default";
+    std::string max_attempts_source = "built-in-default";
+};
+
+/**
+ * @brief Resolve auth lockout policy using precedence chain.
+ *
+ * Precedence: bootstrap/auth override -> feature default -> global fallback -> built-in default.
+ */
+[[nodiscard]] AuthRateLimitConfig resolve_auth_rate_limit_config_from_env();
+
+/**
  * @brief Tenant-specific configuration settings
  */
 struct TenantConfig {

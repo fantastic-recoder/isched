@@ -11,6 +11,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <cstdlib>
+#include <optional>
 #include <string>
 #include <thread>
 #include <nlohmann/json.hpp>
@@ -19,6 +21,7 @@
 #include "httplib.h"
 
 #include <isched/backend/isched_Server.hpp>
+#include "../isched/isched_graphql_test_helpers.hpp"
 
 using namespace isched::v0_0_1::backend;
 
@@ -29,14 +32,20 @@ static const std::string g_run_suffix = std::to_string(
 class SnapshotTestFixture {
 public:
     std::unique_ptr<Server> server;
+    std::unique_ptr<isched::test::GraphQLTestClient> client;
+    std::optional<isched::test::AuthPayload> auth;
 
     SnapshotTestFixture() {
+        const std::string data_home = "/tmp/isched-test-snapshots-" + g_run_suffix;
+        (void)::setenv("XDG_DATA_HOME", data_home.c_str(), 1);
+
         Server::Configuration config;
         config.port = 18083;
         config.max_threads = 4;
         config.enable_introspection = true;
         config.max_query_complexity = 500;
         server = Server::create(config);
+        client = std::make_unique<isched::test::GraphQLTestClient>("localhost", 18083);
     }
 
     ~SnapshotTestFixture() {
@@ -45,19 +54,21 @@ public:
         }
     }
 
+    const isched::test::AuthPayload& ensure_auth() {
+        if (!auth.has_value()) {
+            const std::string email = "config-admin-" + g_run_suffix + "@example.com";
+            auth = client->bootstrap_or_login_platform_admin(email, "ConfigAdminPass!123", "Config Admin");
+        }
+        return auth.value();
+    }
+
     nlohmann::json post_graphql(const std::string& query,
                                 const nlohmann::json& variables = nullptr) {
-        httplib::Client client("localhost", 18083);
-        client.set_connection_timeout(2);
-        client.set_read_timeout(5);
-        nlohmann::json body = {{"query", query}};
-        if (!variables.is_null()) {
-            body["variables"] = variables;
-        }
-        auto res = client.Post("/graphql", body.dump(), "application/json");
-        REQUIRE(res != nullptr);
-        REQUIRE(res->status == 200);
-        return nlohmann::json::parse(res->body);
+        (void)variables;
+        const auto first_non_ws = query.find_first_not_of(" \t\n\r");
+        const bool is_mutation =
+            first_non_ws != std::string::npos && query.compare(first_non_ws, 8, "mutation") == 0;
+        return is_mutation ? client->post_mutation(query, ensure_auth()) : client->post_query(query);
     }
 };
 

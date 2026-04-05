@@ -161,12 +161,12 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /isched/nonexistent.xyz returns 404 JSON",
     require_security_headers(res->headers);
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /isched/deep/nested/route falls back to index.html",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched/bootstrap falls back to index.html",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
     auto client = make_client();
-    auto res = client.Get("/isched/a/deep/nested/route");
+    auto res = client.Get("/isched/bootstrap");
     REQUIRE(res != nullptr);
     REQUIRE(res->status == 200);
     REQUIRE(res->get_header_value("Content-Type").find("text/html") != std::string::npos);
@@ -205,3 +205,32 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /isched with stale ETag returns 200",
     REQUIRE(res->status == 200);
     REQUIRE(res->body.find("<app-root>") != std::string::npos);
 }
+
+TEST_CASE_METHOD(AdminUiFixture,
+                 "Canonical UI routing: GET / and GET /graphql redirect to /isched",
+                 "[integration][admin-ui][routing][canonical]") {
+    auto client = make_client();
+
+    for (const auto* path : {"/", "/graphql"}) {
+        auto res = client.Get(path);
+        REQUIRE(res != nullptr);
+        REQUIRE(res->status == 302);
+        REQUIRE(res->get_header_value("Location") == "/isched");
+    }
+}
+
+TEST_CASE_METHOD(AdminUiFixture,
+                 "Canonical UI routing: POST /graphql remains API endpoint",
+                 "[integration][admin-ui][routing][canonical]") {
+    auto client = make_client();
+    const auto body = nlohmann::json{{"query", "query { __typename }"}}.dump();
+
+    auto res = client.Post("/graphql", body, "application/json");
+    REQUIRE(res != nullptr);
+    REQUIRE(res->status == 200);
+
+    const auto payload = nlohmann::json::parse(res->body, nullptr, false);
+    REQUIRE_FALSE(payload.is_discarded());
+    REQUIRE(payload.contains("data"));
+}
+

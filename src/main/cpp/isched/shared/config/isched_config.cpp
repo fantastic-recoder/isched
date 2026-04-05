@@ -13,13 +13,67 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <array>
 #include <algorithm>
+#include <cstdlib>
 #include <regex>
 #include <sago/platform_folders.h>
 
 extern char **environ;
 
 namespace isched::v0_0_1::backend {
+
+namespace {
+
+std::optional<int> parse_positive_int_env(const char* key) {
+    const char* raw = std::getenv(key);
+    if (raw == nullptr || raw[0] == '\0') {
+        return std::nullopt;
+    }
+
+    try {
+        const int parsed = std::stoi(raw);
+        if (parsed > 0) {
+            return parsed;
+        }
+    } catch (...) {
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+AuthRateLimitConfig resolve_auth_rate_limit_config_from_env() {
+    AuthRateLimitConfig config{};
+
+    const std::array window_keys = {
+        "ISCHED_BOOTSTRAP_AUTH_LOCKOUT_WINDOW_MS",
+        "ISCHED_AUTH_LOCKOUT_WINDOW_MS",
+        "ISCHED_RATE_LIMIT_WINDOW_MS"
+    };
+    for (const char* key : window_keys) {
+        if (const auto parsed = parse_positive_int_env(key)) {
+            config.window_ms = *parsed;
+            config.window_source = key;
+            break;
+        }
+    }
+
+    const std::array attempt_keys = {
+        "ISCHED_BOOTSTRAP_AUTH_LOCKOUT_MAX_ATTEMPTS",
+        "ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS",
+        "ISCHED_RATE_LIMIT_MAX_ATTEMPTS"
+    };
+    for (const char* key : attempt_keys) {
+        if (const auto parsed = parse_positive_int_env(key)) {
+            config.max_attempts = *parsed;
+            config.max_attempts_source = key;
+            break;
+        }
+    }
+
+    return config;
+}
 
 // ConfigManager implementation details
 struct ConfigManager::Impl {

@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <ctime>
 #include <utility>
+#include <deque>
 
 namespace isched::v0_0_1::backend {
 
@@ -395,6 +396,78 @@ private:
         }
     }
 
+    bool is_rate_limited(const std::string& identity) const override {
+        std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+        auto it = rate_limit_windows_.find(identity);
+        if (it == rate_limit_windows_.end()) {
+            return false;
+        }
+
+        auto now = std::chrono::system_clock::now();
+        if (it->second.locked_until <= now) {
+            it->second.locked_until = {};
+            return false;
+        }
+        return true;
+    }
+
+    void record_failed_attempt(
+        const std::string& identity,
+        int window_ms,
+        int max_attempts) override {
+        std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+        auto now = std::chrono::system_clock::now();
+        const auto window = std::chrono::milliseconds(window_ms);
+
+        auto& state = rate_limit_windows_[identity];
+        state.max_attempts = max_attempts;
+        state.window = window;
+
+        while (!state.failed_attempts.empty() && (now - state.failed_attempts.front()) > state.window) {
+            state.failed_attempts.pop_front();
+        }
+
+        state.failed_attempts.push_back(now);
+        if (static_cast<int>(state.failed_attempts.size()) >= state.max_attempts) {
+            state.locked_until = now + state.window;
+        }
+    }
+
+    void reset_failed_attempts(const std::string& identity) override {
+        std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+        rate_limit_windows_.erase(identity);
+    }
+
+    int get_rate_limit_reset_ms(const std::string& identity) const override {
+        std::lock_guard<std::mutex> lock(rate_limit_mutex_);
+        auto it = rate_limit_windows_.find(identity);
+        if (it == rate_limit_windows_.end()) {
+            return 0;  // Not rate limited
+        }
+
+        auto now = std::chrono::system_clock::now();
+        if (it->second.locked_until <= now) {
+            return 0;  // Window has expired
+        }
+
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            it->second.locked_until - now);
+        return static_cast<int>(remaining.count());
+    }
+
+    AuthRateLimitConfig get_rate_limit_config() const override {
+        const auto config = resolve_auth_rate_limit_config_from_env();
+        std::call_once(rate_limit_config_log_once_, [config]() {
+            spdlog::info(
+                "Auth lockout config resolved: windowMs={} (source={}), maxAttempts={} (source={})",
+                config.window_ms,
+                config.window_source,
+                config.max_attempts,
+                config.max_attempts_source);
+        });
+        return config;
+    }
+
     // Member variables
     std::string jwt_secret_;
     std::unordered_map<std::string, OAuthConfig> oauth_providers_;
@@ -403,13 +476,25 @@ private:
     mutable std::shared_mutex sessions_mutex_;
     mutable std::unordered_map<std::string, SessionInfo> active_sessions_;
     
+    // Rate limiting state
+    struct RateLimitWindow {
+        std::deque<std::chrono::system_clock::time_point> failed_attempts;
+        int max_attempts = 5;
+        std::chrono::milliseconds window{900000};
+        std::chrono::system_clock::time_point locked_until{};
+    };
+    mutable std::mutex rate_limit_mutex_;
+    mutable std::unordered_map<std::string, RateLimitWindow> rate_limit_windows_;
+
     // Metrics
     mutable std::mutex metrics_mutex_;
     mutable std::atomic<uint64_t> total_auth_attempts_{0};
     mutable std::atomic<uint64_t> successful_auths_{0};
     mutable std::atomic<uint64_t> failed_auths_{0};
     mutable std::atomic<uint64_t> active_sessions_count_{0};
-    
+
+    mutable std::once_flag rate_limit_config_log_once_;
+
     // JWT verifier (placeholder for now)
     mutable std::mutex jwt_mutex_;
 };

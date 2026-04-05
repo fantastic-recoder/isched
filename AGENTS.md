@@ -5,10 +5,11 @@ This file provides development guidelines for AI coding agents operating in this
 ## Project Overview
 
 - **Language**: C++23
+- **Frontend**: Angular 21 WebUI (`src/ui/`) with strict TypeScript
 - **Build system**: CMake + Ninja
 - **Dependency manager**: Conan 2.x
 - **Test framework**: Catch2 3.x
-- **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant
+- **Architecture**: GraphQL-only HTTP/WebSocket backend, single-process, multi-tenant, with Angular WebUI client
 
 ## Project Structure
 
@@ -70,6 +71,20 @@ cd cmake-build-debug && ctest -N
 ```
 
 ## Code Style Guidelines
+
+### Angular WebUI Conventions (`src/ui/`)
+- Use signal-first state management; use RxJS when stream semantics are required.
+- Do not drive app-owned template state via async-pipe subscriptions to component-owned observables; use signals (or signal-derived view models) for template state.
+- Default to standalone components/directives/pipes.
+- Use modern template control flow: `@if`, `@for`, `@switch`.
+- Use typed reactive forms for user input flows.
+- Keep strict TypeScript + strict template checks enabled.
+- Prefer zoneless and `OnPush`-compatible patterns where feasible.
+- Consume backend APIs via GraphQL `/graphql` only (HTTP + WebSocket); no REST calls.
+- Do not persist access JWTs in `localStorage`, `sessionStorage`, or IndexedDB.
+- Use Angular dev-server proxy for local `/graphql` routing; avoid hard-coded backend origins.
+- **Templates and styles MUST be in separate files** — use `templateUrl` and `styleUrl`, never inline `template` or `styles`. Each component gets a `.html` and `.scss` file alongside its `.ts` file.
+- **CSS framework**: Tailwind CSS 3.x + DaisyUI 4.x — use DaisyUI component classes (e.g. `btn`, `card`, `alert`, `modal`) for consistent styling; extend with Tailwind utilities as needed.
 
 ### File Naming
 - All library source files use `isched_` prefix (e.g., `isched_Server.hpp`, `isched_Server.cpp`)

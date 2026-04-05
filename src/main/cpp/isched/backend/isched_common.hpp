@@ -47,7 +47,7 @@ namespace backend {
 
 // Forward declarations for core classes
 class Server;
-class TenantManager;
+class OrgManager;
 class Database;
 class GqlExecutor;
 class ResolverSystem;

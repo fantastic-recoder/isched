@@ -32,13 +32,17 @@
 #include <boost/asio/post.hpp>
 
 #include <chrono>
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <deque>
 #include <memory>
 #include <optional>
+#include <string>
 #include <stdexcept>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -56,6 +60,47 @@ std::atomic<std::uint64_t> request_sequence{0};
 
 std::string make_request_id() {
     return "req-" + std::to_string(++request_sequence);
+}
+
+std::string trim_copy(std::string value) {
+    auto is_space = [](unsigned char ch) { return std::isspace(ch) != 0; };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+        [&](unsigned char ch) { return !is_space(ch); }));
+    value.erase(std::find_if(value.rbegin(), value.rend(),
+        [&](unsigned char ch) { return !is_space(ch); }).base(), value.end());
+    return value;
+}
+
+bool etag_matches_if_none_match(const std::string& if_none_match, const std::string& current_etag) {
+    if (if_none_match.empty()) {
+        return false;
+    }
+
+    if (trim_copy(if_none_match) == "*") {
+        return true;
+    }
+
+    std::size_t start = 0;
+    while (start < if_none_match.size()) {
+        std::size_t end = if_none_match.find(',', start);
+        if (end == std::string::npos) {
+            end = if_none_match.size();
+        }
+        const std::string token = trim_copy(if_none_match.substr(start, end - start));
+        if (token == current_etag) {
+            return true;
+        }
+        start = end + 1;
+    }
+    return false;
+}
+
+bool is_asset_request_path(const std::string& asset_path) {
+    const auto slash_pos = asset_path.find_last_of('/');
+    const std::string filename = slash_pos == std::string::npos
+        ? asset_path
+        : asset_path.substr(slash_pos + 1);
+    return filename.find('.') != std::string::npos;
 }
 } // namespace
 
@@ -479,7 +524,8 @@ public:
     using ExecuteFn = std::function<std::string(const std::string&,
                                                 const std::string&,
                                                 const std::string&,
-                                                const std::string& /*remote_ip*/)>;
+                                                const std::string&, /*remote_ip*/
+                                                const std::unordered_map<std::string, std::string>&)>; /*headers*/
     using MetricFn   = std::function<void(double /*ms*/)>;
 
     HttpSession(tcp::socket socket, net::io_context& ioc,
@@ -531,7 +577,12 @@ private:
         res.set(beast::http::field::access_control_allow_origin, "*");
         res.keep_alive(req_.keep_alive());
 
-        const std::string_view target = req_.target();
+
+        const std::string target = std::string(req_.target());
+        const auto query_pos = target.find('?');
+        const std::string target_path = query_pos == std::string::npos
+            ? target
+            : target.substr(0, query_pos);
 
         if (req_.method() == beast::http::verb::options) {
             // CORS preflight
@@ -541,12 +592,24 @@ private:
                     "Content-Type, Authorization");
             res.body() = "";
         } else if (req_.method() == beast::http::verb::get &&
-                   (target == "/isched" || target == "/isched/" ||
-                    target.starts_with("/isched/"))) {
-            // ── Admin UI static asset handler ────────────────────────────────
-            // Security headers applied to all /isched responses.
+                   (target_path == "/" || target_path == "/graphql")) {
+            // Canonicalize browser entry points to the embedded WebUI.
+            res.result(beast::http::status::found);
+            res.set(beast::http::field::location, "/isched");
+            res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
+            res.body() = "Redirecting to /isched";
+        } else if (req_.method() == beast::http::verb::get &&
+                   (target_path == "/isched" ||
+                    target_path == "/isched/" ||
+                    target_path.rfind("/isched/", 0) == 0)) {
+            // ── Embedded Angular admin UI under /isched/* (SPA + static assets) ───
+            // Security headers applied to UI responses.
             res.set("X-Content-Type-Options", "nosniff");
             res.set("X-Frame-Options", "DENY");
+            res.set("Content-Security-Policy",
+                    "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; "
+                    "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                    "font-src 'self' data:; connect-src 'self' ws: wss:");
 
             const auto& registry = UiAssetRegistry::instance();
             if (!registry.has_index_html()) {
@@ -555,72 +618,59 @@ private:
                 res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
                 res.body() = "Admin UI assets unavailable";
             } else {
-                // Strip the /isched prefix; map empty remainder to /index.html
+                // Map /isched[/<asset>] -> /<asset> entries in UiAssetRegistry.
                 std::string asset_path;
-                if (target == "/isched" || target == "/isched/") {
+                if (target_path == "/isched" || target_path == "/isched/") {
                     asset_path = "/index.html";
                 } else {
-                    // /isched/... → strip first 7 chars ("/isched")
-                    asset_path = std::string{target.substr(7)};
-                    if (asset_path.empty()) asset_path = "/index.html";
+                    asset_path = target_path.substr(std::string("/isched").size());
+                    if (asset_path.empty() || asset_path == "/") {
+                        asset_path = "/index.html";
+                    }
                 }
 
-                const auto entry = registry.find(asset_path);
+                auto entry = registry.find(asset_path);
+
+                const bool asset_request = is_asset_request_path(asset_path);
+
+                // SPA fallback for client routes such as /isched/bootstrap.
+                if (!entry && !asset_request) {
+                    entry = registry.find("/index.html");
+                }
+
                 if (entry) {
-                    // ETag cache check
-                    const std::string_view if_none_match =
-                        req_[beast::http::field::if_none_match];
-                    const std::string quoted_etag =
-                        '"' + std::string{entry->etag} + '"';
-                    if (!if_none_match.empty() && if_none_match == quoted_etag) {
-                        // 304 Not Modified
-                        beast::http::response<beast::http::empty_body> not_modified{
-                            beast::http::status::not_modified, req_.version()};
-                        not_modified.set(beast::http::field::server, "isched/1.0");
-                        not_modified.set("ETag", quoted_etag);
-                        not_modified.set("X-Content-Type-Options", "nosniff");
-                        not_modified.set("X-Frame-Options", "DENY");
-                        not_modified.keep_alive(req_.keep_alive());
-                        not_modified.prepare_payload();
-                        auto sp = std::make_shared<
-                            beast::http::response<beast::http::empty_body>>(
-                            std::move(not_modified));
-                        beast::http::async_write(stream_, *sp,
-                            net::bind_executor(strand_,
-                                [self = shared_from_this(), sp, close = !sp->keep_alive()]
-                                (beast::error_code ec2, std::size_t) {
-                                    self->on_write(ec2, close);
-                                }));
-                        return;
-                    }
-                    // Serve asset
-                    res.set(beast::http::field::content_type, std::string{entry->mime_type});
-                    res.set(beast::http::field::etag, quoted_etag);
+                    const std::string if_none_match =
+                        req_.find(beast::http::field::if_none_match) != req_.end()
+                            ? std::string(req_[beast::http::field::if_none_match])
+                            : "";
+
+                    if (etag_matches_if_none_match(if_none_match, std::string(entry->etag))) {
+                        res.result(beast::http::status::not_modified);
+                        res.set(beast::http::field::etag, std::string(entry->etag));
+                        res.body().clear();
+                    } else {
+                    res.set(beast::http::field::content_type, std::string(entry->mime_type));
+                    res.set(beast::http::field::etag, std::string(entry->etag));
                     res.body().assign(
                         reinterpret_cast<const char*>(entry->data.data()),
                         entry->data.size());
-                } else {
-                    // Unknown path — check if it looks like a file (has extension)
-                    const bool looks_like_file =
-                        asset_path.find('.') != std::string::npos;
-                    if (looks_like_file) {
-                        // Missing static file → 404 JSON
-                        res.result(beast::http::status::not_found);
-                        res.body() = R"({"errors":[{"message":"asset not found"}]})"
-                        "";
-                    } else {
-                        // Push-state fallback: serve index.html for Angular routes
-                        const auto idx = registry.find("/index.html");
-                        res.set(beast::http::field::content_type,
-                                "text/html; charset=utf-8");
-                        res.body().assign(
-                            reinterpret_cast<const char*>(idx->data.data()),
-                            idx->data.size());
                     }
+                } else {
+                    res.result(beast::http::status::not_found);
+                    res.set(beast::http::field::content_type, "application/json");
+                    const auto envelope = nlohmann::json{
+                        {"errors", nlohmann::json::array({
+                            nlohmann::json{
+                                {"message", "asset not found"},
+                                {"extensions", nlohmann::json{{"code", "NOT_FOUND"}, {"path", asset_path}}}
+                            }
+                        })}
+                    };
+                    res.body() = envelope.dump();
                 }
             }
         } else if (req_.method() == beast::http::verb::post &&
-                   req_.target() == "/graphql") {
+                   target_path == "/graphql") {
             auto body = nlohmann::json::parse(req_.body(), nullptr, /*exceptions=*/false);
             if (body.is_discarded()) {
                 res.result(beast::http::status::bad_request);
@@ -636,19 +686,49 @@ private:
                     res.result(beast::http::status::bad_request);
                     res.body() = R"({"errors":[{"message":"Missing or empty 'query' field"}]})";
                 } else {
-                    const std::string auth_hdr =
-                        std::string(req_[beast::http::field::authorization]);
-                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip);
+                    // Extract request headers for CSRF validation (T010)
+                    // NOTE: header names are compared case-insensitively
+                    // because reverse proxies (e.g. Node.js http-proxy used
+                    // by Angular/Vite dev server) normalise names to lowercase.
+                    std::unordered_map<std::string, std::string> req_headers;
+
+                    auto iequals = [](std::string_view a, std::string_view b) {
+                        if (a.size() != b.size()) return false;
+                        for (std::size_t i = 0; i < a.size(); ++i)
+                            if (std::tolower(static_cast<unsigned char>(a[i])) !=
+                                std::tolower(static_cast<unsigned char>(b[i])))
+                                return false;
+                        return true;
+                    };
+
+                    // Extract standard headers (store under canonical names)
+                    for (auto const& field : req_) {
+                        const auto name = field.name_string();
+                        if (iequals(name, "X-CSRF-Token")) {
+                            req_headers["X-CSRF-Token"] = std::string(field.value());
+                        } else if (iequals(name, "Origin")) {
+                            req_headers["Origin"] = std::string(field.value());
+                        } else if (iequals(name, "Referer")) {
+                            req_headers["Referer"] = std::string(field.value());
+                        } else if (iequals(name, "Authorization")) {
+                            req_headers["Authorization"] = std::string(field.value());
+                        }
+                    }
+
+                    const std::string auth_hdr = req_headers.count("Authorization") ?
+                                                 req_headers["Authorization"] : "";
+                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip, req_headers);
                 }
             }
         } else {
             res.result(beast::http::status::not_found);
-            res.body() = R"({"errors":[{"message":"Not found. Use POST /graphql"}]})";
+            res.body() = R"({"errors":[{"message":"Not found. Use GET /isched[/...] for UI or POST /graphql for GraphQL"}]})";
         }
 
         const double elapsed_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - started_at).count();
         metric_fn_(elapsed_ms);
+
 
         res.prepare_payload();
         do_write(std::move(res));
@@ -753,6 +833,7 @@ public:
 
         DatabaseManager::Config db_config;
         db_config.base_path = config.work_directory + "/tenants";
+        db_config.system_db_path = config.work_directory + "/isched_system.db";
         database = std::make_shared<DatabaseManager>(db_config);
 
         // T047-000: create / open platform-level system database on startup
@@ -959,13 +1040,16 @@ bool Server::start() {
             m_impl->http_listener = std::make_shared<HttpListener>(
                 *m_impl->ioc, http_ep,
                 [this](const std::string& q, const std::string& v,
-                       const std::string& a, const std::string& ip) {
-                    return execute_graphql(q, v, a, ip);
+                       const std::string& a, const std::string& ip,
+                       const std::unordered_map<std::string, std::string>& hdrs) {
+                    return execute_graphql(q, v, a, ip, hdrs);
                 },
                 [this](double ms) { update_response_time_metric(ms); });
             m_impl->http_listener->run();
-            spdlog::info("GraphQL endpoint ready at http://{}:{}/graphql",
-                         m_config.host, m_config.port);
+            spdlog::info("Server data directory: {}", m_config.work_directory);
+            spdlog::info(
+                "Admin UI startup: route=/isched embeddedAssets={} missingAssetBehavior=404-json spaFallback=non-asset-routes",
+                UiAssetRegistry::instance().has_index_html() ? "available" : "missing");
         } catch (const std::exception& e) {
             spdlog::error("HTTP listener startup failed: {}", e.what());
             m_impl->work_guard.reset();
@@ -1129,8 +1213,19 @@ String Server::get_health() const {
            ",\"timestamp\":" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch()).count()) +
            ",\"version\":\"1.0.0\"" +
-           ",\"checks\":{\"configuration\":\"UP\"}" +
-           "}";
+           ",\"checks\":{\"configuration\":\"UP\"}}" ;
+}
+
+bool Server::is_seed_mode_active() {
+    try {
+        const auto resp = execute_graphql("{ systemState { seedModeActive } }");
+        const auto j = nlohmann::json::parse(resp);
+        return j.value("data", nlohmann::json{})
+                .value("systemState", nlohmann::json{})
+                .value("seedModeActive", false);
+    } catch (...) {
+        return false;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1147,8 +1242,8 @@ void Server::setup_endpoints() {
 }
 
 std::string Server::process_graphql_query(const std::string& query,
-                                          const std::string& variables_json) {
-    return execute_graphql(query, variables_json);
+                                           const std::string& variables_json) {
+    return execute_graphql(query, variables_json, "", "", {});
 }
 
 std::string Server::status_to_string(Status status) const {
@@ -1174,12 +1269,122 @@ void Server::update_response_time_metric(double response_time_ms) {
 
 String Server::execute_graphql(const String& query, const String& variables_json,
                                const String& authorization_header,
-                               const String& remote_ip) {
+                               const String& remote_ip,
+                               const std::unordered_map<std::string, std::string>& request_headers) {
     const auto started_at = std::chrono::steady_clock::now();
     const auto request_id = make_request_id();
 
     m_request_count.fetch_add(1);
     m_impl->total_requests.fetch_add(1);
+
+    // T010: Validate CSRF token and Origin/Referer for mutations
+    // Detect if query is a mutation by checking if it starts with "mutation"
+    std::string trimmed_query = query;
+    // Trim leading whitespace
+    size_t start = trimmed_query.find_first_not_of(" \t\n\r");
+    if (start != std::string::npos) {
+        trimmed_query = trimmed_query.substr(start);
+    }
+
+    const bool is_mutation = trimmed_query.size() >= 8 &&
+                            trimmed_query.substr(0, 8) == "mutation";
+
+    // Unauthenticated mutations (login, bootstrap, logout) are exempt from
+    // CSRF checks because there is no authenticated session to protect.
+    // The double-submit CSRF pattern only guards cookie-authenticated sessions.
+    const auto is_csrf_exempt_mutation = [&trimmed_query]() -> bool {
+        static const std::vector<std::string> exempt_ops = {
+            "login", "bootstrapPlatformAdmin", "createPlatformAdmin", "logout"
+        };
+        for (const auto& op : exempt_ops) {
+            if (trimmed_query.find(op) != std::string::npos) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    ExecutionResult csrf_result;
+    if (is_mutation && !is_csrf_exempt_mutation()) {
+        // Extract CSRF headers
+        const auto csrf_it = request_headers.find("X-CSRF-Token");
+        const auto origin_it = request_headers.find("Origin");
+        const auto referer_it = request_headers.find("Referer");
+
+        const std::string csrf_token = csrf_it != request_headers.end() ? csrf_it->second : "";
+        const std::string origin = origin_it != request_headers.end() ? origin_it->second : "";
+        const std::string referer = referer_it != request_headers.end() ? referer_it->second : "";
+
+        // CSRF validation: require double-submit token and strict Origin/Referer checks.
+        if (csrf_token.empty()) {
+            csrf_result.errors.push_back(gql::Error{
+                .code = gql::EErrorCodes::CSRF_FAILED,
+                .message = "CSRF token missing or invalid"
+            });
+        }
+
+        // Allow only same-origin browser mutations for local/admin UI hosts.
+        const auto contains_str = [](const std::string& haystack, const std::string& needle) {
+            return haystack.find(needle) != std::string::npos;
+        };
+        std::vector<std::string> allowed_origins;
+        allowed_origins.emplace_back("http://localhost:" + std::to_string(m_config.port));
+        allowed_origins.emplace_back("http://127.0.0.1:" + std::to_string(m_config.port));
+        // Allow Angular dev-server origin for local development proxy workflow.
+        allowed_origins.emplace_back("http://localhost:4200");
+        if (!m_config.host.empty() && m_config.host != "localhost" && m_config.host != "127.0.0.1") {
+            allowed_origins.emplace_back("http://" + m_config.host + ":" + std::to_string(m_config.port));
+        }
+
+        bool origin_valid = false;
+        if (!origin.empty()) {
+            for (const auto& allowed : allowed_origins) {
+                if (origin == allowed) {
+                    origin_valid = true;
+                    break;
+                }
+            }
+        }
+
+        bool referer_valid = false;
+        if (!referer.empty()) {
+            for (const auto& allowed : allowed_origins) {
+                if (referer.rfind(allowed + "/", 0) == 0 || referer == allowed) {
+                    referer_valid = true;
+                    break;
+                }
+            }
+        }
+
+        if (!origin_valid && !referer_valid) {
+            std::string details = "Origin/Referer validation failed";
+            if (!origin.empty() || !referer.empty()) {
+                if (!origin.empty() && contains_str(origin, "Bearer ")) {
+                    details = "Origin validation failed";
+                }
+            }
+            csrf_result.errors.push_back(gql::Error{
+                .code = gql::EErrorCodes::CSRF_FAILED,
+                .message = details
+            });
+        }
+
+        if (!csrf_result.is_success()) {
+            const auto finished_at = std::chrono::steady_clock::now();
+            const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                finished_at - started_at);
+            update_response_time_metric(static_cast<double>(elapsed_ms.count()));
+
+            auto response = csrf_result.to_json();
+            response["extensions"]["requestId"] = request_id;
+            response["extensions"]["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            response["extensions"]["executionTimeMs"] = elapsed_ms.count();
+            response["extensions"]["endpoint"] = get_graphql_endpoint_path();
+
+            return response.dump();
+        }
+    }
 
     // Build auth context from the supplied Authorization header (best-effort;
     // unauthenticated requests are allowed for public queries such as `login`).

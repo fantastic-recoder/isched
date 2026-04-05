@@ -10,6 +10,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, Router } from '@angular/router';
 import { SeedComponent } from './seed';
 
+/** Flush microtask queue so chained observables propagate. */
+const flushMicrotasks = () => new Promise<void>((r) => setTimeout(r, 0));
+
 describe('SeedComponent', () => {
   let httpMock: HttpTestingController;
   let router: Router;
@@ -20,7 +23,10 @@ describe('SeedComponent', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        provideRouter([{ path: 'login', component: SeedComponent }]),
+        provideRouter([
+          { path: 'login', component: SeedComponent },
+          { path: 'dashboard', component: SeedComponent },
+        ]),
       ],
     }).compileComponents();
 
@@ -63,7 +69,7 @@ describe('SeedComponent', () => {
     httpMock.expectNone('/graphql');
   });
 
-  it('navigates to /login on successful mutation', (done) => {
+  it('navigates to /login on successful mutation', async () => {
     const fixture = createFixture();
     const comp = fixture.componentInstance;
     const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -75,15 +81,13 @@ describe('SeedComponent', () => {
     });
     comp.onSubmit();
 
+    // 1) createPlatformAdmin mutation
     httpMock.expectOne('/graphql').flush({
       data: { createPlatformAdmin: { id: '1', email: 'admin@x.com' } },
     });
+    await flushMicrotasks();
 
-    // Wait for microtasks (subscribe next callback)
-    Promise.resolve().then(() => {
-      expect(navSpy).toHaveBeenCalledWith(['/login']);
-      done();
-    });
+    expect(navSpy).toHaveBeenCalledWith(['/login']);
   });
 
   it('shows error banner on server error', (done) => {

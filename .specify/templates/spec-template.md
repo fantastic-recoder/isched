@@ -90,6 +90,15 @@
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
+### Frontend Constitutional Requirements *(mandatory when feature includes `src/ui/` changes)*
+
+- **FCR-001**: WebUI state management MUST be signal-first; app-owned template state MUST be signal-backed, and async-pipe-driven template state from component-owned observables is prohibited unless a third-party stream contract requires it and the exception is documented.
+- **FCR-002**: New UI elements MUST use standalone components/directives/pipes and modern Angular template control flow (`@if`, `@for`, `@switch`).
+- **FCR-003**: User input flows MUST use typed reactive forms with strict TypeScript and strict template type checking enabled.
+- **FCR-004**: Browser API consumption MUST use GraphQL `/graphql` only (HTTP/WebSocket) with no REST fallback.
+- **FCR-005**: JWT handling MUST avoid persistent token storage (`localStorage`/`sessionStorage`/IndexedDB) and define secure transport/storage controls.
+- **FCR-006**: Local development MUST define Angular dev-server proxy behavior for `/graphql` (including WebSocket upgrades).
+
 *Example of marking unclear requirements:*
 
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
