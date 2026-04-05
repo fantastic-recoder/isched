@@ -75,6 +75,26 @@ pnpm test
 pnpm e2e
 ```
 
+## 6) Recorded regression command matrix (2026-04-05)
+
+| Command | Scope | Outcome | Notes |
+| --- | --- | --- | --- |
+| `cd /home/groby/dev/isched/cmake-build-debug && ctest -R 'test_rate_limiting|test_seed_mode|isched_auth_tests' --output-on-failure` | Focused backend auth/bootstrap behavior | PASS | 3/3 tests passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm run test:login-lockout` | Focused lockout unit tests | PASS | 3 suites / 33 tests passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm run test:startup-routing` | Focused startup/guard unit tests | PASS | 2 suites / 13 tests passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm run test:auth-bootstrap` | Combined focused auth/bootstrap unit tests | PASS | 6 suites / 58 tests passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:rate-limiting` | Focused lockout E2E | FAIL | 4/4 failed in this run; login selectors not reached in scenario setup |
+| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:bootstrap` | Focused bootstrap E2E | PASS | 3/3 passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm run e2e:auth-bootstrap` | Combined lockout + bootstrap E2E | FAIL | 1/7 failed; lockout scenario timed out waiting for `.alert.alert-error` |
+| `cd /home/groby/dev/isched/cmake-build-debug && ctest --output-on-failure` | Full backend regression gate | PASS | 39/39 tests passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm test` | Full frontend unit gate | PASS | 16 suites / 86 tests passed |
+| `cd /home/groby/dev/isched/src/ui && pnpm e2e` | Full frontend E2E gate | FAIL | 1/7 failed; same lockout selector mismatch as focused run |
+
+### Blocking detail
+
+- Blocking assertion currently occurs in `src/ui/e2e/rate-limiting.spec.ts` first scenario, where `.alert.alert-error` is awaited and times out.
+- Other lockout scenarios in the same file pass in combined/full E2E runs, indicating a narrow assertion/classification mismatch rather than a full lockout-flow regression.
+
 ## Troubleshooting
 
 - If startup routing is flaky, inspect first boot GraphQL calls (`systemState`, `currentUser`) in browser devtools.

@@ -111,10 +111,10 @@
 
 **Purpose**: Final hardening, documentation, and full-regression readiness.
 
-- [ ] T035 [P] Update feature threat model with final mitigations/evidence in `specs/005-rate-limited-auth-bootstrap/threat-model.md`
-- [ ] T036 [P] Update project-level security summary for this feature in `docs/security-threat-model.md`
-- [ ] T037 [P] Add feature completion note and validation outcomes in `CHANGELOG.md`
-- [ ] T038 Run/record full feature regression command matrix in `specs/005-rate-limited-auth-bootstrap/quickstart.md`
+- [X] T035 [P] Update feature threat model with final mitigations/evidence in `specs/005-rate-limited-auth-bootstrap/threat-model.md`
+- [X] T036 [P] Update project-level security summary for this feature in `docs/security-threat-model.md`
+- [X] T037 [P] Add feature completion note and validation outcomes in `CHANGELOG.md`
+- [X] T038 Run/record full feature regression command matrix in `specs/005-rate-limited-auth-bootstrap/quickstart.md`
 
 ---
 

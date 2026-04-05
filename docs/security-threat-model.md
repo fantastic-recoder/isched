@@ -12,6 +12,23 @@ This document summarizes the security posture and recurring mitigations for Isch
 - `specs/004-add-isched-webui/threat-model.md` — Embedded WebUI serving, proxy-backed local GraphQL flow, CSRF/cookie auth behavior, and organization-context write boundaries
 - `specs/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling
 
+## Feature 005 Security Closeout Snapshot (2026-04-05)
+
+- **Scope**: `005-rate-limited-auth-bootstrap` (auth lockout signaling, startup/guard session consistency, bootstrap transition controls)
+- **Validated mitigations**:
+  - Deterministic lockout classification through `extensions.code = RATE_LIMITED` with fallback guidance when `retryAfterMs` is absent
+  - One-time guarded-route session revalidation to reduce stale-session drift after startup
+  - Single-flight suppression on login/bootstrap submit paths to prevent race-condition amplification
+  - Immediate bootstrap-unavailable redirect to sign-in with explicit operator notice
+  - Browser posture remains no persistent JWT storage for app-owned state
+- **Validation evidence**:
+  - Backend gate: `ctest --output-on-failure` PASS (39/39)
+  - Focused frontend unit gates: PASS (`test:login-lockout`, `test:startup-routing`, `test:auth-bootstrap`, full `pnpm test`)
+  - Focused bootstrap E2E: PASS (`pnpm run e2e:bootstrap`)
+- **Open blocker**:
+  - `pnpm run e2e:rate-limiting` and `pnpm e2e` fail on one lockout scenario in `src/ui/e2e/rate-limiting.spec.ts` waiting for `.alert.alert-error`; observed behavior indicates selector/class mismatch in the assertion path, not an auth bypass.
+- **Risk posture**: No new critical auth/session exposure identified; remaining risk is release-confidence noise until the lockout E2E assertion is aligned.
+
 ## Common Security Themes
 
 - **Secure bootstrap**: any unauthenticated bootstrap path must be narrow, explicitly documented, and automatically disabled after first-use conditions are satisfied.

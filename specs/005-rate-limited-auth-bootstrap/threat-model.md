@@ -1,5 +1,7 @@
 # Threat Model: 005-rate-limited-auth-bootstrap
 
+**Last updated**: 2026-04-05
+
 ## Scope
 
 This feature updates authentication lockout signaling and startup/bootstrap route behavior in the WebUI. Trust boundaries include browser UI state, GraphQL error metadata, route guards, and backend session/bootstrap state checks.
@@ -12,21 +14,31 @@ This feature updates authentication lockout signaling and startup/bootstrap rout
 - Guard-controlled route access decisions
 - User-facing security guidance messages
 
-## Threats and Mitigations
+## Threats, Mitigations, and Evidence
 
-- **Ambiguous lockout responses causing repeated brute-force retries**
-  - Mitigation: deterministic `RATE_LIMITED` mapping and explicit retry guidance fallback when timing metadata is absent.
-- **Session state drift between app init and guarded navigation**
-  - Mitigation: one-time guard revalidation using `currentUser`; redirect to sign-in on failure.
-- **Duplicate auth/bootstrap submissions creating race conditions**
-  - Mitigation: single-flight suppression for each flow while requests are pending.
-- **Bootstrap page exposed after bootstrap is no longer allowed**
-  - Mitigation: immediate redirect from bootstrap page to sign-in with clear completion notice.
-- **Credential/token exposure in browser storage**
-  - Mitigation: no persistent JWT storage in `localStorage`, `sessionStorage`, or IndexedDB; keep app-owned auth indicators ephemeral.
+| Threat | Final mitigation state | Evidence |
+| --- | --- | --- |
+| Ambiguous lockout responses causing repeated brute-force retries | `RATE_LIMITED` lockout signaling is normalized, with metadata-aware and fallback retry guidance paths in UI mapping. | `src/test/cpp/integration/test_rate_limiting.cpp`, `src/ui/src/app/services/auth.service.spec.ts`, `src/ui/src/app/services/graphql.service.spec.ts`, `src/ui/src/app/pages/login/login.spec.ts` |
+| Session state drift between app init and guarded navigation | Startup route resolution + one-time guard revalidation enforce deterministic redirect to sign-in when session becomes invalid. | `src/test/cpp/integration/test_seed_mode.cpp`, `src/ui/src/app/app.spec.ts`, `src/ui/src/app/guards/auth.guard.spec.ts` |
+| Duplicate auth/bootstrap submissions creating race conditions | Single-flight suppression blocks duplicate login/bootstrap submits while original request is pending. | `src/ui/src/app/pages/login/login.spec.ts`, `src/ui/src/app/pages/bootstrap/bootstrap.page.spec.ts`, `src/ui/e2e/bootstrap.spec.ts` |
+| Bootstrap page exposed after bootstrap is no longer allowed | Bootstrap-unavailable flow redirects to sign-in with explicit recovery notice. | `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`, `src/ui/src/app/pages/bootstrap/bootstrap.page.spec.ts`, `src/ui/e2e/bootstrap.spec.ts` |
+| Credential/token exposure in browser storage | Access/session indicators remain in-memory only; no `localStorage`/`sessionStorage`/IndexedDB token persistence introduced. | `src/ui/src/app/services/auth.service.ts`, `src/ui/src/app/interceptors/auth.interceptor.spec.ts`, `docs/security-threat-model.md` |
+
+## Validation Run Evidence (2026-04-05)
+
+- `ctest --output-on-failure` (full backend gate): PASS (39/39)
+- `ctest -R 'test_rate_limiting|test_seed_mode|isched_auth_tests' --output-on-failure`: PASS
+- `pnpm run test:login-lockout`: PASS
+- `pnpm run test:startup-routing`: PASS
+- `pnpm run test:auth-bootstrap`: PASS
+- `pnpm test`: PASS (16 suites / 86 tests)
+- `pnpm run e2e:bootstrap`: PASS (3/3)
+- `pnpm run e2e:rate-limiting`: FAIL (4/4, login selector precondition failed)
+- `pnpm run e2e:auth-bootstrap`: FAIL (1/7, lockout alert selector expectation mismatch)
+- `pnpm e2e`: FAIL (1/7, same lockout alert selector expectation mismatch)
 
 ## Residual Risks
 
-- Inconsistent backend error metadata across all auth resolvers can still degrade UX until contract normalization is complete everywhere.
-- Guard revalidation correctness depends on reliable and low-latency `currentUser` responses in degraded network conditions.
+- Playwright lockout E2E currently has a deterministic regression in `src/ui/e2e/rate-limiting.spec.ts` first scenario, timing out on `.alert.alert-error` expectation while other lockout scenarios pass; closeout requires either selector alignment (`alert-warning` vs `alert-error`) or UI class normalization.
+- Guard revalidation correctness remains dependent on reliable and low-latency `currentUser` responses under degraded network conditions.
 
