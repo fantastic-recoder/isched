@@ -1,7 +1,7 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { GraphQLService } from '../../services/graphql.service';
 import { AuthService } from '../../services/auth.service';
 
@@ -21,7 +21,7 @@ interface User {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
@@ -37,6 +37,31 @@ export class DashboardComponent implements OnInit {
   readonly health     = signal<string | null>(null);
   readonly version    = signal<string | null>(null);
   readonly showUserPw = signal(false);
+
+  readonly healthBadgeLabel = () => {
+    const value = this.health();
+    if (!value) {
+      return 'Unknown';
+    }
+    if (value === 'UP') {
+      return 'Healthy';
+    }
+    if (value === 'DOWN') {
+      return 'Down';
+    }
+    return value;
+  };
+
+  readonly healthBadgeClass = () => {
+    const value = this.health();
+    if (value === 'UP') {
+      return 'badge-success';
+    }
+    if (value === 'DOWN') {
+      return 'badge-error';
+    }
+    return 'badge-warning';
+  };
 
   // Org form
   readonly orgForm    = this.fb.group({ name: ['', Validators.required], domain: [''], subscriptionTier: [''] });

@@ -94,5 +94,44 @@ describe('LoginComponent', () => {
     comp.onSubmit();
     httpMock.expectNone('/graphql');
   });
+
+  it('provides accessible labels and required semantics for interactive login controls', () => {
+    const fixture = createFixture();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const form = root.querySelector('form');
+    const email = root.querySelector<HTMLInputElement>('#email');
+    const password = root.querySelector<HTMLInputElement>('#password');
+    const toggle = root.querySelector<HTMLButtonElement>('#login-password-toggle');
+    const submit = root.querySelector<HTMLButtonElement>('#login-submit');
+
+    expect(form?.getAttribute('aria-label')).toBe('Sign in form');
+    expect(root.querySelector('label[for="email"]')?.textContent).toContain('Email');
+    expect(root.querySelector('label[for="password"]')?.textContent).toContain('Password');
+    expect(email?.getAttribute('aria-required')).toBe('true');
+    expect(password?.getAttribute('aria-required')).toBe('true');
+    expect(email?.getAttribute('aria-describedby')).toContain('login-email-help');
+    expect(password?.getAttribute('aria-describedby')).toContain('login-password-help');
+    expect(toggle?.getAttribute('aria-label')).toBe('Show password');
+    expect(submit?.getAttribute('aria-label')).toBe('Sign in to isched');
+    expect(submit?.className).toContain('focus-visible:outline');
+  });
+
+  it('keeps keyboard-only tab order aligned with visual order', () => {
+    const fixture = createFixture();
+    const root = fixture.nativeElement as HTMLElement;
+
+    const focusables = Array.from(
+      root.querySelectorAll<HTMLElement>('#email, #password, #login-password-toggle, #login-submit'),
+    );
+
+    expect(focusables.map((el) => el.id)).toEqual([
+      'email',
+      'password',
+      'login-password-toggle',
+      'login-submit',
+    ]);
+    expect(focusables.every((el) => el.tabIndex >= 0)).toBe(true);
+  });
 });
 

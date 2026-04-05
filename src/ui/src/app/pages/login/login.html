@@ -5,12 +5,12 @@
       <p class="text-sm text-base-content/60 mb-4">Sign in to isched administration.</p>
 
       @if (errorMsg()) {
-        <div class="alert alert-error mb-4">
+        <div class="alert alert-error mb-4" role="alert" aria-live="polite">
           <span>{{ errorMsg() }}</span>
         </div>
       }
 
-      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate aria-label="Sign in form">
         <!-- Email -->
         <div class="form-control mb-3">
           <label class="label" for="email">
@@ -18,12 +18,17 @@
           </label>
           <input id="email" type="email" formControlName="email"
                  placeholder="admin@example.com"
-                 class="input input-bordered w-full"
+                 autocomplete="email"
+                 aria-required="true"
+                 [attr.aria-invalid]="email.invalid && email.touched"
+                 aria-describedby="login-email-help login-email-error"
+                 class="input input-bordered w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
                  [class.input-error]="email.invalid && email.touched" />
+          <p id="login-email-help" class="text-xs text-base-content/70 mt-1">Use the platform admin or organization account email.</p>
           @if (email.touched && email.hasError('required')) {
-            <p class="text-error text-xs mt-1">Email is required.</p>
+            <p id="login-email-error" class="text-error text-xs mt-1">Email is required.</p>
           } @else if (email.touched && email.hasError('email')) {
-            <p class="text-error text-xs mt-1">Must be a valid email address.</p>
+            <p id="login-email-error" class="text-error text-xs mt-1">Must be a valid email address.</p>
           }
         </div>
 
@@ -37,19 +42,24 @@
                    [type]="showPw() ? 'text' : 'password'"
                    formControlName="password"
                    placeholder="••••••••••••"
-                   class="input input-bordered w-full pr-12"
+                    autocomplete="current-password"
+                    aria-required="true"
+                    [attr.aria-invalid]="pass.invalid && pass.touched"
+                    aria-describedby="login-password-help login-password-error"
+                    class="input input-bordered w-full pr-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
                    [class.input-error]="pass.invalid && pass.touched" />
-            <button type="button" class="absolute inset-y-0 right-3 flex items-center text-base-content/50"
+            <button id="login-password-toggle" type="button" class="absolute inset-y-0 right-3 flex items-center text-base-content/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded"
                     (click)="showPw.set(!showPw())" [attr.aria-label]="showPw() ? 'Hide password' : 'Show password'">
               {{ showPw() ? '🙈' : '👁' }}
             </button>
           </div>
+          <p id="login-password-help" class="text-xs text-base-content/70 mt-1">Passwords are case-sensitive.</p>
           @if (pass.touched && pass.hasError('required')) {
-            <p class="text-error text-xs mt-1">Password is required.</p>
+            <p id="login-password-error" class="text-error text-xs mt-1">Password is required.</p>
           }
         </div>
 
-        <button type="submit" class="btn btn-primary w-full" [disabled]="pending()">
+        <button id="login-submit" type="submit" class="btn btn-primary w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2" [disabled]="pending()" aria-label="Sign in to isched">
           @if (pending()) {
             <span class="loading loading-spinner loading-sm"></span>
           } @else {
