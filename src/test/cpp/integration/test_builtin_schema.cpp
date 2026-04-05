@@ -185,9 +185,11 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "GraphQL is the only external endpoin
     auto metrics_res = client.Get("/metrics");
     REQUIRE((metrics_res == nullptr || metrics_res->status == 404));
 
-    // GET / (UI/playground) should not serve a frontend
+    // GET / now canonicalizes browser entry to /isched.
     auto root_res = client.Get("/");
-    REQUIRE((root_res == nullptr || root_res->status == 404));
+    REQUIRE(root_res != nullptr);
+    REQUIRE(root_res->status == 302);
+    REQUIRE(root_res->get_header_value("Location") == "/isched");
 
     server->stop();
 }

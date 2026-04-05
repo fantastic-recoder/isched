@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { BehaviorSubject, Observable, tap } from 'rxjs';
 import { GraphQLService } from './graphql.service';
 
 interface BootstrapStatusResponse {
@@ -18,9 +18,15 @@ interface CompleteBootstrapResponse {
 @Injectable({ providedIn: 'root' })
 export class BootstrapService {
   private readonly gql = inject(GraphQLService);
+  // Null means "no local override"; true/false can be used by UI as an immediate hint.
+  private readonly seedModeHint = new BehaviorSubject<boolean | null>(null);
 
   bootstrapStatus(): Observable<BootstrapStatusResponse> {
     return this.gql.query<BootstrapStatusResponse>('query { systemState { seedModeActive } }');
+  }
+
+  seedModeHint$(): Observable<boolean | null> {
+    return this.seedModeHint.asObservable();
   }
 
   completeBootstrap(input: {
@@ -36,7 +42,9 @@ export class BootstrapService {
          }
        }`,
       input,
+    ).pipe(
+      // Bootstrap completion means seed mode must be considered inactive in the UI.
+      tap(() => this.seedModeHint.next(false)),
     );
   }
 }
-

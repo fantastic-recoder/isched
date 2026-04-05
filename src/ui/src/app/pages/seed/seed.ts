@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { GraphQLService } from '../../services/graphql.service';
-import { AuthService } from '../../services/auth.service';
 
 function passwordsMatch(ctrl: AbstractControl): ValidationErrors | null {
   const pw = ctrl.get('password')?.value as string | undefined;
@@ -21,7 +20,6 @@ function passwordsMatch(ctrl: AbstractControl): ValidationErrors | null {
 export class SeedComponent {
   private readonly fb    = inject(FormBuilder);
   private readonly gql   = inject(GraphQLService);
-  private readonly auth  = inject(AuthService);
   private readonly router = inject(Router);
 
   readonly form = this.fb.group(
@@ -60,18 +58,8 @@ export class SeedComponent {
       )
       .subscribe({
         next: () => {
-          // Admin created — auto-login with the same credentials.
-          this.auth.signIn(email ?? '', password ?? '').subscribe({
-            next: () => {
-              this.pending.set(false);
-              void this.router.navigate(['/dashboard']);
-            },
-            error: () => {
-              // Auto-login failed; fall back to the login page.
-              this.pending.set(false);
-              void this.router.navigate(['/login']);
-            },
-          });
+          this.pending.set(false);
+          void this.router.navigate(['/login']);
         },
         error: (err: Error) => {
           this.pending.set(false);

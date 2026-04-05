@@ -134,6 +134,18 @@ target_link_libraries(test_bootstrap_platform_admin PRIVATE isched Catch2::Catch
     taocpp::pegtl httplib::httplib openssl::openssl)
 add_test(NAME test_bootstrap_platform_admin COMMAND test_bootstrap_platform_admin)
 
+add_executable(test_auth_lockout_policy ../integration/test_auth_lockout_policy.cpp)
+target_link_libraries(test_auth_lockout_policy PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl)
+add_test(NAME test_auth_lockout_policy COMMAND test_auth_lockout_policy)
+
+add_executable(test_webui_bootstrap_contract ../integration/test_webui_bootstrap_contract.cpp)
+target_link_libraries(test_webui_bootstrap_contract PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl)
+add_test(NAME test_webui_bootstrap_contract COMMAND test_webui_bootstrap_contract)
+
 # Phase 6b: Session revocation integration tests (T049-008)
 add_executable(test_session_revocation ../integration/test_session_revocation.cpp)
 target_link_libraries(test_session_revocation PRIVATE isched Catch2::Catch2WithMain
@@ -147,6 +159,12 @@ target_link_libraries(test_admin_ui PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
     Boost::url Boost::system)
 add_test(NAME test_admin_ui COMMAND test_admin_ui)
+
+add_executable(test_webui_embedded_serving ../integration/test_webui_embedded_serving.cpp)
+target_link_libraries(test_webui_embedded_serving PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json httplib::httplib openssl::openssl
+    Boost::url Boost::system)
+add_test(NAME test_webui_embedded_serving COMMAND test_webui_embedded_serving)
 
 # T010 + T013: WebUI security foundation tests (CSRF, origin validation, GraphQL-only)
 add_executable(test_webui_security_foundation ../integration/test_webui_security_foundation.cpp)
@@ -247,8 +265,11 @@ set(_isched_integration_tests
     test_client_compatibility
     test_user_management
     test_bootstrap_platform_admin
+    test_auth_lockout_policy
+    test_webui_bootstrap_contract
     test_session_revocation
     test_admin_ui
+    test_webui_embedded_serving
     test_seed_mode
 )
 

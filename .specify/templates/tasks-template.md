@@ -51,7 +51,7 @@ description: "Task list template for feature implementation"
 - [ ] T001 Create project structure per implementation plan
 - [ ] T002 Initialize C++23 project configuration with Conan-managed dependencies
 - [ ] T003 [P] Configure CMake/Ninja toolchain and compiler settings to enforce C++23
-- [ ] T004 [P] (If WebUI scope) Configure Angular workspace defaults for standalone APIs, strict TypeScript/template checks, and signal-first state conventions
+- [ ] T004 [P] (If WebUI scope) Configure Angular workspace defaults for standalone APIs, strict TypeScript/template checks, signal-first state conventions, and no async-pipe-driven app-owned template state
 - [ ] T005 [P] (If WebUI scope) Add local dev proxy for `/graphql` (HTTP + WebSocket) and verify no hard-coded backend origin in UI source
 
 ---
@@ -88,7 +88,7 @@ Examples of foundational tasks (adjust based on your project):
 
 - [ ] T013 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
 - [ ] T014 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
-- [ ] T015 [P] [US1] (If WebUI scope) Angular component/unit test in src/ui/src/**/*.spec.ts
+- [ ] T015 [P] [US1] (If WebUI scope) Angular component/unit test in src/ui/src/**/*.spec.ts proving app-owned template state is signal-backed (no async-pipe-driven component-owned observable state)
 
 ### Implementation for User Story 1
 
@@ -96,7 +96,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T017 [P] [US1] Create [Entity2] model in src/models/[entity2].py
 - [ ] T018 [US1] Implement [Service] in src/services/[service].py (depends on T016, T017)
 - [ ] T019 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T020 [US1] (If WebUI scope) Implement standalone Angular UI using `@if/@for/@switch`, typed reactive forms, and GraphQL `/graphql` client calls
+- [ ] T020 [US1] (If WebUI scope) Implement standalone Angular UI using signals for app-owned template state (no async-pipe-driven component-owned observable state), `@if/@for/@switch`, typed reactive forms, and GraphQL `/graphql` client calls
 - [ ] T021 [US1] Add validation and error handling
 - [ ] T022 [US1] Add logging for user story 1 operations
 

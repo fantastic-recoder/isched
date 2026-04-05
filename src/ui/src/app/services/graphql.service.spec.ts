@@ -102,4 +102,94 @@ describe('GraphQLService', () => {
     const req = httpMock.expectOne('/graphql');
     req.flush('boom', { status: 503, statusText: 'Service Unavailable' });
   });
-});
+
+  describe('Rate Limiting (Q2 - RATE_LIMITED Gap Closure)', () => {
+    it('should recognize RATE_LIMITED as a valid error code', () => {
+      expect(GRAPHQL_ERROR_CODES.RATE_LIMITED).toBe('RATE_LIMITED');
+    });
+
+    it('should parse RATE_LIMITED error from GraphQL response', (done) => {
+      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { token } }').subscribe({
+        error: (err: GraphQLRequestError) => {
+          expect(err.code).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
+          expect(err.message).toBeTruthy();
+          done();
+        },
+      });
+
+      httpMock.expectOne('/graphql').flush({
+        errors: [
+          {
+            message: 'Too many authentication attempts. Please try again later.',
+            extensions: {
+              code: 'RATE_LIMITED',
+            },
+          },
+        ],
+      });
+    });
+
+    it('should extract retryAfterMs from RATE_LIMITED error extensions', (done) => {
+      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { token } }').subscribe({
+        error: (err: GraphQLRequestError) => {
+          expect(err.retryAfterMs).toBe(60000);
+          done();
+        },
+      });
+
+      httpMock.expectOne('/graphql').flush({
+        errors: [
+          {
+            message: 'Rate limited',
+            extensions: {
+              code: 'RATE_LIMITED',
+              retryAfterMs: 60000,
+            },
+          },
+        ],
+      });
+    });
+
+    it('should handle RATE_LIMITED without retryAfterMs', (done) => {
+      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { token } }').subscribe({
+        error: (err: GraphQLRequestError) => {
+          expect(err.code).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
+          expect(err.retryAfterMs).toBeUndefined();
+          done();
+        },
+      });
+
+      httpMock.expectOne('/graphql').flush({
+        errors: [
+          {
+            message: 'Rate limited',
+            extensions: {
+              code: 'RATE_LIMITED',
+            },
+          },
+        ],
+      });
+    });
+
+    it('should preserve RATE_LIMITED code during error code normalization', (done) => {
+      service.query<unknown>('{ sensitiveQuery }').subscribe({
+        error: (err: GraphQLRequestError) => {
+          expect(err.code).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
+          done();
+        },
+      });
+
+      httpMock.expectOne('/graphql').flush({
+        errors: [
+          {
+            message: 'Rate limited',
+            extensions: {
+              code: 'RATE_LIMITED',
+              retryAfterMs: 30000,
+            },
+          },
+        ],
+      });
+    });
+  });
+}

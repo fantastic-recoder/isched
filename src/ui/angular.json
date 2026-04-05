@@ -39,7 +39,7 @@
           },
           "configurations": {
             "production": {
-              "baseHref": "/graphql/",
+              "baseHref": "/isched/",
               "optimization": {
                 "scripts": true,
                 "fonts": true,

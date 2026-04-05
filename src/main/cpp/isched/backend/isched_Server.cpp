@@ -32,6 +32,8 @@
 #include <boost/asio/post.hpp>
 
 #include <chrono>
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -58,6 +60,47 @@ std::atomic<std::uint64_t> request_sequence{0};
 
 std::string make_request_id() {
     return "req-" + std::to_string(++request_sequence);
+}
+
+std::string trim_copy(std::string value) {
+    auto is_space = [](unsigned char ch) { return std::isspace(ch) != 0; };
+    value.erase(value.begin(), std::find_if(value.begin(), value.end(),
+        [&](unsigned char ch) { return !is_space(ch); }));
+    value.erase(std::find_if(value.rbegin(), value.rend(),
+        [&](unsigned char ch) { return !is_space(ch); }).base(), value.end());
+    return value;
+}
+
+bool etag_matches_if_none_match(const std::string& if_none_match, const std::string& current_etag) {
+    if (if_none_match.empty()) {
+        return false;
+    }
+
+    if (trim_copy(if_none_match) == "*") {
+        return true;
+    }
+
+    std::size_t start = 0;
+    while (start < if_none_match.size()) {
+        std::size_t end = if_none_match.find(',', start);
+        if (end == std::string::npos) {
+            end = if_none_match.size();
+        }
+        const std::string token = trim_copy(if_none_match.substr(start, end - start));
+        if (token == current_etag) {
+            return true;
+        }
+        start = end + 1;
+    }
+    return false;
+}
+
+bool is_asset_request_path(const std::string& asset_path) {
+    const auto slash_pos = asset_path.find_last_of('/');
+    const std::string filename = slash_pos == std::string::npos
+        ? asset_path
+        : asset_path.substr(slash_pos + 1);
+    return filename.find('.') != std::string::npos;
 }
 } // namespace
 
@@ -549,13 +592,24 @@ private:
                     "Content-Type, Authorization");
             res.body() = "";
         } else if (req_.method() == beast::http::verb::get &&
-                   (target_path == "/graphql" ||
-                    target_path == "/graphql/" ||
-                    target_path.rfind("/graphql/", 0) == 0)) {
-            // ── Embedded Angular admin UI under /graphql/* (SPA + static assets) ───
+                   (target_path == "/" || target_path == "/graphql")) {
+            // Canonicalize browser entry points to the embedded WebUI.
+            res.result(beast::http::status::found);
+            res.set(beast::http::field::location, "/isched");
+            res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
+            res.body() = "Redirecting to /isched";
+        } else if (req_.method() == beast::http::verb::get &&
+                   (target_path == "/isched" ||
+                    target_path == "/isched/" ||
+                    target_path.rfind("/isched/", 0) == 0)) {
+            // ── Embedded Angular admin UI under /isched/* (SPA + static assets) ───
             // Security headers applied to UI responses.
             res.set("X-Content-Type-Options", "nosniff");
             res.set("X-Frame-Options", "DENY");
+            res.set("Content-Security-Policy",
+                    "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; "
+                    "script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                    "font-src 'self' data:; connect-src 'self' ws: wss:");
 
             const auto& registry = UiAssetRegistry::instance();
             if (!registry.has_index_html()) {
@@ -564,12 +618,12 @@ private:
                 res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
                 res.body() = "Admin UI assets unavailable";
             } else {
-                // Map /graphql[/<asset>] -> /<asset> entries in UiAssetRegistry.
+                // Map /isched[/<asset>] -> /<asset> entries in UiAssetRegistry.
                 std::string asset_path;
-                if (target_path == "/graphql" || target_path == "/graphql/") {
+                if (target_path == "/isched" || target_path == "/isched/") {
                     asset_path = "/index.html";
                 } else {
-                    asset_path = target_path.substr(std::string("/graphql").size());
+                    asset_path = target_path.substr(std::string("/isched").size());
                     if (asset_path.empty() || asset_path == "/") {
                         asset_path = "/index.html";
                     }
@@ -577,8 +631,10 @@ private:
 
                 auto entry = registry.find(asset_path);
 
-                // SPA fallback for client routes such as /graphql/bootstrap.
-                if (!entry && asset_path.find('.') == std::string::npos) {
+                const bool asset_request = is_asset_request_path(asset_path);
+
+                // SPA fallback for client routes such as /isched/bootstrap.
+                if (!entry && !asset_request) {
                     entry = registry.find("/index.html");
                 }
 
@@ -588,7 +644,7 @@ private:
                             ? std::string(req_[beast::http::field::if_none_match])
                             : "";
 
-                    if (!if_none_match.empty() && if_none_match == entry->etag) {
+                    if (etag_matches_if_none_match(if_none_match, std::string(entry->etag))) {
                         res.result(beast::http::status::not_modified);
                         res.set(beast::http::field::etag, std::string(entry->etag));
                         res.body().clear();
@@ -602,7 +658,15 @@ private:
                 } else {
                     res.result(beast::http::status::not_found);
                     res.set(beast::http::field::content_type, "application/json");
-                    res.body() = R"({"errors":[{"message":"asset not found"}]})";
+                    const auto envelope = nlohmann::json{
+                        {"errors", nlohmann::json::array({
+                            nlohmann::json{
+                                {"message", "asset not found"},
+                                {"extensions", nlohmann::json{{"code", "NOT_FOUND"}, {"path", asset_path}}}
+                            }
+                        })}
+                    };
+                    res.body() = envelope.dump();
                 }
             }
         } else if (req_.method() == beast::http::verb::post &&
@@ -658,7 +722,7 @@ private:
             }
         } else {
             res.result(beast::http::status::not_found);
-            res.body() = R"({"errors":[{"message":"Not found. Use GET /graphql[/...] for UI or POST /graphql for GraphQL"}]})";
+            res.body() = R"({"errors":[{"message":"Not found. Use GET /isched[/...] for UI or POST /graphql for GraphQL"}]})";
         }
 
         const double elapsed_ms = std::chrono::duration<double, std::milli>(
@@ -985,6 +1049,9 @@ bool Server::start() {
             spdlog::info("Server data directory: {}", m_config.work_directory);
             spdlog::info("GraphQL endpoint ready at http://{}:{}/graphql",
                          m_config.host, m_config.port);
+            spdlog::info(
+                "Admin UI startup: route=/isched embeddedAssets={} missingAssetBehavior=404-json spaFallback=non-asset-routes",
+                UiAssetRegistry::instance().has_index_html() ? "available" : "missing");
         } catch (const std::exception& e) {
             spdlog::error("HTTP listener startup failed: {}", e.what());
             m_impl->work_guard.reset();

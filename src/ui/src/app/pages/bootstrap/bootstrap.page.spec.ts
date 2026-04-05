@@ -130,5 +130,73 @@ describe('BootstrapPage', () => {
     const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[type="submit"]');
     expect(btn?.disabled).toBe(true);
   });
+
+  it('maps GraphQL validation field errors onto typed form controls', async () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    comp.form.setValue({
+      email: 'admin@example.com',
+      displayName: 'Admin',
+      password: 'LongEnoughPassword123',
+    });
+    comp.submit();
+
+    httpMock.expectOne('/graphql').flush(
+      {
+        errors: [
+          {
+            message: 'Validation failed',
+            extensions: {
+              code: 'VALIDATION_FAILED',
+              fieldErrors: {
+                email: ['Email is already in use.'],
+                password: ['Password must include a symbol.'],
+              },
+            },
+          },
+        ],
+      },
+      { status: 200, statusText: 'OK' },
+    );
+    await flushMicrotasks();
+
+    expect(comp.email.errors?.['server']).toBe('Email is already in use.');
+    expect(comp.password.errors?.['server']).toBe('Password must include a symbol.');
+    expect(comp.globalError()).toBe('Validation failed');
+  });
+
+  it('surfaces non-validation GraphQL errors as global alerts without mutating field errors', async () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    comp.form.setValue({
+      email: 'admin@example.com',
+      displayName: 'Admin',
+      password: 'LongEnoughPassword123',
+    });
+    comp.submit();
+
+    httpMock.expectOne('/graphql').flush(
+      {
+        errors: [
+          {
+            message: 'Bootstrap is no longer available.',
+            extensions: {
+              code: 'CONFLICT',
+            },
+          },
+        ],
+      },
+      { status: 200, statusText: 'OK' },
+    );
+    await flushMicrotasks();
+
+    expect(comp.globalError()).toBe('Bootstrap is no longer available.');
+    expect(comp.email.errors?.['server']).toBeUndefined();
+    expect(comp.password.errors?.['server']).toBeUndefined();
+  });
 });
 

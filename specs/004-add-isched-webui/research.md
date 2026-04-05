@@ -97,3 +97,11 @@
   - Success-only audit logging: rejected because failed-attempt traceability is required.
   - Best-effort retention with no minimum window: rejected by compliance baseline.
 
+## Decision 13: Canonical embedded WebUI entry URL is `/isched`
+
+- **Decision**: Treat `/isched` as the canonical browser URL for embedded runtime. HTTP `GET /` and browser `GET /graphql` are redirected to `/isched`.
+- **Rationale**: Aligns embedded serving behavior with the earlier seed-mode admin UI artifact and removes ambiguity between API and browser entry paths.
+- **Alternatives considered**:
+  - Keep `/` as a second direct WebUI entry: rejected to avoid dual-entry ambiguity.
+  - Serve content directly on `GET /graphql`: rejected because `/graphql` remains API-first (`POST`) and should not be a distinct WebUI surface.
+

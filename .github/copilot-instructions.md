@@ -105,6 +105,7 @@ This pattern allows you to:
 - **GraphQL-only transport**: no REST, no IPC, no scripting interfaces — all external access is via `/graphql`
 - C++ Core Guidelines enforced; `-Wall -Wextra -Wpedantic` enabled
 - For `src/ui/`: signal-first state, standalone components/directives/pipes, `@if/@for/@switch`, typed reactive forms, strict TS/template checks, and zoneless/`OnPush`-compatible patterns where feasible
+- For `src/ui/`: app-owned template state must be signal-backed; do not use async-pipe-driven state from component-owned observables except when bridging immutable third-party stream contracts with explicit documentation
 - For `src/ui/`: templates and styles MUST be in separate files — use `templateUrl` and `styleUrl`, never inline `template` or `styles`; each component gets a `.html` and `.scss` file alongside its `.ts` file
 - For `src/ui/`: CSS framework is Tailwind CSS 3.x + DaisyUI 4.x — use DaisyUI component classes (`btn`, `card`, `alert`, `modal`) for consistent styling; extend with Tailwind utilities as needed
 - Browser JWT handling must avoid persistent token storage (`localStorage`/`sessionStorage`/IndexedDB); prefer secure cookie-based flows

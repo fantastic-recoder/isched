@@ -9,6 +9,7 @@ export const GRAPHQL_ERROR_CODES = {
   CONFLICT: 'CONFLICT',
   CSRF_FAILED: 'CSRF_FAILED',
   CONTEXT_MISMATCH: 'CONTEXT_MISMATCH',
+  RATE_LIMITED: 'RATE_LIMITED',
   TRANSIENT_NETWORK: 'TRANSIENT_NETWORK',
 } as const;
 
@@ -19,6 +20,7 @@ export class GraphQLRequestError extends Error {
     message: string,
     public readonly code: GraphQLErrorCode,
     public readonly fieldErrors: Record<string, string[]> = {},
+    public readonly retryAfterMs?: number, // For RATE_LIMITED responses
   ) {
     super(message);
     this.name = 'GraphQLRequestError';
@@ -32,6 +34,7 @@ interface GraphQLResponse<T> {
     extensions?: {
       code?: string;
       fieldErrors?: Record<string, string[]>;
+      retryAfterMs?: number; // Milliseconds to wait before retry for RATE_LIMITED
     };
   }>;
 }
@@ -58,7 +61,12 @@ export class GraphQLService {
             const first = res.errors[0];
             const code = this.asKnownCode(first.extensions?.code);
             return throwError(
-              () => new GraphQLRequestError(first.message, code, first.extensions?.fieldErrors ?? {}),
+              () => new GraphQLRequestError(
+                first.message,
+                code,
+                first.extensions?.fieldErrors ?? {},
+                first.extensions?.retryAfterMs
+              ),
             );
           }
           if (typeof res.data === 'undefined') {

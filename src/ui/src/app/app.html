@@ -1,8 +1,7 @@
-@if (isBootstrapMode$ | async) {
+@if (showBootstrapBanner()) {
   <div class="alert alert-warning rounded-none justify-center" role="status" aria-live="polite">
     <span>Bootstrap mode active: create the initial admin account to continue.</span>
   </div>
 }
 
 <router-outlet />
-

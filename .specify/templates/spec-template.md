@@ -92,7 +92,7 @@
 
 ### Frontend Constitutional Requirements *(mandatory when feature includes `src/ui/` changes)*
 
-- **FCR-001**: WebUI state management MUST be signal-first; any RxJS-centric state path MUST be justified.
+- **FCR-001**: WebUI state management MUST be signal-first; app-owned template state MUST be signal-backed, and async-pipe-driven template state from component-owned observables is prohibited unless a third-party stream contract requires it and the exception is documented.
 - **FCR-002**: New UI elements MUST use standalone components/directives/pipes and modern Angular template control flow (`@if`, `@for`, `@switch`).
 - **FCR-003**: User input flows MUST use typed reactive forms with strict TypeScript and strict template type checking enabled.
 - **FCR-004**: Browser API consumption MUST use GraphQL `/graphql` only (HTTP/WebSocket) with no REST fallback.

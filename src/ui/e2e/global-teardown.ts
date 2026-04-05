@@ -19,15 +19,19 @@ export default async function globalTeardown(): Promise<void> {
   // pid === 0 means the server is managed externally (e.g. by run_e2e.py).
   // Leave both the process and the data directory alone.
   if (state.pid !== 0) {
+    console.log(`[e2e] Sending SIGTERM to isched_srv (pid ${state.pid})`);
     try {
       process.kill(state.pid, 'SIGTERM');
     } catch {
       // Process may already be gone.
+      console.log(`[e2e] Server process ${state.pid} was already gone`);
     }
 
+    console.log(`[e2e] Removing data directory: ${state.dataDir}`);
     rmSync(state.dataDir, { recursive: true, force: true });
   }
 
   rmSync(STATE_FILE, { force: true });
+  console.log(`[e2e] Teardown complete`);
 }
 

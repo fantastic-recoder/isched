@@ -3,13 +3,13 @@
  * @file test_admin_ui.cpp
  * @copyright Copyright (c) 2024-2026 isched contributors
  * @see LICENSE.md — Mozilla Public License 2.0
- * @brief Integration tests for the /graphql static asset server (T-UI-F-001)
+ * @brief Integration tests for the /isched static asset server (T-UI-F-001)
  *
  * Verifies:
- * - GET /graphql and /graphql/ serve the index.html (200, text/html, <app-root> sentinel)
- * - GET /graphql/<js-bundle> serves JavaScript (200, application/javascript)
- * - GET /graphql/nonexistent.xyz returns 404 JSON
- * - GET /graphql/a/deep/route serves index.html (push-state fallback)
+ * - GET /isched and /isched/ serve the index.html (200, text/html, <app-root> sentinel)
+ * - GET /isched/<js-bundle> serves JavaScript (200, application/javascript)
+ * - GET /isched/nonexistent.xyz returns 404 JSON
+ * - GET /isched/a/deep/route serves index.html (push-state fallback)
  * - ETag / 304 / stale-ETag behaviour
  * - X-Content-Type-Options and X-Frame-Options security headers
  */
@@ -78,7 +78,7 @@ static void require_security_headers(const httplib::Headers& headers) {
 // Tests
 // ============================================================================
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql serves index.html",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched serves index.html",
                  "[integration][admin-ui][T-UI-F-001]") {
     // Only meaningful when assets are embedded; skip gracefully if not.
     if (!UiAssetRegistry::instance().has_index_html()) {
@@ -87,7 +87,7 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql serves index.html",
     }
 
     auto client = make_client();
-    auto res = client.Get("/graphql");
+    auto res = client.Get("/isched");
     REQUIRE(res != nullptr);
     REQUIRE(res->status == 200);
     // Content-Type must be text/html
@@ -98,12 +98,12 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql serves index.html",
     require_security_headers(res->headers);
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/ (trailing slash) serves index.html",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched/ (trailing slash) serves index.html",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
     auto client = make_client();
-    auto res = client.Get("/graphql/");
+    auto res = client.Get("/isched/");
     REQUIRE(res != nullptr);
     REQUIRE(res->status == 200);
     REQUIRE(res->get_header_value("Content-Type").find("text/html") != std::string::npos);
@@ -111,7 +111,7 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/ (trailing slash) serves index.ht
     require_security_headers(res->headers);
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/<js-bundle> serves JavaScript",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched/<js-bundle> serves JavaScript",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
@@ -120,7 +120,7 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/<js-bundle> serves JavaScript",
     // A simpler approach: the index.html references <script src="main-XXXXXX.js">
     // We'll fetch index.html and extract a JS filename from it.
     auto client = make_client();
-    auto index_res = client.Get("/graphql");
+    auto index_res = client.Get("/isched");
     REQUIRE(index_res != nullptr);
     REQUIRE(index_res->status == 200);
 
@@ -136,7 +136,7 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/<js-bundle> serves JavaScript",
     REQUIRE_FALSE(js_name.empty());
 
     // Fetch the JS bundle
-    const std::string js_path = "/graphql/" + js_name;
+    const std::string js_path = "/isched/" + js_name;
     auto js_res = client.Get(js_path.c_str());
     REQUIRE(js_res != nullptr);
     CHECK(js_res->status == 200);
@@ -145,12 +145,12 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/<js-bundle> serves JavaScript",
     require_security_headers(js_res->headers);
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/nonexistent.xyz returns 404 JSON",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched/nonexistent.xyz returns 404 JSON",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
     auto client = make_client();
-    auto res = client.Get("/graphql/definitely-does-not-exist.xyz");
+    auto res = client.Get("/isched/definitely-does-not-exist.xyz");
     REQUIRE(res != nullptr);
     REQUIRE(res->status == 404);
     auto body = nlohmann::json::parse(res->body, nullptr, false);
@@ -161,26 +161,26 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/nonexistent.xyz returns 404 JSON"
     require_security_headers(res->headers);
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql/deep/nested/route falls back to index.html",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched/bootstrap falls back to index.html",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
     auto client = make_client();
-    auto res = client.Get("/graphql/a/deep/nested/route");
+    auto res = client.Get("/isched/bootstrap");
     REQUIRE(res != nullptr);
     REQUIRE(res->status == 200);
     REQUIRE(res->get_header_value("Content-Type").find("text/html") != std::string::npos);
     REQUIRE(res->body.find("<app-root>") != std::string::npos);
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql with valid ETag returns 304",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched with valid ETag returns 304",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
     auto client = make_client();
 
     // First request — capture ETag
-    auto res1 = client.Get("/graphql");
+    auto res1 = client.Get("/isched");
     REQUIRE(res1 != nullptr);
     REQUIRE(res1->status == 200);
     const std::string etag = res1->get_header_value("ETag");
@@ -188,20 +188,49 @@ TEST_CASE_METHOD(AdminUiFixture, "GET /graphql with valid ETag returns 304",
 
     // Second request with matching ETag
     httplib::Headers hdrs = {{"If-None-Match", etag}};
-    auto res2 = client.Get("/graphql", hdrs);
+    auto res2 = client.Get("/isched", hdrs);
     REQUIRE(res2 != nullptr);
     REQUIRE(res2->status == 304);
     REQUIRE(res2->body.empty());
 }
 
-TEST_CASE_METHOD(AdminUiFixture, "GET /graphql with stale ETag returns 200",
+TEST_CASE_METHOD(AdminUiFixture, "GET /isched with stale ETag returns 200",
                  "[integration][admin-ui][T-UI-F-001]") {
     if (!UiAssetRegistry::instance().has_index_html()) return;
 
     auto client = make_client();
     httplib::Headers hdrs = {{"If-None-Match", "\"stale-etag-value\""}};
-    auto res = client.Get("/graphql", hdrs);
+    auto res = client.Get("/isched", hdrs);
     REQUIRE(res != nullptr);
     REQUIRE(res->status == 200);
     REQUIRE(res->body.find("<app-root>") != std::string::npos);
 }
+
+TEST_CASE_METHOD(AdminUiFixture,
+                 "Canonical UI routing: GET / and GET /graphql redirect to /isched",
+                 "[integration][admin-ui][routing][canonical]") {
+    auto client = make_client();
+
+    for (const auto* path : {"/", "/graphql"}) {
+        auto res = client.Get(path);
+        REQUIRE(res != nullptr);
+        REQUIRE(res->status == 302);
+        REQUIRE(res->get_header_value("Location") == "/isched");
+    }
+}
+
+TEST_CASE_METHOD(AdminUiFixture,
+                 "Canonical UI routing: POST /graphql remains API endpoint",
+                 "[integration][admin-ui][routing][canonical]") {
+    auto client = make_client();
+    const auto body = nlohmann::json{{"query", "query { __typename }"}}.dump();
+
+    auto res = client.Post("/graphql", body, "application/json");
+    REQUIRE(res != nullptr);
+    REQUIRE(res->status == 200);
+
+    const auto payload = nlohmann::json::parse(res->body, nullptr, false);
+    REQUIRE_FALSE(payload.is_discarded());
+    REQUIRE(payload.contains("data"));
+}
+

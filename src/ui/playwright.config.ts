@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const SERVER_PORT = Number(process.env['ISCHED_SERVER_PORT'] ?? 18080);
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 30_000,
@@ -8,7 +10,7 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:18080',
+    baseURL: `http://127.0.0.1:${SERVER_PORT}`,
     headless: true,
     trace: 'on-first-retry',
   },

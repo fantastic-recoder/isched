@@ -98,4 +98,48 @@ describe('AuthService', () => {
 
     httpMock.expectOne('/graphql').flush({ data: { logout: true } });
   });
+
+  it('surfaces deterministic lockout guidance with retry timing when backend provides retryAfterMs', (done) => {
+    service.signIn('admin@example.com', 'wrong-password').subscribe({
+      next: () => done.fail('expected lockout error'),
+      error: (err: Error) => {
+        expect(err.message).toContain('Too many failed sign-in attempts');
+        expect(err.message).toContain('about 42 seconds');
+        done();
+      },
+    });
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [
+        {
+          message: 'Rate limited',
+          extensions: {
+            code: 'RATE_LIMITED',
+            retryAfterMs: 42000,
+          },
+        },
+      ],
+    });
+  });
+
+  it('uses fallback lockout guidance when retryAfterMs metadata is absent', (done) => {
+    service.signIn('admin@example.com', 'wrong-password').subscribe({
+      next: () => done.fail('expected lockout error'),
+      error: (err: Error) => {
+        expect(err.message).toBe('Too many failed sign-in attempts. Please wait a few minutes before trying again.');
+        done();
+      },
+    });
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [
+        {
+          message: 'Rate limited',
+          extensions: {
+            code: 'RATE_LIMITED',
+          },
+        },
+      ],
+    });
+  });
 });

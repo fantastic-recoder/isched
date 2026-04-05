@@ -77,6 +77,14 @@ TEST_CASE("bootstrapPlatformAdmin succeeds exactly once and persists first platf
     REQUIRE(admins_after_first.value().size() == 1);
     REQUIRE(admins_after_first.value().front().email == email);
 
+    auto status_after_bootstrap = exec->execute(
+        R"(query { systemState { seedModeActive } })",
+        "{}",
+        isched::test::anonymous_ctx());
+    REQUIRE_NOTHROW(isched::test::require_success(status_after_bootstrap, "systemState after bootstrap"));
+    REQUIRE(status_after_bootstrap.data.contains("systemState"));
+    REQUIRE_FALSE(status_after_bootstrap.data["systemState"]["seedModeActive"].get<bool>());
+
     // Realistic follow-up flow: the persisted platform admin can immediately log in.
     auto login = exec->execute(
         R"(mutation($email: String!, $password: String!) {
@@ -113,6 +121,7 @@ TEST_CASE("bootstrapPlatformAdmin rejects subsequent unauthenticated attempts wi
 
     REQUIRE_FALSE(second.is_success());
     REQUIRE_FALSE(second.errors.empty());
+    REQUIRE(second.errors.front().message.find("bootstrapPlatformAdmin is no longer available") != std::string::npos);
 
     auto admins_after_second = db->list_platform_admins();
     REQUIRE(admins_after_second);

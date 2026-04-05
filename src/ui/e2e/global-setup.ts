@@ -30,6 +30,20 @@ async function waitForServerReady(url: string, timeoutMs = 20_000): Promise<void
   throw new Error(`Server did not become ready at ${url} within ${timeoutMs}ms`);
 }
 
+/** Forward a chunk of server output to the given stream, prefixing every
+ *  non-empty line with `[isched]` so server logs are visually distinct from
+ *  Playwright's own output. */
+function forwardServerOutput(stream: NodeJS.WriteStream, chunk: Buffer): void {
+  const text = chunk.toString();
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    // Skip the trailing empty string produced by a final newline.
+    if (line === '' && i === lines.length - 1) continue;
+    stream.write(`[isched] ${line}\n`);
+  }
+}
+
 export default async function globalSetup(): Promise<void> {
   const port = Number(process.env['ISCHED_SERVER_PORT'] ?? SERVER_PORT);
 
@@ -37,7 +51,8 @@ export default async function globalSetup(): Promise<void> {
   // ISCHED_EXTERNAL_SERVER=1.  In that case we skip launching a new process
   // and only wait until the already-running server is reachable.
   if (process.env['ISCHED_EXTERNAL_SERVER'] === '1') {
-    await waitForServerReady(`http://127.0.0.1:${port}/graphql`);
+    console.log(`[e2e] ISCHED_EXTERNAL_SERVER=1 — skipping server launch, waiting for http://127.0.0.1:${port}/isched`);
+    await waitForServerReady(`http://127.0.0.1:${port}/isched`);
     // Write a sentinel state so teardown knows not to touch the process.
     const state: E2EState = { pid: 0, dataDir: '', port };
     writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
@@ -45,15 +60,25 @@ export default async function globalSetup(): Promise<void> {
   }
 
   const repoRoot = resolve(__dirname, '../../..');
-  const serverBinary = resolve(repoRoot, 'cmake-build-debug/src/main/cpp/isched/isched_srv');
+
+  // ISCHED_BUILD_DIR selects which CMake build tree to use.
+  // Defaults to the standard debug build directory.
+  const buildDir = process.env['ISCHED_BUILD_DIR'] ?? 'cmake-build-debug';
+  const serverBinary = resolve(repoRoot, buildDir, 'src/main/cpp/isched/isched_srv');
 
   const parentDir = join(tmpdir(), 'isched-playwright');
   mkdirSync(parentDir, { recursive: true });
   const dataDir = mkdtempSync(join(parentDir, 'data-'));
 
+  console.log(`[e2e] CMake build dir        : ${buildDir}`);
+  console.log(`[e2e] Starting server binary : ${serverBinary}`);
+  console.log(`[e2e] Data directory         : ${dataDir}`);
+  console.log(`[e2e] Listening on port      : ${port}`);
+
   const child = spawn(serverBinary, ['--data-dir', dataDir], {
     cwd: repoRoot,
-    stdio: 'inherit',
+    // Pipe stdout/stderr so we can prefix each line with [isched].
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
       ISCHED_SERVER_HOST: '127.0.0.1',
@@ -61,9 +86,22 @@ export default async function globalSetup(): Promise<void> {
     },
   });
 
+  child.stdout?.on('data', (chunk: Buffer) => forwardServerOutput(process.stdout, chunk));
+  child.stderr?.on('data', (chunk: Buffer) => forwardServerOutput(process.stderr, chunk));
+
+  child.on('error', (err) => {
+    console.error(`[e2e] Server process error: ${err.message}`);
+  });
+  child.on('exit', (code, signal) => {
+    if (code !== null) console.log(`[e2e] Server exited with code ${code}`);
+    if (signal !== null) console.log(`[e2e] Server killed by signal ${signal}`);
+  });
+
   if (!child.pid) {
-    throw new Error('Failed to start isched_srv process for Playwright tests');
+    throw new Error(`Failed to start isched_srv — binary not found or not executable: ${serverBinary}`);
   }
+
+  console.log(`[e2e] Server process started (pid ${child.pid})`);
 
   const state: E2EState = {
     pid: child.pid,
@@ -72,6 +110,7 @@ export default async function globalSetup(): Promise<void> {
   };
   writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
 
-  await waitForServerReady(`http://127.0.0.1:${port}/graphql`);
+  await waitForServerReady(`http://127.0.0.1:${port}/isched`);
+  console.log(`[e2e] Server is ready — running tests`);
 }
 

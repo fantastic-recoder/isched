@@ -1,21 +1,19 @@
 <!--
 Sync Impact Report:
-- Version change: 2.0.0 → 2.1.0
+- Version change: 2.1.0 → 2.2.0
 - Modified principles:
-  - III. Security-First → III. Security-First (expanded with browser JWT handling requirements)
+  - VI. Angular WebUI Engineering (NON-NEGOTIABLE) → VI. Angular WebUI Engineering (NON-NEGOTIABLE) (expanded with explicit app-owned state rule)
 - Added sections:
-  - VI. Angular WebUI Engineering (NON-NEGOTIABLE)
-  - Angular WebUI subsection under Technical Standards
+  - None
 - Removed sections: None
 - Templates requiring updates:
-  ✅ .specify/templates/plan-template.md (Constitution Check extended for Angular WebUI governance)
-  ✅ .specify/templates/spec-template.md (frontend-specific constitutional requirements scaffold added)
-  ✅ .specify/templates/tasks-template.md (Angular setup/security/proxy/testing task examples added)
-  ✅ .specify/templates/constitution-template.md (reviewed; generic placeholders remain valid)
+  ✅ .specify/templates/plan-template.md (Constitution Check now forbids async-pipe-driven app-owned UI state)
+  ✅ .specify/templates/spec-template.md (frontend constitutional requirements now forbid async-pipe-driven app-owned UI state)
+  ✅ .specify/templates/tasks-template.md (WebUI implementation/testing tasks now include signal-backed template-state verification)
   ✅ `.specify/templates/commands/*.md` (not present; no updates required)
-  ✅ AGENTS.md (runtime guidance aligned to Angular governance)
-  ✅ .github/copilot-instructions.md (agent guidance aligned to Angular governance)
-  ✅ README.md (reviewed; existing GraphQL and UI guidance remains compatible)
+  ✅ AGENTS.md (Angular guidance now explicitly forbids async-pipe-driven app-owned UI state)
+  ✅ .github/copilot-instructions.md (Angular guidance now explicitly forbids async-pipe-driven app-owned UI state)
+  ✅ README.md (reviewed; no constitution reference change required)
 - Follow-up TODOs: None
 -->
 
@@ -55,7 +53,7 @@ Code MUST compile and run on Linux, with clear documentation for other platforms
 
 ### VI. Angular WebUI Engineering (NON-NEGOTIABLE)
 
-All Isched WebUI work MUST use modern Angular conventions. State management MUST be signal-first, with RxJS used only where stream semantics are required. New UI building blocks MUST be standalone components/directives/pipes by default. Templates MUST use modern control-flow syntax (`@if`, `@for`, `@switch`) for new code. Forms MUST use typed reactive forms. TypeScript compilation MUST stay in strict mode (including strict template checking). UI code MUST prefer zoneless- and `OnPush`-compatible patterns where feasible, avoiding reliance on implicit Zone.js side effects. All frontend API access MUST go through GraphQL at `/graphql` (HTTP and WebSocket), with no REST fallbacks.
+All Isched WebUI work MUST use modern Angular conventions. State management MUST be signal-first, with RxJS used only where stream semantics are required. Application-owned UI state rendered by templates MUST be sourced from signals or signal-derived view models; async-pipe-driven template state from long-lived component-owned observables is prohibited unless adapting immutable third-party stream APIs, and any exception MUST be documented in the feature spec. New UI building blocks MUST be standalone components/directives/pipes by default. Templates MUST use modern control-flow syntax (`@if`, `@for`, `@switch`) for new code. Forms MUST use typed reactive forms. TypeScript compilation MUST stay in strict mode (including strict template checking). UI code MUST prefer zoneless- and `OnPush`-compatible patterns where feasible, avoiding reliance on implicit Zone.js side effects. All frontend API access MUST go through GraphQL at `/graphql` (HTTP and WebSocket), with no REST fallbacks.
 
 **Rationale**: The new WebUI is a first-class product surface. Enforcing modern Angular patterns preserves long-term maintainability, predictable performance, and architectural consistency with Isched's GraphQL-only platform contract.
 
@@ -75,7 +73,7 @@ All Isched WebUI work MUST use modern Angular conventions. State management MUST
 
 ### Angular WebUI
 
-Frontend work MUST use Angular standalone APIs and strict TypeScript settings. New templates MUST use `@if`, `@for`, and `@switch` instead of legacy structural-directive microsyntax unless integrating immutable third-party code. Typed reactive forms are mandatory for user input flows, particularly authentication and administration screens. Local development MUST use an Angular dev-server proxy that forwards `/graphql` HTTP and WebSocket traffic to the backend origin; frontend source code MUST avoid hard-coded backend hostnames for dev mode.
+Frontend work MUST use Angular standalone APIs and strict TypeScript settings. State consumed by templates for application-owned UI behavior MUST come from signals (or signal-derived selectors/view models); async-pipe-driven template state over component-owned observables is disallowed except when bridging immutable third-party stream contracts with explicit documentation. New templates MUST use `@if`, `@for`, and `@switch` instead of legacy structural-directive microsyntax unless integrating immutable third-party code. Typed reactive forms are mandatory for user input flows, particularly authentication and administration screens. Local development MUST use an Angular dev-server proxy that forwards `/graphql` HTTP and WebSocket traffic to the backend origin; frontend source code MUST avoid hard-coded backend hostnames for dev mode.
 
 ## Development Workflow
 
@@ -101,4 +99,4 @@ Compliance reviews are mandatory at plan, implementation, and review time; any n
 
 Constitution violations are critical issues requiring immediate resolution.
 
-**Version**: 2.1.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2026-04-04
+**Version**: 2.2.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2026-04-05

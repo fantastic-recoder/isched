@@ -8,6 +8,7 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 - **Tailwind CSS 3.x** + **DaisyUI 4.x** for styling — use DaisyUI component classes (`btn`, `card`, `alert`, `modal`, `table`, etc.) and extend with Tailwind utilities
 - **DaisyUI theme**: `corporate` (set via `data-theme="corporate"` on `<html>`)
 - **GraphQL-only** backend integration via `/graphql` endpoint
+- **Embedded runtime route**: backend serves the built SPA at `/isched` (for example `http://localhost:8080/isched`)
 
 ## Coding Conventions
 
@@ -65,7 +66,7 @@ This will compile your project and store the build artifacts in the `dist/` dire
 
 ## Running unit tests
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+To execute unit tests with the [Jest](https://jestjs.io/) test runner (via `@angular-builders/jest`), use the following command:
 
 ```bash
 ng test
@@ -94,6 +95,32 @@ Run the complete Playwright suite:
 cd /home/groby/dev/isched/src/ui
 pnpm e2e
 ```
+
+### Selecting a different CMake build directory
+
+By default the test harness resolves the server binary from the debug build tree:
+
+```
+cmake-build-debug/src/main/cpp/isched/isched_srv
+```
+
+To use a different build directory (e.g. a release or CI build), set `ISCHED_BUILD_DIR` before running the tests:
+
+```bash
+ISCHED_BUILD_DIR=cmake-build-release pnpm e2e
+# or
+ISCHED_BUILD_DIR=/path/to/custom-build pnpm e2e
+```
+
+The path is resolved relative to the repository root.
+
+### Environment variables summary
+
+| Variable | Default | Description |
+|---|---|---|
+| `ISCHED_BUILD_DIR` | `cmake-build-debug` | CMake build directory used to locate `isched_srv` |
+| `ISCHED_SERVER_PORT` | `18080` | Port the test server listens on |
+| `ISCHED_EXTERNAL_SERVER` | _(unset)_ | Set to `1` to skip server launch (external harness manages it) |
 
 ## Additional Resources
 

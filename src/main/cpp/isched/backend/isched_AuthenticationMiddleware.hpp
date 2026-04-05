@@ -29,6 +29,8 @@
 #include <atomic>
 #include <vector>
 
+#include <isched/shared/config/isched_config.hpp>
+
 // Forward-declare DatabaseManager to avoid a circular include; source files
 // that call the DB-backed session API must include isched_DatabaseManager.hpp.
 namespace isched::v0_0_1::backend { class DatabaseManager; }
@@ -279,6 +281,42 @@ public:
      */
     virtual std::string get_metrics() const = 0;
 
+    /**
+     * @brief Check if an identity (email/username/IP) is rate limited.
+     * @param identity Unique identifier (e.g., email or IP address)
+     * @return true if the identity is currently rate limited (too many recent failed attempts)
+     */
+    virtual bool is_rate_limited(const std::string& identity) const = 0;
+
+    /**
+     * @brief Record a failed authentication attempt for rate limiting.
+     * @param identity Unique identifier (e.g., email or IP address)
+     * @param window_ms Time window in milliseconds for counting attempts (default 15 minutes)
+     * @param max_attempts Maximum failed attempts before rate limiting (default 5)
+     */
+    virtual void record_failed_attempt(
+        const std::string& identity,
+        int window_ms = 900000,      // 15 minutes
+        int max_attempts = 5) = 0;
+
+    /**
+     * @brief Reset failed attempts for an identity (typically on successful login).
+     * @param identity Unique identifier (e.g., email or IP address)
+     */
+    virtual void reset_failed_attempts(const std::string& identity) = 0;
+
+    /**
+     * @brief Get milliseconds until the rate limit window expires for an identity.
+     * @param identity Unique identifier
+     * @return Milliseconds until the identity is no longer rate limited (0 if not limited)
+     */
+    virtual int get_rate_limit_reset_ms(const std::string& identity) const = 0;
+
+    /**
+     * @brief Resolve auth lockout configuration from the configured precedence chain.
+     */
+    [[nodiscard]] virtual AuthRateLimitConfig get_rate_limit_config() const = 0;
+
 protected:
     /**
      * @brief Protected constructor for factory pattern
@@ -320,3 +358,4 @@ namespace isched::v0_0_1::backend {
                                    const std::string& stored_hash);
 
 } // namespace isched::v0_0_1::backend
+

@@ -53,6 +53,9 @@ importers:
       '@types/jest':
         specifier: ^30.0.0
         version: 30.0.0
+      '@types/node':
+        specifier: ^22.19.15
+        version: 22.19.15
       autoprefixer:
         specifier: ^10.4.27
         version: 10.4.27(postcss@8.5.8)

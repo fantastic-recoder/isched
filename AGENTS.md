@@ -74,6 +74,7 @@ cd cmake-build-debug && ctest -N
 
 ### Angular WebUI Conventions (`src/ui/`)
 - Use signal-first state management; use RxJS when stream semantics are required.
+- Do not drive app-owned template state via async-pipe subscriptions to component-owned observables; use signals (or signal-derived view models) for template state.
 - Default to standalone components/directives/pipes.
 - Use modern template control flow: `@if`, `@for`, `@switch`.
 - Use typed reactive forms for user input flows.

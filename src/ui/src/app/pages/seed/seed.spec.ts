@@ -69,7 +69,7 @@ describe('SeedComponent', () => {
     httpMock.expectNone('/graphql');
   });
 
-  it('auto-logs in and navigates to dashboard on successful mutation', async () => {
+  it('navigates to /login on successful mutation', async () => {
     const fixture = createFixture();
     const comp = fixture.componentInstance;
     const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
@@ -87,19 +87,7 @@ describe('SeedComponent', () => {
     });
     await flushMicrotasks();
 
-    // 2) Auto-login mutation (AuthService.signIn)
-    httpMock.expectOne('/graphql').flush({
-      data: { login: { token: 'session-jwt' } },
-    });
-    await flushMicrotasks();
-
-    // 3) Session bootstrap query (AuthService.bootstrapSession → currentUser)
-    httpMock.expectOne('/graphql').flush({
-      data: { currentUser: { id: '1' } },
-    });
-    await flushMicrotasks();
-
-    expect(navSpy).toHaveBeenCalledWith(['/dashboard']);
+    expect(navSpy).toHaveBeenCalledWith(['/login']);
   });
 
   it('shows error banner on server error', (done) => {

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, map, switchMap, tap } from 'rxjs';
-import { GraphQLService } from './graphql.service';
+import { Observable, catchError, map, switchMap, tap, throwError } from 'rxjs';
+import { GraphQLRequestError, GraphQLService, GRAPHQL_ERROR_CODES } from './graphql.service';
 
 interface CurrentSessionResponse {
   currentUser: { id: string } | null;
@@ -47,6 +47,12 @@ export class AuthService {
             return [false];
           }
           return this.bootstrapSession();
+        }),
+        catchError((err: unknown) => {
+          if (err instanceof GraphQLRequestError && err.code === GRAPHQL_ERROR_CODES.RATE_LIMITED) {
+            return throwError(() => new Error(this.buildRateLimitedGuidance(err.retryAfterMs)));
+          }
+          return throwError(() => err);
         }),
       );
   }
@@ -104,5 +110,14 @@ export class AuthService {
 
   private createEphemeralCsrfToken(): string {
     return `csrf_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  private buildRateLimitedGuidance(retryAfterMs?: number): string {
+    if (typeof retryAfterMs !== 'number' || retryAfterMs <= 0) {
+      return 'Too many failed sign-in attempts. Please wait a few minutes before trying again.';
+    }
+
+    const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    return `Too many failed sign-in attempts. Try again in about ${retryAfterSeconds} second${retryAfterSeconds === 1 ? '' : 's'}.`;
   }
 }

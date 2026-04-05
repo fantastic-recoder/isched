@@ -8,6 +8,8 @@
 - Endpoint: `/graphql`
 - HTTP: `POST` with GraphQL JSON payload
 - WebSocket: `graphql-transport-ws` on `/graphql` (required in proxy/dev parity)
+- Canonical embedded WebUI URL: `/isched`
+- Browser entry redirects: HTTP `GET /` and HTTP `GET /graphql` redirect to `/isched`
 - No REST/alternate admin endpoints are allowed
 - Server default data root (when `--data-dir` is omitted): `<DataHome>/isched` via `sago::getDataHome()`
 
