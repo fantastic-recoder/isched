@@ -1047,8 +1047,6 @@ bool Server::start() {
                 [this](double ms) { update_response_time_metric(ms); });
             m_impl->http_listener->run();
             spdlog::info("Server data directory: {}", m_config.work_directory);
-            spdlog::info("GraphQL endpoint ready at http://{}:{}/graphql",
-                         m_config.host, m_config.port);
             spdlog::info(
                 "Admin UI startup: route=/isched embeddedAssets={} missingAssetBehavior=404-json spaFallback=non-asset-routes",
                 UiAssetRegistry::instance().has_index_html() ? "available" : "missing");
