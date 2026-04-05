@@ -15,14 +15,95 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <chrono>
+#include <cstdlib>
 
 #include <isched/backend/isched_AuthenticationMiddleware.hpp>
+#include <isched/backend/isched_DatabaseManager.hpp>
 #include <isched/backend/isched_GqlExecutor.hpp>
+
+#include "../isched/isched_graphql_test_helpers.hpp"
 
 using namespace isched::v0_0_1::backend;
 using json = nlohmann::json;
 
+namespace {
+struct ExecutorWithAuth {
+    std::shared_ptr<GqlExecutor> exec;
+    std::shared_ptr<AuthenticationMiddleware> auth;
+};
+
+class ScopedEnvVar {
+public:
+    ScopedEnvVar(const std::string& key, const std::string& value) : key_(key) {
+        const char* existing = std::getenv(key.c_str());
+        if (existing != nullptr) {
+            had_previous_ = true;
+            previous_value_ = existing;
+        }
+
+        if (value.empty()) {
+            unsetenv(key_.c_str());
+        } else {
+            setenv(key_.c_str(), value.c_str(), 1);
+        }
+    }
+
+    ~ScopedEnvVar() {
+        if (had_previous_) {
+            setenv(key_.c_str(), previous_value_.c_str(), 1);
+        } else {
+            unsetenv(key_.c_str());
+        }
+    }
+
+private:
+    std::string key_;
+    bool had_previous_{false};
+    std::string previous_value_;
+};
+
+ExecutorWithAuth make_executor_with_auth(const std::shared_ptr<DatabaseManager>& db) {
+    auto exec = std::make_shared<GqlExecutor>(db);
+    auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
+    auth->configure_jwt_secret("test-rate-limit-jwt-secret-at-least-32-bytes");
+    exec->set_auth_middleware(auth);
+    return ExecutorWithAuth{exec, auth};
+}
+
+void seed_platform_admin(DatabaseManager& db, const std::string& email, const std::string& password) {
+    REQUIRE(db.ensure_system_db());
+
+    const auto existing = db.list_platform_admins();
+    REQUIRE(existing);
+    for (const auto& admin : existing.value()) {
+        REQUIRE(db.delete_platform_admin(admin.id));
+    }
+
+    const auto create_result = db.create_platform_admin(
+        "rate_limit_test_admin",
+        email,
+        hash_password(password),
+        "Rate Limit Test Admin");
+    REQUIRE(create_result);
+}
+
+ExecutionResult login_attempt(
+    const std::shared_ptr<GqlExecutor>& exec,
+    const std::string& email,
+    const std::string& password)
+{
+    return exec->execute(
+        R"(mutation($email: String!, $password: String!) {
+             login(email: $email, password: $password) { token expiresAt }
+           })",
+        json{{"email", email}, {"password", password}}.dump(),
+        isched::test::anonymous_ctx());
+}
+} // namespace
+
 TEST_CASE("Rate Limiting: Record and Check Failed Attempts", "[rate-limiting]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", ""};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", ""};
     auto auth = AuthenticationMiddleware::create();
 
     SECTION("First failed attempt does not trigger rate limit") {
@@ -53,6 +134,8 @@ TEST_CASE("Rate Limiting: Record and Check Failed Attempts", "[rate-limiting]") 
 }
 
 TEST_CASE("Rate Limiting: Reset Failed Attempts", "[rate-limiting]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", ""};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", ""};
     auto auth = AuthenticationMiddleware::create();
 
     SECTION("Reset removes rate limit") {
@@ -77,6 +160,8 @@ TEST_CASE("Rate Limiting: Reset Failed Attempts", "[rate-limiting]") {
 }
 
 TEST_CASE("Rate Limiting: Get Reset Milliseconds", "[rate-limiting]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", ""};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", ""};
     auto auth = AuthenticationMiddleware::create();
 
     SECTION("Non-rate-limited identity returns 0") {
@@ -94,6 +179,8 @@ TEST_CASE("Rate Limiting: Get Reset Milliseconds", "[rate-limiting]") {
 }
 
 TEST_CASE("Rate Limiting: Window Expiration", "[rate-limiting]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", "100"};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", "5"};
     auto auth = AuthenticationMiddleware::create();
 
     SECTION("Rate limit expires after window duration") {
@@ -103,7 +190,10 @@ TEST_CASE("Rate Limiting: Window Expiration", "[rate-limiting]") {
         REQUIRE(auth->is_rate_limited("user@example.com"));
 
         // Wait for window to expire
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (auth->is_rate_limited("user@example.com") && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
 
         REQUIRE(!auth->is_rate_limited("user@example.com"));
     }
@@ -114,15 +204,20 @@ TEST_CASE("Rate Limiting: Window Expiration", "[rate-limiting]") {
         }
         REQUIRE(auth->is_rate_limited("user@example.com"));
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (auth->is_rate_limited("user@example.com") && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
 
-        // Record a new attempt - should start fresh window
-        auth->record_failed_attempt("user@example.com", 900000, 5);
+        // Record a new attempt with the same short window - it should start fresh.
+        auth->record_failed_attempt("user@example.com", 100, 5);
         REQUIRE(!auth->is_rate_limited("user@example.com"));
     }
 }
 
 TEST_CASE("Rate Limiting: Per-Identity Isolation", "[rate-limiting]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", ""};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", ""};
     auto auth = AuthenticationMiddleware::create();
 
     SECTION("Rate limiting one identity does not affect others") {
@@ -140,6 +235,8 @@ TEST_CASE("Rate Limiting: Per-Identity Isolation", "[rate-limiting]") {
 }
 
 TEST_CASE("Rate Limiting: Different Max Attempts", "[rate-limiting]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", ""};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", ""};
     auto auth = AuthenticationMiddleware::create();
 
     SECTION("Max attempts of 3") {
@@ -162,6 +259,35 @@ TEST_CASE("Rate Limiting: Different Max Attempts", "[rate-limiting]") {
         }
         REQUIRE(!auth2->is_rate_limited("user2@example.com"));
     }
+}
+
+TEST_CASE("Rate Limiting: login resolver returns deterministic RATE_LIMITED envelope",
+          "[rate-limiting][integration][graphql]") {
+    ScopedEnvVar lockout_window{"ISCHED_AUTH_LOCKOUT_WINDOW_MS", "5000"};
+    ScopedEnvVar lockout_attempts{"ISCHED_AUTH_LOCKOUT_MAX_ATTEMPTS", "5"};
+
+    auto db = std::make_shared<DatabaseManager>();
+    seed_platform_admin(*db, "rate-limit-envelope@example.com", "CorrectHorseBatteryStaple123");
+    auto exec = make_executor_with_auth(db).exec;
+
+    for (int i = 0; i < 4; ++i) {
+        const auto attempt = login_attempt(exec, "rate-limit-envelope@example.com", "wrong-password");
+        REQUIRE_FALSE(attempt.is_success());
+        REQUIRE_FALSE(isched::test::has_error_code(attempt, isched::v0_0_1::gql::EErrorCodes::RATE_LIMITED));
+    }
+
+    const auto lockout_attempt = login_attempt(exec, "rate-limit-envelope@example.com", "wrong-password");
+    REQUIRE_FALSE(lockout_attempt.is_success());
+    REQUIRE(isched::test::has_error_code(lockout_attempt, isched::v0_0_1::gql::EErrorCodes::RATE_LIMITED));
+
+    const auto lockout_json = lockout_attempt.to_json();
+    REQUIRE(lockout_json.contains("errors"));
+    REQUIRE(lockout_json["errors"][0]["extensions"]["code"] == "RATE_LIMITED");
+    REQUIRE(lockout_json["errors"][0]["extensions"].contains("retryAfterMs"));
+    REQUIRE(lockout_json["errors"][0]["message"] ==
+            "RATE_LIMITED: Too many authentication attempts. retryAfterMs="
+            + std::to_string(lockout_json["errors"][0]["extensions"]["retryAfterMs"].get<int>()));
+
 }
 
 

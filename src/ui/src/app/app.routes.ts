@@ -4,13 +4,41 @@ import { inject } from '@angular/core';
 import { catchError, map, of } from 'rxjs';
 import { BootstrapService } from './services/bootstrap.service';
 import { Router } from '@angular/router';
+import { SessionBootstrapStateService } from './services/session-bootstrap-state.service';
+import { AuthService } from './services/auth.service';
+
+const resolveBootstrapAvailability = (source: 'StartupProbe' | 'GuardProbe' | 'ActionProbe') => {
+  const bootstrapService = inject(BootstrapService);
+
+  return bootstrapService.bootstrapStatus(source).pipe(
+    map(({ systemState }) => systemState.seedModeActive),
+    catchError(() => {
+      return of(false);
+    }),
+  );
+};
+
+const hasResolvedStartupState = () => {
+  const sessionBootstrapState = inject(SessionBootstrapStateService);
+  return sessionBootstrapState.sessionBootstrapState().initialRouteResolved;
+};
 
 const bootstrapGate = () => {
-  const bootstrapService = inject(BootstrapService);
   const router = inject(Router);
-  return bootstrapService.bootstrapStatus().pipe(
-    map(({ systemState }) => {
-      return systemState.seedModeActive ? true : router.createUrlTree(['/login']);
+  const sessionBootstrapState = inject(SessionBootstrapStateService);
+
+  if (hasResolvedStartupState()) {
+    return of(
+      sessionBootstrapState.sessionBootstrapState().seedModeActive
+        ? true
+        : router.createUrlTree(['/login']),
+    );
+  }
+
+  return resolveBootstrapAvailability('GuardProbe').pipe(
+    map((seedModeActive) => {
+      sessionBootstrapState.markInitialRouteResolved();
+      return seedModeActive ? true : router.createUrlTree(['/login']);
     }),
     catchError(() => of(router.createUrlTree(['/login']))),
   );
@@ -21,18 +49,41 @@ const bootstrapGate = () => {
  * If no platform admin exists yet the user must complete bootstrap first.
  */
 const loginGate = () => {
-  const bootstrapService = inject(BootstrapService);
   const router = inject(Router);
-  return bootstrapService.bootstrapStatus().pipe(
-    map(({ systemState }) => {
-      return systemState.seedModeActive ? router.createUrlTree(['/bootstrap']) : true;
+  const auth = inject(AuthService);
+  const sessionBootstrapState = inject(SessionBootstrapStateService);
+  const startupState = sessionBootstrapState.sessionBootstrapState();
+
+  if (startupState.initialRouteResolved) {
+    if (startupState.seedModeActive) {
+      return of(router.createUrlTree(['/bootstrap']));
+    }
+
+    return of(startupState.sessionAuthenticated ? router.createUrlTree(['/dashboard']) : true);
+  }
+
+  return resolveBootstrapAvailability('GuardProbe').pipe(
+    map((seedModeActive) => {
+      if (seedModeActive) {
+        sessionBootstrapState.markInitialRouteResolved();
+        return router.createUrlTree(['/bootstrap']);
+      }
+
+      const isAuthenticated = auth.isLoggedIn();
+      sessionBootstrapState.markSessionKnown(isAuthenticated);
+      sessionBootstrapState.markInitialRouteResolved();
+      return isAuthenticated ? router.createUrlTree(['/dashboard']) : true;
     }),
-    catchError(() => of(true)),
+    catchError(() => {
+      sessionBootstrapState.markSessionKnown(false);
+      sessionBootstrapState.markInitialRouteResolved();
+      return of(true);
+    }),
   );
 };
 
 export const routes: Routes = [
-  { path: '', redirectTo: 'bootstrap', pathMatch: 'full' },
+  { path: '', redirectTo: 'login', pathMatch: 'full' },
   {
     path: 'bootstrap',
     canMatch: [bootstrapGate],

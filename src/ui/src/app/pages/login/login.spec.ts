@@ -57,7 +57,7 @@ describe('LoginComponent', () => {
     });
   });
 
-  it('shows error banner on server error', (done) => {
+  it('shows generic auth alert on non-lockout sign-in failure', (done) => {
     const fixture = createFixture();
     const comp = fixture.componentInstance;
 
@@ -69,10 +69,61 @@ describe('LoginComponent', () => {
     );
 
     Promise.resolve().then(() => {
-      expect(comp.errorMsg()).toBe('Invalid credentials');
+      expect(comp.authAlert()?.category).toBe('AuthFailure');
+      expect(comp.authAlert()?.body).toBe('Invalid credentials');
       fixture.detectChanges();
       const compiled = fixture.nativeElement as HTMLElement;
       expect(compiled.querySelector('.alert-error')).toBeTruthy();
+      done();
+    });
+  });
+
+  it('shows deterministic lockout guidance with retry metadata', (done) => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'wrong' });
+    comp.onSubmit();
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [{
+        message: 'rate limited',
+        extensions: { code: 'RATE_LIMITED', retryAfterMs: 15000 },
+      }],
+    });
+
+    Promise.resolve().then(() => {
+      expect(comp.lockoutAlert()?.category).toBe('AuthRateLimited');
+      expect(comp.lockoutAlert()?.body).toContain('about 15 seconds');
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.alert-warning')?.textContent).toContain('Retry in about 15 seconds');
+      done();
+    });
+  });
+
+  it('shows fallback lockout guidance when retry metadata is absent', (done) => {
+    const fixture = createFixture();
+    const comp = fixture.componentInstance;
+
+    comp.form.setValue({ email: 'admin@x.com', password: 'wrong' });
+    comp.onSubmit();
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [{
+        message: 'rate limited',
+        extensions: { code: 'RATE_LIMITED' },
+      }],
+    });
+
+    Promise.resolve().then(() => {
+      expect(comp.lockoutAlert()?.category).toBe('AuthRateLimited');
+      expect(comp.lockoutAlert()?.body).toBe(
+        'Too many failed sign-in attempts. Please wait a few minutes before trying again.',
+      );
+      fixture.detectChanges();
+      const compiled = fixture.nativeElement as HTMLElement;
+      expect(compiled.querySelector('.alert-warning')?.textContent).toContain('Please wait a few minutes');
       done();
     });
   });

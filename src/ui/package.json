@@ -9,7 +9,12 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
+    "test:login-lockout": "jest --config jest.focused.config.ts --runTestsByPath src/app/services/auth.service.spec.ts src/app/services/graphql.service.spec.ts src/app/pages/login/login.spec.ts",
+    "test:startup-routing": "jest --config jest.focused.config.ts --runTestsByPath src/app/app.spec.ts src/app/guards/auth.guard.spec.ts",
+    "test:auth-bootstrap": "jest --config jest.focused.config.ts --runTestsByPath src/app/services/auth.service.spec.ts src/app/services/graphql.service.spec.ts src/app/app.spec.ts src/app/guards/auth.guard.spec.ts src/app/pages/bootstrap/bootstrap.page.spec.ts src/app/pages/login/login.spec.ts",
     "e2e": "playwright test",
+    "e2e:rate-limiting": "playwright test e2e/rate-limiting.spec.ts",
+    "e2e:auth-bootstrap": "playwright test e2e/rate-limiting.spec.ts e2e/bootstrap.spec.ts",
     "e2e:bootstrap": "playwright test e2e/bootstrap.spec.ts",
     "e2e:install": "playwright install --with-deps chromium"
   },

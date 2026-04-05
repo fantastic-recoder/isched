@@ -2052,10 +2052,14 @@ namespace isched::v0_0_1::backend {
                 const int lockout_window_ms = lockout_config.window_ms;
                 const int lockout_max_attempts = lockout_config.max_attempts;
 
-                if (m_auth->is_rate_limited(lockout_identity)) {
+                const auto throw_rate_limited = [this, &lockout_identity]() -> void {
                     const int retry_after_ms = m_auth->get_rate_limit_reset_ms(lockout_identity);
                     throw std::runtime_error(
-                        "RATE_LIMITED: Too many failed login attempts. retryAfterMs=" + std::to_string(retry_after_ms));
+                        "RATE_LIMITED: Too many authentication attempts. retryAfterMs=" + std::to_string(retry_after_ms));
+                };
+
+                if (m_auth->is_rate_limited(lockout_identity)) {
+                    throw_rate_limited();
                 }
 
                 auto& db = *m_database;
@@ -2065,7 +2069,7 @@ namespace isched::v0_0_1::backend {
                     if (m_auth->is_rate_limited(lockout_identity)) {
                         const int retry_after_ms = m_auth->get_rate_limit_reset_ms(lockout_identity);
                         throw std::runtime_error(
-                            "RATE_LIMITED: Too many failed login attempts. retryAfterMs=" + std::to_string(retry_after_ms));
+                            "RATE_LIMITED: Too many authentication attempts. retryAfterMs=" + std::to_string(retry_after_ms));
                     }
                     throw std::runtime_error("Invalid credentials");
                 };
@@ -2793,14 +2797,16 @@ namespace isched::v0_0_1::backend {
                 for (const auto& s : my_field_path) ep.push_back(s);
 
                 gql::EErrorCodes error_code = gql::EErrorCodes::UNKNOWN_ERROR;
+                std::string error_message = std::format("Resolver for field {} threw: {}",
+                                            concat_vector(my_field_path, "."), ex.what());
                 if (const std::string_view msg = ex.what(); msg.rfind("RATE_LIMITED", 0) == 0) {
                     error_code = gql::EErrorCodes::RATE_LIMITED;
+                    error_message = ex.what();
                 }
 
                 p_error.push_back(gql::Error{
                     .code    = error_code,
-                    .message = std::format("Resolver for field {} threw: {}",
-                                           concat_vector(my_field_path, "."), ex.what()),
+                    .message = error_message,
                     .path    = std::move(ep),
                 });
                 p_result[myFieldName] = nullptr;

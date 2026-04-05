@@ -100,6 +100,43 @@ Lockout and auth/bootstrap transitions depend on stable GraphQL error metadata:
 }
 ```
 
+Canonical lockout envelope without timing metadata:
+
+```json
+{
+  "errors": [
+    {
+      "message": "Too many authentication attempts",
+      "extensions": {
+        "code": "RATE_LIMITED"
+      }
+    }
+  ]
+}
+```
+
+Canonical bootstrap-unavailable envelope (exact message may vary by resolver):
+
+```json
+{
+  "errors": [
+    {
+      "message": "Bootstrap is no longer available",
+      "extensions": {
+        "code": "CONFLICT"
+      }
+    }
+  ]
+}
+```
+
+Frontend normalization rules for deterministic handling:
+
+- Primary classifier is `errors[0].extensions.code`; if absent, use generic transient handling.
+- Lockout guidance is selected only when the code is `RATE_LIMITED`.
+- Retry copy uses `errors[0].extensions.retryAfterMs` when present, otherwise fallback lockout messaging.
+- Bootstrap-unavailable handling is selected from bootstrap operations that fail with deterministic non-success envelopes (for example `CONFLICT`) and routes to sign-in with a notice.
+
 Fallback contract when timing metadata is absent:
 
 ```json
@@ -120,4 +157,5 @@ Fallback contract when timing metadata is absent:
 - No REST fallback endpoints are introduced.
 - Existing GraphQL operation names remain stable unless a migration note is added in `tasks.md`.
 - Unknown error codes continue to map to generic transient handling; `RATE_LIMITED` remains explicit and deterministic.
+- `/graphql` remains the only HTTP/WS entrypoint; frontend local development relies on proxy forwarding rather than hard-coded origins.
 

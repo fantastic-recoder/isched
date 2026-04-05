@@ -1,30 +1,50 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { map, catchError, of } from 'rxjs';
-import { GraphQLService } from '../services/graphql.service';
+import { catchError, map, of, switchMap } from 'rxjs';
 import { AuthService } from '../services/auth.service';
-
-const SYSTEM_STATE_QUERY = `{ systemState { seedModeActive } }`;
-
-interface SystemStateResponse {
-  systemState: { seedModeActive: boolean };
-}
+import { BootstrapService } from '../services/bootstrap.service';
+import { SessionBootstrapStateService } from '../services/session-bootstrap-state.service';
 
 export const authGuard: CanActivateFn = (_route, _state) => {
-  const gql = inject(GraphQLService);
+  const bootstrapService = inject(BootstrapService);
   const auth = inject(AuthService);
   const router = inject(Router);
+  const sessionBootstrapState = inject(SessionBootstrapStateService);
 
-  return gql.query<SystemStateResponse>(SYSTEM_STATE_QUERY).pipe(
-    map(({ systemState }) => {
+  return bootstrapService.bootstrapStatus('GuardProbe').pipe(
+    switchMap(({ systemState }) => {
       if (systemState.seedModeActive) {
-        return router.createUrlTree(['/seed']);
+        sessionBootstrapState.markInitialRouteResolved();
+        return of(router.createUrlTree(['/bootstrap']));
       }
-      if (!auth.isLoggedIn()) {
-        return router.createUrlTree(['/login']);
+
+      const state = sessionBootstrapState.sessionBootstrapState();
+      if (!state.firstGuardRevalidationComplete) {
+        return auth.bootstrapSession().pipe(
+          map((isAuthenticated) => {
+            sessionBootstrapState.markSessionKnown(isAuthenticated);
+            sessionBootstrapState.markFirstGuardRevalidationComplete();
+            sessionBootstrapState.markInitialRouteResolved();
+            return isAuthenticated ? true : router.createUrlTree(['/login']);
+          }),
+          catchError(() => {
+            sessionBootstrapState.markSessionKnown(false);
+            sessionBootstrapState.markFirstGuardRevalidationComplete();
+            sessionBootstrapState.markInitialRouteResolved();
+            return of(router.createUrlTree(['/login']));
+          }),
+        );
       }
-      return true;
+
+      const isAuthenticated = auth.isLoggedIn();
+      sessionBootstrapState.markSessionKnown(isAuthenticated);
+      sessionBootstrapState.markInitialRouteResolved();
+      return of(isAuthenticated ? true : router.createUrlTree(['/login']));
     }),
-    catchError(() => of(router.createUrlTree(['/login']))),
+    catchError(() => {
+      sessionBootstrapState.markSessionKnown(false);
+      sessionBootstrapState.markInitialRouteResolved();
+      return of(router.createUrlTree(['/login']));
+    }),
   );
 };

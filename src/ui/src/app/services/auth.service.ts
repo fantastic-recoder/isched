@@ -1,6 +1,20 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, switchMap, tap, throwError } from 'rxjs';
-import { GraphQLRequestError, GraphQLService, GRAPHQL_ERROR_CODES } from './graphql.service';
+import { GraphQLRequestError, GraphQLService } from './graphql.service';
+import { mapAuthAttemptOutcome, mapAuthErrorToAlert } from './auth-alert.mapper';
+import { AuthAttemptOutcome, UserFacingAlert } from './auth-bootstrap.models';
+import { SessionBootstrapStateService } from './session-bootstrap-state.service';
+
+export class AuthSignInError extends Error {
+  constructor(
+    message: string,
+    public readonly outcome: AuthAttemptOutcome,
+    public readonly alert: UserFacingAlert,
+  ) {
+    super(message);
+    this.name = 'AuthSignInError';
+  }
+}
 
 interface CurrentSessionResponse {
   currentUser: { id: string } | null;
@@ -19,6 +33,7 @@ interface SignOutResponse {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly gql = inject(GraphQLService);
+  private readonly sessionBootstrapState = inject(SessionBootstrapStateService);
   private csrfToken: string | null = null;
   private accessToken: string | null = null;
   private authenticated = false;
@@ -49,10 +64,9 @@ export class AuthService {
           return this.bootstrapSession();
         }),
         catchError((err: unknown) => {
-          if (err instanceof GraphQLRequestError && err.code === GRAPHQL_ERROR_CODES.RATE_LIMITED) {
-            return throwError(() => new Error(this.buildRateLimitedGuidance(err.retryAfterMs)));
-          }
-          return throwError(() => err);
+          const alert = mapAuthErrorToAlert(err);
+          const outcome = this.mapAuthFailureToOutcome(err, alert);
+          return throwError(() => new AuthSignInError(alert.body, outcome, alert));
         }),
       );
   }
@@ -69,8 +83,15 @@ export class AuthService {
             this.csrfToken = this.createEphemeralCsrfToken();
           }
           if (!isAuthenticated) {
+            this.accessToken = null;
             this.csrfToken = null;
           }
+          this.sessionBootstrapState.markSessionKnown(isAuthenticated);
+        }),
+        catchError((error: unknown) => {
+          this.clearEphemeralAuthState();
+          this.sessionBootstrapState.clearSessionIndicators();
+          return throwError(() => error);
         }),
       );
   }
@@ -92,9 +113,8 @@ export class AuthService {
   }
 
   clearAuthState(): void {
-    this.authenticated = false;
-    this.accessToken = null;
-    this.csrfToken = null;
+    this.clearEphemeralAuthState();
+    this.sessionBootstrapState.clearSessionIndicators();
   }
 
   signOut(): Observable<boolean> {
@@ -102,22 +122,39 @@ export class AuthService {
       .mutate<SignOutResponse>('mutation { logout }')
       .pipe(
         map((res) => res.logout),
-        tap(() => {
-          this.clearAuthState();
+        tap({
+          next: () => {
+            this.clearAuthState();
+          },
+          error: () => {
+            this.clearAuthState();
+          },
         }),
       );
+  }
+
+  private clearEphemeralAuthState(): void {
+    this.authenticated = false;
+    this.accessToken = null;
+    this.csrfToken = null;
   }
 
   private createEphemeralCsrfToken(): string {
     return `csrf_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
   }
 
-  private buildRateLimitedGuidance(retryAfterMs?: number): string {
-    if (typeof retryAfterMs !== 'number' || retryAfterMs <= 0) {
-      return 'Too many failed sign-in attempts. Please wait a few minutes before trying again.';
+  private mapAuthFailureToOutcome(error: unknown, alert: UserFacingAlert): AuthAttemptOutcome {
+    if (error instanceof GraphQLRequestError) {
+      return mapAuthAttemptOutcome(error);
     }
 
-    const retryAfterSeconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-    return `Too many failed sign-in attempts. Try again in about ${retryAfterSeconds} second${retryAfterSeconds === 1 ? '' : 's'}.`;
+    return {
+      status: 'TransportFailure',
+      errorCode: undefined,
+      message: alert.body,
+      guidanceText: alert.body,
+      occurredAt: new Date().toISOString(),
+    };
   }
+
 }

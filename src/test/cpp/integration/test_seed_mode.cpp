@@ -37,6 +37,11 @@ make_executor() {
     auto res = db->ensure_system_db();
     REQUIRE(res);
     auto exec = std::make_shared<GqlExecutor>(db);
+
+    auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
+    auth->configure_jwt_secret("test-seed-mode-jwt-secret-at-least-32-bytes");
+    exec->set_auth_middleware(auth);
+
     return {db, exec};
 }
 
@@ -50,6 +55,16 @@ static bool seed_active(GqlExecutor& exec) {
     auto r = exec.execute("{ systemState { seedModeActive } }", "{}", anon_ctx());
     REQUIRE(r.is_success());
     return r.data["systemState"]["seedModeActive"].get<bool>();
+}
+
+static ResolverCtx authenticated_platform_ctx() {
+    ResolverCtx ctx = anon_ctx();
+    ctx.current_user_id = "platform-admin-id";
+    ctx.user_name = "Platform Admin";
+    ctx.session_id = "session-1";
+    ctx.tenant_id = "platform";
+    ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
+    return ctx;
 }
 
 // ============================================================================
@@ -71,6 +86,20 @@ TEST_CASE("systemState: is callable without auth (anonymous)",
     for (const auto& err : result.errors) {
         REQUIRE(err.code != EErrorCodes::FORBIDDEN);
     }
+}
+
+TEST_CASE("systemState: seed mode stays active even for authenticated startup probes",
+          "[integration][seed][startup][005-rate-limited-auth-bootstrap]") {
+    auto [db, exec] = make_executor();
+
+    auto result = exec->execute(
+        "{ systemState { seedModeActive } currentUser { id } }",
+        "{}",
+        authenticated_platform_ctx());
+
+    REQUIRE(result.is_success());
+    REQUIRE(result.data["currentUser"]["id"] == "platform-admin-id");
+    REQUIRE(result.data["systemState"]["seedModeActive"].get<bool>());
 }
 
 // ============================================================================
@@ -95,6 +124,38 @@ TEST_CASE("createPlatformAdmin: valid credentials creates admin and disables see
 
     // Seed mode must now be off
     REQUIRE_FALSE(seed_active(*exec));
+}
+
+TEST_CASE("bootstrapPlatformAdmin: once bootstrap completes, later authenticated startup probes see seed mode inactive",
+          "[integration][seed][startup][005-rate-limited-auth-bootstrap]") {
+    auto [db, exec] = make_executor();
+    REQUIRE(seed_active(*exec));
+
+    const std::string email = "bootstrap_" + g_run_suffix + "@example.com";
+    const std::string mutation =
+        R"(mutation($input: BootstrapPlatformAdminInput!) {
+             bootstrapPlatformAdmin(input: $input) { token expiresAt }
+           })";
+    const std::string variables = json{
+        {"input", {
+            {"email", email},
+            {"password", "SecurePass1!"},
+            {"displayName", "Bootstrap Admin"},
+        }},
+    }.dump();
+
+    auto bootstrap_result = exec->execute(mutation, variables, anon_ctx());
+    REQUIRE(bootstrap_result.is_success());
+    REQUIRE_FALSE(bootstrap_result.data["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
+
+    auto result = exec->execute(
+        "{ systemState { seedModeActive } currentUser { id } }",
+        "{}",
+        authenticated_platform_ctx());
+
+    REQUIRE(result.is_success());
+    REQUIRE_FALSE(result.data["systemState"]["seedModeActive"].get<bool>());
+    REQUIRE(result.data["currentUser"]["id"] == "platform-admin-id");
 }
 
 TEST_CASE("createPlatformAdmin: blocked when seed mode is already off",

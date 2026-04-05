@@ -57,8 +57,6 @@ test.describe('Rate Limiting E2E Flow', () => {
       }
     }
 
-    // After the 5th failed attempt, check for rate limit alert
-    const rateLimitAlert = page.locator('text=/rate.?limit/i');
 
     // The alert may not appear immediately if rate limiting is implemented
     // at the backend level. Check if any error alert contains rate limit info
@@ -75,7 +73,7 @@ test.describe('Rate Limiting E2E Flow', () => {
     }
   });
 
-  test('rate limited user sees retry guidance in error alert', async ({ page }) => {
+  test('rate limited user sees metadata-aware retry guidance in warning alert', async ({ page }) => {
     // Navigate to login page
     await page.goto('/isched/login');
     await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 5_000 });
@@ -113,14 +111,48 @@ test.describe('Rate Limiting E2E Flow', () => {
     // Submit the form
     await page.getByRole('button', { name: 'Sign In' }).click();
 
-    // Wait for the error alert to appear
-    const errorAlert = page.locator('.alert.alert-error');
-    await expect(errorAlert).toBeVisible({ timeout: 5_000 });
+    const lockoutAlert = page.locator('.alert.alert-warning');
+    await expect(lockoutAlert).toBeVisible({ timeout: 5_000 });
+    await expect(lockoutAlert).toContainText('Sign-in temporarily locked');
+    await expect(lockoutAlert).toContainText('about 30 seconds');
+    await expect(lockoutAlert).toContainText('Retry in about 30 seconds');
+  });
 
-    // Verify the error message is displayed
-    const errorText = await errorAlert.textContent();
-    expect(errorText).toBeTruthy();
-    expect(errorText?.length).toBeGreaterThan(0);
+  test('rate limited user sees fallback lockout copy when retry metadata is absent', async ({ page }) => {
+    await page.goto('/isched/login');
+    await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 5_000 });
+
+    await page.locator('#email').fill(TEST_EMAIL);
+    await page.locator('#password').fill(WRONG_PASSWORD);
+
+    await page.route('**/graphql', (route) => {
+      const payload = route.request().postDataJSON() as { query?: string } | null;
+      const query = payload?.query ?? '';
+      if (query.includes('login(')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            errors: [
+              {
+                message: 'Too many authentication attempts',
+                extensions: {
+                  code: 'RATE_LIMITED',
+                },
+              },
+            ],
+          }),
+        });
+        return;
+      }
+      route.continue();
+    });
+
+    await page.getByRole('button', { name: 'Sign In' }).click();
+
+    const lockoutAlert = page.locator('.alert.alert-warning');
+    await expect(lockoutAlert).toBeVisible({ timeout: 5_000 });
+    await expect(lockoutAlert).toContainText('Too many failed sign-in attempts. Please wait a few minutes before trying again.');
   });
 
   test('form remains functional after rate limit is cleared', async ({ page }) => {

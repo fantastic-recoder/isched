@@ -11,10 +11,10 @@
 
 **Purpose**: Align feature-specific validation docs and local run surfaces before code changes.
 
-- [ ] T001 Refresh feature validation matrix and focused run steps in `specs/005-rate-limited-auth-bootstrap/quickstart.md`
-- [ ] T002 [P] Align GraphQL auth/bootstrap error contract examples in `specs/005-rate-limited-auth-bootstrap/contracts/graphql-auth-bootstrap-consistency.md`
-- [ ] T003 [P] Verify `/graphql` HTTP+WS proxy routing assumptions for this feature in `src/ui/proxy.conf.json`
-- [ ] T004 [P] Add/adjust focused auth/bootstrap verification scripts in `src/ui/package.json`
+- [X] T001 Refresh feature validation matrix and focused run steps in `specs/005-rate-limited-auth-bootstrap/quickstart.md`
+- [X] T002 [P] Align GraphQL auth/bootstrap error contract examples in `specs/005-rate-limited-auth-bootstrap/contracts/graphql-auth-bootstrap-consistency.md`
+- [X] T003 [P] Verify `/graphql` HTTP+WS proxy routing assumptions for this feature in `src/ui/proxy.conf.json`
+- [X] T004 [P] Add/adjust focused auth/bootstrap verification scripts in `src/ui/package.json`
 
 ---
 
@@ -24,12 +24,12 @@
 
 **CRITICAL**: Complete this phase before starting user story implementation.
 
-- [ ] T005 Create shared auth/bootstrap domain types (`AuthAttemptOutcome`, `UserFacingAlert`, `SessionBootstrapState`, `BootstrapEligibilityState`, `AuthFlowFlightState`) in `src/ui/src/app/services/auth-bootstrap.models.ts`
-- [ ] T006 [P] Add GraphQL error normalization utilities (including `extensions.code` and `extensions.retryAfterMs`) in `src/ui/src/app/services/graphql.service.ts`
-- [ ] T007 [P] Add deterministic alert-mapping helpers for auth/bootstrap categories in `src/ui/src/app/services/auth-alert.mapper.ts`
-- [ ] T008 Implement startup session/bootstrap state store (signal-backed) in `src/ui/src/app/services/session-bootstrap-state.service.ts`
-- [ ] T009 Integrate startup bootstrap-first route resolution orchestration in `src/ui/src/app/app.routes.ts`
-- [ ] T010 Implement one-time first-guard session revalidation state in `src/ui/src/app/guards/auth.guard.ts`
+- [X] T005 Create shared auth/bootstrap domain types (`AuthAttemptOutcome`, `UserFacingAlert`, `SessionBootstrapState`, `BootstrapEligibilityState`, `AuthFlowFlightState`) in `src/ui/src/app/services/auth-bootstrap.models.ts`
+- [X] T006 [P] Add GraphQL error normalization utilities (including `extensions.code` and `extensions.retryAfterMs`) in `src/ui/src/app/services/graphql.service.ts`
+- [X] T007 [P] Add deterministic alert-mapping helpers for auth/bootstrap categories in `src/ui/src/app/services/auth-alert.mapper.ts`
+- [X] T008 Implement startup session/bootstrap state store (signal-backed) in `src/ui/src/app/services/session-bootstrap-state.service.ts`
+- [X] T009 Integrate startup bootstrap-first route resolution orchestration in `src/ui/src/app/app.routes.ts`
+- [X] T010 Implement one-time first-guard session revalidation state in `src/ui/src/app/guards/auth.guard.ts`
 
 **Checkpoint**: Shared frontend/backend contract handling is in place; user stories can proceed.
 
@@ -43,16 +43,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Extend lockout integration assertions for deterministic `RATE_LIMITED` envelopes in `src/test/cpp/integration/test_rate_limiting.cpp`
-- [ ] T012 [P] [US1] Add Angular auth service tests for metadata-aware and fallback lockout guidance in `src/ui/src/app/services/auth.service.spec.ts`
-- [ ] T013 [P] [US1] Add lockout UX regression coverage for deterministic guidance in `src/ui/e2e/rate-limiting.spec.ts`
+- [X] T011 [P] [US1] Extend lockout integration assertions for deterministic `RATE_LIMITED` envelopes in `src/test/cpp/integration/test_rate_limiting.cpp`
+- [X] T012 [P] [US1] Add Angular auth service tests for metadata-aware and fallback lockout guidance in `src/ui/src/app/services/auth.service.spec.ts`
+- [X] T013 [P] [US1] Add lockout UX regression coverage for deterministic guidance in `src/ui/e2e/rate-limiting.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement `RATE_LIMITED`-specific auth outcome mapping in `src/ui/src/app/services/auth.service.ts`
-- [ ] T015 [US1] Add dedicated lockout alert state and submit-result handling in `src/ui/src/app/pages/login/login.ts`
-- [ ] T016 [US1] Render deterministic lockout guidance (retry metadata + fallback copy) in `src/ui/src/app/pages/login/login.html`
-- [ ] T017 [US1] Ensure backend login resolver emits canonical lockout code/metadata consistently in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
+- [X] T014 [US1] Implement `RATE_LIMITED`-specific auth outcome mapping in `src/ui/src/app/services/auth.service.ts`
+- [X] T015 [US1] Add dedicated lockout alert state and submit-result handling in `src/ui/src/app/pages/login/login.ts`
+- [X] T016 [US1] Render deterministic lockout guidance (retry metadata + fallback copy) in `src/ui/src/app/pages/login/login.html`
+- [X] T017 [US1] Ensure backend login resolver emits canonical lockout code/metadata consistently in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
 
 **Checkpoint**: User Story 1 is independently testable and delivers deterministic operator lockout guidance.
 
@@ -66,17 +66,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Add startup routing permutation coverage (seed/session matrix) in `src/ui/src/app/app.spec.ts`
-- [ ] T019 [P] [US2] Add one-time guard revalidation behavior tests in `src/ui/src/app/guards/auth.guard.spec.ts`
-- [ ] T020 [P] [US2] Extend backend seed-mode precedence checks for startup consistency in `src/test/cpp/integration/test_seed_mode.cpp`
+- [X] T018 [P] [US2] Add startup routing permutation coverage (seed/session matrix) in `src/ui/src/app/app.spec.ts`
+- [X] T019 [P] [US2] Add one-time guard revalidation behavior tests in `src/ui/src/app/guards/auth.guard.spec.ts`
+- [X] T020 [P] [US2] Extend backend seed-mode precedence checks for startup consistency in `src/test/cpp/integration/test_seed_mode.cpp`
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Implement app-init bootstrap eligibility resolution before auth destination in `src/ui/src/app/app.ts`
-- [ ] T022 [US2] Enforce bootstrap-first gating and deterministic login fallback in `src/ui/src/app/app.routes.ts`
-- [ ] T023 [US2] Implement first guarded-navigation revalidation and redirect-on-invalid behavior in `src/ui/src/app/guards/auth.guard.ts`
-- [ ] T024 [US2] Align bootstrap status query usage and state propagation in `src/ui/src/app/services/bootstrap.service.ts`
-- [ ] T025 [US2] Ensure sign-out clears all in-memory auth/session indicators for subsequent guards in `src/ui/src/app/services/auth.service.ts`
+- [X] T021 [US2] Implement app-init bootstrap eligibility resolution before auth destination in `src/ui/src/app/app.ts`
+- [X] T022 [US2] Enforce bootstrap-first gating and deterministic login fallback in `src/ui/src/app/app.routes.ts`
+- [X] T023 [US2] Implement first guarded-navigation revalidation and redirect-on-invalid behavior in `src/ui/src/app/guards/auth.guard.ts`
+- [X] T024 [US2] Align bootstrap status query usage and state propagation in `src/ui/src/app/services/bootstrap.service.ts`
+- [X] T025 [US2] Ensure sign-out clears all in-memory auth/session indicators for subsequent guards in `src/ui/src/app/services/auth.service.ts`
 
 **Checkpoint**: User Stories 1 and 2 both work independently with deterministic startup routing behavior.
 

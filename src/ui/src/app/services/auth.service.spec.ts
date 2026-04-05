@@ -103,8 +103,16 @@ describe('AuthService', () => {
     service.signIn('admin@example.com', 'wrong-password').subscribe({
       next: () => done.fail('expected lockout error'),
       error: (err: Error) => {
+        expect(err.name).toBe('AuthSignInError');
         expect(err.message).toContain('Too many failed sign-in attempts');
         expect(err.message).toContain('about 42 seconds');
+        const signInError = err as Error & {
+          alert: { category: string };
+          outcome: { status: string; retryAfterMs?: number };
+        };
+        expect(signInError.alert.category).toBe('AuthRateLimited');
+        expect(signInError.outcome.status).toBe('RateLimited');
+        expect(signInError.outcome.retryAfterMs).toBe(42000);
         done();
       },
     });
@@ -126,7 +134,15 @@ describe('AuthService', () => {
     service.signIn('admin@example.com', 'wrong-password').subscribe({
       next: () => done.fail('expected lockout error'),
       error: (err: Error) => {
+        expect(err.name).toBe('AuthSignInError');
         expect(err.message).toBe('Too many failed sign-in attempts. Please wait a few minutes before trying again.');
+        const signInError = err as Error & {
+          alert: { category: string };
+          outcome: { status: string; retryAfterMs?: number };
+        };
+        expect(signInError.alert.category).toBe('AuthRateLimited');
+        expect(signInError.outcome.status).toBe('RateLimited');
+        expect(signInError.outcome.retryAfterMs).toBeUndefined();
         done();
       },
     });

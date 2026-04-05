@@ -7,7 +7,13 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
-import { GraphQLRequestError, GraphQLService, GRAPHQL_ERROR_CODES } from './graphql.service';
+import {
+  GraphQLRequestError,
+  GraphQLService,
+  GRAPHQL_ERROR_CODES,
+  asKnownGraphQLErrorCode,
+  normalizeGraphQLError,
+} from './graphql.service';
 
 describe('GraphQLService', () => {
   let service: GraphQLService;
@@ -191,5 +197,44 @@ describe('GraphQLService', () => {
         ],
       });
     });
+
+    it('normalizes unknown extensions.code values to TRANSIENT_NETWORK', () => {
+      expect(asKnownGraphQLErrorCode('SOME_UNKNOWN_CODE')).toBe(GRAPHQL_ERROR_CODES.TRANSIENT_NETWORK);
+      expect(asKnownGraphQLErrorCode('RATE_LIMITED')).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
+    });
+
+    it('normalizes retryAfterMs and fieldErrors payload data', () => {
+      const normalized = normalizeGraphQLError({
+        message: 'Rate limited',
+        extensions: {
+          code: 'RATE_LIMITED',
+          retryAfterMs: 1550.7,
+          fieldErrors: {
+            email: ['Missing'],
+            ignored: 'not-an-array',
+            mixed: ['valid', 42],
+          },
+        },
+      });
+
+      expect(normalized.code).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
+      expect(normalized.retryAfterMs).toBe(1550);
+      expect(normalized.fieldErrors).toEqual({
+        email: ['Missing'],
+        mixed: ['valid'],
+      });
+    });
+
+    it('drops invalid retryAfterMs values from normalized errors', () => {
+      const normalized = normalizeGraphQLError({
+        message: 'Rate limited',
+        extensions: {
+          code: 'RATE_LIMITED',
+          retryAfterMs: -10,
+        },
+      });
+
+      expect(normalized.retryAfterMs).toBeUndefined();
+    });
   });
-}
+});

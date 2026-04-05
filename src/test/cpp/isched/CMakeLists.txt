@@ -140,6 +140,12 @@ target_link_libraries(test_auth_lockout_policy PRIVATE isched Catch2::Catch2With
     taocpp::pegtl httplib::httplib openssl::openssl)
 add_test(NAME test_auth_lockout_policy COMMAND test_auth_lockout_policy)
 
+add_executable(test_rate_limiting ../integration/test_rate_limiting.cpp)
+target_link_libraries(test_rate_limiting PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl httplib::httplib openssl::openssl)
+add_test(NAME test_rate_limiting COMMAND test_rate_limiting)
+
 add_executable(test_webui_bootstrap_contract ../integration/test_webui_bootstrap_contract.cpp)
 target_link_libraries(test_webui_bootstrap_contract PRIVATE isched Catch2::Catch2WithMain
     spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
@@ -266,6 +272,7 @@ set(_isched_integration_tests
     test_user_management
     test_bootstrap_platform_admin
     test_auth_lockout_policy
+    test_rate_limiting
     test_webui_bootstrap_contract
     test_session_revocation
     test_admin_ui
@@ -279,4 +286,3 @@ set_tests_properties(${_isched_integration_tests} PROPERTIES TIMEOUT 180)
 
 # Benchmark suite is intentionally heavier.
 set_tests_properties(benchmark_suite PROPERTIES TIMEOUT 300)
-
