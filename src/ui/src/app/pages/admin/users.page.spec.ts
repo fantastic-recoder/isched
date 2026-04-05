@@ -1,12 +1,78 @@
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
+import { OrganizationService } from '../../services/organization.service';
+import { UserService } from '../../services/user.service';
 import { UsersPage } from './users.page';
 
 const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const listOrganizations = jest.fn(() =>
+  of({
+    nodes: [{ id: 'org-a', name: 'Org A', status: 'ACTIVE', revision: 2, updatedAt: '2026-04-05T12:00:00Z' }],
+    pageInfo: { number: 1, size: 25, totalElements: 1, totalPages: 1 },
+  }),
+);
+const listUsers = jest.fn(() =>
+  of({
+    nodes: [],
+    pageInfo: { number: 1, size: 10, totalElements: 0, totalPages: 0 },
+  }),
+);
+const createUser = jest.fn((organizationId: string, input: { loginId: string; displayName: string }) =>
+  of({
+    id: 'user-1',
+    organizationId,
+    loginId: input.loginId,
+    displayName: input.displayName,
+    status: 'ACTIVE',
+    revision: 1,
+    updatedAt: '2026-04-05T12:05:00Z',
+    roleAssignments: [],
+  }),
+);
+const updateUser = jest.fn(
+  (
+    organizationId: string,
+    id: string,
+    input: { loginId?: string; displayName?: string; status?: string },
+    expectedRevision: number,
+  ) =>
+    of({
+      id,
+      organizationId,
+      loginId: input.loginId ?? 'jdoe',
+      displayName: input.displayName ?? 'Jane Doe',
+      status: input.status ?? 'ACTIVE',
+      revision: expectedRevision + 1,
+      updatedAt: '2026-04-05T12:06:00Z',
+      roleAssignments: [],
+    }),
+);
 
 describe('UsersPage accessibility', () => {
   beforeEach(async () => {
+    listOrganizations.mockClear();
+    listUsers.mockClear();
+    createUser.mockClear();
+    updateUser.mockClear();
+
     await TestBed.configureTestingModule({
       imports: [UsersPage],
+      providers: [
+        {
+          provide: OrganizationService,
+          useValue: {
+            listOrganizations,
+          },
+        },
+        {
+          provide: UserService,
+          useValue: {
+            listUsers,
+            createUser,
+            updateUser,
+          },
+        },
+      ],
     }).compileComponents();
   });
 
@@ -63,6 +129,7 @@ describe('UsersPage accessibility', () => {
 
     expect(root.querySelector('#users-status')?.textContent).toContain('User changes saved.');
     expect((document.activeElement as HTMLElement | null)?.id).toBe('users-status');
+    expect(createUser).toHaveBeenCalledWith('org-a', { loginId: 'jdoe', displayName: 'Jane Doe' });
 
     const deactivateButton = root.querySelector<HTMLButtonElement>('#users-deactivate');
     expect(deactivateButton?.disabled).toBe(false);
@@ -72,7 +139,7 @@ describe('UsersPage accessibility', () => {
     await flushMicrotasks();
     fixture.detectChanges();
 
-    expect(root.querySelector('#users-status')?.textContent).toContain('User marked inactive.');
+    expect(root.querySelector('#users-status')?.textContent).toContain('Jane Doe is now disabled.');
 
     const reactivateButton = root.querySelector<HTMLButtonElement>('#users-reactivate');
     expect(reactivateButton?.disabled).toBe(false);
@@ -82,7 +149,8 @@ describe('UsersPage accessibility', () => {
     await flushMicrotasks();
     fixture.detectChanges();
 
-    expect(root.querySelector('#users-status')?.textContent).toContain('User reactivated.');
+    expect(root.querySelector('#users-status')?.textContent).toContain('Jane Doe is now active.');
+    expect(updateUser).toHaveBeenLastCalledWith('org-a', 'user-1', { status: 'ACTIVE' }, 2);
   });
 });
 

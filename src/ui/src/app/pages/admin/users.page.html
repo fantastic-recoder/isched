@@ -1,6 +1,10 @@
 <section class="p-6 space-y-4">
   <h1 id="users-heading" class="text-2xl font-semibold">Users</h1>
 
+  @if (error()) {
+    <div class="alert alert-error" role="alert" aria-live="polite">{{ error() }}</div>
+  }
+
   @if (warning()) {
     <div
       #warningAlert
@@ -37,22 +41,78 @@
       aria-label="Select organization context"
       aria-describedby="user-org-help"
       (change)="onOrgChange($any($event.target).value)"
+      [value]="orgContext.selectedOrganizationId() ?? ''"
     >
-      <option value="org-a">Org A</option>
-      <option value="org-b">Org B</option>
+      @for (organization of organizations(); track organization.id) {
+        <option [value]="organization.id">{{ organization.name }}</option>
+      }
     </select>
     <p id="user-org-help" class="text-xs text-base-content/70 mt-1">
       Switch context before creating or editing users.
     </p>
   </div>
 
+  <form class="flex flex-wrap items-end gap-3" [formGroup]="filterForm" (ngSubmit)="applySearch()">
+    <label class="form-control max-w-sm" for="users-search-input">
+      <span class="label-text">Search users</span>
+      <input
+        id="users-search-input"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="search"
+        formControlName="search"
+        autocomplete="off"
+        placeholder="Filter by login ID or display name"
+      />
+    </label>
+    <button
+      class="btn btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      type="submit"
+      [disabled]="loading() || !orgContext.selectedOrganizationId()"
+    >
+      Apply Filter
+    </button>
+  </form>
+
+  @if (loading()) {
+    <div class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg" aria-label="Loading users"></span>
+    </div>
+  } @else {
+    <ul id="users-list" class="menu bg-base-100 rounded-box" aria-label="Organization users">
+      @for (user of users(); track user.id) {
+        <li class="border-b border-base-200 last:border-b-0 py-2">
+          <button
+            class="w-full rounded-lg px-3 py-3 text-left hover:bg-base-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+            type="button"
+            [attr.aria-label]="'Edit user ' + user.displayName"
+            (click)="selectUser(user.id)"
+          >
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span class="font-medium">{{ user.displayName }}</span>
+                <span class="badge badge-outline ml-2" [attr.aria-label]="'User status ' + user.status">{{ user.status }}</span>
+                <p class="text-xs text-base-content/60 mt-1">{{ user.loginId }} · Revision {{ user.revision }}</p>
+              </div>
+              <span class="text-xs text-base-content/60">{{ user.roleAssignments.length }} assignment(s)</span>
+            </div>
+          </button>
+        </li>
+      } @empty {
+        <li class="px-3 py-4 text-base-content/70">No users match the current server-side query.</li>
+      }
+    </ul>
+  }
+
   <form
     id="users-form"
     [formGroup]="form"
     class="card bg-base-100 border border-base-300 p-4 gap-3 max-w-xl"
-    (ngSubmit)="markSaved()"
+    (ngSubmit)="saveUser()"
     aria-label="Organization user form"
   >
+    <h2 class="text-lg font-medium">
+      {{ selectedUserId() ? 'Edit selected user' : 'Create user' }}
+    </h2>
     <label class="form-control" for="users-loginId">
       <span class="label-text">Login ID</span>
       <input
@@ -65,6 +125,15 @@
         (input)="markDirty()"
       />
     </label>
+    @if (form.controls.loginId.touched && form.controls.loginId.errors?.['required']) {
+      <p class="text-sm text-error">Login ID is required.</p>
+    }
+    @if (form.controls.loginId.touched && form.controls.loginId.errors?.['minlength']) {
+      <p class="text-sm text-error">Login ID must be at least 2 characters long.</p>
+    }
+    @if (form.controls.loginId.errors?.['server']) {
+      <p class="text-sm text-error">{{ form.controls.loginId.errors?.['server'] }}</p>
+    }
     <p id="users-loginId-help" class="text-xs text-base-content/70">
       Login ID must be unique within the selected organization.
     </p>
@@ -80,6 +149,12 @@
         (input)="markDirty()"
       />
     </label>
+    @if (form.controls.displayName.touched && form.controls.displayName.errors?.['required']) {
+      <p class="text-sm text-error">Display name is required.</p>
+    }
+    @if (form.controls.displayName.errors?.['server']) {
+      <p class="text-sm text-error">{{ form.controls.displayName.errors?.['server'] }}</p>
+    }
     <p id="users-displayName-help" class="text-xs text-base-content/70">
       Display name appears in audit logs and membership views.
     </p>
@@ -88,17 +163,17 @@
       <button
         id="users-save-submit"
         class="btn btn-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        [disabled]="form.invalid"
+        [disabled]="form.invalid || submitting() || !orgContext.selectedOrganizationId()"
         type="submit"
         aria-label="Save user changes"
       >
-        Save
+        {{ selectedUserId() ? 'Save' : 'Create User' }}
       </button>
       <button
         id="users-deactivate"
         class="btn btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         type="button"
-        [disabled]="!userActive()"
+        [disabled]="!selectedUserId() || form.controls.loginId.value === '' || submitting() || selectedUser()?.status !== 'ACTIVE'"
         aria-label="Deactivate selected user"
         (click)="deactivateSelectedUser()"
         (keydown)="onDeactivateKeydown($event)"
@@ -109,14 +184,45 @@
         id="users-reactivate"
         class="btn btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         type="button"
-        [disabled]="userActive()"
+        [disabled]="!selectedUserId() || submitting() || selectedUser()?.status !== 'DISABLED'"
         aria-label="Reactivate selected user"
         (click)="reactivateSelectedUser()"
         (keydown)="onReactivateKeydown($event)"
       >
         Reactivate
       </button>
+      <button
+        class="btn btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        (click)="resetEditor()"
+      >
+        Clear Form
+      </button>
     </div>
   </form>
+
+  <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-base-content/70">
+    <span>
+      Page {{ pageInfo().number }} of {{ pageInfo().totalPages || 1 }} · {{ pageInfo().totalElements }} user(s)
+    </span>
+    <div class="flex gap-2">
+      <button
+        class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        (click)="previousPage()"
+        [disabled]="pageInfo().number <= 1 || loading()"
+      >
+        Previous
+      </button>
+      <button
+        class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        (click)="nextPage()"
+        [disabled]="pageInfo().number >= pageInfo().totalPages || loading() || pageInfo().totalPages === 0"
+      >
+        Next
+      </button>
+    </div>
+  </div>
 </section>
 

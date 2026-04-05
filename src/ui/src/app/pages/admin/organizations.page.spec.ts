@@ -4,19 +4,46 @@ import { OrganizationsPage } from './organizations.page';
 import { OrganizationService } from '../../services/organization.service';
 
 const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+const listOrganizations = jest.fn(() =>
+  of({
+    nodes: [{ id: 'org-a', name: 'Org A', status: 'ACTIVE', revision: 2, updatedAt: '2026-04-05T12:00:00Z' }],
+    pageInfo: { number: 1, size: 10, totalElements: 1, totalPages: 1 },
+  }),
+);
+const createOrganization = jest.fn((input: { name: string }) =>
+  of({
+    id: 'local-org-1',
+    name: input.name,
+    status: 'ACTIVE',
+    revision: 1,
+    updatedAt: '2026-04-05T12:05:00Z',
+  }),
+);
+const updateOrganization = jest.fn((id: string, input: { status?: string; name?: string }, expectedRevision: number) =>
+  of({
+    id,
+    name: input.name ?? 'Org Keyboard',
+    status: input.status ?? 'ACTIVE',
+    revision: expectedRevision + 1,
+    updatedAt: '2026-04-05T12:06:00Z',
+  }),
+);
 
 describe('OrganizationsPage accessibility', () => {
   beforeEach(async () => {
+    listOrganizations.mockClear();
+    createOrganization.mockClear();
+    updateOrganization.mockClear();
+
     await TestBed.configureTestingModule({
       imports: [OrganizationsPage],
       providers: [
         {
           provide: OrganizationService,
           useValue: {
-            list: () =>
-              of({
-                organizations: [{ id: 'org-a', name: 'Org A', status: 'ACTIVE' }],
-              }),
+            listOrganizations,
+            createOrganization,
+            updateOrganization,
           },
         },
       ],
@@ -65,6 +92,7 @@ describe('OrganizationsPage accessibility', () => {
 
     expect(root.textContent).toContain('Org Keyboard');
     expect(root.querySelector('#organizations-status')?.textContent).toContain('Created organization Org Keyboard.');
+    expect(createOrganization).toHaveBeenCalledWith({ name: 'Org Keyboard' });
 
     const toggleButton = root.querySelector<HTMLButtonElement>('#org-toggle-local-org-1');
     expect(toggleButton).toBeTruthy();
@@ -74,8 +102,9 @@ describe('OrganizationsPage accessibility', () => {
     await flushMicrotasks();
     fixture.detectChanges();
 
-    expect(root.querySelector('#organizations-status')?.textContent).toContain('Org Keyboard is now inactive.');
+    expect(root.querySelector('#organizations-status')?.textContent).toContain('Org Keyboard is now suspended.');
     expect((document.activeElement as HTMLElement | null)?.id).toBe('organizations-status');
+    expect(updateOrganization).toHaveBeenCalledWith('local-org-1', { status: 'SUSPENDED' }, 1);
   });
 });
 

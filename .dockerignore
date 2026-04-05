@@ -13,7 +13,7 @@ Dockerfile*
 .dockerignore
 
 # IDE files
-.idea/CONST
+.idea/
 .vscode/
 *.iml
 
@@ -30,6 +30,10 @@ Dockerfile*
 # Test outputs
 test-results/
 coverage/
+src/ui/dist/
+src/ui/.angular/
+cmake-build-release/
+cmake-build-profile/
 
 # Documentation
 docs/api/

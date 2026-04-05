@@ -104,15 +104,15 @@
 - [ ] T030 [P] [US2] Add GraphQL contract tests for organization/user list and mutation operations in `src/test/cpp/integration/test_webui_org_user_contract.cpp`
 - [ ] T031 [P] [US2] Add integration tests for org scope checks, per-org `loginId` uniqueness, and `CONFLICT` revisions in `src/test/cpp/integration/test_user_management.cpp`
 - [ ] T032 [P] [US2] Add server-side pagination/filter/sort validation tests for organizations/users in `src/test/cpp/integration/test_webui_server_side_paging.cpp`
-- [ ] T033 [P] [US2] Add Angular organizations/users page tests for typed forms and deterministic error surfacing in `src/ui/src/app/pages/admin/organization-users.page.spec.ts`
+- [X] T033 [P] [US2] Add Angular organizations/users page tests for typed forms and deterministic error surfacing in `src/ui/src/app/pages/admin/organization-users.page.spec.ts`
 - [X] T079 [P] [US2] Add FR-021/SC-019 accessibility tests for organization/user CRUD journeys (keyboard-only completion + accessible labels for interactive controls) in `src/ui/src/app/pages/admin/organizations.page.spec.ts` and `src/ui/src/app/pages/admin/users.page.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T034 [P] [US2] Implement organization GraphQL query/mutation client with paging/filter/sort args in `src/ui/src/app/services/organization.service.ts`
-- [ ] T035 [P] [US2] Implement user GraphQL query/mutation client with org context + expected revision in `src/ui/src/app/services/user.service.ts`
-- [ ] T036 [P] [US2] Implement standalone organizations management page in `src/ui/src/app/pages/admin/organizations.page.ts`
-- [ ] T037 [P] [US2] Implement standalone users management page with typed forms and deactivation/reactivation UX in `src/ui/src/app/pages/admin/users.page.ts`
+- [X] T034 [P] [US2] Implement organization GraphQL query/mutation client with paging/filter/sort args in `src/ui/src/app/services/organization.service.ts`
+- [X] T035 [P] [US2] Implement user GraphQL query/mutation client with org context + expected revision in `src/ui/src/app/services/user.service.ts`
+- [X] T036 [P] [US2] Implement standalone organizations management page in `src/ui/src/app/pages/admin/organizations.page.ts`
+- [X] T037 [P] [US2] Implement standalone users management page with typed forms and deactivation/reactivation UX in `src/ui/src/app/pages/admin/users.page.ts`
 - [ ] T038 [US2] Implement backend organization/user resolver authorization and scope enforcement in `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
 - [ ] T039 [US2] Implement database behavior for user deactivation preserving role assignments and effectiveness transitions in `src/main/cpp/isched/backend/isched_DatabaseManager.cpp`
 - [ ] T040 [US2] Implement context-switch dirty-edit confirmation UX for user/org pages in `src/ui/src/app/pages/admin/users.page.html`

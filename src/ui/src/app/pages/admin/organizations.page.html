@@ -18,13 +18,37 @@
     </div>
   }
 
+  <form class="flex flex-wrap items-end gap-3" [formGroup]="filterForm" (ngSubmit)="applySearch()">
+    <label class="form-control max-w-sm" for="org-search-input">
+      <span class="label-text">Search organizations</span>
+      <input
+        id="org-search-input"
+        class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="search"
+        formControlName="search"
+        autocomplete="off"
+        placeholder="Filter by organization name"
+      />
+    </label>
+    <button
+      class="btn btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+      type="submit"
+      [disabled]="loading()"
+    >
+      Apply Filter
+    </button>
+  </form>
+
   <form
     id="org-create-form"
     class="card bg-base-100 border border-base-300 p-4 gap-3 max-w-xl"
     [formGroup]="createForm"
-    (ngSubmit)="createOrganization()"
+    (ngSubmit)="submitOrganization()"
     aria-label="Create organization form"
   >
+    <h2 class="text-lg font-medium">
+      {{ editingOrganizationId() ? 'Edit organization' : 'Create organization' }}
+    </h2>
     <label class="form-control" for="org-name-input">
       <span class="label-text">Organization Name</span>
       <input
@@ -37,52 +61,105 @@
         autocomplete="organization"
       />
     </label>
+    @if (createForm.controls.name.touched && createForm.controls.name.errors?.['required']) {
+      <p class="text-sm text-error">Organization name is required.</p>
+    }
+    @if (createForm.controls.name.touched && createForm.controls.name.errors?.['minlength']) {
+      <p class="text-sm text-error">Organization name must be at least 2 characters long.</p>
+    }
+    @if (createForm.controls.name.errors?.['server']) {
+      <p class="text-sm text-error">{{ createForm.controls.name.errors?.['server'] }}</p>
+    }
     <p id="org-name-help" class="text-xs text-base-content/70">
-      Create a new organization before adding scoped users and role assignments.
+      Create or update an organization before adding scoped users and role assignments.
     </p>
-    <button
-      id="org-create-submit"
-      class="btn btn-primary w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-      type="submit"
-      aria-label="Create organization"
-      [disabled]="createForm.invalid"
-    >
-      Create Organization
-    </button>
+    <div class="flex flex-wrap gap-2">
+      <button
+        id="org-create-submit"
+        class="btn btn-primary w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="submit"
+        aria-label="Create organization"
+        [disabled]="createForm.invalid || submitting()"
+      >
+        {{ editingOrganizationId() ? 'Save Organization' : 'Create Organization' }}
+      </button>
+      @if (editingOrganizationId()) {
+        <button
+          class="btn btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          type="button"
+          (click)="cancelEdit()"
+        >
+          Cancel
+        </button>
+      }
+    </div>
   </form>
 
-  <ul id="organizations-list" class="menu bg-base-100 rounded-box" aria-label="Organization list">
-    @for (org of organizations(); track org.id) {
-      <li class="border-b border-base-200 last:border-b-0 py-2">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <span class="font-medium">{{ org.name }}</span>
-            <span class="badge badge-outline ml-2" [attr.aria-label]="'Organization status ' + org.status">{{ org.status }}</span>
+  @if (loading()) {
+    <div class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg" aria-label="Loading organizations"></span>
+    </div>
+  } @else {
+    <ul id="organizations-list" class="menu bg-base-100 rounded-box" aria-label="Organization list">
+      @for (org of organizations(); track org.id) {
+        <li class="border-b border-base-200 last:border-b-0 py-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="font-medium">{{ org.name }}</span>
+              <span class="badge badge-outline ml-2" [attr.aria-label]="'Organization status ' + org.status">{{ org.status }}</span>
+              <p class="text-xs text-base-content/60 mt-1">Revision {{ org.revision }} · Updated {{ org.updatedAt }}</p>
+            </div>
+            <div class="flex gap-2">
+              <button
+                class="btn btn-sm btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                [id]="'org-edit-' + org.id"
+                type="button"
+                [attr.aria-label]="'Edit organization ' + org.name"
+                (click)="editOrganization(org.id)"
+                (keydown)="onEditKeydown($event, org.id)"
+              >
+                Edit
+              </button>
+              <button
+                class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                [id]="'org-toggle-' + org.id"
+                type="button"
+                [attr.aria-label]="(org.status === 'ACTIVE' ? 'Deactivate organization ' : 'Reactivate organization ') + org.name"
+                (click)="toggleOrganizationStatus(org.id)"
+                (keydown)="onToggleKeydown($event, org.id)"
+              >
+                {{ org.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate' }}
+              </button>
+            </div>
           </div>
-          <div class="flex gap-2">
-            <button
-              class="btn btn-sm btn-ghost focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-              [id]="'org-edit-' + org.id"
-              type="button"
-              [attr.aria-label]="'Edit organization ' + org.name"
-              (click)="editOrganization(org.id)"
-              (keydown)="onEditKeydown($event, org.id)"
-            >
-              Edit
-            </button>
-            <button
-              class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-              [id]="'org-toggle-' + org.id"
-              type="button"
-              [attr.aria-label]="(org.status === 'ACTIVE' ? 'Deactivate organization ' : 'Reactivate organization ') + org.name"
-              (click)="toggleOrganizationStatus(org.id)"
-              (keydown)="onToggleKeydown($event, org.id)"
-            >
-              {{ org.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate' }}
-            </button>
-          </div>
-        </div>
-      </li>
-    }
-  </ul>
+        </li>
+      } @empty {
+        <li class="px-3 py-4 text-base-content/70">No organizations match the current server-side query.</li>
+      }
+    </ul>
+  }
+
+  <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-base-content/70">
+    <span>
+      Page {{ pageInfo().number }} of {{ pageInfo().totalPages || 1 }} · {{ pageInfo().totalElements }} organization(s)
+    </span>
+    <div class="flex gap-2">
+      <button
+        class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        (click)="previousPage()"
+        [disabled]="pageInfo().number <= 1 || loading()"
+      >
+        Previous
+      </button>
+      <button
+        class="btn btn-sm btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        type="button"
+        (click)="nextPage()"
+        [disabled]="pageInfo().number >= pageInfo().totalPages || loading() || pageInfo().totalPages === 0"
+      >
+        Next
+      </button>
+    </div>
+  </div>
 </section>
