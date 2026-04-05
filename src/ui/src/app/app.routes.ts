@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
 import { inject } from '@angular/core';
-import { map } from 'rxjs';
+import { catchError, map, of } from 'rxjs';
 import { BootstrapService } from './services/bootstrap.service';
 import { Router } from '@angular/router';
 
@@ -12,6 +12,7 @@ const bootstrapGate = () => {
     map(({ systemState }) => {
       return systemState.seedModeActive ? true : router.createUrlTree(['/login']);
     }),
+    catchError(() => of(router.createUrlTree(['/login']))),
   );
 };
 
@@ -26,6 +27,7 @@ const loginGate = () => {
     map(({ systemState }) => {
       return systemState.seedModeActive ? router.createUrlTree(['/bootstrap']) : true;
     }),
+    catchError(() => of(true)),
   );
 };
 

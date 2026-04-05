@@ -2,7 +2,7 @@ import { ApplicationConfig, APP_INITIALIZER, provideBrowserGlobalErrorListeners,
 import { provideRouter, withNavigationErrorHandler } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { NavigationError } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, of } from 'rxjs';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './interceptors/auth.interceptor';
@@ -11,7 +11,11 @@ import { AuthService } from './services/auth.service';
 function initializeAuthSession(): () => Promise<void> {
   return () => {
     const authService = inject(AuthService);
-    return firstValueFrom(authService.bootstrapSession()).then(() => undefined);
+    return firstValueFrom(
+      authService.bootstrapSession().pipe(
+        catchError(() => of(false)),
+      ),
+    ).then(() => undefined);
   };
 }
 
