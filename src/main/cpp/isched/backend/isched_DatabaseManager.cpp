@@ -1100,7 +1100,10 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
             subscription_tier TEXT NOT NULL DEFAULT 'free',
             user_limit        INTEGER NOT NULL DEFAULT 10,
             storage_limit     INTEGER NOT NULL DEFAULT 1073741824,
-            created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            status            TEXT NOT NULL DEFAULT 'ACTIVE',
+            revision          INTEGER NOT NULL DEFAULT 0,
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS tenant_settings (
@@ -1116,6 +1119,22 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
         spdlog::error("ensure_system_db: DDL failed: {}", sqlite3_errmsg(system_db_.get()));
         system_db_.reset();
         return DatabaseError::SchemaValidationFailed;
+    }
+
+    // -----------------------------------------------------------------------
+    // Schema migrations: add columns that may be absent in older databases.
+    // SQLite does not support "IF NOT EXISTS" for ALTER TABLE ADD COLUMN, so
+    // we attempt each migration and ignore SQLITE_ERROR (column already exists).
+    // -----------------------------------------------------------------------
+    const char* migrations[] = {
+        "ALTER TABLE organizations ADD COLUMN status   TEXT NOT NULL DEFAULT 'ACTIVE';",
+        "ALTER TABLE organizations ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;",
+        "ALTER TABLE organizations ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';",
+        nullptr
+    };
+    for (int mi = 0; migrations[mi] != nullptr; ++mi) {
+        // Ignore error — column already present is SQLITE_ERROR which is fine
+        sqlite3_exec(system_db_.get(), migrations[mi], nullptr, nullptr, nullptr);
     }
 
     // Seed the four built-in platform roles (idempotent via INSERT OR IGNORE)
@@ -1303,8 +1322,10 @@ DatabaseResult<void> DatabaseManager::create_organization(
     }
 
     const char* sql =
-        "INSERT INTO organizations (id, name, domain, subscription_tier, user_limit, storage_limit)"
-        " VALUES (?, ?, ?, ?, ?, ?);";
+        "INSERT INTO organizations"
+        " (id, name, domain, subscription_tier, user_limit, storage_limit,"
+        "  status, revision, updated_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', 0, datetime('now'));";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1337,7 +1358,8 @@ DatabaseResult<OrganizationRecord> DatabaseManager::get_organization(const std::
     }
 
     const char* sql =
-        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at"
+        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at,"
+        "       status, revision, updated_at"
         " FROM organizations WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -1358,6 +1380,11 @@ DatabaseResult<OrganizationRecord> DatabaseManager::get_organization(const std::
         rec.storage_limit     = sqlite3_column_int(stmt, 5);
         auto* ca              = sqlite3_column_text(stmt, 6);
         rec.created_at        = ca ? reinterpret_cast<const char*>(ca) : "";
+        auto* st              = sqlite3_column_text(stmt, 7);
+        rec.status            = st ? reinterpret_cast<const char*>(st) : "ACTIVE";
+        rec.revision          = sqlite3_column_int(stmt, 8);
+        auto* ua              = sqlite3_column_text(stmt, 9);
+        rec.updated_at        = ua ? reinterpret_cast<const char*>(ua) : "";
     }
     sqlite3_finalize(stmt);
 
@@ -1375,8 +1402,9 @@ DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizati
     }
 
     const char* sql =
-        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at"
-        " FROM organizations ORDER BY created_at;";
+        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at,"
+        "       status, revision, updated_at"
+        " FROM organizations ORDER BY name;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1394,6 +1422,11 @@ DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizati
         rec.storage_limit     = sqlite3_column_int(stmt, 5);
         auto* ca              = sqlite3_column_text(stmt, 6);
         rec.created_at        = ca ? reinterpret_cast<const char*>(ca) : "";
+        auto* st              = sqlite3_column_text(stmt, 7);
+        rec.status            = st ? reinterpret_cast<const char*>(st) : "ACTIVE";
+        rec.revision          = sqlite3_column_int(stmt, 8);
+        auto* ua              = sqlite3_column_text(stmt, 9);
+        rec.updated_at        = ua ? reinterpret_cast<const char*>(ua) : "";
         rows.push_back(std::move(rec));
     }
     sqlite3_finalize(stmt);
@@ -1403,14 +1436,39 @@ DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizati
 DatabaseResult<void> DatabaseManager::update_organization(
     const std::string&         id,
     std::optional<std::string> name,
+    std::optional<std::string> status,
     std::optional<std::string> domain,
     std::optional<std::string> subscription_tier,
     std::optional<int>         user_limit,
-    std::optional<int>         storage_limit)
+    std::optional<int>         storage_limit,
+    std::optional<int>         expected_revision)
 {
     std::lock_guard<std::mutex> lk(system_db_mutex_);
     if (!system_db_initialized_ || !system_db_) {
         return DatabaseError::ConnectionFailed;
+    }
+
+    // Fetch current revision and verify existence (and optionally enforce optimistic lock)
+    {
+        const char* check = "SELECT revision FROM organizations WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int current_revision = -1;
+        bool found = false;
+        if (sqlite3_step(cs) == SQLITE_ROW) {
+            found = true;
+            current_revision = sqlite3_column_int(cs, 0);
+        }
+        sqlite3_finalize(cs);
+        if (!found) {
+            return DatabaseError::NotFound;
+        }
+        if (expected_revision.has_value() && *expected_revision != current_revision) {
+            return DatabaseError::VersionConflict;
+        }
     }
 
     // Build SET clause dynamically from non-null optionals
@@ -1434,29 +1492,15 @@ DatabaseResult<void> DatabaseManager::update_organization(
     };
 
     append_text("name",              name);
+    append_text("status",            status);
     append_text("domain",            domain);
     append_text("subscription_tier", subscription_tier);
     append_int ("user_limit",        user_limit);
     append_int ("storage_limit",     storage_limit);
 
-    if (set_clause.empty()) {
-        // Nothing to update — treat as success
-        return DatabaseResult<void>{};
-    }
-
-    // Verify existence
-    {
-        const char* check = "SELECT COUNT(*) FROM organizations WHERE id = ?;";
-        sqlite3_stmt* cs = nullptr;
-        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
-            return DatabaseError::QueryFailed;
-        }
-        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
-        int count = 0;
-        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
-        sqlite3_finalize(cs);
-        if (count == 0) { return DatabaseError::NotFound; }
-    }
+    // Always bump revision and touch updated_at
+    if (!set_clause.empty()) { set_clause += ", "; }
+    set_clause += "revision = revision + 1, updated_at = datetime('now')";
 
     const std::string sql = "UPDATE organizations SET " + set_clause + " WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;

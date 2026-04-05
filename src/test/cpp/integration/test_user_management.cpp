@@ -13,6 +13,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <nlohmann/json.hpp>
@@ -73,11 +74,21 @@ static void require_success(const ExecutionResult& result, const std::string& op
 // Organization CRUD tests
 // ============================================================================
 
-// Helper: create a DB+executor with the system DB already initialized
+// Helper: create a DB+executor with an isolated temporary system DB
 static std::pair<std::shared_ptr<DatabaseManager>, std::shared_ptr<GqlExecutor>>
 make_executor() {
-    auto db   = std::make_shared<DatabaseManager>();
-    auto res  = db->ensure_system_db();
+    // Use a unique temp directory per call to avoid cross-test contamination
+    const auto tmp = std::filesystem::temp_directory_path() /
+        ("isched_test_" + g_run_suffix + "_" + std::to_string(
+            std::chrono::system_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(tmp / "tenants");
+
+    DatabaseManager::Config cfg;
+    cfg.base_path      = (tmp / "tenants").string();
+    cfg.system_db_path = (tmp / "isched_system.db").string();
+
+    auto db  = std::make_shared<DatabaseManager>(cfg);
+    auto res = db->ensure_system_db();
     REQUIRE(res); // must succeed
     auto exec = std::make_shared<GqlExecutor>(db);
     return {db, exec};
@@ -186,59 +197,185 @@ TEST_CASE("Organization: createOrganization is denied for tenant_admin",
     REQUIRE(has_forbidden);
 }
 
-TEST_CASE("Organization: list organizations returns array for platform_admin",
-          "[integration][org][crud][T047-018]") {
+// Helper: create an org and return its id + initial revision (0)
+static std::string create_test_org(
+    std::shared_ptr<GqlExecutor> exec,
+    const std::string& name)
+{
+    const auto vars = json{{"name", name}};
+    const std::string q = R"(
+        mutation($name: String!) {
+          createOrganization(input: { name: $name }) { id }
+        }
+    )";
+    auto r = exec->execute(q, vars.dump(), platform_admin_ctx());
+    REQUIRE(r.is_success());
+    return r.data["createOrganization"]["id"].get<std::string>();
+}
+
+// ============================================================================
+// WebUI contract: organizations returns a connection (nodes + pageInfo)
+// ============================================================================
+
+TEST_CASE("Organization: organizations query returns connection object for platform_admin",
+          "[integration][org][webui][T047-018]") {
     auto [db, exec] = make_executor();
 
-    auto result = exec->execute(
-        "query { organizations { id name subscriptionTier } }",
-        "{}",
-        platform_admin_ctx());
-    require_success(result, "organizations");
+    const std::string q = R"(
+        query($page: PageInput!, $sort: [SortInput!]) {
+          organizations(page: $page, sort: $sort) {
+            nodes { id name status revision updatedAt }
+            pageInfo { number size totalElements totalPages }
+          }
+        }
+    )";
+    const auto vars = json{
+        {"page", json{{"number", 1}, {"size", 10}}},
+        {"sort", json::array({json{{"field", "name"}, {"direction", "ASC"}}})}
+    };
+    auto result = exec->execute(q, vars.dump(), platform_admin_ctx());
+    require_success(result, "organizations connection");
 
     REQUIRE(result.data.contains("organizations"));
-    REQUIRE(result.data["organizations"].is_array());
+    const auto& conn = result.data["organizations"];
+    REQUIRE(conn.contains("nodes"));
+    REQUIRE(conn["nodes"].is_array());
+    REQUIRE(conn.contains("pageInfo"));
+    REQUIRE(conn["pageInfo"]["number"].is_number());
+    REQUIRE(conn["pageInfo"]["size"].is_number());
+    REQUIRE(conn["pageInfo"]["totalElements"].is_number());
+    REQUIRE(conn["pageInfo"]["totalPages"].is_number());
+}
+
+TEST_CASE("Organization: createOrganization returns status, revision and updatedAt",
+          "[integration][org][webui][T047-018]") {
+    auto [db, exec] = make_executor();
+
+    const std::string org_name = "WebUICreateOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    const auto vars = json{{"name", org_name}};
+    const std::string q = R"(
+        mutation($name: String!) {
+          createOrganization(input: { name: $name }) {
+            id name status revision updatedAt
+          }
+        }
+    )";
+    auto result = exec->execute(q, vars.dump(), platform_admin_ctx());
+    require_success(result, "createOrganization webui fields");
+
+    const auto& org = result.data["createOrganization"];
+    REQUIRE(!org["id"].get<std::string>().empty());
+    REQUIRE(org["name"] == org_name);
+    REQUIRE(org["status"] == "ACTIVE");
+    REQUIRE(org["revision"] == 0);
+    REQUIRE(!org["updatedAt"].get<std::string>().empty());
+}
+
+TEST_CASE("Organization: organizations nodes include status, revision, updatedAt",
+          "[integration][org][webui][T047-018]") {
+    auto [db, exec] = make_executor();
+
+    const std::string org_name = "WebUIFieldsOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    std::ignore = create_test_org(exec, org_name);
+
+    const std::string q = R"(
+        query($page: PageInput!) {
+          organizations(page: $page) {
+            nodes { id name status revision updatedAt }
+            pageInfo { totalElements }
+          }
+        }
+    )";
+    const auto vars = json{{"page", json{{"number", 1}, {"size", 50}}}};
+    auto result = exec->execute(q, vars.dump(), platform_admin_ctx());
+    require_success(result, "organizations nodes fields");
+
+    const auto& nodes = result.data["organizations"]["nodes"];
+    REQUIRE(!nodes.empty());
+    bool found = false;
+    for (const auto& n : nodes) {
+        if (n["name"] == org_name) {
+            found = true;
+            REQUIRE(n.contains("status"));
+            REQUIRE(n.contains("revision"));
+            REQUIRE(n.contains("updatedAt"));
+            REQUIRE(n["status"] == "ACTIVE");
+            REQUIRE(n["revision"] == 0);
+            break;
+        }
+    }
+    REQUIRE(found);
 }
 
 TEST_CASE("Organization: updateOrganization modifies name for platform_admin",
           "[integration][org][crud][T047-018]") {
     auto [db, exec] = make_executor();
 
-    // First, create one
     const std::string org_name = "UpdateTargetOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
-    const auto create_vars = json{
-        {"name", org_name},
-        {"subscriptionTier", "free"},
-        {"userLimit", 5},
-        {"storageLimit", 1073741824}
-    };
-    const std::string create_query = R"(
-        mutation($name: String!, $subscriptionTier: String, $userLimit: Int, $storageLimit: Int) {
-          createOrganization(input: {
-            name: $name
-            subscriptionTier: $subscriptionTier
-            userLimit: $userLimit
-            storageLimit: $storageLimit
-          }) { id }
-        }
-    )";
-    auto create_result = exec->execute(create_query, create_vars.dump(), platform_admin_ctx());
-    require_success(create_result, "createOrganization for update test");
-    const std::string org_id = create_result.data["createOrganization"]["id"].get<std::string>();
+    const std::string org_id = create_test_org(exec, org_name);
 
-    // Now update
-    const auto update_vars = json{{"id", org_id}, {"newName", "RenamedOrg"}};
+    // Update with correct expectedRevision=0
+    const auto update_vars = json{{"id", org_id}, {"newName", "RenamedOrg"}, {"rev", 0}};
     const std::string update_query = R"(
-        mutation($id: ID!, $newName: String) {
-          updateOrganization(id: $id, input: { name: $newName }) {
-            id
-            name
+        mutation($id: ID!, $newName: String, $rev: Int!) {
+          updateOrganization(id: $id, input: { name: $newName }, expectedRevision: $rev) {
+            id name status revision updatedAt
           }
         }
     )";
     auto update_result = exec->execute(update_query, update_vars.dump(), platform_admin_ctx());
     require_success(update_result, "updateOrganization");
     REQUIRE(update_result.data["updateOrganization"]["name"] == "RenamedOrg");
+    REQUIRE(update_result.data["updateOrganization"]["revision"] == 1);
+}
+
+TEST_CASE("Organization: updateOrganization with wrong expectedRevision returns CONFLICT",
+          "[integration][org][webui][T047-018]") {
+    auto [db, exec] = make_executor();
+
+    const std::string org_name = "ConflictOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    const std::string org_id = create_test_org(exec, org_name);
+
+    // Submit with wrong revision (99 instead of 0)
+    const auto vars = json{{"id", org_id}, {"newName", "ShouldConflict"}, {"rev", 99}};
+    const std::string q = R"(
+        mutation($id: ID!, $newName: String, $rev: Int!) {
+          updateOrganization(id: $id, input: { name: $newName }, expectedRevision: $rev) {
+            id name
+          }
+        }
+    )";
+    auto result = exec->execute(q, vars.dump(), platform_admin_ctx());
+    REQUIRE(!result.errors.empty());
+    bool has_conflict = false;
+    for (const auto& err : result.errors) {
+        if (err.code == EErrorCodes::CONFLICT) {
+            has_conflict = true;
+            break;
+        }
+    }
+    REQUIRE(has_conflict);
+}
+
+TEST_CASE("Organization: updateOrganization can change status to SUSPENDED",
+          "[integration][org][webui][T047-018]") {
+    auto [db, exec] = make_executor();
+
+    const std::string org_name = "SuspendOrg_" + g_run_suffix + "_" + std::to_string(__LINE__);
+    const std::string org_id = create_test_org(exec, org_name);
+
+    const auto vars = json{{"id", org_id}, {"rev", 0}};
+    const std::string q = R"(
+        mutation($id: ID!, $rev: Int!) {
+          updateOrganization(id: $id, input: { status: "SUSPENDED" }, expectedRevision: $rev) {
+            id status revision
+          }
+        }
+    )";
+    auto result = exec->execute(q, vars.dump(), platform_admin_ctx());
+    require_success(result, "updateOrganization status");
+    REQUIRE(result.data["updateOrganization"]["status"] == "SUSPENDED");
+    REQUIRE(result.data["updateOrganization"]["revision"] == 1);
 }
 
 TEST_CASE("Organization: deleteOrganization removes the org for platform_admin",

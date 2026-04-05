@@ -188,8 +188,8 @@ type Query {
   users: [User!]!
   """Look up an organization by ID"""
   organization(id: ID!): Organization
-  """List organizations (platform_admin sees all; tenant_admin sees own org)"""
-  organizations: [Organization!]!
+  """List organizations with pagination/sorting/filtering (platform_admin sees all; tenant_admin sees own org)"""
+  organizations(page: PageInput, sort: [SortInput!], filter: [FilterInput!]): OrganizationConnection!
   """List registered outbound-HTTP data sources for an organization (tenant_admin or platform_admin)"""
   dataSources(organizationId: ID): [DataSource!]!
   """Seed-mode status — true when no active platform administrator exists (unauthenticated)"""
@@ -225,7 +225,7 @@ type Mutation {
   """Create a new organization and provision its tenant database (platform_admin only)"""
   createOrganization(input: CreateOrganizationInput!): Organization!
   """Update an existing organization (tenant_admin of that org or platform_admin)"""
-  updateOrganization(id: ID!, input: UpdateOrganizationInput!): Organization!
+  updateOrganization(id: ID!, input: UpdateOrganizationInput!, expectedRevision: Int): Organization!
   """Delete an organization and deprovision its tenant database (tenant_admin self-delete or platform_admin)"""
   deleteOrganization(id: ID!): Boolean!
   """Create a new user in the organization's tenant database (tenant_admin or platform_admin)"""
@@ -354,6 +354,50 @@ type TenantMetrics {
 # Phase 6 — RBAC and User/Org types (T047-000a)
 # ---------------------------------------------------------------------------
 
+"""Pagination cursor input for list queries"""
+input PageInput {
+  """1-based page number"""
+  number: Int!
+  """Number of items per page"""
+  size: Int!
+}
+
+"""Sort field and direction for list queries"""
+input SortInput {
+  """Field name to sort by"""
+  field: String!
+  """Sort direction: ASC or DESC"""
+  direction: String!
+}
+
+"""Server-side filter for list queries"""
+input FilterInput {
+  """Field name to filter on"""
+  field: String!
+  """Filter operator (e.g. 'contains', 'eq')"""
+  op: String!
+  """Filter value"""
+  value: String!
+}
+
+"""Pagination metadata returned with connection queries"""
+type PageInfo {
+  """1-based current page number"""
+  number: Int!
+  """Page size used for this result"""
+  size: Int!
+  """Total matching elements across all pages"""
+  totalElements: Int!
+  """Total number of pages"""
+  totalPages: Int!
+}
+
+"""Paginated list of organizations"""
+type OrganizationConnection {
+  nodes: [Organization!]!
+  pageInfo: PageInfo!
+}
+
 """An authenticated user within an organization"""
 type User {
   """Unique user identifier"""
@@ -388,6 +432,12 @@ type Organization {
   storageLimit: Int!
   """ISO-8601 creation timestamp"""
   createdAt: String!
+  """Organization status: ACTIVE or SUSPENDED"""
+  status: String!
+  """Optimistic-concurrency revision counter"""
+  revision: Int!
+  """ISO-8601 last-updated timestamp"""
+  updatedAt: String!
 }
 
 """Returned by the login mutation"""
@@ -429,6 +479,8 @@ input UpdateOrganizationInput {
   subscriptionTier: String
   userLimit: Int
   storageLimit: Int
+  """New status: ACTIVE or SUSPENDED"""
+  status: String
 }
 
 """Represents a registered outbound-HTTP data source (T048)"""

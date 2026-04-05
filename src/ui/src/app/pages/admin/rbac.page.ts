@@ -175,5 +175,4 @@ export class RbacPage {
    private focusAssignUserInput(): void {
      queueMicrotask(() => this.assignUserInput()?.nativeElement.focus());
    }
-
-
+}

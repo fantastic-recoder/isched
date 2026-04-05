@@ -1583,6 +1583,9 @@ namespace isched::v0_0_1::backend {
                 return json{
                     {"id",               r.id},
                     {"name",             r.name},
+                    {"status",           r.status},
+                    {"revision",         r.revision},
+                    {"updatedAt",        r.updated_at},
                     {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
                     {"subscriptionTier", r.subscription_tier},
                     {"userLimit",        r.user_limit},
@@ -1604,13 +1607,17 @@ namespace isched::v0_0_1::backend {
                 const auto& input = args.value("input", json::object());
 
                 std::optional<std::string> name;
+                std::optional<std::string> status;
                 std::optional<std::string> domain;
                 std::optional<std::string> subscription_tier;
                 std::optional<int>         user_limit;
                 std::optional<int>         storage_limit;
+                std::optional<int>         expected_revision;
 
                 if (input.contains("name")             && !input["name"].is_null())
                     name = input["name"].get<std::string>();
+                if (input.contains("status")           && !input["status"].is_null())
+                    status = input["status"].get<std::string>();
                 if (input.contains("domain")           && !input["domain"].is_null())
                     domain = input["domain"].get<std::string>();
                 if (input.contains("subscriptionTier") && !input["subscriptionTier"].is_null())
@@ -1619,14 +1626,23 @@ namespace isched::v0_0_1::backend {
                     user_limit = input["userLimit"].get<int>();
                 if (input.contains("storageLimit")     && !input["storageLimit"].is_null())
                     storage_limit = input["storageLimit"].get<int>();
+                if (args.contains("expectedRevision")  && !args["expectedRevision"].is_null())
+                    expected_revision = args["expectedRevision"].get<int>();
 
                 if (auto res = m_database->update_organization(
-                        id, name, domain, subscription_tier, user_limit, storage_limit);
+                        id, name, status, domain, subscription_tier,
+                        user_limit, storage_limit, expected_revision);
                     !res)
                 {
                     switch (res.error()) {
                         case DatabaseError::NotFound:
                             throw std::runtime_error("Organization '" + id + "' not found");
+                        case DatabaseError::VersionConflict: {
+                            gql::Error err;
+                            err.code = gql::EErrorCodes::CONFLICT;
+                            err.message = "Organization was modified by another user; refresh and retry.";
+                            throw err;
+                        }
                         default:
                             throw std::runtime_error("Failed to update organization");
                     }
@@ -1639,6 +1655,9 @@ namespace isched::v0_0_1::backend {
                 return json{
                     {"id",               r.id},
                     {"name",             r.name},
+                    {"status",           r.status},
+                    {"revision",         r.revision},
+                    {"updatedAt",        r.updated_at},
                     {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
                     {"subscriptionTier", r.subscription_tier},
                     {"userLimit",        r.user_limit},
@@ -1695,14 +1714,17 @@ namespace isched::v0_0_1::backend {
                     {"subscriptionTier", r.subscription_tier},
                     {"userLimit",        r.user_limit},
                     {"storageLimit",     r.storage_limit},
-                    {"createdAt",        r.created_at}
+                    {"createdAt",        r.created_at},
+                    {"status",           r.status},
+                    {"revision",         r.revision},
+                    {"updatedAt",        r.updated_at}
                 };
             });
         require_roles("organization", {std::string(Role::PLATFORM_ADMIN),
                                        std::string(Role::TENANT_ADMIN)});
 
         register_resolver({}, "organizations",
-            [this](const json&, const json&, const ResolverCtx& ctx) -> json {
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 // platform_admin sees all; tenant_admin sees only their own org
                 const bool is_platform_admin =
                     std::find(ctx.roles.begin(), ctx.roles.end(),
@@ -1712,14 +1734,32 @@ namespace isched::v0_0_1::backend {
                 if (!res) {
                     throw std::runtime_error("Failed to list organizations");
                 }
-                json arr = json::array();
+
+                // Build full org list filtered by visibility
+                std::vector<json> all_nodes;
                 for (const auto& r : res.value()) {
                     if (!is_platform_admin && r.id != ctx.tenant_id) {
                         continue;  // tenant_admin: skip orgs that are not theirs
                     }
-                    arr.push_back(json{
+                    // Apply name-contains filter if provided
+                    const auto& filter_arr = args.value("filter", json::array());
+                    bool passes_filter = true;
+                    for (const auto& f : filter_arr) {
+                        const std::string field = f.value("field", "");
+                        const std::string op    = f.value("op",    "");
+                        const std::string val   = f.value("value", "");
+                        if (field == "name" && op == "contains") {
+                            passes_filter = r.name.find(val) != std::string::npos;
+                        }
+                    }
+                    if (!passes_filter) { continue; }
+
+                    all_nodes.push_back(json{
                         {"id",               r.id},
                         {"name",             r.name},
+                        {"status",           r.status},
+                        {"revision",         r.revision},
+                        {"updatedAt",        r.updated_at},
                         {"domain",           r.domain.empty() ? json(nullptr) : json(r.domain)},
                         {"subscriptionTier", r.subscription_tier},
                         {"userLimit",        r.user_limit},
@@ -1727,7 +1767,38 @@ namespace isched::v0_0_1::backend {
                         {"createdAt",        r.created_at}
                     });
                 }
-                return arr;
+
+                // Apply sort (default: name ASC already from DB, honour direction override)
+                const auto& sort_arr = args.value("sort", json::array());
+                if (!sort_arr.empty()) {
+                    const std::string dir = sort_arr[0].value("direction", "ASC");
+                    if (dir == "DESC") {
+                        std::reverse(all_nodes.begin(), all_nodes.end());
+                    }
+                }
+
+                // Pagination
+                const auto& page_obj = args.value("page", json::object());
+                const int page_number = page_obj.value("number", 1);
+                const int page_size   = page_obj.value("size",   10);
+                const int total       = static_cast<int>(all_nodes.size());
+                const int total_pages = (total == 0) ? 0 : (total + page_size - 1) / page_size;
+                const int offset      = (page_number - 1) * page_size;
+
+                json nodes_arr = json::array();
+                for (int i = offset; i < std::min(static_cast<int>(all_nodes.size()), offset + page_size); ++i) {
+                    nodes_arr.push_back(all_nodes[static_cast<std::size_t>(i)]);
+                }
+
+                return json{
+                    {"nodes", nodes_arr},
+                    {"pageInfo", json{
+                        {"number",        page_number},
+                        {"size",          page_size},
+                        {"totalElements", total},
+                        {"totalPages",    total_pages}
+                    }}
+                };
             });
         require_roles("organizations", {std::string(Role::PLATFORM_ADMIN),
                                         std::string(Role::TENANT_ADMIN)});
@@ -2792,6 +2863,17 @@ namespace isched::v0_0_1::backend {
             json my_result;
             try {
                 my_result = my_found_resolver(p_parent, my_args, my_ctx);
+            } catch (const gql::Error& gql_err) {
+                // Resolver threw a structured gql::Error (e.g. CONFLICT, FORBIDDEN)
+                gql::ErrorPath ep;
+                for (const auto& s : my_field_path) ep.push_back(s);
+                p_error.push_back(gql::Error{
+                    .code    = gql_err.code,
+                    .message = gql_err.message,
+                    .path    = std::move(ep),
+                });
+                p_result[myFieldName] = nullptr;
+                return false;
             } catch (const std::exception& ex) {
                 gql::ErrorPath ep;
                 for (const auto& s : my_field_path) ep.push_back(s);

@@ -63,9 +63,10 @@ enum class DatabaseError {
     MigrationFailed,
     BackupFailed,
     PoolExhausted,
-    NotFound,       ///< Requested record does not exist
-    DuplicateKey,   ///< INSERT failed due to UNIQUE constraint
-    AccessDenied    ///< Operation refused (e.g. deleting a built-in role)
+    NotFound,         ///< Requested record does not exist
+    DuplicateKey,     ///< INSERT failed due to UNIQUE constraint
+    AccessDenied,     ///< Operation refused (e.g. deleting a built-in role)
+    VersionConflict   ///< Optimistic concurrency: expectedRevision != current revision
 };
 
 /**
@@ -213,6 +214,9 @@ struct OrganizationRecord {
     int         user_limit{0};
     int         storage_limit{0};
     std::string created_at;
+    std::string status{"ACTIVE"};     ///< ACTIVE | SUSPENDED
+    int         revision{0};          ///< Optimistic concurrency counter
+    std::string updated_at;           ///< ISO-8601 last-modified timestamp
 };
 
 /// A row from the @c platform_admins table in @c isched_system.db.
@@ -763,13 +767,18 @@ public:
 
     /// Partially update an organization.  Only non-null optionals are written.
     /// Returns @c NotFound if @p id does not exist.
+    /// Returns @c VersionConflict if @p expected_revision is provided and does not match the
+    /// current revision (optimistic concurrency guard).
+    /// On success, increments @c revision and sets @c updated_at to UTC-now.
     [[nodiscard]] DatabaseResult<void> update_organization(
         const std::string& id,
         std::optional<std::string> name,
+        std::optional<std::string> status,
         std::optional<std::string> domain,
         std::optional<std::string> subscription_tier,
         std::optional<int>         user_limit,
-        std::optional<int>         storage_limit);
+        std::optional<int>         storage_limit,
+        std::optional<int>         expected_revision = std::nullopt);
 
     /// Delete an organization by @p id; returns @c NotFound if absent.
     [[nodiscard]] DatabaseResult<void> delete_organization(const std::string& id);

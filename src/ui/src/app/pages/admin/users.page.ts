@@ -239,39 +239,40 @@ export class UsersPage {
       });
   }
 
-  private loadUsers(pageNumber = this.pageInfo().number): void {
-    const organizationId = this.orgContext.selectedOrganizationId();
-    if (!organizationId) {
-      this.users.set([]);
-      this.pageInfo.set(EMPTY_PAGE_INFO);
-      return;
-    }
+   private loadUsers(pageNumber = this.pageInfo().number): void {
+     const organizationId = this.orgContext.selectedOrganizationId();
+     if (!organizationId) {
+       this.users.set([]);
+       this.pageInfo.set(EMPTY_PAGE_INFO);
+       this.loading.set(false);
+       return;
+     }
 
-    this.loading.set(true);
-    this.error.set(null);
-    this.userService
-      .listUsers({
-        organizationId,
-        page: { number: pageNumber, size: this.pageInfo().size },
-        sort: this.sorting(),
-        filter: this.filtering(),
-      })
-      .pipe(finalize(() => this.loading.set(false)))
-      .subscribe({
-        next: ({ nodes, pageInfo }) => {
-          this.users.set(nodes);
-          this.pageInfo.set(pageInfo);
-          if (!this.selectedUserId() || !nodes.some((user) => user.id === this.selectedUserId())) {
-            if (nodes[0]) {
-              this.selectUser(nodes[0].id);
-            } else {
-              this.resetEditor();
-            }
-          }
-        },
-        error: (err: unknown) => this.handleError(err),
-      });
-  }
+     this.loading.set(true);
+     this.error.set(null);
+     this.userService
+       .listUsers({
+         organizationId,
+         page: { number: pageNumber, size: this.pageInfo().size },
+         sort: this.sorting(),
+         filter: this.filtering(),
+       })
+       .pipe(finalize(() => this.loading.set(false)))
+       .subscribe({
+         next: ({ nodes, pageInfo }) => {
+           this.users.set(nodes);
+           this.pageInfo.set(pageInfo);
+           if (!this.selectedUserId() || !nodes.some((user) => user.id === this.selectedUserId())) {
+             if (nodes[0]) {
+               this.selectUser(nodes[0].id);
+             } else {
+               this.resetEditor();
+             }
+           }
+         },
+         error: (err: unknown) => this.handleError(err),
+       });
+   }
 
   private sorting(): SortInput[] {
     return [{ field: 'displayName', direction: 'ASC' }];
