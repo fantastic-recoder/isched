@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { OrganizationsPage } from './organizations.page';
 import { OrganizationService } from '../../services/organization.service';
+import { GraphQLRequestError, GRAPHQL_ERROR_CODES } from '../../services/graphql.service';
 
 const flushMicrotasks = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 const listOrganizations = jest.fn(() =>
@@ -102,9 +103,87 @@ describe('OrganizationsPage accessibility', () => {
     await flushMicrotasks();
     fixture.detectChanges();
 
-    expect(root.querySelector('#organizations-status')?.textContent).toContain('Org Keyboard is now suspended.');
-    expect((document.activeElement as HTMLElement | null)?.id).toBe('organizations-status');
-    expect(updateOrganization).toHaveBeenCalledWith('local-org-1', { status: 'SUSPENDED' }, 1);
-  });
+   expect(root.querySelector('#organizations-status')?.textContent).toContain('Org Keyboard is now suspended.');
+     expect((document.activeElement as HTMLElement | null)?.id).toBe('organizations-status');
+     expect(updateOrganization).toHaveBeenCalledWith('local-org-1', { status: 'SUSPENDED' }, 1);
+   });
+
+   it('displays error message when listing organizations fails', async () => {
+     const failingListOrganizations = jest.fn(() =>
+       throwError(
+         () =>
+           new GraphQLRequestError(
+             'Failed to fetch organizations',
+             GRAPHQL_ERROR_CODES.TRANSIENT_NETWORK,
+           ),
+       ),
+     );
+
+     await TestBed.resetTestingModule();
+     await TestBed.configureTestingModule({
+       imports: [OrganizationsPage],
+       providers: [
+         {
+           provide: OrganizationService,
+           useValue: {
+             listOrganizations: failingListOrganizations,
+             createOrganization,
+             updateOrganization,
+           },
+         },
+       ],
+     }).compileComponents();
+
+     const fixture = TestBed.createComponent(OrganizationsPage);
+     fixture.detectChanges();
+     await new Promise<void>((resolve) => setTimeout(resolve, 10));
+     fixture.detectChanges();
+
+     const root = fixture.nativeElement as HTMLElement;
+     const errorDiv = root.querySelector<HTMLElement>('[role="alert"]');
+
+     expect(errorDiv).toBeTruthy();
+     expect(errorDiv?.textContent).toContain('Failed to fetch organizations');
+     expect(errorDiv?.className).toContain('alert-error');
+   });
+
+   it('does not display URL as error message', async () => {
+     const failingListOrganizations = jest.fn(() =>
+       throwError(
+         () =>
+           new Error('http://localhost:8080/isched/admin/organizations'),
+       ),
+     );
+
+     await TestBed.resetTestingModule();
+     await TestBed.configureTestingModule({
+       imports: [OrganizationsPage],
+       providers: [
+         {
+           provide: OrganizationService,
+           useValue: {
+             listOrganizations: failingListOrganizations,
+             createOrganization,
+             updateOrganization,
+           },
+         },
+       ],
+     }).compileComponents();
+
+     const fixture = TestBed.createComponent(OrganizationsPage);
+     fixture.detectChanges();
+     await new Promise<void>((resolve) => setTimeout(resolve, 10));
+     fixture.detectChanges();
+
+     const root = fixture.nativeElement as HTMLElement;
+     const errorDiv = root.querySelector<HTMLElement>('[role="alert"]');
+
+     expect(errorDiv).toBeTruthy();
+     // Should not show the raw URL
+     expect(errorDiv?.textContent).not.toContain('http://localhost:8080');
+     // Should show a user-friendly message instead
+     expect(errorDiv?.textContent).toContain('Organization request failed');
+   });
+
 });
 

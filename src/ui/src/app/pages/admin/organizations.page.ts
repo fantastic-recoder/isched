@@ -247,35 +247,41 @@ export class OrganizationsPage {
     this.createForm.controls.name.setErrors(Object.keys(remainingErrors).length ? remainingErrors : null);
   }
 
-  private handleError(err: unknown): void {
-    if (err instanceof GraphQLRequestError) {
-      switch (err.code) {
-        case GRAPHQL_ERROR_CODES.VALIDATION_FAILED:
-          this.error.set('Please correct the highlighted fields and try again.');
-          if (err.fieldErrors['name']?.length) {
-            this.createForm.controls.name.setErrors({
-              ...(this.createForm.controls.name.errors ?? {}),
-              server: err.fieldErrors['name'][0],
-            });
-          }
-          return;
-        case GRAPHQL_ERROR_CODES.CONFLICT:
-          this.error.set('Another administrator changed this organization. Refresh the list and retry your edit.');
-          return;
-        case GRAPHQL_ERROR_CODES.FORBIDDEN:
-          this.error.set('You do not have permission to manage organizations in the current scope.');
-          return;
-        case GRAPHQL_ERROR_CODES.UNAUTHENTICATED:
-          this.error.set('Your session expired. Sign in again and retry the organization change.');
-          return;
-        default:
-          this.error.set(err.message);
-          return;
-      }
-    }
+   private handleError(err: unknown): void {
+     if (err instanceof GraphQLRequestError) {
+       switch (err.code) {
+         case GRAPHQL_ERROR_CODES.VALIDATION_FAILED:
+           this.error.set('Please correct the highlighted fields and try again.');
+           if (err.fieldErrors['name']?.length) {
+             this.createForm.controls.name.setErrors({
+               ...(this.createForm.controls.name.errors ?? {}),
+               server: err.fieldErrors['name'][0],
+             });
+           }
+           return;
+         case GRAPHQL_ERROR_CODES.CONFLICT:
+           this.error.set('Another administrator changed this organization. Refresh the list and retry your edit.');
+           return;
+         case GRAPHQL_ERROR_CODES.FORBIDDEN:
+           this.error.set('You do not have permission to manage organizations in the current scope.');
+           return;
+         case GRAPHQL_ERROR_CODES.UNAUTHENTICATED:
+           this.error.set('Your session expired. Sign in again and retry the organization change.');
+           return;
+         default:
+           this.error.set(err.message);
+           return;
+       }
+     }
 
-    this.error.set(err instanceof Error ? err.message : 'Organization request failed.');
-  }
+     // Filter out URL-like error messages that might come from network errors
+     const errorMessage = err instanceof Error ? err.message : 'Organization request failed.';
+     if (errorMessage.startsWith('http://') || errorMessage.startsWith('https://')) {
+       this.error.set('Organization request failed.');
+     } else {
+       this.error.set(errorMessage);
+     }
+   }
 
   private focusStatusAlert(): void {
     queueMicrotask(() => this.statusAlert()?.nativeElement.focus());

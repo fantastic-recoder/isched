@@ -34,17 +34,17 @@ export class RbacPage {
     roleId: ['', [Validators.required]],
   });
 
-  constructor() {
-    this.rbacService.listRoles().subscribe({
-      next: ({ roles }) => {
-        this.roles.set(roles);
-        if (roles.length > 0) {
-          this.assignmentForm.controls.roleId.setValue(roles[0].id);
-        }
-      },
-      error: (err: Error) => this.globalError.set(err.message),
-    });
-  }
+   constructor() {
+     this.rbacService.listRoles().subscribe({
+       next: ({ roles }) => {
+         this.roles.set(roles);
+         if (roles.length > 0) {
+           this.assignmentForm.controls.roleId.setValue(roles[0].id);
+         }
+       },
+       error: (err: unknown) => this.handleError(err),
+     });
+   }
 
   submitRoleForm(): void {
     if (this.createRoleForm.invalid) {
@@ -154,16 +154,26 @@ export class RbacPage {
     this.prepareAssignRole(roleId);
   }
 
-  private isActivationKey(event: KeyboardEvent): boolean {
-    return event.key === 'Enter' || event.key === ' ';
-  }
+   private isActivationKey(event: KeyboardEvent): boolean {
+     return event.key === 'Enter' || event.key === ' ';
+   }
 
-  private focusStatusAlert(): void {
-    queueMicrotask(() => this.statusAlert()?.nativeElement.focus());
-  }
+   private handleError(err: unknown): void {
+     // Filter out URL-like error messages that might come from network errors
+     const errorMessage = err instanceof Error ? err.message : 'RBAC request failed.';
+     if (errorMessage.startsWith('http://') || errorMessage.startsWith('https://')) {
+       this.globalError.set('RBAC request failed.');
+     } else {
+       this.globalError.set(errorMessage);
+     }
+   }
 
-  private focusAssignUserInput(): void {
-    queueMicrotask(() => this.assignUserInput()?.nativeElement.focus());
-  }
-}
+   private focusStatusAlert(): void {
+     queueMicrotask(() => this.statusAlert()?.nativeElement.focus());
+   }
+
+   private focusAssignUserInput(): void {
+     queueMicrotask(() => this.assignUserInput()?.nativeElement.focus());
+   }
+
 

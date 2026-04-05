@@ -334,44 +334,50 @@ export class UsersPage {
     }
   }
 
-  private handleError(err: unknown): void {
-    if (err instanceof GraphQLRequestError) {
-      switch (err.code) {
-        case GRAPHQL_ERROR_CODES.VALIDATION_FAILED:
-          this.error.set('Please correct the highlighted fields and try again.');
-          if (err.fieldErrors['loginId']?.length) {
-            this.form.controls.loginId.setErrors({
-              ...(this.form.controls.loginId.errors ?? {}),
-              server: err.fieldErrors['loginId'][0],
-            });
-          }
-          if (err.fieldErrors['displayName']?.length) {
-            this.form.controls.displayName.setErrors({
-              ...(this.form.controls.displayName.errors ?? {}),
-              server: err.fieldErrors['displayName'][0],
-            });
-          }
-          return;
-        case GRAPHQL_ERROR_CODES.CONFLICT:
-          this.error.set('Another administrator changed this user. Refresh the current organization and retry your update.');
-          return;
-        case GRAPHQL_ERROR_CODES.CONTEXT_MISMATCH:
-          this.error.set('The selected organization does not match the user mutation scope. Refresh context and retry.');
-          return;
-        case GRAPHQL_ERROR_CODES.FORBIDDEN:
-          this.error.set('You do not have permission to manage users in the current organization.');
-          return;
-        case GRAPHQL_ERROR_CODES.UNAUTHENTICATED:
-          this.error.set('Your session expired. Sign in again and retry the user change.');
-          return;
-        default:
-          this.error.set(err.message);
-          return;
-      }
-    }
+   private handleError(err: unknown): void {
+     if (err instanceof GraphQLRequestError) {
+       switch (err.code) {
+         case GRAPHQL_ERROR_CODES.VALIDATION_FAILED:
+           this.error.set('Please correct the highlighted fields and try again.');
+           if (err.fieldErrors['loginId']?.length) {
+             this.form.controls.loginId.setErrors({
+               ...(this.form.controls.loginId.errors ?? {}),
+               server: err.fieldErrors['loginId'][0],
+             });
+           }
+           if (err.fieldErrors['displayName']?.length) {
+             this.form.controls.displayName.setErrors({
+               ...(this.form.controls.displayName.errors ?? {}),
+               server: err.fieldErrors['displayName'][0],
+             });
+           }
+           return;
+         case GRAPHQL_ERROR_CODES.CONFLICT:
+           this.error.set('Another administrator changed this user. Refresh the current organization and retry your update.');
+           return;
+         case GRAPHQL_ERROR_CODES.CONTEXT_MISMATCH:
+           this.error.set('The selected organization does not match the user mutation scope. Refresh context and retry.');
+           return;
+         case GRAPHQL_ERROR_CODES.FORBIDDEN:
+           this.error.set('You do not have permission to manage users in the current organization.');
+           return;
+         case GRAPHQL_ERROR_CODES.UNAUTHENTICATED:
+           this.error.set('Your session expired. Sign in again and retry the user change.');
+           return;
+         default:
+           this.error.set(err.message);
+           return;
+       }
+     }
 
-    this.error.set(err instanceof Error ? err.message : 'User request failed.');
-  }
+     // Filter out URL-like error messages that might come from network errors
+     const errorMessage = err instanceof Error ? err.message : 'User request failed.';
+     if (errorMessage.startsWith('http://') || errorMessage.startsWith('https://')) {
+       this.error.set('User request failed.');
+     } else {
+       this.error.set(errorMessage);
+     }
+   }
 
   private focusWarningAlert(): void {
     queueMicrotask(() => this.warningAlert()?.nativeElement.focus());
