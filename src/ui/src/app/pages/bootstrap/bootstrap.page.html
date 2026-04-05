@@ -2,38 +2,78 @@
   <div class="card w-full max-w-lg bg-base-100 shadow-xl">
     <div class="card-body">
       <h1 class="card-title text-2xl">Initialize Platform</h1>
-      <p class="text-sm text-base-content/70">Complete one-time bootstrap for the first platform admin.</p>
+      <p class="text-sm text-base-content/70 mb-4">Complete one-time bootstrap for the first platform admin.</p>
 
       @if (globalError()) {
-        <div class="alert alert-error" role="alert">{{ globalError() }}</div>
+        <div class="alert alert-error mb-4" role="alert">{{ globalError() }}</div>
       }
 
-      <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-3">
-        <label class="form-control">
-          <span class="label-text">Email</span>
-          <input type="email" class="input input-bordered" formControlName="email" />
-          @if (form.controls.email.touched && form.controls.email.errors?.['server']) {
-            <span class="text-error text-xs">{{ form.controls.email.errors?.['server'] }}</span>
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <!-- Email -->
+        <div class="form-control mb-3">
+          <label class="label" for="bs-email">
+            <span class="label-text">Email</span>
+          </label>
+          <input id="bs-email" type="email" formControlName="email"
+                 placeholder="admin@example.com"
+                 class="input input-bordered w-full"
+                 [class.input-error]="email.invalid && email.touched" />
+          @if (email.touched && email.hasError('required')) {
+            <p class="text-error text-xs mt-1">Email is required.</p>
+          } @else if (email.touched && email.hasError('email')) {
+            <p class="text-error text-xs mt-1">Must be a valid email address.</p>
+          } @else if (email.touched && email.errors?.['server']) {
+            <p class="text-error text-xs mt-1">{{ email.errors?.['server'] }}</p>
           }
-        </label>
+        </div>
 
-        <label class="form-control">
-          <span class="label-text">Display Name</span>
-          <input type="text" class="input input-bordered" formControlName="displayName" />
-          @if (form.controls.displayName.touched && form.controls.displayName.errors?.['server']) {
-            <span class="text-error text-xs">{{ form.controls.displayName.errors?.['server'] }}</span>
+        <!-- Display Name -->
+        <div class="form-control mb-3">
+          <label class="label" for="bs-displayName">
+            <span class="label-text">Display Name</span>
+          </label>
+          <input id="bs-displayName" type="text" formControlName="displayName"
+                 placeholder="Platform Admin"
+                 class="input input-bordered w-full"
+                 [class.input-error]="displayName.invalid && displayName.touched" />
+          @if (displayName.touched && displayName.hasError('required')) {
+            <p class="text-error text-xs mt-1">Display name is required.</p>
+          } @else if (displayName.touched && displayName.hasError('minlength')) {
+            <p class="text-error text-xs mt-1">Display name must be at least 2 characters.</p>
+          } @else if (displayName.touched && displayName.errors?.['server']) {
+            <p class="text-error text-xs mt-1">{{ displayName.errors?.['server'] }}</p>
           }
-        </label>
+        </div>
 
-        <label class="form-control">
-          <span class="label-text">Password</span>
-          <input type="password" class="input input-bordered" formControlName="password" />
-          @if (form.controls.password.touched && form.controls.password.errors?.['server']) {
-            <span class="text-error text-xs">{{ form.controls.password.errors?.['server'] }}</span>
+        <!-- Password -->
+        <div class="form-control mb-6">
+          <label class="label" for="bs-password">
+            <span class="label-text">Password <span class="text-base-content/40">(min 12 characters)</span></span>
+          </label>
+          <div class="relative">
+            <input id="bs-password"
+                   [type]="showPw() ? 'text' : 'password'"
+                   formControlName="password"
+                   placeholder="••••••••••••"
+                   class="input input-bordered w-full pr-12"
+                   [class.input-error]="password.invalid && password.touched" />
+            <button type="button"
+                    class="absolute inset-y-0 right-3 flex items-center text-base-content/50"
+                    (click)="showPw.set(!showPw())"
+                    [attr.aria-label]="showPw() ? 'Hide password' : 'Show password'">
+              {{ showPw() ? '🙈' : '👁' }}
+            </button>
+          </div>
+          @if (password.touched && password.hasError('required')) {
+            <p class="text-error text-xs mt-1">Password is required.</p>
+          } @else if (password.touched && password.hasError('minlength')) {
+            <p class="text-error text-xs mt-1">Password must be at least 12 characters.</p>
+          } @else if (password.touched && password.errors?.['server']) {
+            <p class="text-error text-xs mt-1">{{ password.errors?.['server'] }}</p>
           }
-        </label>
+        </div>
 
-        <button class="btn btn-primary w-full" type="submit" [disabled]="pending()">
+        <button type="submit" class="btn btn-primary w-full" [disabled]="pending()">
           @if (pending()) {
             <span class="loading loading-spinner loading-sm"></span>
           } @else {

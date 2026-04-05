@@ -94,5 +94,41 @@ describe('BootstrapPage', () => {
 
     expect(navSpy).toHaveBeenCalledWith(['/login']);
   });
+
+  it('password toggle switches input type', () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const pwInput = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('#bs-password');
+    expect(pwInput?.type).toBe('password');
+
+    comp.showPw.set(true);
+    fixture.detectChanges();
+    expect(pwInput?.type).toBe('text');
+  });
+
+  it('shows validation errors when form is submitted with empty fields', () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Submit with empty form
+    comp.submit();
+    fixture.detectChanges();
+
+    const errors = (fixture.nativeElement as HTMLElement).querySelectorAll('.text-error');
+    expect(errors.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('submit button is disabled while pending', () => {
+    const fixture = TestBed.createComponent(BootstrapPage);
+    const comp = fixture.componentInstance;
+    comp.pending.set(true);
+    fixture.detectChanges();
+
+    const btn = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('[type="submit"]');
+    expect(btn?.disabled).toBe(true);
+  });
 });
 

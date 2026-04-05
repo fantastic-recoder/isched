@@ -22,12 +22,17 @@ export class BootstrapPage {
 
   readonly pending = signal(false);
   readonly globalError = signal<string | null>(null);
+  readonly showPw = signal(false);
 
   readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],
     displayName: ['', [Validators.required, Validators.minLength(2)]],
     password: ['', [Validators.required, Validators.minLength(12)]],
   });
+
+  get email() { return this.form.controls.email; }
+  get displayName() { return this.form.controls.displayName; }
+  get password() { return this.form.controls.password; }
 
   submit(): void {
     this.form.markAllAsTouched();
