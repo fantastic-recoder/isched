@@ -1,0 +1,22 @@
+{
+  "passDir": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03",
+  "artifactPath": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json",
+  "overallStatus": "PASS",
+  "ctestStatus": "PASS",
+  "coverageStatus": "PASS",
+  "schemaStatus": "PASS",
+  "docsSpecStatus": "PASS",
+  "ctestExitCode": 0,
+  "coverageExitCode": 0,
+  "schemaExitCode": 0,
+  "lineCoveragePct": 91.6,
+  "branchCoveragePct": 88.2,
+  "testsGreen": true,
+  "artifactValidation": true,
+  "docsSpecUpdated": true,
+  "docsSpecUpdatesCount": 2,
+  "ctestOutput": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/ctest-green.txt",
+  "coverageOutput": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/coverage.txt",
+  "schemaOutput": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/schema-validation.txt",
+  "timestamp": "2026-04-06T00:45:00Z"
+}

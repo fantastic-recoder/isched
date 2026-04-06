@@ -21,6 +21,9 @@ scope_file="$3"
 shift 3
 
 schema_path="specs/008-dod-mech-refactor/contracts/refactor-pass-artifact.schema.json"
+if [[ "$pass_dir" == *"/009-raise-pass-improvement-ratio/"* ]]; then
+  schema_path="specs/009-raise-pass-improvement-ratio/contracts/recovery-pass-artifact.schema.json"
+fi
 status_file=""
 
 while [[ $# -gt 0 ]]; do
@@ -69,6 +72,16 @@ require_file() {
 
 : >"$log_file"
 
+artifact_path="$pass_dir/recovery-pass-artifact.json"
+if [[ ! -f "$artifact_path" ]]; then
+  artifact_path="$pass_dir/refactor-pass-artifact.json"
+fi
+
+effective_status_file="$status_file"
+if [[ -z "$effective_status_file" ]]; then
+  effective_status_file="$pass_dir/gate-status.json"
+fi
+
 # Stage 1: Analyze hot path evidence must exist.
 require_file "AnalyzeHotPaths" "$pass_dir/perf-baseline.txt"
 require_file "AnalyzeHotPaths" "$pass_dir/pass-summary.md"
@@ -82,21 +95,28 @@ fi
 log_stage "RedefineDataLayout" "PASS" "data layout/index notes found"
 
 # Stage 3: Logic refactor evidence must be represented in artifact intent.
-require_file "RefactorLogic" "$pass_dir/refactor-pass-artifact.json"
+require_file "RefactorLogic" "$artifact_path"
 log_stage "RefactorLogic" "PASS" "artifact intent present"
 
 # Stage 4: Execute tests + coverage + schema gates.
 verify_cmd=(tools/refactor_pass/verify_pass_gates.sh "$pass_dir" "$schema_path" "$ctest_regex" "$scope_file")
-if [[ -n "$status_file" ]]; then
-  verify_cmd+=(--status-file "$status_file")
-fi
+verify_cmd+=(--status-file "$effective_status_file")
+
+set +e
 "${verify_cmd[@]}" | tee -a "$log_file"
+verify_rc=${PIPESTATUS[0]}
+set -e
+if [[ $verify_rc -ne 0 ]]; then
+  log_stage "ExpandTestsAndVerify" "FAIL" "verification gates failed"
+  exit 1
+fi
 log_stage "ExpandTestsAndVerify" "PASS" "all verification gates passed"
 
 # Stage 5: Post-pass docs/perf closure must exist after verification.
 require_file "VerifyAndDocument" "$pass_dir/perf-post.txt"
 require_file "VerifyAndDocument" "$pass_dir/performance-summary.md"
 require_file "VerifyAndDocument" "$pass_dir/schema-validation.txt"
+require_file "VerifyAndDocument" "$effective_status_file"
 log_stage "VerifyAndDocument" "PASS" "post-pass docs and schema evidence present"
 
 echo "PASS: ordered workflow completed for $pass_dir" | tee -a "$log_file"

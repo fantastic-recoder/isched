@@ -1,0 +1,73 @@
+{
+  "passId": "pass-XX",
+  "selectedMetrics": [
+    {
+      "metricId": "wallTimeNs",
+      "direction": "LowerIsBetter",
+      "noiseFloorPct": 1.0,
+      "workloadId": "graphql-hotpath"
+    }
+  ],
+  "metricEvidence": {
+    "baseline": {
+      "wallTimeNs": 0,
+      "samples": 5,
+      "environmentFingerprint": "linux-x86_64"
+    },
+    "postPass": {
+      "wallTimeNs": 0,
+      "samples": 5,
+      "environmentFingerprint": "linux-x86_64"
+    },
+    "deltas": [
+      {
+        "metricId": "wallTimeNs",
+        "baselineValue": 0,
+        "postPassValue": 0,
+        "deltaValue": 0,
+        "deltaPct": 0,
+        "improved": true
+      }
+    ],
+    "repeatability": {
+      "runCount": 5,
+      "variancePct": 0.0,
+      "withinNoiseFloor": true
+    },
+    "evidenceFiles": [
+      "pass-XX/perf-baseline.txt",
+      "pass-XX/perf-post.txt"
+    ]
+  },
+  "gates": {
+    "testsGreen": true,
+    "affectedLineCoveragePct": 80,
+    "affectedBranchCoveragePct": 80,
+    "artifactValidation": true,
+    "docsSpecUpdated": true,
+    "gateEvidenceFiles": [
+      "pass-XX/ctest-green.txt",
+      "pass-XX/coverage.txt",
+      "pass-XX/schema-validation.txt"
+    ]
+  },
+  "classification": {
+    "improvement": "Improving",
+    "regressionStatus": "None",
+    "countsTowardRecovery": true,
+    "reason": "replace with measured rationale"
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_GqlExecutor.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_gql_executor_tests.cpp"
+    ],
+    "performanceSummary": "pass-XX/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/009-raise-pass-improvement-ratio/research.md"
+    ]
+  }
+}
+

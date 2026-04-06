@@ -1,6 +1,7 @@
 # refactor_pass helper scripts
 
-This directory provides helper scripts for the `008-dod-mech-refactor` pass workflow.
+This directory provides helper scripts for the `008-dod-mech-refactor` pass workflow
+and the `009-raise-pass-improvement-ratio` recovery workflow.
 
 ## Required command order
 
@@ -45,5 +46,31 @@ tools/refactor_pass/verify_pass_gates.sh \
   specs/008-dod-mech-refactor/contracts/refactor-pass-artifact.schema.json \
   "isched_(gql_executor|graphql)_tests" \
   specs/008-dod-mech-refactor/artifacts/pass-01/affected-scope.txt
+```
+
+## 009 recovery workflow commands
+
+### 1) Update the cumulative improvement ledger
+
+```bash
+python3 tools/refactor_pass/update_improvement_ledger.py \
+  --ledger specs/009-raise-pass-improvement-ratio/artifacts/improvement-ratio-ledger.json \
+  --pass-artifact specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json
+```
+
+### 2) Evaluate SC-002 compliance from ledger state
+
+```bash
+python3 tools/refactor_pass/evaluate_sc002_compliance.py \
+  --ledger specs/009-raise-pass-improvement-ratio/artifacts/improvement-ratio-ledger.json \
+  --output specs/009-raise-pass-improvement-ratio/artifacts/compliance-decision-record.json
+```
+
+### 3) Validate cross-artifact consistency for the recovery window
+
+```bash
+python3 tools/refactor_pass/validate_recovery_window.py \
+  --ledger specs/009-raise-pass-improvement-ratio/artifacts/improvement-ratio-ledger.json \
+  --artifacts-root specs/009-raise-pass-improvement-ratio/artifacts
 ```
 
