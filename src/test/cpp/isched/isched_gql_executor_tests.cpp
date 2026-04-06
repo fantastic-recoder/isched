@@ -615,6 +615,50 @@ namespace isched::v0_0_1::backend {
         REQUIRE(found);
     }
 
+    TEST_CASE("Sub-resolver: list element sub-selection preserves order and null entries",
+              "[gql][executor][sub-resolver][list][parity]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "users_list_parity", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json::array({
+                json{{"name", "Alice"}, {"age", 30}},
+                nullptr,
+                json{{"name", "Bob"}, {"age", 28}}
+            });
+        });
+
+        const auto load_res = proc.load_schema(
+            "type Query { users_list_parity: [UserType] } type UserType { name: String age: Int }");
+        REQUIRE(load_res.is_success());
+
+        const auto reply = proc.execute("{ users_list_parity { name age } }");
+        REQUIRE(reply.is_success());
+        REQUIRE(reply.data["users_list_parity"].is_array());
+        REQUIRE(reply.data["users_list_parity"].size() == 3);
+        REQUIRE(reply.data["users_list_parity"][0]["name"] == "Alice");
+        REQUIRE(reply.data["users_list_parity"][1].is_null());
+        REQUIRE(reply.data["users_list_parity"][2]["age"] == 28);
+    }
+
+    TEST_CASE("Sub-resolver: repeated nested field reads stay deterministic across executions",
+              "[gql][executor][sub-resolver][determinism]") {
+        GqlExecutor proc(std::make_shared<DatabaseManager>());
+
+        proc.register_resolver({}, "viewer", [](const json&, const json&, const ResolverCtx&) -> json {
+            return json{{"profile", {{"displayName", "isched-user"}}}};
+        });
+
+        const auto load_res = proc.load_schema(
+            "type Query { viewer: ViewerType } type ViewerType { profile: ProfileType } type ProfileType { displayName: String }");
+        REQUIRE(load_res.is_success());
+
+        for (int run = 0; run < 5; ++run) {
+            const auto reply = proc.execute("{ viewer { profile { displayName } } }");
+            REQUIRE(reply.is_success());
+            REQUIRE(reply.data["viewer"]["profile"]["displayName"] == "isched-user");
+        }
+    }
+
 } // namespace isched::v0_0_1::backend
 
 // ---------------------------------------------------------------------------

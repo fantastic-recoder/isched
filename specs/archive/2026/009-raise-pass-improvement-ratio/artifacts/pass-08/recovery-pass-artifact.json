@@ -1,0 +1,73 @@
+{
+  "passId": "pass-08",
+  "selectedMetrics": [
+    {
+      "metricId": "wallTimeNs",
+      "direction": "LowerIsBetter",
+      "noiseFloorPct": 1.0,
+      "workloadId": "graphql-hotpath"
+    }
+  ],
+  "metricEvidence": {
+    "baseline": {
+      "wallTimeNs": 85000,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "postPass": {
+      "wallTimeNs": 82600,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "deltas": [
+      {
+        "metricId": "wallTimeNs",
+        "baselineValue": 85000,
+        "postPassValue": 82600,
+        "deltaValue": -2400,
+        "deltaPct": -2.82,
+        "improved": true
+      }
+    ],
+    "repeatability": {
+      "runCount": 7,
+      "variancePct": 0.8,
+      "withinNoiseFloor": true
+    },
+    "evidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/perf-baseline.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/perf-post.txt"
+    ]
+  },
+  "gates": {
+    "testsGreen": true,
+    "affectedLineCoveragePct": 91.3,
+    "affectedBranchCoveragePct": 87.6,
+    "artifactValidation": true,
+    "docsSpecUpdated": true,
+    "gateEvidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/ctest-green.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/coverage.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/schema-validation.txt"
+    ]
+  },
+  "classification": {
+    "improvement": "Improving",
+    "regressionStatus": "None",
+    "countsTowardRecovery": true,
+    "reason": "Lowered allocator pressure in request assembly"
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_RequestContext.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_graphql_tests.cpp"
+    ],
+    "performanceSummary": "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/009-raise-pass-improvement-ratio/quickstart.md"
+    ]
+  }
+}
+

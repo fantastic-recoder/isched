@@ -1,0 +1,73 @@
+{
+  "passId": "pass-07",
+  "selectedMetrics": [
+    {
+      "metricId": "wallTimeNs",
+      "direction": "LowerIsBetter",
+      "noiseFloorPct": 1.0,
+      "workloadId": "graphql-hotpath"
+    }
+  ],
+  "metricEvidence": {
+    "baseline": {
+      "wallTimeNs": 87400,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "postPass": {
+      "wallTimeNs": 85000,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "deltas": [
+      {
+        "metricId": "wallTimeNs",
+        "baselineValue": 87400,
+        "postPassValue": 85000,
+        "deltaValue": -2400,
+        "deltaPct": -2.75,
+        "improved": true
+      }
+    ],
+    "repeatability": {
+      "runCount": 7,
+      "variancePct": 0.85,
+      "withinNoiseFloor": true
+    },
+    "evidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/perf-baseline.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/perf-post.txt"
+    ]
+  },
+  "gates": {
+    "testsGreen": true,
+    "affectedLineCoveragePct": 92.4,
+    "affectedBranchCoveragePct": 88.5,
+    "artifactValidation": true,
+    "docsSpecUpdated": true,
+    "gateEvidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/ctest-green.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/coverage.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/schema-validation.txt"
+    ]
+  },
+  "classification": {
+    "improvement": "Improving",
+    "regressionStatus": "None",
+    "countsTowardRecovery": true,
+    "reason": "Reduced subscription fan-out overhead"
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_subscription_broker_tests.cpp"
+    ],
+    "performanceSummary": "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/009-raise-pass-improvement-ratio/research.md"
+    ]
+  }
+}
+

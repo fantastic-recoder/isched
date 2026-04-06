@@ -218,3 +218,32 @@ TEST_CASE("GraphQL Performance", "[graphql][performance]") {
         }
     }
 }
+
+TEST_CASE("GraphQL Nested Selection Parity", "[graphql][executor][parity]") {
+    DatabaseManager::Config config;
+    config.base_path = "/tmp/isched_test_db";
+    auto database = std::make_shared<DatabaseManager>(config);
+    GqlExecutor executor(database);
+
+    executor.register_resolver({}, "usersParity", [](const json&, const json&, const ResolverCtx&) -> json {
+        return json::array({
+            json{{"name", "Alice"}},
+            nullptr,
+            json{{"name", "Bob"}}
+        });
+    });
+
+    const auto schema_result = executor.load_schema(
+        "type Query { usersParity: [User] } type User { name: String }");
+    REQUIRE(schema_result.is_success());
+
+    for (int i = 0; i < 3; ++i) {
+        const auto result = executor.execute("{ usersParity { name } }");
+        REQUIRE(result.is_success());
+        REQUIRE(result.data["usersParity"].is_array());
+        REQUIRE(result.data["usersParity"].size() == 3);
+        REQUIRE(result.data["usersParity"][0]["name"] == "Alice");
+        REQUIRE(result.data["usersParity"][1].is_null());
+        REQUIRE(result.data["usersParity"][2]["name"] == "Bob");
+    }
+}

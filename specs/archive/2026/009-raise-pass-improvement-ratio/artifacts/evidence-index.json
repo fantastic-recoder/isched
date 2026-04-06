@@ -1,0 +1,131 @@
+{
+  "featureRef": "009-raise-pass-improvement-ratio",
+  "baseline": {
+    "improvingCount": 1,
+    "completedCount": 2,
+    "sourceRef": "specs/008-dod-mech-refactor/artifacts/passes-rollup.md#baseline-1-2"
+  },
+  "ledgerRef": "specs/009-raise-pass-improvement-ratio/artifacts/improvement-ratio-ledger.json",
+  "decisionRef": "specs/009-raise-pass-improvement-ratio/artifacts/compliance-decision-record.json",
+  "countedPasses": [
+    {
+      "passId": "pass-03",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/gate-status.json",
+      "ledgerEntryRatioPct": 66.67,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-04",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/gate-status.json",
+      "ledgerEntryRatioPct": 75.0,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-05",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/gate-status.json",
+      "ledgerEntryRatioPct": 80.0,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-06",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/gate-status.json",
+      "ledgerEntryRatioPct": 83.33,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-07",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/gate-status.json",
+      "ledgerEntryRatioPct": 85.71,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-08",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/gate-status.json",
+      "ledgerEntryRatioPct": 87.5,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-09",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/gate-status.json",
+      "ledgerEntryRatioPct": 88.89,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json#artifacts"
+      ]
+    },
+    {
+      "passId": "pass-10",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "artifact": "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json",
+      "gateStatus": "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/gate-status.json",
+      "ledgerEntryRatioPct": 90.0,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json#artifacts"
+      ]
+    }
+  ],
+  "summary": {
+    "improvingCount": 9,
+    "completedCount": 10,
+    "improvementRatioPct": 90.0,
+    "sc002Compliant": true
+  },
+  "generatedAt": "2026-04-06T00:55:00Z"
+}

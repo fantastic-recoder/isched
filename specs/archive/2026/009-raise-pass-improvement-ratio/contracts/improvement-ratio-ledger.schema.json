@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isched.local/specs/009-raise-pass-improvement-ratio/improvement-ratio-ledger.schema.json",
+  "title": "ImprovementRatioLedger",
+  "description": "Cumulative ledger contract for SC-002 recovery tracking.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["baseline", "entries", "currentSummary", "updatedAt"],
+  "properties": {
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["improvingCount", "completedCount", "sourceRef"],
+      "properties": {
+        "improvingCount": { "type": "integer", "const": 1 },
+        "completedCount": { "type": "integer", "const": 2 },
+        "sourceRef": { "type": "string", "minLength": 1 }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ledgerEntry"
+      }
+    },
+    "currentSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "improvingCount",
+        "completedCount",
+        "improvementRatioPct",
+        "sc002Compliant"
+      ],
+      "properties": {
+        "improvingCount": { "type": "integer", "minimum": 1 },
+        "completedCount": { "type": "integer", "minimum": 2 },
+        "improvementRatioPct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "sc002Compliant": { "type": "boolean" }
+      }
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "currentSummary": {
+            "properties": { "improvementRatioPct": { "minimum": 90 } },
+            "required": ["improvementRatioPct"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "currentSummary": {
+            "properties": {
+              "sc002Compliant": { "const": true }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "ledgerEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "passId",
+        "classification",
+        "regressionStatus",
+        "improvingCount",
+        "completedCount",
+        "improvementRatioPct",
+        "evidenceRefs"
+      ],
+      "properties": {
+        "passId": { "type": "string", "minLength": 1 },
+        "classification": {
+          "type": "string",
+          "enum": ["Improving", "NonImproving", "Blocked"]
+        },
+        "regressionStatus": {
+          "type": "string",
+          "enum": ["None", "Mitigated", "Unmitigated"]
+        },
+        "improvingCount": { "type": "integer", "minimum": 1 },
+        "completedCount": { "type": "integer", "minimum": 3 },
+        "improvementRatioPct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidenceRefs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
+

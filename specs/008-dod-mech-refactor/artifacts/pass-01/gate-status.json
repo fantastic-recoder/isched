@@ -1,0 +1,14 @@
+{
+  "passDir": "specs/008-dod-mech-refactor/artifacts/pass-01",
+  "overallStatus": "FAIL",
+  "ctestStatus": "PASS",
+  "coverageStatus": "FAIL",
+  "schemaStatus": "PASS",
+  "ctestExitCode": 0,
+  "coverageExitCode": 64,
+  "schemaExitCode": 0,
+  "ctestOutput": "specs/008-dod-mech-refactor/artifacts/pass-01/ctest-green.txt",
+  "coverageOutput": "specs/008-dod-mech-refactor/artifacts/pass-01/coverage.txt",
+  "schemaOutput": "specs/008-dod-mech-refactor/artifacts/pass-01/schema-validation.txt",
+  "timestamp": "2026-04-06T21:33:54+02:00"
+}

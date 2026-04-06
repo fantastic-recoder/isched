@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isched.local/specs/009-raise-pass-improvement-ratio/recovery-pass-artifact.schema.json",
+  "title": "RecoveryPassArtifact",
+  "description": "Artifact contract for one improvement-ratio recovery pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "passId",
+    "selectedMetrics",
+    "metricEvidence",
+    "gates",
+    "classification",
+    "artifacts"
+  ],
+  "properties": {
+    "passId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selectedMetrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/metricTarget"
+      }
+    },
+    "metricEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "postPass",
+        "deltas",
+        "repeatability"
+      ],
+      "properties": {
+        "baseline": {
+          "$ref": "#/$defs/metricSnapshot"
+        },
+        "postPass": {
+          "$ref": "#/$defs/metricSnapshot"
+        },
+        "deltas": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/metricDelta"
+          }
+        },
+        "repeatability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["runCount", "variancePct", "withinNoiseFloor"],
+          "properties": {
+            "runCount": { "type": "integer", "minimum": 2 },
+            "variancePct": { "type": "number", "minimum": 0 },
+            "withinNoiseFloor": { "type": "boolean", "const": true }
+          }
+        },
+        "evidenceFiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "testsGreen",
+        "affectedLineCoveragePct",
+        "affectedBranchCoveragePct",
+        "artifactValidation",
+        "docsSpecUpdated"
+      ],
+      "properties": {
+        "testsGreen": { "type": "boolean", "const": true },
+        "affectedLineCoveragePct": { "type": "number", "minimum": 80, "maximum": 100 },
+        "affectedBranchCoveragePct": { "type": "number", "minimum": 80, "maximum": 100 },
+        "artifactValidation": { "type": "boolean", "const": true },
+        "docsSpecUpdated": { "type": "boolean", "const": true },
+        "gateEvidenceFiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["improvement", "regressionStatus", "countsTowardRecovery"],
+      "properties": {
+        "improvement": {
+          "type": "string",
+          "enum": ["Improving", "NonImproving", "Blocked"]
+        },
+        "regressionStatus": {
+          "type": "string",
+          "enum": ["None", "Mitigated", "Unmitigated"]
+        },
+        "countsTowardRecovery": { "type": "boolean" },
+        "reason": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "improvement": { "const": "Improving" } },
+            "required": ["improvement"]
+          },
+          "then": {
+            "properties": {
+              "countsTowardRecovery": { "const": true },
+              "regressionStatus": { "enum": ["None", "Mitigated"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "improvement": { "enum": ["NonImproving", "Blocked"] } },
+            "required": ["improvement"]
+          },
+          "then": {
+            "properties": {
+              "countsTowardRecovery": { "const": false }
+            }
+          }
+        }
+      ]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceUpdates",
+        "testUpdates",
+        "performanceSummary",
+        "docsSpecUpdates"
+      ],
+      "properties": {
+        "sourceUpdates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "\\.(hpp|cpp)$" }
+        },
+        "testUpdates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "performanceSummary": { "type": "string", "minLength": 1 },
+        "docsSpecUpdates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "metricTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metricId", "direction", "noiseFloorPct", "workloadId"],
+      "properties": {
+        "metricId": { "type": "string", "minLength": 1 },
+        "direction": {
+          "type": "string",
+          "enum": ["LowerIsBetter", "HigherIsBetter"]
+        },
+        "noiseFloorPct": { "type": "number", "minimum": 0 },
+        "workloadId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "metricSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wallTimeNs", "samples", "environmentFingerprint"],
+      "properties": {
+        "wallTimeNs": { "type": "integer", "minimum": 1 },
+        "cycles": { "type": "integer", "minimum": 0 },
+        "instructions": { "type": "integer", "minimum": 0 },
+        "branches": { "type": "integer", "minimum": 0 },
+        "branchMisses": { "type": "integer", "minimum": 0 },
+        "samples": { "type": "integer", "minimum": 1 },
+        "environmentFingerprint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "metricDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metricId",
+        "baselineValue",
+        "postPassValue",
+        "deltaPct",
+        "improved"
+      ],
+      "properties": {
+        "metricId": { "type": "string", "minLength": 1 },
+        "baselineValue": { "type": "number" },
+        "postPassValue": { "type": "number" },
+        "deltaValue": { "type": "number" },
+        "deltaPct": { "type": "number" },
+        "improved": { "type": "boolean" }
+      }
+    }
+  }
+}
+

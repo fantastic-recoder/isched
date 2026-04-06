@@ -384,6 +384,19 @@ namespace isched::v0_0_1::backend {
             m_shutdown_callback = std::move(cb);
         }
 
+        using FieldNodeList = std::vector<const gql::TAstNodePtr*>;
+
+        [[nodiscard]] FieldNodeList collect_field_nodes(
+            const gql::TAstNodePtr& p_selection_set,
+            gql::TErrorVector& p_errors) const;
+
+        void process_field_nodes(
+            const nlohmann::json& p_parent_result,
+            const ResolverPath& p_path,
+            const FieldNodeList& p_fields,
+            nlohmann::json& p_result,
+            gql::TErrorVector& p_errors) const;
+
     private:
 
         using TAstNodeMap = std::map<std::string, const gql::TAstNodePtr*>;
@@ -457,6 +470,7 @@ namespace isched::v0_0_1::backend {
             TransparentStringHash,
             std::equal_to<>>  m_query_cache;
 
+
         void update_type_map_recursive(const gql::TAstNodePtr &p_typedef, TAstNodeMap &p_type_map, TAstNodeMap &p_directives);
 
         void update_type_map();
@@ -508,3 +522,4 @@ namespace isched::v0_0_1::backend {
 // isched::v0_0_1
 
 #endif //ISCHED_GQL_PROCESSOR_HPP
+

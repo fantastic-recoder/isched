@@ -1,0 +1,18 @@
+# perf capture
+mode=baseline
+timestamp=2026-04-06T20:57:16+02:00
+command=/usr/bin/env bash -lc cd cmake-build-debug && ctest --output-on-failure -R isched_subscription_broker_tests
+
+## perf stat
+perf not found on PATH; falling back to /usr/bin/time
+Test project /home/groby/dev/isched/cmake-build-debug
+    Start 10: isched_subscription_broker_tests
+1/1 Test #10: isched_subscription_broker_tests ...   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+elapsed_seconds=0.84
+user_seconds=0.66
+sys_seconds=0.17
+max_rss_kb=102844

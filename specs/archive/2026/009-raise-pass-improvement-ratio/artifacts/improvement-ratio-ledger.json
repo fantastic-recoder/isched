@@ -1,0 +1,136 @@
+{
+  "baseline": {
+    "improvingCount": 1,
+    "completedCount": 2,
+    "sourceRef": "specs/008-dod-mech-refactor/artifacts/passes-rollup.md#baseline-1-2"
+  },
+  "entries": [
+    {
+      "passId": "pass-03",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 2,
+      "completedCount": 3,
+      "improvementRatioPct": 66.67,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-04",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 3,
+      "completedCount": 4,
+      "improvementRatioPct": 75.0,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-04/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-05",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 4,
+      "completedCount": 5,
+      "improvementRatioPct": 80.0,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-05/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-06",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 5,
+      "completedCount": 6,
+      "improvementRatioPct": 83.33,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-06/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-07",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 6,
+      "completedCount": 7,
+      "improvementRatioPct": 85.71,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-07/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-08",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 7,
+      "completedCount": 8,
+      "improvementRatioPct": 87.5,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-08/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-09",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 8,
+      "completedCount": 9,
+      "improvementRatioPct": 88.89,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-09/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    },
+    {
+      "passId": "pass-10",
+      "classification": "Improving",
+      "regressionStatus": "None",
+      "improvingCount": 9,
+      "completedCount": 10,
+      "improvementRatioPct": 90.0,
+      "evidenceRefs": [
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json#metricEvidence",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json#gates",
+        "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/recovery-pass-artifact.json#artifacts"
+      ],
+      "recordedAt": "2026-04-06T00:30:00Z"
+    }
+  ],
+  "currentSummary": {
+    "improvingCount": 9,
+    "completedCount": 10,
+    "improvementRatioPct": 90.0,
+    "sc002Compliant": true
+  },
+  "updatedAt": "2026-04-06T00:30:00Z"
+}

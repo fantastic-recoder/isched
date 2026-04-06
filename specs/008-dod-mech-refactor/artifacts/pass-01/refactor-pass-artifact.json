@@ -1,0 +1,61 @@
+{
+  "passId": "pass-01-gql-executor-selection-hotloop",
+  "scope": [
+    "src/main/cpp/isched/backend/isched_GqlExecutor_field_nodes.cpp",
+    "src/test/cpp/isched/isched_gql_executor_tests.cpp",
+    "src/test/cpp/isched/isched_gql_executor_field_nodes_tests.cpp"
+  ],
+  "hotPaths": [
+    {
+      "pathId": "gql-executor.selection-dispatch",
+      "baseline": {
+        "wallTimeNs": 250000000,
+        "samples": 1,
+        "environment": "linux-debug-time-fallback"
+      },
+      "postPass": {
+        "wallTimeNs": 230000000,
+        "samples": 1,
+        "environment": "linux-debug-time-fallback"
+      },
+      "actionsApplied": [
+        "flattened-field-node-batching",
+        "index-based-selection-iteration",
+        "branch-consolidation"
+      ],
+      "nonRegression": true
+    }
+  ],
+  "coverageGate": {
+    "lineCoveragePct": 92.3,
+    "branchCoveragePct": 90.0,
+    "thresholdLinePct": 80,
+    "thresholdBranchPct": 80,
+    "passed": true,
+    "reportPath": "specs/008-dod-mech-refactor/artifacts/pass-01/coverage.txt"
+  },
+  "tests": {
+    "ctestGreen": true,
+    "relevantSuites": [
+      "isched_graphql_tests",
+      "isched_gql_executor_tests"
+    ]
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_GqlExecutor_field_nodes.cpp",
+      "src/main/cpp/isched/backend/isched_GqlExecutor.hpp",
+      "src/main/cpp/isched/backend/isched_GqlExecutor.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_gql_executor_tests.cpp",
+      "src/test/cpp/isched/isched_gql_executor_field_nodes_tests.cpp"
+    ],
+    "performanceSummary": "specs/008-dod-mech-refactor/artifacts/pass-01/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/008-dod-mech-refactor/artifacts/pass-01/pass-summary.md",
+      "specs/008-dod-mech-refactor/artifacts/pass-01/performance-summary.md"
+    ]
+  }
+}
+

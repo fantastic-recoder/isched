@@ -8,7 +8,10 @@ add_executable(isched_graphql_tests isched_graphql_tests.cpp)
 target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
-add_executable(isched_gql_executor_tests isched_gql_executor_tests.cpp isched_test_run_listener.cpp)
+add_executable(isched_gql_executor_tests
+        isched_gql_executor_tests.cpp
+        isched_gql_executor_field_nodes_tests.cpp
+        isched_test_run_listener.cpp)
 target_link_libraries(isched_gql_executor_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
 add_test(NAME isched_gql_executor_tests COMMAND isched_gql_executor_tests)
 

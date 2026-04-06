@@ -1,0 +1,1 @@
+PASS: recovery window artifacts are cross-consistent

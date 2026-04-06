@@ -1,0 +1,9 @@
+Test project /home/groby/dev/isched/cmake-build-debug
+    Start 10: isched_subscription_broker_tests
+1/2 Test #10: isched_subscription_broker_tests ...   Passed    0.00 sec
+    Start 23: test_graphql_subscriptions
+2/2 Test #23: test_graphql_subscriptions .........   Passed    2.04 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   2.05 sec

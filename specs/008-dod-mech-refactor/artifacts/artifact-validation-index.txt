@@ -1,0 +1,14 @@
+# Artifact validation index
+generated_at=2026-04-06T21:46:09+02:00
+schema=specs/008-dod-mech-refactor/contracts/refactor-pass-artifact.schema.json
+
+## pass-01
+status=PASS
+artifact=specs/008-dod-mech-refactor/artifacts/pass-01/refactor-pass-artifact.json
+output=specs/008-dod-mech-refactor/artifacts/pass-01/schema-validation.txt
+
+## pass-02
+status=PASS
+artifact=specs/008-dod-mech-refactor/artifacts/pass-02/refactor-pass-artifact.json
+output=specs/008-dod-mech-refactor/artifacts/pass-02/schema-validation.txt
+

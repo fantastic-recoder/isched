@@ -1,0 +1,65 @@
+{
+  "passId": "pass-xx-component-hotpath",
+  "scope": [
+    "src/main/cpp/isched/backend/isched_Component.hpp",
+    "src/main/cpp/isched/backend/isched_Component.cpp",
+    "src/test/cpp/isched/isched_component_tests.cpp"
+  ],
+  "hotPaths": [
+    {
+      "pathId": "component.hotloop",
+      "baseline": {
+        "wallTimeNs": 1000000,
+        "cycles": 0,
+        "instructions": 0,
+        "branches": 0,
+        "branchMisses": 0,
+        "samples": 5,
+        "environment": "linux-debug"
+      },
+      "postPass": {
+        "wallTimeNs": 950000,
+        "cycles": 0,
+        "instructions": 0,
+        "branches": 0,
+        "branchMisses": 0,
+        "samples": 5,
+        "environment": "linux-debug"
+      },
+      "actionsApplied": [
+        "branch-consolidation",
+        "index-addressable-loop"
+      ],
+      "nonRegression": true
+    }
+  ],
+  "coverageGate": {
+    "lineCoveragePct": 80,
+    "branchCoveragePct": 80,
+    "thresholdLinePct": 80,
+    "thresholdBranchPct": 80,
+    "passed": true,
+    "reportPath": "specs/008-dod-mech-refactor/artifacts/pass-xx/coverage.txt"
+  },
+  "tests": {
+    "ctestGreen": true,
+    "relevantSuites": [
+      "isched_gql_executor_tests",
+      "isched_graphql_tests"
+    ]
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_Component.hpp",
+      "src/main/cpp/isched/backend/isched_Component.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_component_tests.cpp"
+    ],
+    "performanceSummary": "specs/008-dod-mech-refactor/artifacts/pass-xx/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/008-dod-mech-refactor/artifacts/pass-xx/pass-summary.md"
+    ]
+  }
+}
+

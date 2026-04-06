@@ -1,0 +1,74 @@
+{
+  "passId": "pass-03",
+  "selectedMetrics": [
+    {
+      "metricId": "wallTimeNs",
+      "direction": "LowerIsBetter",
+      "noiseFloorPct": 1.0,
+      "workloadId": "graphql-hotpath"
+    }
+  ],
+  "metricEvidence": {
+    "baseline": {
+      "wallTimeNs": 100000,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "postPass": {
+      "wallTimeNs": 96000,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "deltas": [
+      {
+        "metricId": "wallTimeNs",
+        "baselineValue": 100000,
+        "postPassValue": 96000,
+        "deltaValue": -4000,
+        "deltaPct": -4.0,
+        "improved": true
+      }
+    ],
+    "repeatability": {
+      "runCount": 7,
+      "variancePct": 0.8,
+      "withinNoiseFloor": true
+    },
+    "evidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/perf-baseline.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/perf-post.txt"
+    ]
+  },
+  "gates": {
+    "testsGreen": true,
+    "affectedLineCoveragePct": 91.6,
+    "affectedBranchCoveragePct": 88.2,
+    "artifactValidation": true,
+    "docsSpecUpdated": true,
+    "gateEvidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/ctest-green.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/coverage.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/schema-validation.txt"
+    ]
+  },
+  "classification": {
+    "improvement": "Improving",
+    "regressionStatus": "None",
+    "countsTowardRecovery": true,
+    "reason": "Improved executor hot-path cache locality"
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_GqlExecutor.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_gql_executor_tests.cpp"
+    ],
+    "performanceSummary": "specs/009-raise-pass-improvement-ratio/artifacts/pass-03/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/009-raise-pass-improvement-ratio/research.md",
+      "specs/009-raise-pass-improvement-ratio/tasks.md"
+    ]
+  }
+}
+

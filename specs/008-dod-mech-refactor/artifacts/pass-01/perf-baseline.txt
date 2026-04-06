@@ -1,0 +1,2259 @@
+# perf capture
+mode=baseline
+timestamp=2026-04-06T19:47:13+02:00
+command=./cmake-build-debug/src/test/cpp/isched/isched_graphql_tests
+
+## perf stat
+perf not found on PATH; falling back to /usr/bin/time
+Randomness seeded to: 586701317
+[2026-04-06 19:47:13.463] [info] Database manager initialized with base path: /tmp/isched_test_db
+{
+    "hello": "Hello, GraphQL!"
+}[2026-04-06 19:47:13.477] [info] Database manager initialized with base path: /tmp/isched_test_db
+digraph parse_tree
+{
+  x0x4bec290 [ label="ROOT" ]
+  x0x4bec290 -> { x0x4beb650 }
+  x0x4beb650 [ label="isched::v0_0_1::gql::Document\n\"{hello}\"" ]
+  x0x4beb650 -> { x0x4bef100 }
+  x0x4bef100 [ label="isched::v0_0_1::gql::ExecutableDefinition\n\"{hello}\"" ]
+  x0x4bef100 -> { x0x4bf1a50 }
+  x0x4bf1a50 [ label="isched::v0_0_1::gql::OperationDefinition\n\"{hello}\"" ]
+  x0x4bf1a50 -> { x0x4bf1ad0 }
+  x0x4bf1ad0 [ label="isched::v0_0_1::gql::SelectionSet\n\"{hello}\"" ]
+  x0x4bf1ad0 -> { x0x4bf1c50 }
+  x0x4bf1c50 [ label="isched::v0_0_1::gql::Selection\n\"hello\"" ]
+  x0x4bf1c50 -> { x0x4bf1cd0 }
+  x0x4bf1cd0 [ label="isched::v0_0_1::gql::Field\n\"hello\"" ]
+  x0x4bf1cd0 -> { x0x4bf1dd0 }
+  x0x4bf1dd0 [ label="isched::v0_0_1::gql::Name\n\"hello\"" ]
+}
+
+************************************************************************
+
+{
+    "hello": "Hello, GraphQL!"
+}[2026-04-06 19:47:13.492] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.505] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.519] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.532] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.549] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.563] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.577] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.590] [error] "ExecutableDocument" error / no AST generated!? Input rest:"invalid syntax".
+        [1;34mposition[m ExecutableDocument:1:1
+#1      [36misched::v0_0_1::gql::Document[m
+#2        [36misched::v0_0_1::gql::IgnoredMany[m
+#3          [36misched::v0_0_1::gql::Ignored[m
+#4            [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#5            [36misched::v0_0_1::gql::Whitespace[m
+              [31mfailure[m
+#6            [36misched::v0_0_1::gql::LineTerminator[m
+              [31mfailure[m
+#7            [36misched::v0_0_1::gql::Comma[m
+              [31mfailure[m
+#8            [36misched::v0_0_1::gql::Comment[m
+#9              [36mtao::pegtl::ascii::one<'#'>[m
+                [31mfailure[m
+              [31mfailure[m #8 [37misched::v0_0_1::gql::Comment[m
+            [31mfailure[m #3 [37misched::v0_0_1::gql::Ignored[m
+          [32msuccess[m #2 [37misched::v0_0_1::gql::IgnoredMany[m
+#10       [36mtao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany> >[m
+#11         [36mtao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany>[m
+#12           [36misched::v0_0_1::gql::Definition[m
+#13             [36misched::v0_0_1::gql::TypeSystemDefinitionOrExtension[m
+#14               [36misched::v0_0_1::gql::TypeSystemDefinition[m
+#15                 [36misched::v0_0_1::gql::SchemaDefinition[m
+#16                   [36misched::v0_0_1::gql::TSeps[m
+#17                     [36misched::v0_0_1::gql::TSeparator[m
+#18                       [36misched::v0_0_1::gql::WhitespaceOnly[m
+#19                         [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#20                         [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #18 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#21                       [36misched::v0_0_1::gql::Comment[m
+#22                         [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #21 [37misched::v0_0_1::gql::Comment[m
+#23                       [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #17 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #16 [37misched::v0_0_1::gql::TSeps[m
+#24                   [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#25                     [36misched::v0_0_1::gql::Description[m
+#26                       [36misched::v0_0_1::gql::BlockString[m
+#27                         [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #26 [37misched::v0_0_1::gql::BlockString[m
+#28                       [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#29                         [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#30                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #29 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#31                         [36misched::v0_0_1::gql::QuotedString[m
+#32                           [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #31 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #28 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #25 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #24 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#33                   [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::Beg, tao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::RootOperationTypeDefinition, isched::v0_0_1::gql::TSeps> >, isched::v0_0_1::gql::End, isched::v0_0_1::gql::TSeps>[m
+#34                     [36misched::v0_0_1::gql::TSeps[m
+#35                       [36misched::v0_0_1::gql::TSeparator[m
+#36                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#37                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#38                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #36 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#39                         [36misched::v0_0_1::gql::Comment[m
+#40                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #39 [37misched::v0_0_1::gql::Comment[m
+#41                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #35 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #34 [37misched::v0_0_1::gql::TSeps[m
+#42                     [36mtao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>[m
+                        [31mfailure[m
+                      [31mfailure[m #33 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::Beg, tao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::RootOperationTypeDefinition, isched::v0_0_1::gql::TSeps> >, isched::v0_0_1::gql::End, isched::v0_0_1::gql::TSeps>[m
+                    [31mfailure[m #15 [37misched::v0_0_1::gql::SchemaDefinition[m
+#43                 [36misched::v0_0_1::gql::TypeDefinition[m
+#44                   [36misched::v0_0_1::gql::ScalarTypeDefinition[m
+#45                     [36misched::v0_0_1::gql::TSeps[m
+#46                       [36misched::v0_0_1::gql::TSeparator[m
+#47                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#48                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#49                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #47 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#50                         [36misched::v0_0_1::gql::Comment[m
+#51                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #50 [37misched::v0_0_1::gql::Comment[m
+#52                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #46 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #45 [37misched::v0_0_1::gql::TSeps[m
+#53                     [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#54                       [36misched::v0_0_1::gql::Description[m
+#55                         [36misched::v0_0_1::gql::BlockString[m
+#56                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #55 [37misched::v0_0_1::gql::BlockString[m
+#57                         [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#58                           [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#59                             [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #58 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#60                           [36misched::v0_0_1::gql::QuotedString[m
+#61                             [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #60 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #57 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #54 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #53 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#62                     [36misched::v0_0_1::gql::TSeps[m
+#63                       [36misched::v0_0_1::gql::TSeparator[m
+#64                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#65                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#66                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #64 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#67                         [36misched::v0_0_1::gql::Comment[m
+#68                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #67 [37misched::v0_0_1::gql::Comment[m
+#69                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #63 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #62 [37misched::v0_0_1::gql::TSeps[m
+#70                     [36mtao::pegtl::ascii::string<'s', 'c', 'a', 'l', 'a', 'r'>[m
+                        [31mfailure[m
+                      [31mfailure[m #44 [37misched::v0_0_1::gql::ScalarTypeDefinition[m
+#71                   [36misched::v0_0_1::gql::ObjectTypeDefinition[m
+#72                     [36misched::v0_0_1::gql::TSeps[m
+#73                       [36misched::v0_0_1::gql::TSeparator[m
+#74                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#75                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#76                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #74 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#77                         [36misched::v0_0_1::gql::Comment[m
+#78                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #77 [37misched::v0_0_1::gql::Comment[m
+#79                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #73 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #72 [37misched::v0_0_1::gql::TSeps[m
+#80                     [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#81                       [36misched::v0_0_1::gql::Description[m
+#82                         [36misched::v0_0_1::gql::BlockString[m
+#83                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #82 [37misched::v0_0_1::gql::BlockString[m
+#84                         [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#85                           [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#86                             [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #85 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#87                           [36misched::v0_0_1::gql::QuotedString[m
+#88                             [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #87 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #84 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #81 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #80 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#89                     [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'t', 'y', 'p', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::FieldsDefinition>[m
+#90                       [36misched::v0_0_1::gql::TSeps[m
+#91                         [36misched::v0_0_1::gql::TSeparator[m
+#92                           [36misched::v0_0_1::gql::WhitespaceOnly[m
+#93                             [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#94                             [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #92 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#95                           [36misched::v0_0_1::gql::Comment[m
+#96                             [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #95 [37misched::v0_0_1::gql::Comment[m
+#97                           [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #91 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #90 [37misched::v0_0_1::gql::TSeps[m
+#98                       [36mtao::pegtl::ascii::string<'t', 'y', 'p', 'e'>[m
+                          [31mfailure[m
+                        [31mfailure[m #89 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'t', 'y', 'p', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::FieldsDefinition>[m
+                      [31mfailure[m #71 [37misched::v0_0_1::gql::ObjectTypeDefinition[m
+#99                   [36misched::v0_0_1::gql::InterfaceTypeDefinition[m
+#100                    [36misched::v0_0_1::gql::TSeps[m
+#101                      [36misched::v0_0_1::gql::TSeparator[m
+#102                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#103                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#104                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #102 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#105                        [36misched::v0_0_1::gql::Comment[m
+#106                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #105 [37misched::v0_0_1::gql::Comment[m
+#107                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #101 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #100 [37misched::v0_0_1::gql::TSeps[m
+#108                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#109                      [36misched::v0_0_1::gql::Description[m
+#110                        [36misched::v0_0_1::gql::BlockString[m
+#111                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #110 [37misched::v0_0_1::gql::BlockString[m
+#112                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#113                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#114                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #113 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#115                          [36misched::v0_0_1::gql::QuotedString[m
+#116                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #115 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #112 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #109 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #108 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#117                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, tao::pegtl::opt<isched::v0_0_1::gql::FieldsDefinition> >[m
+#118                      [36misched::v0_0_1::gql::TSeps[m
+#119                        [36misched::v0_0_1::gql::TSeparator[m
+#120                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#121                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#122                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #120 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#123                          [36misched::v0_0_1::gql::Comment[m
+#124                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #123 [37misched::v0_0_1::gql::Comment[m
+#125                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #119 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #118 [37misched::v0_0_1::gql::TSeps[m
+#126                      [36mtao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>[m
+                          [31mfailure[m
+                        [31mfailure[m #117 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, tao::pegtl::opt<isched::v0_0_1::gql::FieldsDefinition> >[m
+                      [31mfailure[m #99 [37misched::v0_0_1::gql::InterfaceTypeDefinition[m
+#127                  [36misched::v0_0_1::gql::UnionTypeDefinition[m
+#128                    [36misched::v0_0_1::gql::TSeps[m
+#129                      [36misched::v0_0_1::gql::TSeparator[m
+#130                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#131                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#132                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #130 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#133                        [36misched::v0_0_1::gql::Comment[m
+#134                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #133 [37misched::v0_0_1::gql::Comment[m
+#135                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #129 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #128 [37misched::v0_0_1::gql::TSeps[m
+#136                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#137                      [36misched::v0_0_1::gql::Description[m
+#138                        [36misched::v0_0_1::gql::BlockString[m
+#139                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #138 [37misched::v0_0_1::gql::BlockString[m
+#140                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#141                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#142                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #141 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#143                          [36misched::v0_0_1::gql::QuotedString[m
+#144                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #143 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #140 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #137 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #136 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#145                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::UnionMemberTypes>[m
+#146                      [36misched::v0_0_1::gql::TSeps[m
+#147                        [36misched::v0_0_1::gql::TSeparator[m
+#148                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#149                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#150                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #148 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#151                          [36misched::v0_0_1::gql::Comment[m
+#152                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #151 [37misched::v0_0_1::gql::Comment[m
+#153                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #147 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #146 [37misched::v0_0_1::gql::TSeps[m
+#154                      [36mtao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+                        [31mfailure[m #145 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::UnionMemberTypes>[m
+                      [31mfailure[m #127 [37misched::v0_0_1::gql::UnionTypeDefinition[m
+#155                  [36misched::v0_0_1::gql::EnumTypeDefinition[m
+#156                    [36misched::v0_0_1::gql::TSeps[m
+#157                      [36misched::v0_0_1::gql::TSeparator[m
+#158                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#159                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#160                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #158 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#161                        [36misched::v0_0_1::gql::Comment[m
+#162                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #161 [37misched::v0_0_1::gql::Comment[m
+#163                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #157 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #156 [37misched::v0_0_1::gql::TSeps[m
+#164                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#165                      [36misched::v0_0_1::gql::Description[m
+#166                        [36misched::v0_0_1::gql::BlockString[m
+#167                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #166 [37misched::v0_0_1::gql::BlockString[m
+#168                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#169                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#170                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #169 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#171                          [36misched::v0_0_1::gql::QuotedString[m
+#172                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #171 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #168 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #165 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #164 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#173                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'e', 'n', 'u', 'm'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::EnumValuesDefinition>[m
+#174                      [36misched::v0_0_1::gql::TSeps[m
+#175                        [36misched::v0_0_1::gql::TSeparator[m
+#176                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#177                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#178                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #176 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#179                          [36misched::v0_0_1::gql::Comment[m
+#180                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #179 [37misched::v0_0_1::gql::Comment[m
+#181                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #175 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #174 [37misched::v0_0_1::gql::TSeps[m
+#182                      [36mtao::pegtl::ascii::string<'e', 'n', 'u', 'm'>[m
+                          [31mfailure[m
+                        [31mfailure[m #173 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'e', 'n', 'u', 'm'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::EnumValuesDefinition>[m
+                      [31mfailure[m #155 [37misched::v0_0_1::gql::EnumTypeDefinition[m
+#183                  [36misched::v0_0_1::gql::InputObjectTypeDefinition[m
+#184                    [36misched::v0_0_1::gql::TSeps[m
+#185                      [36misched::v0_0_1::gql::TSeparator[m
+#186                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#187                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#188                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #186 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#189                        [36misched::v0_0_1::gql::Comment[m
+#190                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #189 [37misched::v0_0_1::gql::Comment[m
+#191                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #185 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #184 [37misched::v0_0_1::gql::TSeps[m
+#192                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#193                      [36misched::v0_0_1::gql::Description[m
+#194                        [36misched::v0_0_1::gql::BlockString[m
+#195                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #194 [37misched::v0_0_1::gql::BlockString[m
+#196                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#197                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#198                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #197 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#199                          [36misched::v0_0_1::gql::QuotedString[m
+#200                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #199 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #196 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #193 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #192 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#201                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::InputFieldsDefinition>[m
+#202                      [36misched::v0_0_1::gql::TSeps[m
+#203                        [36misched::v0_0_1::gql::TSeparator[m
+#204                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#205                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#206                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #204 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#207                          [36misched::v0_0_1::gql::Comment[m
+#208                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #207 [37misched::v0_0_1::gql::Comment[m
+#209                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #203 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #202 [37misched::v0_0_1::gql::TSeps[m
+#210                      [36mtao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>[m
+                          [31mfailure[m
+                        [31mfailure[m #201 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::InputFieldsDefinition>[m
+                      [31mfailure[m #183 [37misched::v0_0_1::gql::InputObjectTypeDefinition[m
+                    [31mfailure[m #43 [37misched::v0_0_1::gql::TypeDefinition[m
+#211                [36misched::v0_0_1::gql::DirectiveDefinition[m
+#212                  [36misched::v0_0_1::gql::TSeps[m
+#213                    [36misched::v0_0_1::gql::TSeparator[m
+#214                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#215                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#216                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #214 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#217                      [36misched::v0_0_1::gql::Comment[m
+#218                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #217 [37misched::v0_0_1::gql::Comment[m
+#219                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #213 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #212 [37misched::v0_0_1::gql::TSeps[m
+#220                  [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#221                    [36misched::v0_0_1::gql::Description[m
+#222                      [36misched::v0_0_1::gql::BlockString[m
+#223                        [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #222 [37misched::v0_0_1::gql::BlockString[m
+#224                      [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#225                        [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#226                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #225 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#227                        [36misched::v0_0_1::gql::QuotedString[m
+#228                          [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #227 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #224 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #221 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #220 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#229                  [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>, isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::one<'@'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ArgumentsDefinition>, tao::pegtl::opt<tao::pegtl::seq<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'o', 'n'>, isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::DirectiveLocations> >, isched::v0_0_1::gql::TSeps>[m
+#230                    [36misched::v0_0_1::gql::TSeps[m
+#231                      [36misched::v0_0_1::gql::TSeparator[m
+#232                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#233                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#234                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #232 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#235                        [36misched::v0_0_1::gql::Comment[m
+#236                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #235 [37misched::v0_0_1::gql::Comment[m
+#237                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #231 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #230 [37misched::v0_0_1::gql::TSeps[m
+#238                    [36mtao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>[m
+                        [31mfailure[m
+                      [31mfailure[m #229 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>, isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::one<'@'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ArgumentsDefinition>, tao::pegtl::opt<tao::pegtl::seq<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'o', 'n'>, isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::DirectiveLocations> >, isched::v0_0_1::gql::TSeps>[m
+                    [31mfailure[m #211 [37misched::v0_0_1::gql::DirectiveDefinition[m
+                  [31mfailure[m #14 [37misched::v0_0_1::gql::TypeSystemDefinition[m
+#239              [36misched::v0_0_1::gql::TypeSystemExtension[m
+#240                [36misched::v0_0_1::gql::SchemaExtension[m
+#241                  [36misched::v0_0_1::gql::TSeps[m
+#242                    [36misched::v0_0_1::gql::TSeparator[m
+#243                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#244                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#245                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #243 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#246                      [36misched::v0_0_1::gql::Comment[m
+#247                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #246 [37misched::v0_0_1::gql::Comment[m
+#248                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #242 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #241 [37misched::v0_0_1::gql::TSeps[m
+#249                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #240 [37misched::v0_0_1::gql::SchemaExtension[m
+#250                [36misched::v0_0_1::gql::ObjectTypeExtension[m
+#251                  [36misched::v0_0_1::gql::TSeps[m
+#252                    [36misched::v0_0_1::gql::TSeparator[m
+#253                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#254                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#255                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #253 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#256                      [36misched::v0_0_1::gql::Comment[m
+#257                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #256 [37misched::v0_0_1::gql::Comment[m
+#258                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #252 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #251 [37misched::v0_0_1::gql::TSeps[m
+#259                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #250 [37misched::v0_0_1::gql::ObjectTypeExtension[m
+#260                [36misched::v0_0_1::gql::InterfaceTypeExtension[m
+#261                  [36misched::v0_0_1::gql::TSeps[m
+#262                    [36misched::v0_0_1::gql::TSeparator[m
+#263                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#264                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#265                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #263 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#266                      [36misched::v0_0_1::gql::Comment[m
+#267                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #266 [37misched::v0_0_1::gql::Comment[m
+#268                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #262 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #261 [37misched::v0_0_1::gql::TSeps[m
+#269                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #260 [37misched::v0_0_1::gql::InterfaceTypeExtension[m
+#270                [36misched::v0_0_1::gql::UnionTypeExtension[m
+#271                  [36misched::v0_0_1::gql::TSeps[m
+#272                    [36misched::v0_0_1::gql::TSeparator[m
+#273                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#274                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#275                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #273 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#276                      [36misched::v0_0_1::gql::Comment[m
+#277                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #276 [37misched::v0_0_1::gql::Comment[m
+#278                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #272 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #271 [37misched::v0_0_1::gql::TSeps[m
+#279                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #270 [37misched::v0_0_1::gql::UnionTypeExtension[m
+#280                [36misched::v0_0_1::gql::EnumTypeExtension[m
+#281                  [36misched::v0_0_1::gql::TSeps[m
+#282                    [36misched::v0_0_1::gql::TSeparator[m
+#283                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#284                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#285                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #283 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#286                      [36misched::v0_0_1::gql::Comment[m
+#287                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #286 [37misched::v0_0_1::gql::Comment[m
+#288                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #282 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #281 [37misched::v0_0_1::gql::TSeps[m
+#289                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #280 [37misched::v0_0_1::gql::EnumTypeExtension[m
+#290                [36misched::v0_0_1::gql::InputObjectTypeExtension[m
+#291                  [36misched::v0_0_1::gql::TSeps[m
+#292                    [36misched::v0_0_1::gql::TSeparator[m
+#293                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#294                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#295                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #293 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#296                      [36misched::v0_0_1::gql::Comment[m
+#297                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #296 [37misched::v0_0_1::gql::Comment[m
+#298                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #292 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #291 [37misched::v0_0_1::gql::TSeps[m
+#299                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #290 [37misched::v0_0_1::gql::InputObjectTypeExtension[m
+#300                [36misched::v0_0_1::gql::ScalarTypeExtension[m
+#301                  [36misched::v0_0_1::gql::TSeps[m
+#302                    [36misched::v0_0_1::gql::TSeparator[m
+#303                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#304                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#305                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #303 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#306                      [36misched::v0_0_1::gql::Comment[m
+#307                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #306 [37misched::v0_0_1::gql::Comment[m
+#308                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #302 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #301 [37misched::v0_0_1::gql::TSeps[m
+#309                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #300 [37misched::v0_0_1::gql::ScalarTypeExtension[m
+                  [31mfailure[m #239 [37misched::v0_0_1::gql::TypeSystemExtension[m
+                [31mfailure[m #13 [37misched::v0_0_1::gql::TypeSystemDefinitionOrExtension[m
+#310            [36misched::v0_0_1::gql::ExecutableDefinition[m
+#311              [36misched::v0_0_1::gql::OperationDefinition[m
+#312                [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::opt<isched::v0_0_1::gql::Description>, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#313                  [36misched::v0_0_1::gql::TSeps[m
+#314                    [36misched::v0_0_1::gql::TSeparator[m
+#315                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#316                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#317                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #315 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#318                      [36misched::v0_0_1::gql::Comment[m
+#319                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #318 [37misched::v0_0_1::gql::Comment[m
+#320                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #314 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #313 [37misched::v0_0_1::gql::TSeps[m
+#321                  [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#322                    [36misched::v0_0_1::gql::Description[m
+#323                      [36misched::v0_0_1::gql::BlockString[m
+#324                        [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #323 [37misched::v0_0_1::gql::BlockString[m
+#325                      [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#326                        [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#327                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #326 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#328                        [36misched::v0_0_1::gql::QuotedString[m
+#329                          [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #328 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #325 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #322 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #321 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#330                  [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#331                    [36misched::v0_0_1::gql::TSeps[m
+#332                      [36misched::v0_0_1::gql::TSeparator[m
+#333                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#334                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#335                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #333 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#336                        [36misched::v0_0_1::gql::Comment[m
+#337                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #336 [37misched::v0_0_1::gql::Comment[m
+#338                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #332 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #331 [37misched::v0_0_1::gql::TSeps[m
+#339                    [36misched::v0_0_1::gql::OperationType[m
+#340                      [36mtao::pegtl::ascii::string<'q', 'u', 'e', 'r', 'y'>[m
+                          [31mfailure[m
+#341                      [36mtao::pegtl::ascii::string<'m', 'u', 't', 'a', 't', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+#342                      [36mtao::pegtl::ascii::string<'s', 'u', 'b', 's', 'c', 'r', 'i', 'p', 't', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+                        [31mfailure[m #339 [37misched::v0_0_1::gql::OperationType[m
+                      [31mfailure[m #330 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+                    [31mfailure[m #312 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::opt<isched::v0_0_1::gql::Description>, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#343                [36misched::v0_0_1::gql::SelectionSet[m
+#344                  [36misched::v0_0_1::gql::Beg[m
+                      [31mfailure[m
+                    [31mfailure[m #343 [37misched::v0_0_1::gql::SelectionSet[m
+                  [31mfailure[m #311 [37misched::v0_0_1::gql::OperationDefinition[m
+#345              [36misched::v0_0_1::gql::FragmentDefinition[m
+#346                [36misched::v0_0_1::gql::TSeps[m
+#347                  [36misched::v0_0_1::gql::TSeparator[m
+#348                    [36misched::v0_0_1::gql::WhitespaceOnly[m
+#349                      [36misched::v0_0_1::gql::LineTerminator[m
+                          [31mfailure[m
+#350                      [36misched::v0_0_1::gql::Whitespace[m
+                          [31mfailure[m
+                        [31mfailure[m #348 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#351                    [36misched::v0_0_1::gql::Comment[m
+#352                      [36mtao::pegtl::ascii::one<'#'>[m
+                          [31mfailure[m
+                        [31mfailure[m #351 [37misched::v0_0_1::gql::Comment[m
+#353                    [36misched::v0_0_1::gql::Comma[m
+                        [31mfailure[m
+                      [31mfailure[m #347 [37misched::v0_0_1::gql::TSeparator[m
+                    [32msuccess[m #346 [37misched::v0_0_1::gql::TSeps[m
+#354                [36mtao::pegtl::ascii::string<'f', 'r', 'a', 'g', 'm', 'e', 'n', 't'>[m
+                    [31mfailure[m
+                  [31mfailure[m #345 [37misched::v0_0_1::gql::FragmentDefinition[m
+                [31mfailure[m #310 [37misched::v0_0_1::gql::ExecutableDefinition[m
+              [31mfailure[m #12 [37misched::v0_0_1::gql::Definition[m
+            [31mfailure[m #11 [37mtao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany>[m
+          [31mfailure[m #10 [37mtao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany> >[m
+        [31mfailure[m #1 [37misched::v0_0_1::gql::Document[m
+[2026-04-06 19:47:13.595] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.626] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.645] [error] "SchemaDocument" error / no AST generated!? Input rest:"".
+        [1;34mposition[m SchemaDocument:1:1
+#1      [36misched::v0_0_1::gql::Document[m
+#2        [36misched::v0_0_1::gql::IgnoredMany[m
+#3          [36misched::v0_0_1::gql::Ignored[m
+#4            [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#5            [36misched::v0_0_1::gql::Whitespace[m
+              [31mfailure[m
+#6            [36misched::v0_0_1::gql::LineTerminator[m
+              [31mfailure[m
+#7            [36misched::v0_0_1::gql::Comma[m
+              [31mfailure[m
+#8            [36misched::v0_0_1::gql::Comment[m
+#9              [36mtao::pegtl::ascii::one<'#'>[m
+                [31mfailure[m
+              [31mfailure[m #8 [37misched::v0_0_1::gql::Comment[m
+            [31mfailure[m #3 [37misched::v0_0_1::gql::Ignored[m
+          [32msuccess[m #2 [37misched::v0_0_1::gql::IgnoredMany[m
+#10       [36mtao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany> >[m
+#11         [36mtao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany>[m
+#12           [36misched::v0_0_1::gql::Definition[m
+#13             [36misched::v0_0_1::gql::TypeSystemDefinitionOrExtension[m
+#14               [36misched::v0_0_1::gql::TypeSystemDefinition[m
+#15                 [36misched::v0_0_1::gql::SchemaDefinition[m
+#16                   [36misched::v0_0_1::gql::TSeps[m
+#17                     [36misched::v0_0_1::gql::TSeparator[m
+#18                       [36misched::v0_0_1::gql::WhitespaceOnly[m
+#19                         [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#20                         [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #18 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#21                       [36misched::v0_0_1::gql::Comment[m
+#22                         [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #21 [37misched::v0_0_1::gql::Comment[m
+#23                       [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #17 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #16 [37misched::v0_0_1::gql::TSeps[m
+#24                   [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#25                     [36misched::v0_0_1::gql::Description[m
+#26                       [36misched::v0_0_1::gql::BlockString[m
+#27                         [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #26 [37misched::v0_0_1::gql::BlockString[m
+#28                       [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#29                         [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#30                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #29 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#31                         [36misched::v0_0_1::gql::QuotedString[m
+#32                           [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #31 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #28 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #25 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #24 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#33                   [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::Beg, tao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::RootOperationTypeDefinition, isched::v0_0_1::gql::TSeps> >, isched::v0_0_1::gql::End, isched::v0_0_1::gql::TSeps>[m
+#34                     [36misched::v0_0_1::gql::TSeps[m
+#35                       [36misched::v0_0_1::gql::TSeparator[m
+#36                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#37                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#38                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #36 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#39                         [36misched::v0_0_1::gql::Comment[m
+#40                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #39 [37misched::v0_0_1::gql::Comment[m
+#41                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #35 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #34 [37misched::v0_0_1::gql::TSeps[m
+#42                     [36mtao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>[m
+                        [31mfailure[m
+                      [31mfailure[m #33 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::Beg, tao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::RootOperationTypeDefinition, isched::v0_0_1::gql::TSeps> >, isched::v0_0_1::gql::End, isched::v0_0_1::gql::TSeps>[m
+                    [31mfailure[m #15 [37misched::v0_0_1::gql::SchemaDefinition[m
+#43                 [36misched::v0_0_1::gql::TypeDefinition[m
+#44                   [36misched::v0_0_1::gql::ScalarTypeDefinition[m
+#45                     [36misched::v0_0_1::gql::TSeps[m
+#46                       [36misched::v0_0_1::gql::TSeparator[m
+#47                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#48                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#49                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #47 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#50                         [36misched::v0_0_1::gql::Comment[m
+#51                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #50 [37misched::v0_0_1::gql::Comment[m
+#52                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #46 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #45 [37misched::v0_0_1::gql::TSeps[m
+#53                     [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#54                       [36misched::v0_0_1::gql::Description[m
+#55                         [36misched::v0_0_1::gql::BlockString[m
+#56                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #55 [37misched::v0_0_1::gql::BlockString[m
+#57                         [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#58                           [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#59                             [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #58 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#60                           [36misched::v0_0_1::gql::QuotedString[m
+#61                             [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #60 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #57 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #54 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #53 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#62                     [36misched::v0_0_1::gql::TSeps[m
+#63                       [36misched::v0_0_1::gql::TSeparator[m
+#64                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#65                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#66                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #64 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#67                         [36misched::v0_0_1::gql::Comment[m
+#68                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #67 [37misched::v0_0_1::gql::Comment[m
+#69                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #63 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #62 [37misched::v0_0_1::gql::TSeps[m
+#70                     [36mtao::pegtl::ascii::string<'s', 'c', 'a', 'l', 'a', 'r'>[m
+                        [31mfailure[m
+                      [31mfailure[m #44 [37misched::v0_0_1::gql::ScalarTypeDefinition[m
+#71                   [36misched::v0_0_1::gql::ObjectTypeDefinition[m
+#72                     [36misched::v0_0_1::gql::TSeps[m
+#73                       [36misched::v0_0_1::gql::TSeparator[m
+#74                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#75                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#76                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #74 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#77                         [36misched::v0_0_1::gql::Comment[m
+#78                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #77 [37misched::v0_0_1::gql::Comment[m
+#79                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #73 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #72 [37misched::v0_0_1::gql::TSeps[m
+#80                     [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#81                       [36misched::v0_0_1::gql::Description[m
+#82                         [36misched::v0_0_1::gql::BlockString[m
+#83                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #82 [37misched::v0_0_1::gql::BlockString[m
+#84                         [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#85                           [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#86                             [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #85 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#87                           [36misched::v0_0_1::gql::QuotedString[m
+#88                             [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #87 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #84 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #81 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #80 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#89                     [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'t', 'y', 'p', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::FieldsDefinition>[m
+#90                       [36misched::v0_0_1::gql::TSeps[m
+#91                         [36misched::v0_0_1::gql::TSeparator[m
+#92                           [36misched::v0_0_1::gql::WhitespaceOnly[m
+#93                             [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#94                             [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #92 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#95                           [36misched::v0_0_1::gql::Comment[m
+#96                             [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #95 [37misched::v0_0_1::gql::Comment[m
+#97                           [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #91 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #90 [37misched::v0_0_1::gql::TSeps[m
+#98                       [36mtao::pegtl::ascii::string<'t', 'y', 'p', 'e'>[m
+                          [31mfailure[m
+                        [31mfailure[m #89 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'t', 'y', 'p', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::FieldsDefinition>[m
+                      [31mfailure[m #71 [37misched::v0_0_1::gql::ObjectTypeDefinition[m
+#99                   [36misched::v0_0_1::gql::InterfaceTypeDefinition[m
+#100                    [36misched::v0_0_1::gql::TSeps[m
+#101                      [36misched::v0_0_1::gql::TSeparator[m
+#102                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#103                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#104                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #102 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#105                        [36misched::v0_0_1::gql::Comment[m
+#106                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #105 [37misched::v0_0_1::gql::Comment[m
+#107                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #101 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #100 [37misched::v0_0_1::gql::TSeps[m
+#108                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#109                      [36misched::v0_0_1::gql::Description[m
+#110                        [36misched::v0_0_1::gql::BlockString[m
+#111                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #110 [37misched::v0_0_1::gql::BlockString[m
+#112                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#113                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#114                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #113 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#115                          [36misched::v0_0_1::gql::QuotedString[m
+#116                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #115 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #112 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #109 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #108 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#117                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, tao::pegtl::opt<isched::v0_0_1::gql::FieldsDefinition> >[m
+#118                      [36misched::v0_0_1::gql::TSeps[m
+#119                        [36misched::v0_0_1::gql::TSeparator[m
+#120                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#121                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#122                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #120 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#123                          [36misched::v0_0_1::gql::Comment[m
+#124                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #123 [37misched::v0_0_1::gql::Comment[m
+#125                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #119 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #118 [37misched::v0_0_1::gql::TSeps[m
+#126                      [36mtao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>[m
+                          [31mfailure[m
+                        [31mfailure[m #117 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, tao::pegtl::opt<isched::v0_0_1::gql::FieldsDefinition> >[m
+                      [31mfailure[m #99 [37misched::v0_0_1::gql::InterfaceTypeDefinition[m
+#127                  [36misched::v0_0_1::gql::UnionTypeDefinition[m
+#128                    [36misched::v0_0_1::gql::TSeps[m
+#129                      [36misched::v0_0_1::gql::TSeparator[m
+#130                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#131                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#132                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #130 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#133                        [36misched::v0_0_1::gql::Comment[m
+#134                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #133 [37misched::v0_0_1::gql::Comment[m
+#135                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #129 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #128 [37misched::v0_0_1::gql::TSeps[m
+#136                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#137                      [36misched::v0_0_1::gql::Description[m
+#138                        [36misched::v0_0_1::gql::BlockString[m
+#139                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #138 [37misched::v0_0_1::gql::BlockString[m
+#140                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#141                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#142                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #141 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#143                          [36misched::v0_0_1::gql::QuotedString[m
+#144                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #143 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #140 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #137 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #136 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#145                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::UnionMemberTypes>[m
+#146                      [36misched::v0_0_1::gql::TSeps[m
+#147                        [36misched::v0_0_1::gql::TSeparator[m
+#148                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#149                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#150                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #148 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#151                          [36misched::v0_0_1::gql::Comment[m
+#152                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #151 [37misched::v0_0_1::gql::Comment[m
+#153                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #147 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #146 [37misched::v0_0_1::gql::TSeps[m
+#154                      [36mtao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+                        [31mfailure[m #145 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::UnionMemberTypes>[m
+                      [31mfailure[m #127 [37misched::v0_0_1::gql::UnionTypeDefinition[m
+#155                  [36misched::v0_0_1::gql::EnumTypeDefinition[m
+#156                    [36misched::v0_0_1::gql::TSeps[m
+#157                      [36misched::v0_0_1::gql::TSeparator[m
+#158                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#159                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#160                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #158 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#161                        [36misched::v0_0_1::gql::Comment[m
+#162                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #161 [37misched::v0_0_1::gql::Comment[m
+#163                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #157 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #156 [37misched::v0_0_1::gql::TSeps[m
+#164                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#165                      [36misched::v0_0_1::gql::Description[m
+#166                        [36misched::v0_0_1::gql::BlockString[m
+#167                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #166 [37misched::v0_0_1::gql::BlockString[m
+#168                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#169                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#170                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #169 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#171                          [36misched::v0_0_1::gql::QuotedString[m
+#172                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #171 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #168 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #165 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #164 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#173                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'e', 'n', 'u', 'm'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::EnumValuesDefinition>[m
+#174                      [36misched::v0_0_1::gql::TSeps[m
+#175                        [36misched::v0_0_1::gql::TSeparator[m
+#176                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#177                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#178                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #176 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#179                          [36misched::v0_0_1::gql::Comment[m
+#180                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #179 [37misched::v0_0_1::gql::Comment[m
+#181                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #175 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #174 [37misched::v0_0_1::gql::TSeps[m
+#182                      [36mtao::pegtl::ascii::string<'e', 'n', 'u', 'm'>[m
+                          [31mfailure[m
+                        [31mfailure[m #173 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'e', 'n', 'u', 'm'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::EnumValuesDefinition>[m
+                      [31mfailure[m #155 [37misched::v0_0_1::gql::EnumTypeDefinition[m
+#183                  [36misched::v0_0_1::gql::InputObjectTypeDefinition[m
+#184                    [36misched::v0_0_1::gql::TSeps[m
+#185                      [36misched::v0_0_1::gql::TSeparator[m
+#186                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#187                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#188                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #186 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#189                        [36misched::v0_0_1::gql::Comment[m
+#190                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #189 [37misched::v0_0_1::gql::Comment[m
+#191                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #185 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #184 [37misched::v0_0_1::gql::TSeps[m
+#192                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#193                      [36misched::v0_0_1::gql::Description[m
+#194                        [36misched::v0_0_1::gql::BlockString[m
+#195                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #194 [37misched::v0_0_1::gql::BlockString[m
+#196                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#197                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#198                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #197 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#199                          [36misched::v0_0_1::gql::QuotedString[m
+#200                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #199 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #196 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #193 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #192 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#201                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::InputFieldsDefinition>[m
+#202                      [36misched::v0_0_1::gql::TSeps[m
+#203                        [36misched::v0_0_1::gql::TSeparator[m
+#204                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#205                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#206                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #204 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#207                          [36misched::v0_0_1::gql::Comment[m
+#208                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #207 [37misched::v0_0_1::gql::Comment[m
+#209                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #203 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #202 [37misched::v0_0_1::gql::TSeps[m
+#210                      [36mtao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>[m
+                          [31mfailure[m
+                        [31mfailure[m #201 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::InputFieldsDefinition>[m
+                      [31mfailure[m #183 [37misched::v0_0_1::gql::InputObjectTypeDefinition[m
+                    [31mfailure[m #43 [37misched::v0_0_1::gql::TypeDefinition[m
+#211                [36misched::v0_0_1::gql::DirectiveDefinition[m
+#212                  [36misched::v0_0_1::gql::TSeps[m
+#213                    [36misched::v0_0_1::gql::TSeparator[m
+#214                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#215                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#216                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #214 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#217                      [36misched::v0_0_1::gql::Comment[m
+#218                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #217 [37misched::v0_0_1::gql::Comment[m
+#219                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #213 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #212 [37misched::v0_0_1::gql::TSeps[m
+#220                  [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#221                    [36misched::v0_0_1::gql::Description[m
+#222                      [36misched::v0_0_1::gql::BlockString[m
+#223                        [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #222 [37misched::v0_0_1::gql::BlockString[m
+#224                      [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#225                        [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#226                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #225 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#227                        [36misched::v0_0_1::gql::QuotedString[m
+#228                          [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #227 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #224 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #221 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #220 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#229                  [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>, isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::one<'@'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ArgumentsDefinition>, tao::pegtl::opt<tao::pegtl::seq<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'o', 'n'>, isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::DirectiveLocations> >, isched::v0_0_1::gql::TSeps>[m
+#230                    [36misched::v0_0_1::gql::TSeps[m
+#231                      [36misched::v0_0_1::gql::TSeparator[m
+#232                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#233                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#234                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #232 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#235                        [36misched::v0_0_1::gql::Comment[m
+#236                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #235 [37misched::v0_0_1::gql::Comment[m
+#237                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #231 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #230 [37misched::v0_0_1::gql::TSeps[m
+#238                    [36mtao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>[m
+                        [31mfailure[m
+                      [31mfailure[m #229 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>, isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::one<'@'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ArgumentsDefinition>, tao::pegtl::opt<tao::pegtl::seq<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'o', 'n'>, isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::DirectiveLocations> >, isched::v0_0_1::gql::TSeps>[m
+                    [31mfailure[m #211 [37misched::v0_0_1::gql::DirectiveDefinition[m
+                  [31mfailure[m #14 [37misched::v0_0_1::gql::TypeSystemDefinition[m
+#239              [36misched::v0_0_1::gql::TypeSystemExtension[m
+#240                [36misched::v0_0_1::gql::SchemaExtension[m
+#241                  [36misched::v0_0_1::gql::TSeps[m
+#242                    [36misched::v0_0_1::gql::TSeparator[m
+#243                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#244                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#245                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #243 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#246                      [36misched::v0_0_1::gql::Comment[m
+#247                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #246 [37misched::v0_0_1::gql::Comment[m
+#248                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #242 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #241 [37misched::v0_0_1::gql::TSeps[m
+#249                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #240 [37misched::v0_0_1::gql::SchemaExtension[m
+#250                [36misched::v0_0_1::gql::ObjectTypeExtension[m
+#251                  [36misched::v0_0_1::gql::TSeps[m
+#252                    [36misched::v0_0_1::gql::TSeparator[m
+#253                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#254                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#255                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #253 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#256                      [36misched::v0_0_1::gql::Comment[m
+#257                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #256 [37misched::v0_0_1::gql::Comment[m
+#258                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #252 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #251 [37misched::v0_0_1::gql::TSeps[m
+#259                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #250 [37misched::v0_0_1::gql::ObjectTypeExtension[m
+#260                [36misched::v0_0_1::gql::InterfaceTypeExtension[m
+#261                  [36misched::v0_0_1::gql::TSeps[m
+#262                    [36misched::v0_0_1::gql::TSeparator[m
+#263                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#264                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#265                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #263 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#266                      [36misched::v0_0_1::gql::Comment[m
+#267                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #266 [37misched::v0_0_1::gql::Comment[m
+#268                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #262 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #261 [37misched::v0_0_1::gql::TSeps[m
+#269                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #260 [37misched::v0_0_1::gql::InterfaceTypeExtension[m
+#270                [36misched::v0_0_1::gql::UnionTypeExtension[m
+#271                  [36misched::v0_0_1::gql::TSeps[m
+#272                    [36misched::v0_0_1::gql::TSeparator[m
+#273                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#274                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#275                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #273 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#276                      [36misched::v0_0_1::gql::Comment[m
+#277                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #276 [37misched::v0_0_1::gql::Comment[m
+#278                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #272 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #271 [37misched::v0_0_1::gql::TSeps[m
+#279                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #270 [37misched::v0_0_1::gql::UnionTypeExtension[m
+#280                [36misched::v0_0_1::gql::EnumTypeExtension[m
+#281                  [36misched::v0_0_1::gql::TSeps[m
+#282                    [36misched::v0_0_1::gql::TSeparator[m
+#283                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#284                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#285                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #283 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#286                      [36misched::v0_0_1::gql::Comment[m
+#287                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #286 [37misched::v0_0_1::gql::Comment[m
+#288                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #282 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #281 [37misched::v0_0_1::gql::TSeps[m
+#289                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #280 [37misched::v0_0_1::gql::EnumTypeExtension[m
+#290                [36misched::v0_0_1::gql::InputObjectTypeExtension[m
+#291                  [36misched::v0_0_1::gql::TSeps[m
+#292                    [36misched::v0_0_1::gql::TSeparator[m
+#293                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#294                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#295                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #293 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#296                      [36misched::v0_0_1::gql::Comment[m
+#297                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #296 [37misched::v0_0_1::gql::Comment[m
+#298                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #292 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #291 [37misched::v0_0_1::gql::TSeps[m
+#299                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #290 [37misched::v0_0_1::gql::InputObjectTypeExtension[m
+#300                [36misched::v0_0_1::gql::ScalarTypeExtension[m
+#301                  [36misched::v0_0_1::gql::TSeps[m
+#302                    [36misched::v0_0_1::gql::TSeparator[m
+#303                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#304                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#305                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #303 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#306                      [36misched::v0_0_1::gql::Comment[m
+#307                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #306 [37misched::v0_0_1::gql::Comment[m
+#308                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #302 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #301 [37misched::v0_0_1::gql::TSeps[m
+#309                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #300 [37misched::v0_0_1::gql::ScalarTypeExtension[m
+                  [31mfailure[m #239 [37misched::v0_0_1::gql::TypeSystemExtension[m
+                [31mfailure[m #13 [37misched::v0_0_1::gql::TypeSystemDefinitionOrExtension[m
+#310            [36misched::v0_0_1::gql::ExecutableDefinition[m
+#311              [36misched::v0_0_1::gql::OperationDefinition[m
+#312                [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::opt<isched::v0_0_1::gql::Description>, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#313                  [36misched::v0_0_1::gql::TSeps[m
+#314                    [36misched::v0_0_1::gql::TSeparator[m
+#315                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#316                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#317                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #315 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#318                      [36misched::v0_0_1::gql::Comment[m
+#319                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #318 [37misched::v0_0_1::gql::Comment[m
+#320                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #314 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #313 [37misched::v0_0_1::gql::TSeps[m
+#321                  [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#322                    [36misched::v0_0_1::gql::Description[m
+#323                      [36misched::v0_0_1::gql::BlockString[m
+#324                        [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #323 [37misched::v0_0_1::gql::BlockString[m
+#325                      [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#326                        [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#327                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #326 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#328                        [36misched::v0_0_1::gql::QuotedString[m
+#329                          [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #328 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #325 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #322 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #321 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#330                  [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#331                    [36misched::v0_0_1::gql::TSeps[m
+#332                      [36misched::v0_0_1::gql::TSeparator[m
+#333                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#334                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#335                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #333 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#336                        [36misched::v0_0_1::gql::Comment[m
+#337                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #336 [37misched::v0_0_1::gql::Comment[m
+#338                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #332 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #331 [37misched::v0_0_1::gql::TSeps[m
+#339                    [36misched::v0_0_1::gql::OperationType[m
+#340                      [36mtao::pegtl::ascii::string<'q', 'u', 'e', 'r', 'y'>[m
+                          [31mfailure[m
+#341                      [36mtao::pegtl::ascii::string<'m', 'u', 't', 'a', 't', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+#342                      [36mtao::pegtl::ascii::string<'s', 'u', 'b', 's', 'c', 'r', 'i', 'p', 't', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+                        [31mfailure[m #339 [37misched::v0_0_1::gql::OperationType[m
+                      [31mfailure[m #330 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+                    [31mfailure[m #312 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::opt<isched::v0_0_1::gql::Description>, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#343                [36misched::v0_0_1::gql::SelectionSet[m
+#344                  [36misched::v0_0_1::gql::Beg[m
+                      [31mfailure[m
+                    [31mfailure[m #343 [37misched::v0_0_1::gql::SelectionSet[m
+                  [31mfailure[m #311 [37misched::v0_0_1::gql::OperationDefinition[m
+#345              [36misched::v0_0_1::gql::FragmentDefinition[m
+#346                [36misched::v0_0_1::gql::TSeps[m
+#347                  [36misched::v0_0_1::gql::TSeparator[m
+#348                    [36misched::v0_0_1::gql::WhitespaceOnly[m
+#349                      [36misched::v0_0_1::gql::LineTerminator[m
+                          [31mfailure[m
+#350                      [36misched::v0_0_1::gql::Whitespace[m
+                          [31mfailure[m
+                        [31mfailure[m #348 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#351                    [36misched::v0_0_1::gql::Comment[m
+#352                      [36mtao::pegtl::ascii::one<'#'>[m
+                          [31mfailure[m
+                        [31mfailure[m #351 [37misched::v0_0_1::gql::Comment[m
+#353                    [36misched::v0_0_1::gql::Comma[m
+                        [31mfailure[m
+                      [31mfailure[m #347 [37misched::v0_0_1::gql::TSeparator[m
+                    [32msuccess[m #346 [37misched::v0_0_1::gql::TSeps[m
+#354                [36mtao::pegtl::ascii::string<'f', 'r', 'a', 'g', 'm', 'e', 'n', 't'>[m
+                    [31mfailure[m
+                  [31mfailure[m #345 [37misched::v0_0_1::gql::FragmentDefinition[m
+                [31mfailure[m #310 [37misched::v0_0_1::gql::ExecutableDefinition[m
+              [31mfailure[m #12 [37misched::v0_0_1::gql::Definition[m
+            [31mfailure[m #11 [37mtao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany>[m
+          [31mfailure[m #10 [37mtao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany> >[m
+        [31mfailure[m #1 [37misched::v0_0_1::gql::Document[m
+[2026-04-06 19:47:13.650] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.667] [error] "SchemaDocument" error / no AST generated!? Input rest:"   
+	  ".
+        [1;34mposition[m SchemaDocument:1:1
+#1      [36misched::v0_0_1::gql::Document[m
+#2        [36misched::v0_0_1::gql::IgnoredMany[m
+#3          [36misched::v0_0_1::gql::Ignored[m
+#4            [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#5            [36misched::v0_0_1::gql::Whitespace[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:1:2
+            [32msuccess[m #3 [37misched::v0_0_1::gql::Ignored[m
+#6          [36misched::v0_0_1::gql::Ignored[m
+#7            [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#8            [36misched::v0_0_1::gql::Whitespace[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:1:3
+            [32msuccess[m #6 [37misched::v0_0_1::gql::Ignored[m
+#9          [36misched::v0_0_1::gql::Ignored[m
+#10           [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#11           [36misched::v0_0_1::gql::Whitespace[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:1:4
+            [32msuccess[m #9 [37misched::v0_0_1::gql::Ignored[m
+#12         [36misched::v0_0_1::gql::Ignored[m
+#13           [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#14           [36misched::v0_0_1::gql::Whitespace[m
+              [31mfailure[m
+#15           [36misched::v0_0_1::gql::LineTerminator[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:2:1
+            [32msuccess[m #12 [37misched::v0_0_1::gql::Ignored[m
+#16         [36misched::v0_0_1::gql::Ignored[m
+#17           [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#18           [36misched::v0_0_1::gql::Whitespace[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:2:2
+            [32msuccess[m #16 [37misched::v0_0_1::gql::Ignored[m
+#19         [36misched::v0_0_1::gql::Ignored[m
+#20           [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#21           [36misched::v0_0_1::gql::Whitespace[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:2:3
+            [32msuccess[m #19 [37misched::v0_0_1::gql::Ignored[m
+#22         [36misched::v0_0_1::gql::Ignored[m
+#23           [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#24           [36misched::v0_0_1::gql::Whitespace[m
+              [32msuccess[m
+              [1;34mposition[m SchemaDocument:2:4
+            [32msuccess[m #22 [37misched::v0_0_1::gql::Ignored[m
+#25         [36misched::v0_0_1::gql::Ignored[m
+#26           [36misched::v0_0_1::gql::UnicodeBOM[m
+              [31mfailure[m
+#27           [36misched::v0_0_1::gql::Whitespace[m
+              [31mfailure[m
+#28           [36misched::v0_0_1::gql::LineTerminator[m
+              [31mfailure[m
+#29           [36misched::v0_0_1::gql::Comma[m
+              [31mfailure[m
+#30           [36misched::v0_0_1::gql::Comment[m
+#31             [36mtao::pegtl::ascii::one<'#'>[m
+                [31mfailure[m
+              [31mfailure[m #30 [37misched::v0_0_1::gql::Comment[m
+            [31mfailure[m #25 [37misched::v0_0_1::gql::Ignored[m
+          [32msuccess[m #2 [37misched::v0_0_1::gql::IgnoredMany[m
+#32       [36mtao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany> >[m
+#33         [36mtao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany>[m
+#34           [36misched::v0_0_1::gql::Definition[m
+#35             [36misched::v0_0_1::gql::TypeSystemDefinitionOrExtension[m
+#36               [36misched::v0_0_1::gql::TypeSystemDefinition[m
+#37                 [36misched::v0_0_1::gql::SchemaDefinition[m
+#38                   [36misched::v0_0_1::gql::TSeps[m
+#39                     [36misched::v0_0_1::gql::TSeparator[m
+#40                       [36misched::v0_0_1::gql::WhitespaceOnly[m
+#41                         [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#42                         [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #40 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#43                       [36misched::v0_0_1::gql::Comment[m
+#44                         [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #43 [37misched::v0_0_1::gql::Comment[m
+#45                       [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #39 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #38 [37misched::v0_0_1::gql::TSeps[m
+#46                   [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#47                     [36misched::v0_0_1::gql::Description[m
+#48                       [36misched::v0_0_1::gql::BlockString[m
+#49                         [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #48 [37misched::v0_0_1::gql::BlockString[m
+#50                       [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#51                         [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#52                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #51 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#53                         [36misched::v0_0_1::gql::QuotedString[m
+#54                           [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #53 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #50 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #47 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #46 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#55                   [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::Beg, tao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::RootOperationTypeDefinition, isched::v0_0_1::gql::TSeps> >, isched::v0_0_1::gql::End, isched::v0_0_1::gql::TSeps>[m
+#56                     [36misched::v0_0_1::gql::TSeps[m
+#57                       [36misched::v0_0_1::gql::TSeparator[m
+#58                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#59                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#60                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #58 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#61                         [36misched::v0_0_1::gql::Comment[m
+#62                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #61 [37misched::v0_0_1::gql::Comment[m
+#63                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #57 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #56 [37misched::v0_0_1::gql::TSeps[m
+#64                     [36mtao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>[m
+                        [31mfailure[m
+                      [31mfailure[m #55 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'s', 'c', 'h', 'e', 'm', 'a'>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::Beg, tao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::RootOperationTypeDefinition, isched::v0_0_1::gql::TSeps> >, isched::v0_0_1::gql::End, isched::v0_0_1::gql::TSeps>[m
+                    [31mfailure[m #37 [37misched::v0_0_1::gql::SchemaDefinition[m
+#65                 [36misched::v0_0_1::gql::TypeDefinition[m
+#66                   [36misched::v0_0_1::gql::ScalarTypeDefinition[m
+#67                     [36misched::v0_0_1::gql::TSeps[m
+#68                       [36misched::v0_0_1::gql::TSeparator[m
+#69                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#70                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#71                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #69 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#72                         [36misched::v0_0_1::gql::Comment[m
+#73                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #72 [37misched::v0_0_1::gql::Comment[m
+#74                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #68 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #67 [37misched::v0_0_1::gql::TSeps[m
+#75                     [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#76                       [36misched::v0_0_1::gql::Description[m
+#77                         [36misched::v0_0_1::gql::BlockString[m
+#78                           [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #77 [37misched::v0_0_1::gql::BlockString[m
+#79                         [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#80                           [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#81                             [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #80 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#82                           [36misched::v0_0_1::gql::QuotedString[m
+#83                             [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #82 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #79 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #76 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #75 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#84                     [36misched::v0_0_1::gql::TSeps[m
+#85                       [36misched::v0_0_1::gql::TSeparator[m
+#86                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#87                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#88                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #86 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#89                         [36misched::v0_0_1::gql::Comment[m
+#90                           [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #89 [37misched::v0_0_1::gql::Comment[m
+#91                         [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #85 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #84 [37misched::v0_0_1::gql::TSeps[m
+#92                     [36mtao::pegtl::ascii::string<'s', 'c', 'a', 'l', 'a', 'r'>[m
+                        [31mfailure[m
+                      [31mfailure[m #66 [37misched::v0_0_1::gql::ScalarTypeDefinition[m
+#93                   [36misched::v0_0_1::gql::ObjectTypeDefinition[m
+#94                     [36misched::v0_0_1::gql::TSeps[m
+#95                       [36misched::v0_0_1::gql::TSeparator[m
+#96                         [36misched::v0_0_1::gql::WhitespaceOnly[m
+#97                           [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#98                           [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #96 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#99                         [36misched::v0_0_1::gql::Comment[m
+#100                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #99 [37misched::v0_0_1::gql::Comment[m
+#101                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #95 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #94 [37misched::v0_0_1::gql::TSeps[m
+#102                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#103                      [36misched::v0_0_1::gql::Description[m
+#104                        [36misched::v0_0_1::gql::BlockString[m
+#105                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #104 [37misched::v0_0_1::gql::BlockString[m
+#106                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#107                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#108                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #107 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#109                          [36misched::v0_0_1::gql::QuotedString[m
+#110                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #109 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #106 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #103 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #102 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#111                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'t', 'y', 'p', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::FieldsDefinition>[m
+#112                      [36misched::v0_0_1::gql::TSeps[m
+#113                        [36misched::v0_0_1::gql::TSeparator[m
+#114                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#115                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#116                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #114 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#117                          [36misched::v0_0_1::gql::Comment[m
+#118                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #117 [37misched::v0_0_1::gql::Comment[m
+#119                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #113 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #112 [37misched::v0_0_1::gql::TSeps[m
+#120                      [36mtao::pegtl::ascii::string<'t', 'y', 'p', 'e'>[m
+                          [31mfailure[m
+                        [31mfailure[m #111 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'t', 'y', 'p', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::FieldsDefinition>[m
+                      [31mfailure[m #93 [37misched::v0_0_1::gql::ObjectTypeDefinition[m
+#121                  [36misched::v0_0_1::gql::InterfaceTypeDefinition[m
+#122                    [36misched::v0_0_1::gql::TSeps[m
+#123                      [36misched::v0_0_1::gql::TSeparator[m
+#124                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#125                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#126                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #124 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#127                        [36misched::v0_0_1::gql::Comment[m
+#128                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #127 [37misched::v0_0_1::gql::Comment[m
+#129                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #123 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #122 [37misched::v0_0_1::gql::TSeps[m
+#130                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#131                      [36misched::v0_0_1::gql::Description[m
+#132                        [36misched::v0_0_1::gql::BlockString[m
+#133                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #132 [37misched::v0_0_1::gql::BlockString[m
+#134                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#135                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#136                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #135 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#137                          [36misched::v0_0_1::gql::QuotedString[m
+#138                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #137 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #134 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #131 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #130 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#139                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, tao::pegtl::opt<isched::v0_0_1::gql::FieldsDefinition> >[m
+#140                      [36misched::v0_0_1::gql::TSeps[m
+#141                        [36misched::v0_0_1::gql::TSeparator[m
+#142                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#143                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#144                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #142 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#145                          [36misched::v0_0_1::gql::Comment[m
+#146                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #145 [37misched::v0_0_1::gql::Comment[m
+#147                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #141 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #140 [37misched::v0_0_1::gql::TSeps[m
+#148                      [36mtao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>[m
+                          [31mfailure[m
+                        [31mfailure[m #139 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 't', 'e', 'r', 'f', 'a', 'c', 'e'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ImplementsInterfaces>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, tao::pegtl::opt<isched::v0_0_1::gql::FieldsDefinition> >[m
+                      [31mfailure[m #121 [37misched::v0_0_1::gql::InterfaceTypeDefinition[m
+#149                  [36misched::v0_0_1::gql::UnionTypeDefinition[m
+#150                    [36misched::v0_0_1::gql::TSeps[m
+#151                      [36misched::v0_0_1::gql::TSeparator[m
+#152                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#153                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#154                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #152 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#155                        [36misched::v0_0_1::gql::Comment[m
+#156                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #155 [37misched::v0_0_1::gql::Comment[m
+#157                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #151 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #150 [37misched::v0_0_1::gql::TSeps[m
+#158                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#159                      [36misched::v0_0_1::gql::Description[m
+#160                        [36misched::v0_0_1::gql::BlockString[m
+#161                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #160 [37misched::v0_0_1::gql::BlockString[m
+#162                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#163                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#164                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #163 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#165                          [36misched::v0_0_1::gql::QuotedString[m
+#166                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #165 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #162 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #159 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #158 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#167                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::UnionMemberTypes>[m
+#168                      [36misched::v0_0_1::gql::TSeps[m
+#169                        [36misched::v0_0_1::gql::TSeparator[m
+#170                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#171                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#172                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #170 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#173                          [36misched::v0_0_1::gql::Comment[m
+#174                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #173 [37misched::v0_0_1::gql::Comment[m
+#175                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #169 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #168 [37misched::v0_0_1::gql::TSeps[m
+#176                      [36mtao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+                        [31mfailure[m #167 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'u', 'n', 'i', 'o', 'n'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::UnionMemberTypes>[m
+                      [31mfailure[m #149 [37misched::v0_0_1::gql::UnionTypeDefinition[m
+#177                  [36misched::v0_0_1::gql::EnumTypeDefinition[m
+#178                    [36misched::v0_0_1::gql::TSeps[m
+#179                      [36misched::v0_0_1::gql::TSeparator[m
+#180                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#181                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#182                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #180 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#183                        [36misched::v0_0_1::gql::Comment[m
+#184                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #183 [37misched::v0_0_1::gql::Comment[m
+#185                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #179 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #178 [37misched::v0_0_1::gql::TSeps[m
+#186                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#187                      [36misched::v0_0_1::gql::Description[m
+#188                        [36misched::v0_0_1::gql::BlockString[m
+#189                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #188 [37misched::v0_0_1::gql::BlockString[m
+#190                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#191                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#192                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #191 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#193                          [36misched::v0_0_1::gql::QuotedString[m
+#194                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #193 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #190 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #187 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #186 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#195                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'e', 'n', 'u', 'm'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::EnumValuesDefinition>[m
+#196                      [36misched::v0_0_1::gql::TSeps[m
+#197                        [36misched::v0_0_1::gql::TSeparator[m
+#198                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#199                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#200                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #198 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#201                          [36misched::v0_0_1::gql::Comment[m
+#202                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #201 [37misched::v0_0_1::gql::Comment[m
+#203                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #197 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #196 [37misched::v0_0_1::gql::TSeps[m
+#204                      [36mtao::pegtl::ascii::string<'e', 'n', 'u', 'm'>[m
+                          [31mfailure[m
+                        [31mfailure[m #195 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'e', 'n', 'u', 'm'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::EnumValuesDefinition>[m
+                      [31mfailure[m #177 [37misched::v0_0_1::gql::EnumTypeDefinition[m
+#205                  [36misched::v0_0_1::gql::InputObjectTypeDefinition[m
+#206                    [36misched::v0_0_1::gql::TSeps[m
+#207                      [36misched::v0_0_1::gql::TSeparator[m
+#208                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#209                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#210                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #208 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#211                        [36misched::v0_0_1::gql::Comment[m
+#212                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #211 [37misched::v0_0_1::gql::Comment[m
+#213                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #207 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #206 [37misched::v0_0_1::gql::TSeps[m
+#214                    [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#215                      [36misched::v0_0_1::gql::Description[m
+#216                        [36misched::v0_0_1::gql::BlockString[m
+#217                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [31mfailure[m #216 [37misched::v0_0_1::gql::BlockString[m
+#218                        [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#219                          [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#220                            [36misched::v0_0_1::gql::TripleQuote[m
+                                [31mfailure[m
+                              [32msuccess[m #219 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#221                          [36misched::v0_0_1::gql::QuotedString[m
+#222                            [36mtao::pegtl::ascii::one<'\"'>[m
+                                [31mfailure[m
+                              [31mfailure[m #221 [37misched::v0_0_1::gql::QuotedString[m
+                            [31mfailure[m #218 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                          [31mfailure[m #215 [37misched::v0_0_1::gql::Description[m
+                        [32msuccess[m #214 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#223                    [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::InputFieldsDefinition>[m
+#224                      [36misched::v0_0_1::gql::TSeps[m
+#225                        [36misched::v0_0_1::gql::TSeparator[m
+#226                          [36misched::v0_0_1::gql::WhitespaceOnly[m
+#227                            [36misched::v0_0_1::gql::LineTerminator[m
+                                [31mfailure[m
+#228                            [36misched::v0_0_1::gql::Whitespace[m
+                                [31mfailure[m
+                              [31mfailure[m #226 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#229                          [36misched::v0_0_1::gql::Comment[m
+#230                            [36mtao::pegtl::ascii::one<'#'>[m
+                                [31mfailure[m
+                              [31mfailure[m #229 [37misched::v0_0_1::gql::Comment[m
+#231                          [36misched::v0_0_1::gql::Comma[m
+                              [31mfailure[m
+                            [31mfailure[m #225 [37misched::v0_0_1::gql::TSeparator[m
+                          [32msuccess[m #224 [37misched::v0_0_1::gql::TSeps[m
+#232                      [36mtao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>[m
+                          [31mfailure[m
+                        [31mfailure[m #223 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'i', 'n', 'p', 'u', 't'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::InputFieldsDefinition>[m
+                      [31mfailure[m #205 [37misched::v0_0_1::gql::InputObjectTypeDefinition[m
+                    [31mfailure[m #65 [37misched::v0_0_1::gql::TypeDefinition[m
+#233                [36misched::v0_0_1::gql::DirectiveDefinition[m
+#234                  [36misched::v0_0_1::gql::TSeps[m
+#235                    [36misched::v0_0_1::gql::TSeparator[m
+#236                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#237                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#238                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #236 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#239                      [36misched::v0_0_1::gql::Comment[m
+#240                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #239 [37misched::v0_0_1::gql::Comment[m
+#241                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #235 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #234 [37misched::v0_0_1::gql::TSeps[m
+#242                  [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#243                    [36misched::v0_0_1::gql::Description[m
+#244                      [36misched::v0_0_1::gql::BlockString[m
+#245                        [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #244 [37misched::v0_0_1::gql::BlockString[m
+#246                      [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#247                        [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#248                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #247 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#249                        [36misched::v0_0_1::gql::QuotedString[m
+#250                          [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #249 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #246 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #243 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #242 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#251                  [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>, isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::one<'@'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ArgumentsDefinition>, tao::pegtl::opt<tao::pegtl::seq<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'o', 'n'>, isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::DirectiveLocations> >, isched::v0_0_1::gql::TSeps>[m
+#252                    [36misched::v0_0_1::gql::TSeps[m
+#253                      [36misched::v0_0_1::gql::TSeparator[m
+#254                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#255                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#256                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #254 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#257                        [36misched::v0_0_1::gql::Comment[m
+#258                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #257 [37misched::v0_0_1::gql::Comment[m
+#259                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #253 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #252 [37misched::v0_0_1::gql::TSeps[m
+#260                    [36mtao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>[m
+                        [31mfailure[m
+                      [31mfailure[m #251 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'d', 'i', 'r', 'e', 'c', 't', 'i', 'v', 'e'>, isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::one<'@'>, isched::v0_0_1::gql::Name, tao::pegtl::opt<isched::v0_0_1::gql::ArgumentsDefinition>, tao::pegtl::opt<tao::pegtl::seq<isched::v0_0_1::gql::TSeps, tao::pegtl::ascii::string<'o', 'n'>, isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::DirectiveLocations> >, isched::v0_0_1::gql::TSeps>[m
+                    [31mfailure[m #233 [37misched::v0_0_1::gql::DirectiveDefinition[m
+                  [31mfailure[m #36 [37misched::v0_0_1::gql::TypeSystemDefinition[m
+#261              [36misched::v0_0_1::gql::TypeSystemExtension[m
+#262                [36misched::v0_0_1::gql::SchemaExtension[m
+#263                  [36misched::v0_0_1::gql::TSeps[m
+#264                    [36misched::v0_0_1::gql::TSeparator[m
+#265                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#266                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#267                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #265 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#268                      [36misched::v0_0_1::gql::Comment[m
+#269                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #268 [37misched::v0_0_1::gql::Comment[m
+#270                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #264 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #263 [37misched::v0_0_1::gql::TSeps[m
+#271                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #262 [37misched::v0_0_1::gql::SchemaExtension[m
+#272                [36misched::v0_0_1::gql::ObjectTypeExtension[m
+#273                  [36misched::v0_0_1::gql::TSeps[m
+#274                    [36misched::v0_0_1::gql::TSeparator[m
+#275                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#276                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#277                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #275 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#278                      [36misched::v0_0_1::gql::Comment[m
+#279                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #278 [37misched::v0_0_1::gql::Comment[m
+#280                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #274 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #273 [37misched::v0_0_1::gql::TSeps[m
+#281                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #272 [37misched::v0_0_1::gql::ObjectTypeExtension[m
+#282                [36misched::v0_0_1::gql::InterfaceTypeExtension[m
+#283                  [36misched::v0_0_1::gql::TSeps[m
+#284                    [36misched::v0_0_1::gql::TSeparator[m
+#285                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#286                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#287                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #285 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#288                      [36misched::v0_0_1::gql::Comment[m
+#289                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #288 [37misched::v0_0_1::gql::Comment[m
+#290                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #284 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #283 [37misched::v0_0_1::gql::TSeps[m
+#291                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #282 [37misched::v0_0_1::gql::InterfaceTypeExtension[m
+#292                [36misched::v0_0_1::gql::UnionTypeExtension[m
+#293                  [36misched::v0_0_1::gql::TSeps[m
+#294                    [36misched::v0_0_1::gql::TSeparator[m
+#295                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#296                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#297                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #295 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#298                      [36misched::v0_0_1::gql::Comment[m
+#299                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #298 [37misched::v0_0_1::gql::Comment[m
+#300                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #294 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #293 [37misched::v0_0_1::gql::TSeps[m
+#301                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #292 [37misched::v0_0_1::gql::UnionTypeExtension[m
+#302                [36misched::v0_0_1::gql::EnumTypeExtension[m
+#303                  [36misched::v0_0_1::gql::TSeps[m
+#304                    [36misched::v0_0_1::gql::TSeparator[m
+#305                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#306                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#307                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #305 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#308                      [36misched::v0_0_1::gql::Comment[m
+#309                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #308 [37misched::v0_0_1::gql::Comment[m
+#310                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #304 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #303 [37misched::v0_0_1::gql::TSeps[m
+#311                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #302 [37misched::v0_0_1::gql::EnumTypeExtension[m
+#312                [36misched::v0_0_1::gql::InputObjectTypeExtension[m
+#313                  [36misched::v0_0_1::gql::TSeps[m
+#314                    [36misched::v0_0_1::gql::TSeparator[m
+#315                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#316                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#317                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #315 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#318                      [36misched::v0_0_1::gql::Comment[m
+#319                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #318 [37misched::v0_0_1::gql::Comment[m
+#320                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #314 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #313 [37misched::v0_0_1::gql::TSeps[m
+#321                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #312 [37misched::v0_0_1::gql::InputObjectTypeExtension[m
+#322                [36misched::v0_0_1::gql::ScalarTypeExtension[m
+#323                  [36misched::v0_0_1::gql::TSeps[m
+#324                    [36misched::v0_0_1::gql::TSeparator[m
+#325                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#326                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#327                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #325 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#328                      [36misched::v0_0_1::gql::Comment[m
+#329                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #328 [37misched::v0_0_1::gql::Comment[m
+#330                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #324 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #323 [37misched::v0_0_1::gql::TSeps[m
+#331                  [36mtao::pegtl::ascii::string<'e', 'x', 't', 'e', 'n', 'd'>[m
+                      [31mfailure[m
+                    [31mfailure[m #322 [37misched::v0_0_1::gql::ScalarTypeExtension[m
+                  [31mfailure[m #261 [37misched::v0_0_1::gql::TypeSystemExtension[m
+                [31mfailure[m #35 [37misched::v0_0_1::gql::TypeSystemDefinitionOrExtension[m
+#332            [36misched::v0_0_1::gql::ExecutableDefinition[m
+#333              [36misched::v0_0_1::gql::OperationDefinition[m
+#334                [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::opt<isched::v0_0_1::gql::Description>, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#335                  [36misched::v0_0_1::gql::TSeps[m
+#336                    [36misched::v0_0_1::gql::TSeparator[m
+#337                      [36misched::v0_0_1::gql::WhitespaceOnly[m
+#338                        [36misched::v0_0_1::gql::LineTerminator[m
+                            [31mfailure[m
+#339                        [36misched::v0_0_1::gql::Whitespace[m
+                            [31mfailure[m
+                          [31mfailure[m #337 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#340                      [36misched::v0_0_1::gql::Comment[m
+#341                        [36mtao::pegtl::ascii::one<'#'>[m
+                            [31mfailure[m
+                          [31mfailure[m #340 [37misched::v0_0_1::gql::Comment[m
+#342                      [36misched::v0_0_1::gql::Comma[m
+                          [31mfailure[m
+                        [31mfailure[m #336 [37misched::v0_0_1::gql::TSeparator[m
+                      [32msuccess[m #335 [37misched::v0_0_1::gql::TSeps[m
+#343                  [36mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#344                    [36misched::v0_0_1::gql::Description[m
+#345                      [36misched::v0_0_1::gql::BlockString[m
+#346                        [36misched::v0_0_1::gql::TripleQuote[m
+                            [31mfailure[m
+                          [31mfailure[m #345 [37misched::v0_0_1::gql::BlockString[m
+#347                      [36mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+#348                        [36mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#349                          [36misched::v0_0_1::gql::TripleQuote[m
+                              [31mfailure[m
+                            [32msuccess[m #348 [37mtao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>[m
+#350                        [36misched::v0_0_1::gql::QuotedString[m
+#351                          [36mtao::pegtl::ascii::one<'\"'>[m
+                              [31mfailure[m
+                            [31mfailure[m #350 [37misched::v0_0_1::gql::QuotedString[m
+                          [31mfailure[m #347 [37mtao::pegtl::seq<tao::pegtl::not_at<isched::v0_0_1::gql::TripleQuote>, isched::v0_0_1::gql::QuotedString>[m
+                        [31mfailure[m #344 [37misched::v0_0_1::gql::Description[m
+                      [32msuccess[m #343 [37mtao::pegtl::opt<isched::v0_0_1::gql::Description>[m
+#352                  [36misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#353                    [36misched::v0_0_1::gql::TSeps[m
+#354                      [36misched::v0_0_1::gql::TSeparator[m
+#355                        [36misched::v0_0_1::gql::WhitespaceOnly[m
+#356                          [36misched::v0_0_1::gql::LineTerminator[m
+                              [31mfailure[m
+#357                          [36misched::v0_0_1::gql::Whitespace[m
+                              [31mfailure[m
+                            [31mfailure[m #355 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#358                        [36misched::v0_0_1::gql::Comment[m
+#359                          [36mtao::pegtl::ascii::one<'#'>[m
+                              [31mfailure[m
+                            [31mfailure[m #358 [37misched::v0_0_1::gql::Comment[m
+#360                        [36misched::v0_0_1::gql::Comma[m
+                            [31mfailure[m
+                          [31mfailure[m #354 [37misched::v0_0_1::gql::TSeparator[m
+                        [32msuccess[m #353 [37misched::v0_0_1::gql::TSeps[m
+#361                    [36misched::v0_0_1::gql::OperationType[m
+#362                      [36mtao::pegtl::ascii::string<'q', 'u', 'e', 'r', 'y'>[m
+                          [31mfailure[m
+#363                      [36mtao::pegtl::ascii::string<'m', 'u', 't', 'a', 't', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+#364                      [36mtao::pegtl::ascii::string<'s', 'u', 'b', 's', 'c', 'r', 'i', 'p', 't', 'i', 'o', 'n'>[m
+                          [31mfailure[m
+                        [31mfailure[m #361 [37misched::v0_0_1::gql::OperationType[m
+                      [31mfailure[m #352 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+                    [31mfailure[m #334 [37misched::v0_0_1::gql::SeqWithComments<isched::v0_0_1::gql::TSeps, tao::pegtl::opt<isched::v0_0_1::gql::Description>, isched::v0_0_1::gql::OperationType, tao::pegtl::opt<isched::v0_0_1::gql::Name>, tao::pegtl::opt<isched::v0_0_1::gql::VariablesDefinition>, tao::pegtl::opt<isched::v0_0_1::gql::DirectivesConst>, isched::v0_0_1::gql::SelectionSet>[m
+#365                [36misched::v0_0_1::gql::SelectionSet[m
+#366                  [36misched::v0_0_1::gql::Beg[m
+                      [31mfailure[m
+                    [31mfailure[m #365 [37misched::v0_0_1::gql::SelectionSet[m
+                  [31mfailure[m #333 [37misched::v0_0_1::gql::OperationDefinition[m
+#367              [36misched::v0_0_1::gql::FragmentDefinition[m
+#368                [36misched::v0_0_1::gql::TSeps[m
+#369                  [36misched::v0_0_1::gql::TSeparator[m
+#370                    [36misched::v0_0_1::gql::WhitespaceOnly[m
+#371                      [36misched::v0_0_1::gql::LineTerminator[m
+                          [31mfailure[m
+#372                      [36misched::v0_0_1::gql::Whitespace[m
+                          [31mfailure[m
+                        [31mfailure[m #370 [37misched::v0_0_1::gql::WhitespaceOnly[m
+#373                    [36misched::v0_0_1::gql::Comment[m
+#374                      [36mtao::pegtl::ascii::one<'#'>[m
+                          [31mfailure[m
+                        [31mfailure[m #373 [37misched::v0_0_1::gql::Comment[m
+#375                    [36misched::v0_0_1::gql::Comma[m
+                        [31mfailure[m
+                      [31mfailure[m #369 [37misched::v0_0_1::gql::TSeparator[m
+                    [32msuccess[m #368 [37misched::v0_0_1::gql::TSeps[m
+#376                [36mtao::pegtl::ascii::string<'f', 'r', 'a', 'g', 'm', 'e', 'n', 't'>[m
+                    [31mfailure[m
+                  [31mfailure[m #367 [37misched::v0_0_1::gql::FragmentDefinition[m
+                [31mfailure[m #332 [37misched::v0_0_1::gql::ExecutableDefinition[m
+              [31mfailure[m #34 [37misched::v0_0_1::gql::Definition[m
+            [31mfailure[m #33 [37mtao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany>[m
+          [31mfailure[m #32 [37mtao::pegtl::plus<tao::pegtl::seq<isched::v0_0_1::gql::Definition, isched::v0_0_1::gql::IgnoredMany> >[m
+        [31mfailure[m #1 [37misched::v0_0_1::gql::Document[m
+        [1;34mposition[m SchemaDocument:1:1
+[2026-04-06 19:47:13.671] [info] Database manager initialized with base path: /tmp/isched_test_db
+digraph parse_tree
+{
+  x0x4baf1a0 [ label="ROOT" ]
+  x0x4baf1a0 -> { x0x4bacec0 }
+  x0x4bacec0 [ label="isched::v0_0_1::gql::Document\n\"{ nonExistentField }\"" ]
+  x0x4bacec0 -> { x0x4bafdb0 }
+  x0x4bafdb0 [ label="isched::v0_0_1::gql::ExecutableDefinition\n\"{ nonExistentField }\"" ]
+  x0x4bafdb0 -> { x0x4bafd30 }
+  x0x4bafd30 [ label="isched::v0_0_1::gql::OperationDefinition\n\"{ nonExistentField }\"" ]
+  x0x4bafd30 -> { x0x4bb26c0 }
+  x0x4bb26c0 [ label="isched::v0_0_1::gql::SelectionSet\n\"{ nonExistentField }\"" ]
+  x0x4bb26c0 -> { x0x4bb28d0 }
+  x0x4bb28d0 [ label="isched::v0_0_1::gql::Selection\n\"nonExistentField \"" ]
+  x0x4bb28d0 -> { x0x4bb2950 }
+  x0x4bb2950 [ label="isched::v0_0_1::gql::Field\n\"nonExistentField \"" ]
+  x0x4bb2950 -> { x0x4bb2a50 }
+  x0x4bb2a50 [ label="isched::v0_0_1::gql::Name\n\"nonExistentField\"" ]
+}
+
+************************************************************************
+
+[2026-04-06 19:47:13.686] [info] Database manager initialized with base path: /tmp/isched_test_db
+[2026-04-06 19:47:13.700] [info] Database manager initialized with base path: /tmp/isched_test_db
+===============================================================================
+All tests passed (102 assertions in 5 test cases)
+
+elapsed_seconds=0.25
+user_seconds=0.23
+sys_seconds=0.01
+max_rss_kb=11984

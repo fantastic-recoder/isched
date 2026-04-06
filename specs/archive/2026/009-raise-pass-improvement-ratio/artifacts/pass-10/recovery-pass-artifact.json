@@ -1,0 +1,73 @@
+{
+  "passId": "pass-10",
+  "selectedMetrics": [
+    {
+      "metricId": "wallTimeNs",
+      "direction": "LowerIsBetter",
+      "noiseFloorPct": 1.0,
+      "workloadId": "graphql-hotpath"
+    }
+  ],
+  "metricEvidence": {
+    "baseline": {
+      "wallTimeNs": 80300,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "postPass": {
+      "wallTimeNs": 78000,
+      "samples": 7,
+      "environmentFingerprint": "linux-x86_64-gql-hotpath"
+    },
+    "deltas": [
+      {
+        "metricId": "wallTimeNs",
+        "baselineValue": 80300,
+        "postPassValue": 78000,
+        "deltaValue": -2300,
+        "deltaPct": -2.86,
+        "improved": true
+      }
+    ],
+    "repeatability": {
+      "runCount": 7,
+      "variancePct": 0.79,
+      "withinNoiseFloor": true
+    },
+    "evidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/perf-baseline.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/perf-post.txt"
+    ]
+  },
+  "gates": {
+    "testsGreen": true,
+    "affectedLineCoveragePct": 91.7,
+    "affectedBranchCoveragePct": 88.9,
+    "artifactValidation": true,
+    "docsSpecUpdated": true,
+    "gateEvidenceFiles": [
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/ctest-green.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/coverage.txt",
+      "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/schema-validation.txt"
+    ]
+  },
+  "classification": {
+    "improvement": "Improving",
+    "regressionStatus": "None",
+    "countsTowardRecovery": true,
+    "reason": "Improved persisted query cache fast path"
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_QueryCache.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_graphql_tests.cpp"
+    ],
+    "performanceSummary": "specs/009-raise-pass-improvement-ratio/artifacts/pass-10/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/009-raise-pass-improvement-ratio/tasks.md"
+    ]
+  }
+}
+

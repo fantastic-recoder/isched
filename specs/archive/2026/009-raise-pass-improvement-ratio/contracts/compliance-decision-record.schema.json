@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://isched.local/specs/009-raise-pass-improvement-ratio/compliance-decision-record.schema.json",
+  "title": "ComplianceDecisionRecord",
+  "description": "Final SC-002 compliance decision contract based on cumulative ledger evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decisionId",
+    "featureRef",
+    "sc002Status",
+    "numerator",
+    "denominator",
+    "ratioPct",
+    "evaluatedAt",
+    "ledgerRef",
+    "evidenceSet"
+  ],
+  "properties": {
+    "decisionId": { "type": "string", "minLength": 1 },
+    "featureRef": { "type": "string", "const": "009-raise-pass-improvement-ratio" },
+    "sc002Status": {
+      "type": "string",
+      "enum": ["Met", "NotMet", "Unresolved"]
+    },
+    "numerator": { "type": "integer", "minimum": 0 },
+    "denominator": { "type": "integer", "minimum": 1 },
+    "ratioPct": { "type": "number", "minimum": 0, "maximum": 100 },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ledgerRef": { "type": "string", "minLength": 1 },
+    "evidenceSet": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "unmitigatedRegressionPasses": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "notes": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "sc002Status": { "const": "Met" } },
+        "required": ["sc002Status"]
+      },
+      "then": {
+        "properties": {
+          "ratioPct": { "minimum": 90 },
+          "unmitigatedRegressionPasses": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "sc002Status": { "const": "Unresolved" } },
+        "required": ["sc002Status"]
+      },
+      "then": {
+        "required": ["notes"]
+      }
+    }
+  ]
+}
+

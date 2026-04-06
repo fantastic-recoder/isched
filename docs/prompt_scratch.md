@@ -47,22 +47,10 @@
 - **Functionality**
    On the Isched WebUI dashboard http://localhost:8080/isched/dashboard does not display informations beside "healthy" we need more infos, like logged in users, open connections, transaction cout and so one.
    
-   
-## Feature: Server refactoring
+////////////////////////////////////
+## Feature: Custom CMake Target for Testing and Coverage
+Can you add and document custom top level CMake target which
+will run unit tests and creates a test coverage report in a single command? The target should be named "check" and 
+should depend on the "test" target. When "check" is invoked, it should run all unit tests and then generate a code 
+coverage report using gcov or lcov, outputting the results to a directory named "coverage". 
 
-Clean Code Principles Impacting Performance
-
-When writing clean code, certain principles can enhance performance while maintaining readability and maintainability. Here are key principles to consider:
-Key Principles
-
-- Prefer Polymorphism: Using polymorphism instead of complex conditional statements (like if/else or switch) can lead to cleaner and more efficient code. This approach allows for easier extension and modification without altering existing code structures.
-
-- Small and Focused Functions: Functions should be small and perform a single task. This not only improves readability but also enhances performance by making it easier for the compiler to optimize the code.
-
-# Balancing Clean Code with Performance
-
-While adhering to clean code principles, it's crucial to be aware of potential performance trade-offs. Some practices, if applied too rigidly, may lead to inefficiencies. For example:
-Principle	Performance Impact
-Prefer Polymorphism	Generally positive; reduces complexity
-Small Functions	Positive; aids optimization
-Overzealous Abstraction	Can lead to performance issues if excessive
