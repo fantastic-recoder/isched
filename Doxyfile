@@ -8,6 +8,7 @@ PROJECT_BRIEF          = "Universal Application Server Backend with C++23, Graph
 
 # Input configuration
 INPUT                  = src/main/cpp/isched/backend \
+                         src/main/cpp/isched/shared \
                          src/main/cpp/isched/runtime \
                          src/cli-python \
                          src/cli-typescript \
