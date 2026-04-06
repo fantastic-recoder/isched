@@ -27,6 +27,12 @@ Dockerfile*
 .env*
 *.env
 
+# Python tooling artifacts
+__pycache__/
+*.pyc
+.venv/
+venv/
+
 # Test outputs
 test-results/
 coverage/

@@ -48,5 +48,9 @@
    On the Isched WebUI dashboard http://localhost:8080/isched/dashboard does not display informations beside "healthy" we need more infos, like logged in users, open connections, transaction cout and so one.
    
 ////////////////////////////////////
+## Feature: Custom CMake Target for Testing and Coverage
 Can you add and document custom top level CMake target which
-will run unit tests and creates a test coverage report in a single command? The target should be named "check" and should depend on the "test" target. When "check" is invoked, it should run all unit tests and then generate a code coverage report using gcov or lcov, outputting the results to a directory named "coverage". 
+will run unit tests and creates a test coverage report in a single command? The target should be named "check" and 
+should depend on the "test" target. When "check" is invoked, it should run all unit tests and then generate a code 
+coverage report using gcov or lcov, outputting the results to a directory named "coverage". 
+

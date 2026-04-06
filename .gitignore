@@ -43,6 +43,13 @@ graph_info.json
 .env*
 *.env
 
+# Python tooling artifacts
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
 # Documentation build output
 /docs/api/
 /docs/build/
