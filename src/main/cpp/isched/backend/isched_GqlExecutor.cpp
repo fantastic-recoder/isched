@@ -3169,20 +3169,25 @@ namespace isched::v0_0_1::backend {
                     my_args.contains("organizationId") && my_args["organizationId"].is_string() &&
                     !my_ctx.tenant_id.empty())
                 {
-                    const std::string requested_org = my_args["organizationId"].get<std::string>();
-                    if (requested_org != my_ctx.tenant_id) {
-                        gql::ErrorPath ep;
-                        for (const auto& s : my_field_path) ep.push_back(s);
-                        p_error.push_back(gql::Error{
-                            .code = gql::EErrorCodes::CONTEXT_MISMATCH,
-                            .message = std::format(
-                                "CONTEXT_MISMATCH: requested organizationId '{}' does not match active context '{}'",
-                                requested_org,
-                                my_ctx.tenant_id),
-                            .path = std::move(ep),
-                        });
-                        p_result[myFieldName] = nullptr;
-                        return false;
+                    const bool is_platform_admin = std::ranges::find(
+                        my_ctx.roles,
+                        std::string(Role::PLATFORM_ADMIN)) != my_ctx.roles.end();
+                    if (!is_platform_admin) {
+                        const std::string requested_org = my_args["organizationId"].get<std::string>();
+                        if (requested_org != my_ctx.tenant_id) {
+                            gql::ErrorPath ep;
+                            for (const auto& s : my_field_path) ep.push_back(s);
+                            p_error.push_back(gql::Error{
+                                .code = gql::EErrorCodes::CONTEXT_MISMATCH,
+                                .message = std::format(
+                                    "CONTEXT_MISMATCH: requested organizationId '{}' does not match active context '{}'",
+                                    requested_org,
+                                    my_ctx.tenant_id),
+                                .path = std::move(ep),
+                            });
+                            p_result[myFieldName] = nullptr;
+                            return false;
+                        }
                     }
                 }
             }
