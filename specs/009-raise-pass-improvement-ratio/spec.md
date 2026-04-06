@@ -1,8 +1,15 @@
+---
+spec_id: SP-009
+title: Improvement-Ratio Recovery Passes
+status: completed
+owner: @isched-dev
+---
+
 # Feature Specification: Improvement-Ratio Recovery Passes
 
 **Feature Branch**: `009-raise-pass-improvement-ratio`  
 **Created**: 2026-04-06  
-**Status**: Draft  
+**Status**: Completed  
 **Input**: User description: "Create a follow-up feature specification in this repository to close the gap in `specs/008-dod-mech-refactor/spec.md` success criterion SC-002 (>=90% of completed passes show measurable improvement in at least one selected hot-path metric). The new feature should define additional refactor/performance pass work needed to raise improvement ratio from current 1/2 to compliant level, while preserving all existing gates (green tests, >=80 line/branch affected-scope coverage, artifact validation, docs/spec updates). Produce a concrete, testable spec with user stories, functional requirements, measurable outcomes, and edge cases aligned with repo conventions."
 
 ## User Scenarios & Testing *(mandatory)*
