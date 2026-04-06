@@ -49,6 +49,14 @@
 
 #include "isched_gql_error.hpp"
 
+// AST enum-dispatch types (included early so generate_ast_and_log can reference
+// ast::CustomNode and ast::NodeSelector by qualified name at template definition time).
+// isched_NodeSelector.hpp only forward-declares the grammar structs — it does not
+// require their complete definitions until NodeSelector is instantiated (Phase 2),
+// which happens inside generate_ast_and_log after all grammar structs are complete.
+#include <isched/shared/ast/isched_CustomNode.hpp>
+#include <isched/shared/ast/isched_NodeSelector.hpp>
+
 namespace isched::v0_0_1::gql {
     struct Value;
     struct DefaultValue;
@@ -979,9 +987,15 @@ namespace isched::v0_0_1::gql {
     template<typename TGrammar>
     std::tuple<bool,std::unique_ptr<node>>
     generate_ast_and_log(string_input<>& p_in, const std::string &p_query_name, const bool p_trace_on_success=false, bool p_print_dot=false) {
-        std::unique_ptr<node> myRoot = pegtl::parse_tree::parse<
-            TGrammar, GqlSelector /*, ns_pegtl::nothing, control*/
+        // Build a typed tree using CustomNode + NodeSelector so every retained node
+        // carries a NodeType enumerator.  The unique_ptr is widened to the base
+        // node type for backward-compatible return; CustomNode* is safely deleted via
+        // node's virtual destructor, and children are stored as unique_ptr<node>
+        // pointing to CustomNode instances (accessible via static_cast<const CustomNode*>).
+        auto myTypedRoot = pegtl::parse_tree::parse<
+            TGrammar, ast::CustomNode, ast::NodeSelector
         >(p_in);
+        std::unique_ptr<node> myRoot(myTypedRoot.release());
         bool myParsingOk;
         if (myRoot) {
             if (p_print_dot) {
@@ -1016,4 +1030,5 @@ namespace isched::v0_0_1::gql {
     TAstNodePtr merge_type_definitions(TAstNodePtr &&p_schema_node, TAstNodePtr &&p_type_defs_node);
 
 }
+
 #endif //ISCHED_ISCHED_GQL_GRAMMAR_HPP

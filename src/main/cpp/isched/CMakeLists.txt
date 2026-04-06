@@ -12,6 +12,11 @@ add_library(isched
         shared/isched_exception_doc_path_not_found.cpp
         shared/isched_exception_doc_path_not_found.hpp
         shared/isched_exception_unknown_enum_value.hpp
+        shared/ast/isched_NodeType.hpp
+        shared/ast/isched_CustomNode.hpp
+        shared/ast/isched_CustomNode.cpp
+        shared/ast/isched_NodeSelector.hpp
+        shared/ast/isched_NonRecursiveVisitor.hpp
         backend/isched_LogEnvLoader.hpp
         # Universal Application Server Backend components
         backend/isched_common.hpp

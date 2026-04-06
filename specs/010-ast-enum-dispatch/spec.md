@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "Provide a complete C++ implementation for a custom AST node system in PEGTL replacing string-based rule identification with high-performance enum class dispatch."
 
+## Clarifications
+
+### Session 2026-04-06
+
+- Q: Is the non-recursive visitor a complete standalone implementation or an abstract base/CRTP extension point? → A: Complete standalone implementation — no extension contract needed; contributors modify in-place (YAGNI).
+- Q: What memory ownership model does TraversalFrame use for node pointers? → A: Raw non-owning observer pointers — PEGTL owns the parse tree via `unique_ptr` chains; TraversalFrame must never take ownership.
+- Q: Must existing `isched_ast_node_tests.cpp` pass unchanged after T007 integrates NodeSelector? → A: Yes — T007 is a drop-in; existing tests must pass without modification.
+- Q: Is `NodeType::Unknown` sufficient for partial or failed-parse scenarios? → A: Yes — `parse_tree::parse` never calls `transform` on failed parses; partial trees are unreachable through the PEGTL API.
+- Q: Is a hard performance ratio gate required for the T011 benchmark? → A: No — advisory benchmark only; records improvement evidence but does not gate acceptance.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Build typed AST nodes during parse (Priority: P1)
@@ -65,13 +75,13 @@ As a contributor, I can read complete API documentation for the custom node and 
 ### Functional Requirements
 
 - **FR-001**: The system MUST define a `CustomNode` type that inherits from `tao::pegtl::parse_tree::node`.
-- **FR-002**: `CustomNode` MUST store node identity in a `NodeType` enum class with `uint8_t` underlying storage.
+- **FR-002**: `CustomNode` MUST store node identity in a `NodeType` enum class with `uint8_t` underlying storage. The complete enumerator set is defined in the NodeType mapping table in §Key Entities above (39 named grammar rules + `Unknown` + `Sentinel`). `uint8_t` is sufficient as this is well below the 256-value ceiling.
 - **FR-003**: The system MUST provide a `NodeSelector` template with static transform behavior that maps grammar rules to `NodeType` values using `std::is_same_v` checks.
 - **FR-004**: Rule-to-node mapping logic MUST support compile-time branching with `if constexpr` and require C++23-or-newer compilation.
 - **FR-005**: Typed node construction MUST remain compatible with `tao::pegtl::parse_tree::parse` integration and existing parse flows.
 - **FR-006**: Node identification and dispatch MUST NOT use `dynamic_cast` or `std::type_info`.
 - **FR-007**: The feature MUST document and justify node-size minimization expectations for cache locality in deep-tree workloads.
-- **FR-008**: The feature MUST include a stack-based, non-recursive visitor skeleton that dispatches behavior by `NodeType`.
+- **FR-008**: The feature MUST include a stack-based, non-recursive visitor that is a **complete standalone implementation** (not an abstract base or CRTP extension point) and dispatches behavior by `NodeType` via a `switch` statement.
 - **FR-009**: The non-recursive visitor skeleton MUST define behavior for unknown or sentinel node types without undefined behavior.
 - **FR-010**: Public classes and methods introduced for this feature MUST include Doxygen documentation sections for Motivation, Pre-conditions, and Post-conditions.
 - **FR-011**: Feature acceptance tests MUST verify both functional parsing correctness and deep-nesting traversal safety.
@@ -79,10 +89,54 @@ As a contributor, I can read complete API documentation for the custom node and 
 ### Key Entities *(include if feature involves data)*
 
 - **CustomNode**: Parse tree node entity carrying typed identity (`NodeType`) and parse-tree payload inherited from PEGTL.
-- **NodeType**: Compact enum identity set defining supported AST node categories and sentinel/default categories.
+- **NodeType**: Compact `enum class` with `uint8_t` underlying storage defining supported AST node categories and sentinel/default categories. The following grammar rules from `isched_gql_grammar.hpp` MUST map to typed `NodeType` values (all others fall back to `NodeType::Unknown`):
+
+  | Grammar Rule | NodeType enumerator |
+  |---|---|
+  | `gql::Document` | `Document` |
+  | `gql::OperationDefinition` | `OperationDefinition` |
+  | `gql::SelectionSet` | `SelectionSet` |
+  | `gql::Field` | `Field` |
+  | `gql::Alias` | `Alias` |
+  | `gql::Arguments` | `Arguments` |
+  | `gql::Argument` | `Argument` |
+  | `gql::FragmentDefinition` | `FragmentDefinition` |
+  | `gql::FragmentSpread` | `FragmentSpread` |
+  | `gql::InlineFragment` | `InlineFragment` |
+  | `gql::TypeCondition` | `TypeCondition` |
+  | `gql::Variable` | `Variable` |
+  | `gql::VariableDefinition` | `VariableDefinition` |
+  | `gql::VariableDefinitions` | `VariableDefinitions` |
+  | `gql::Value` | `Value` |
+  | `gql::Name` | `Name` |
+  | `gql::NamedType` | `NamedType` |
+  | `gql::ListType` | `ListType` |
+  | `gql::NonNullType` | `NonNullType` |
+  | `gql::SchemaDefinition` | `SchemaDefinition` |
+  | `gql::ObjectTypeDefinition` | `ObjectTypeDefinition` |
+  | `gql::InterfaceTypeDefinition` | `InterfaceTypeDefinition` |
+  | `gql::UnionTypeDefinition` | `UnionTypeDefinition` |
+  | `gql::EnumTypeDefinition` | `EnumTypeDefinition` |
+  | `gql::InputObjectTypeDefinition` | `InputObjectTypeDefinition` |
+  | `gql::ScalarTypeDefinition` | `ScalarTypeDefinition` |
+  | `gql::FieldDefinition` | `FieldDefinition` |
+  | `gql::InputValueDefinition` | `InputValueDefinition` |
+  | `gql::DirectiveDefinition` | `DirectiveDefinition` |
+  | `gql::Description` | `Description` |
+  | `gql::StringValue` | `StringValue` |
+  | `gql::IntValue` | `IntValue` |
+  | `gql::FloatValue` | `FloatValue` |
+  | `gql::BooleanValue` | `BooleanValue` |
+  | `gql::NullValue` | `NullValue` |
+  | `gql::EnumValue` | `EnumValue` |
+  | `gql::ObjectValue` | `ObjectValue` |
+  | `gql::GqlQuery` | `GqlQuery` |
+  | *(sentinel)* | `Unknown` |
+  | *(fallback/default)* | `Sentinel` |
+
 - **NodeSelector**: Rule-to-node mapping policy that transforms grammar-rule matches into typed node-assignment decisions.
-- **TraversalFrame**: Stack entry representation used by the non-recursive visitor to track current node and traversal state.
-- **VisitorDispatchOutcome**: Result state capturing dispatch handling status, including successful processing and unknown-node fallback handling.
+- **TraversalFrame**: Stack entry representation used by the non-recursive visitor to track current node and traversal state. Holds **raw non-owning observer pointers** to `CustomNode`; PEGTL owns the parse tree via `unique_ptr` chains and `TraversalFrame` must never take or transfer ownership.
+- **VisitorDispatchOutcome**: Result `enum` capturing dispatch handling status values: `Success` (node processed by a mapped arm) and `UnknownNodeFallback` (node type had no mapped arm; fallback behavior executed without UB).
 
 ### Assumptions
 
@@ -90,6 +144,9 @@ As a contributor, I can read complete API documentation for the custom node and 
 - A fallback node type is acceptable for unmapped grammar rules as long as behavior is deterministic and test-covered.
 - Deep nesting validation is performed with synthetic and representative grammar samples sufficient to demonstrate non-recursive safety.
 - Documentation quality checks are part of feature acceptance, not optional follow-up work.
+- `NodeSelector::transform` is only invoked on successfully parsed nodes within a valid parse tree; `parse_tree::parse` returns a null `node_up` on failure and never calls `transform`. Therefore `NodeType::Unknown` is sufficient for all unmapped-rule scenarios and no `ParseError` node type is required.
+- The existing `isched_ast_node_tests.cpp` suite MUST continue to pass without modification after `NodeSelector` integration (T007 is a backward-compatible drop-in).
+- The T011 performance benchmark is advisory — it records the improvement ratio for review evidence but does not constitute a hard numeric acceptance gate.
 
 ## Success Criteria *(mandatory)*
 
@@ -100,3 +157,4 @@ As a contributor, I can read complete API documentation for the custom node and 
 - **SC-003**: 100% of node-dispatch code paths in this feature use enum-based dispatch and 0 acceptance-test findings show runtime type inspection (`dynamic_cast` or `std::type_info`).
 - **SC-004**: 100% of public APIs introduced by this feature include generated documentation with Motivation, Pre-conditions, and Post-conditions sections.
 - **SC-005**: In code review sign-off, maintainers confirm the specification and tests demonstrate improved maintainability over string-based node identification for the targeted AST flow.
+- **SC-006**: The T011 benchmark documents a measured performance ratio (enum-dispatch vs. string-comparison baseline) for review evidence; no minimum ratio is required as a gate.

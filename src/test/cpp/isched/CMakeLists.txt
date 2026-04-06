@@ -231,6 +231,23 @@ target_link_libraries(benchmark_suite PRIVATE isched Catch2::Catch2WithMain
     Boost::url Boost::system Boost::thread)
 add_test(NAME benchmark_suite COMMAND benchmark_suite)
 
+# 010-ast-enum-dispatch: CustomNode, NodeSelector, NonRecursiveVisitor unit tests
+add_executable(isched_custom_node_tests isched_custom_node_tests.cpp)
+target_link_libraries(isched_custom_node_tests PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog taocpp::pegtl)
+add_test(NAME isched_custom_node_tests COMMAND isched_custom_node_tests)
+
+add_executable(isched_visitor_tests isched_visitor_tests.cpp)
+target_link_libraries(isched_visitor_tests PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog taocpp::pegtl)
+add_test(NAME isched_visitor_tests COMMAND isched_visitor_tests)
+
+# Benchmark advisory test - tagged ADVISORY so CI does not gate on ratio
+add_executable(isched_ast_benchmarks isched_ast_benchmarks.cpp)
+target_link_libraries(isched_ast_benchmarks PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog taocpp::pegtl)
+add_test(NAME isched_ast_benchmarks COMMAND isched_ast_benchmarks)
+
 # Profiling build: same sources + -pg + -O2, links against the same libraries.
 # Does NOT register as a ctest so it stays out of the normal green-gate.
 # Usage:
@@ -266,6 +283,9 @@ set(_isched_fast_unit_tests
     isched_rest_datasource_tests
     isched_tenant_thread_pool_tests
     isched_metrics_tests
+    isched_custom_node_tests
+    isched_visitor_tests
+    isched_ast_benchmarks
 )
 
 set(_isched_integration_tests
