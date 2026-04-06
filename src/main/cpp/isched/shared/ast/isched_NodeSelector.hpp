@@ -203,7 +203,8 @@ struct NodeSelector<TRule> {
         gql::TypeDefinition,
         gql::SchemaDefinition,
         gql::RootOperationTypeDefinition,
-        gql::ObjectTypeDefinition,
+        // gql::ObjectTypeDefinition is intentionally excluded: it was not in GqlSelector.
+        // Its children (Name, FieldDefinition) float up to the parent TypeDefinition.
         gql::InterfaceTypeDefinition,
         gql::UnionTypeDefinition,
         gql::UnionMemberTypes,
@@ -214,7 +215,8 @@ struct NodeSelector<TRule> {
         gql::InputFieldsDefinition,
         gql::ScalarTypeDefinition,
         gql::FieldDefinition,
-        gql::FieldsDefinition,
+        // gql::FieldsDefinition is intentionally excluded: it was not in GqlSelector.
+        // Its FieldDefinition children float up to the parent (TypeDefinition or ObjectTypeDefinition).
         gql::ArgumentsDefinition,
         gql::InputValueDefinition,
         gql::DirectiveDefinition,
