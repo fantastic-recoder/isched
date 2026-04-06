@@ -1,4 +1,4 @@
-<section class="p-6 space-y-4">
+<section class="p-6 space-y-4" data-testid="users-page">
   <h1 id="users-heading" class="text-2xl font-semibold">Users</h1>
 
   @if (error()) {
@@ -40,6 +40,7 @@
       class="select select-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
       aria-label="Select organization context"
       aria-describedby="user-org-help"
+      data-testid="users-org-select"
       (change)="onOrgChange($any($event.target).value)"
       [value]="orgContext.selectedOrganizationId() ?? ''"
     >
@@ -78,7 +79,7 @@
       <span class="loading loading-spinner loading-lg" aria-label="Loading users"></span>
     </div>
   } @else {
-    <ul id="users-list" class="menu bg-base-100 rounded-box" aria-label="Organization users">
+    <ul id="users-list" class="menu bg-base-100 rounded-box" aria-label="Organization users" data-testid="users-list">
       @for (user of users(); track user.id) {
         <li class="border-b border-base-200 last:border-b-0 py-2">
           <button

@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.shell__content {
+  min-height: 0;
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+}
+
+.shell__status-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.shell__logo {
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08);
+}
+
+.shell__nav-link {
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}

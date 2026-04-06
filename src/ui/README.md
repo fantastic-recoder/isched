@@ -19,6 +19,19 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 - Typed reactive forms for user input flows.
 - `OnPush` change detection where feasible.
 
+## Shared authenticated shell ownership
+
+- Authenticated route chrome lives in `src/app/components/authenticated-shell/` and is the **single source** for the top navigation bar, sign-out entry point, and bottom status bar.
+- Do not add page-local navbars or page-local sign-out controls to authenticated pages such as `dashboard` or `admin/*`.
+- Route-level pages should focus on page content and publish tracked operation state through services, not through duplicated shell UI.
+
+## Signal-first shell status publication
+
+- `ShellStatusService` owns the app-shell digest and current-user identity signals.
+- Auth/session flows update shell identity through `AuthService.bootstrapSession()` and reset it on sign-out/session loss.
+- Tracked long-running operations should publish deterministic shell digests through shared services (for example `UserService.listUsers()` publishes `Loading organization users` → `Organization users loaded`).
+- When an operation can overlap with a newer request, preserve latest-wins behavior by carrying the sequence returned from `ShellStatusService.beginOperation()` into the corresponding success/error publication.
+
 ## Development server
 
 To start a local development server, run:
@@ -29,11 +42,17 @@ pnpm start
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+### WebStorm run configuration (important)
+
+- Use the `start` script (or plain `ng serve` from `src/ui/`).
+- Frontend GraphQL calls must stay on relative `/graphql`; do not hard-code backend origins.
+- In dev mode the Angular app base href is `/`; production build still uses `/isched/` from `angular.json`.
+
 ### GraphQL Proxy Rule (Required)
 
 - Frontend GraphQL calls must use the relative path `/graphql` only.
 - Do not hard-code backend origins in Angular services.
-- `pnpm start` runs `ng serve --proxy-config proxy.conf.json` so HTTP and WebSocket traffic on `/graphql` is proxied to local backend `:8080`.
+- `pnpm start` runs `ng serve`; proxy forwarding is configured in `angular.json` (`serve.options.proxyConfig = "proxy.conf.json"`) so HTTP and WebSocket traffic on `/graphql` is proxied to local backend `:8080`.
 
 ```bash
 cd /home/groby/dev/isched/src/ui
@@ -72,6 +91,13 @@ To execute unit tests with the [Jest](https://jestjs.io/) test runner (via `@ang
 ng test
 ```
 
+Run the focused shared-shell suites directly:
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm run test:shell
+```
+
 ## Running Playwright integration tests
 
 Playwright tests start the real backend server (`isched_srv`) with a temporary `--data-dir` so the system starts in seed mode and the bootstrap UI can be validated end-to-end.
@@ -94,6 +120,20 @@ Run the complete Playwright suite:
 ```bash
 cd /home/groby/dev/isched/src/ui
 pnpm e2e
+```
+
+Run only the shared-shell smoke coverage:
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm run e2e:shell
+```
+
+Run the Angular dev-server proxy health check (starts `ng serve` with proxy and verifies `/graphql` forwarding):
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm run e2e:dev-proxy
 ```
 
 ### Selecting a different CMake build directory

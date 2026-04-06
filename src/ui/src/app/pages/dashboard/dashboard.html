@@ -1,24 +1,26 @@
-<div class="min-h-screen bg-base-200">
-  <!-- Navbar -->
-  <div class="navbar bg-base-100 shadow">
-    <div class="flex-1">
-      <span class="text-xl font-bold px-2">isched</span>
+<section class="dashboard space-y-6">
+  <header class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div class="space-y-2">
+      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-primary">Overview</p>
+      <h1 class="text-3xl font-semibold tracking-tight">Dashboard</h1>
+      <p class="max-w-2xl text-sm text-base-content/70">
+        Monitor system health and jump into core administration workflows from the shared authenticated shell.
+      </p>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
       @if (version()) {
-        <span class="text-sm text-base-content/50 ml-2">v{{ version() }}</span>
+        <span class="badge badge-outline">v{{ version() }}</span>
       }
       @if (health()) {
-        <span class="badge badge-sm ml-3" [class]="'badge badge-sm ml-3 ' + healthBadgeClass()">
+        <span class="badge badge-md" [class]="'badge badge-md ' + healthBadgeClass()">
           {{ healthBadgeLabel() }}
         </span>
       }
     </div>
-    <div class="flex-none">
-      <button class="btn btn-ghost btn-sm" (click)="signOut()">Sign out</button>
-    </div>
-  </div>
+  </header>
 
-  <main class="container mx-auto p-6">
-    <section class="grid gap-4 mb-6 md:grid-cols-2">
+  <section class="grid gap-4 md:grid-cols-2">
       <article class="card bg-base-100 shadow" data-testid="dashboard-health-card">
         <div class="card-body">
           <h2 class="card-title">System Health</h2>
@@ -48,90 +50,93 @@
           </div>
         </div>
       </article>
-    </section>
+  </section>
 
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">Organizations</h1>
-      <button class="btn btn-primary btn-sm" onclick="create_org_modal.showModal()">
-        + Create Organization
-      </button>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="text-2xl font-bold">Organizations</h2>
+      <p class="text-sm text-base-content/70">Create organizations and inspect their user memberships.</p>
     </div>
+    <button class="btn btn-primary btn-sm" onclick="create_org_modal.showModal()">
+      + Create Organization
+    </button>
+  </div>
 
-    @if (loading()) {
-      <div class="flex justify-center py-12">
-        <span class="loading loading-spinner loading-lg"></span>
-      </div>
-    } @else if (orgs().length === 0) {
-      <div class="alert">No organizations yet. Create one to get started.</div>
-    } @else {
-      <div class="overflow-x-auto">
-        <table class="table table-zebra w-full">
-          <thead>
+  @if (loading()) {
+    <div class="flex justify-center py-12">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+  } @else if (orgs().length === 0) {
+    <div class="alert">No organizations yet. Create one to get started.</div>
+  } @else {
+    <div class="overflow-x-auto rounded-box bg-base-100 shadow">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Tier</th>
+            <th>Users</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (org of orgs(); track org.id) {
             <tr>
-              <th>Name</th>
-              <th>Tier</th>
-              <th>Users</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (org of orgs(); track org.id) {
-              <tr>
-                <td>{{ org.name }}</td>
-                <td><span class="badge badge-ghost badge-sm">{{ org.subscriptionTier || '—' }}</span></td>
-                <td>
-                  <div class="collapse collapse-arrow bg-base-200 rounded-box">
-                    <input type="checkbox" class="peer" />
-                    <div class="collapse-title text-sm font-medium">
-                      Show users
-                    </div>
-                    <div class="collapse-content">
-                      @if (users()[org.id] === undefined) {
-                        <span class="loading loading-spinner loading-xs"></span>
-                      } @else if (users()[org.id].length === 0) {
-                        <p class="text-sm text-base-content/50">No users.</p>
-                      } @else {
-                        <table class="table table-xs w-full mt-1">
-                          <thead><tr><th>Email</th><th>Roles</th><th>Active</th></tr></thead>
-                          <tbody>
-                            @for (u of users()[org.id]; track u.id) {
-                              <tr>
-                                <td>{{ u.email }}</td>
-                                <td>{{ u.roles.join(', ') || '—' }}</td>
-                                <td>
-                                  @if (u.isActive) {
-                                    <span class="badge badge-success badge-xs">Yes</span>
-                                  } @else {
-                                    <span class="badge badge-ghost badge-xs">No</span>
-                                  }
-                                </td>
-                              </tr>
-                            }
-                          </tbody>
-                        </table>
-                      }
-                      <button class="btn btn-xs btn-outline mt-2"
-                              (click)="loadUsers(org.id)">
-                        Refresh
-                      </button>
-                    </div>
+              <td>{{ org.name }}</td>
+              <td><span class="badge badge-ghost badge-sm">{{ org.subscriptionTier || '—' }}</span></td>
+              <td>
+                <div class="collapse collapse-arrow bg-base-200 rounded-box">
+                  <input type="checkbox" class="peer" />
+                  <div class="collapse-title text-sm font-medium">
+                    Show users
                   </div>
-                </td>
-                <td>
-                  <button class="btn btn-xs btn-secondary"
-                          (click)="openCreateUser(org.id)"
-                          onclick="create_user_modal.showModal()">
-                    + User
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
-  </main>
-</div>
+                  <div class="collapse-content">
+                    @if (users()[org.id] === undefined) {
+                      <span class="loading loading-spinner loading-xs"></span>
+                    } @else if (users()[org.id].length === 0) {
+                      <p class="text-sm text-base-content/50">No users.</p>
+                    } @else {
+                      <table class="table table-xs mt-1 w-full">
+                        <thead><tr><th>Email</th><th>Roles</th><th>Active</th></tr></thead>
+                        <tbody>
+                          @for (u of users()[org.id]; track u.id) {
+                            <tr>
+                              <td>{{ u.email }}</td>
+                              <td>{{ u.roles.join(', ') || '—' }}</td>
+                              <td>
+                                @if (u.isActive) {
+                                  <span class="badge badge-success badge-xs">Yes</span>
+                                } @else {
+                                  <span class="badge badge-ghost badge-xs">No</span>
+                                }
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    }
+                    <button class="btn btn-xs btn-outline mt-2" (click)="loadUsers(org.id)">
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <button
+                  class="btn btn-xs btn-secondary"
+                  (click)="openCreateUser(org.id)"
+                  onclick="create_user_modal.showModal()"
+                >
+                  + User
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
 
 <!-- Create Organization Modal -->
 <dialog id="create_org_modal" class="modal">

@@ -4,4 +4,10 @@
   </div>
 }
 
-<router-outlet />
+@if (showAuthenticatedShell()) {
+  <app-authenticated-shell>
+    <router-outlet />
+  </app-authenticated-shell>
+} @else {
+  <router-outlet />
+}

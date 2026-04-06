@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, Subject, tap } from 'rxjs';
 import { OrganizationService } from '../../services/organization.service';
+import { ShellStatusService } from '../../services/shell-status.service';
 import { UserService } from '../../services/user.service';
 import { UsersPage } from './users.page';
 
@@ -58,6 +59,7 @@ describe('UsersPage accessibility', () => {
     await TestBed.configureTestingModule({
       imports: [UsersPage],
       providers: [
+        ShellStatusService,
         {
           provide: OrganizationService,
           useValue: {
@@ -175,6 +177,43 @@ describe('UsersPage accessibility', () => {
     // Spinner should be hidden after API returns (even with empty user list)
     expect(root.querySelector('.loading')).toBeFalsy();
     expect(root.querySelector('#users-list')?.textContent).toContain('No users match the current server-side query.');
+  });
+
+  it('publishes shell digest loading and success text during initial organization-user load', async () => {
+    const shellStatus = TestBed.inject(ShellStatusService);
+    const response$ = new Subject<{
+      nodes: [];
+      pageInfo: { number: number; size: number; totalElements: number; totalPages: number };
+    }>();
+
+    listUsers.mockImplementationOnce(() => {
+      const sequence = shellStatus.beginOperation('organization-users:list', 'Loading organization users');
+      return response$.asObservable().pipe(
+        tap(() => {
+          shellStatus.completeOperation(
+            'organization-users:list',
+            'Organization users loaded',
+            sequence,
+          );
+        }),
+      );
+    });
+
+    const fixture = TestBed.createComponent(UsersPage);
+    fixture.detectChanges();
+
+    expect(shellStatus.operationDigest().message).toBe('Loading organization users');
+
+    response$.next({
+      nodes: [],
+      pageInfo: { number: 1, size: 10, totalElements: 0, totalPages: 0 },
+    });
+    response$.complete();
+
+    await flushMicrotasks();
+    fixture.detectChanges();
+
+    expect(shellStatus.operationDigest().message).toBe('Organization users loaded');
   });
 });
 

@@ -250,6 +250,7 @@ export class UsersPage {
 
      this.loading.set(true);
      this.error.set(null);
+      this.statusMessage.set(null);
      this.userService
        .listUsers({
          organizationId,

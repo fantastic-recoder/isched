@@ -5,6 +5,7 @@ import { App } from './app';
 import { AuthService } from './services/auth.service';
 import { BootstrapService } from './services/bootstrap.service';
 import { SessionBootstrapStateService } from './services/session-bootstrap-state.service';
+import { ShellStatusService } from './services/shell-status.service';
 
 describe('App', () => {
   const status$ = new BehaviorSubject({ systemState: { seedModeActive: false } });
@@ -62,6 +63,7 @@ describe('App', () => {
       providers: [
         provideRouter([]),
         SessionBootstrapStateService,
+        ShellStatusService,
         {
           provide: BootstrapService,
           useValue: bootstrapService,
@@ -81,6 +83,21 @@ describe('App', () => {
   it('creates the app shell', async () => {
     const { fixture } = await createApp('/login');
     expect(fixture.componentInstance).toBeTruthy();
+  });
+
+  it('shows the shared authenticated shell on authenticated routes and hides it on public routes', async () => {
+    authService.isLoggedIn.mockReturnValue(true);
+
+    const dashboardApp = await createApp('/dashboard');
+    expect(
+      (dashboardApp.fixture.nativeElement as HTMLElement).querySelector('[data-testid="authenticated-shell"]'),
+    ).not.toBeNull();
+
+    authService.isLoggedIn.mockReturnValue(false);
+    const loginApp = await createApp('/login');
+    expect(
+      (loginApp.fixture.nativeElement as HTMLElement).querySelector('[data-testid="authenticated-shell"]'),
+    ).toBeNull();
   });
 
   it.each([

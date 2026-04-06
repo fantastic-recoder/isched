@@ -4,6 +4,7 @@ import { GraphQLRequestError, GraphQLService } from './graphql.service';
 import { mapAuthAttemptOutcome, mapAuthErrorToAlert } from './auth-alert.mapper';
 import { AuthAttemptOutcome, UserFacingAlert } from './auth-bootstrap.models';
 import { SessionBootstrapStateService } from './session-bootstrap-state.service';
+import { ShellStatusService } from './shell-status.service';
 
 export class AuthSignInError extends Error {
   constructor(
@@ -17,7 +18,7 @@ export class AuthSignInError extends Error {
 }
 
 interface CurrentSessionResponse {
-  currentUser: { id: string } | null;
+  currentUser: { id: string; name?: string | null } | null;
 }
 
 interface SignInResponse {
@@ -34,6 +35,7 @@ interface SignOutResponse {
 export class AuthService {
   private readonly gql = inject(GraphQLService);
   private readonly sessionBootstrapState = inject(SessionBootstrapStateService);
+  private readonly shellStatus = inject(ShellStatusService);
   private csrfToken: string | null = null;
   private accessToken: string | null = null;
   private authenticated = false;
@@ -73,10 +75,11 @@ export class AuthService {
 
   bootstrapSession(): Observable<boolean> {
     return this.gql
-      .query<CurrentSessionResponse>('query { currentUser { id } }')
+      .query<CurrentSessionResponse>('query { currentUser { id name } }')
       .pipe(
-        map((res) => !!res.currentUser),
-        tap((isAuthenticated) => {
+        map((res) => res.currentUser),
+        tap((currentUser) => {
+          const isAuthenticated = !!currentUser;
           this.authenticated = isAuthenticated;
           if (isAuthenticated && !this.csrfToken) {
             // Keep CSRF material ephemeral and in-memory only.
@@ -86,10 +89,22 @@ export class AuthService {
             this.accessToken = null;
             this.csrfToken = null;
           }
+
+          if (currentUser) {
+            this.shellStatus.setIdentity({
+              userId: currentUser.id,
+              displayName: currentUser.name,
+            });
+          } else {
+            this.shellStatus.reset();
+          }
+
           this.sessionBootstrapState.markSessionKnown(isAuthenticated);
         }),
+        map((currentUser) => !!currentUser),
         catchError((error: unknown) => {
           this.clearEphemeralAuthState();
+          this.shellStatus.reset();
           this.sessionBootstrapState.clearSessionIndicators();
           return throwError(() => error);
         }),
@@ -114,6 +129,7 @@ export class AuthService {
 
   clearAuthState(): void {
     this.clearEphemeralAuthState();
+    this.shellStatus.reset();
     this.sessionBootstrapState.clearSessionIndicators();
   }
 

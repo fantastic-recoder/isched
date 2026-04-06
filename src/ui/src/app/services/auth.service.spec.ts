@@ -8,10 +8,12 @@ import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { AuthService } from './auth.service';
+import { ShellStatusService } from './shell-status.service';
 
 describe('AuthService', () => {
   let service: AuthService;
   let httpMock: HttpTestingController;
+  let shellStatus: ShellStatusService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -19,21 +21,28 @@ describe('AuthService', () => {
     });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
+    shellStatus = TestBed.inject(ShellStatusService);
+    shellStatus.reset();
   });
 
   afterEach(() => {
     httpMock.verify();
   });
 
-  it('bootstrapSession marks authenticated when currentUser exists', (done) => {
+  it('bootstrapSession marks authenticated and resolves the shell identity when currentUser exists', (done) => {
     service.bootstrapSession().subscribe((isLoggedIn) => {
       expect(isLoggedIn).toBe(true);
       expect(service.isLoggedIn()).toBe(true);
       expect(service.getCsrfToken()).toMatch(/^csrf_/);
+      expect(shellStatus.identity()).toMatchObject({
+        displayName: 'Jane Admin',
+        userId: 'u1',
+        resolved: true,
+      });
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1', name: 'Jane Admin' } } });
   });
 
   it('signIn authenticates through bootstrapSession without exposing token storage', (done) => {
@@ -41,11 +50,12 @@ describe('AuthService', () => {
       expect(ok).toBe(true);
       expect(service.isLoggedIn()).toBe(true);
       expect(service.getCsrfToken()).toMatch(/^csrf_/);
+      expect(shellStatus.identity().displayName).toBe('Jane Admin');
       done();
     });
 
     httpMock.expectOne('/graphql').flush({ data: { login: { token: 'opaque-cookie-token' } } });
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1', name: 'Jane Admin' } } });
   });
 
   it('isLoggedIn() returns false by default', () => {
@@ -57,12 +67,18 @@ describe('AuthService', () => {
     expect(service.getCsrfToken()).toBe('csrf_123');
   });
 
-  it('signOut clears local auth state after mutation', (done) => {
+  it('signOut clears local auth state and restores the shell identity fallback after mutation', (done) => {
     service.setCsrfToken('csrf_123');
+    shellStatus.setIdentity({ userId: 'u1', displayName: 'Jane Admin' });
     service.signOut().subscribe((ok) => {
       expect(ok).toBe(true);
       expect(service.isLoggedIn()).toBe(false);
       expect(service.getCsrfToken()).toBeNull();
+      expect(shellStatus.identity()).toMatchObject({
+        displayName: 'Signed-in user',
+        fallbackLabel: 'Signed-in user',
+        resolved: false,
+      });
       done();
     });
 
@@ -81,7 +97,7 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
+    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1', name: 'Jane Admin' } } });
   });
 
   it('does not write auth state to localStorage/sessionStorage during signOut', (done) => {

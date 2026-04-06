@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - Per-tenant SQLite databases via `DatabaseManager` (new `schema_documents` table per tenant DB) (006-upload-schema)
 - C++23 + `cpp-httplib`, `nlohmann_json`, `taocpp-pegtl`, `sqlite3`, `jwt-cpp`, `spdlog` (006-upload-schema)
 - Tenant-local SQLite databases managed by `DatabaseManager` (`schema_documents` table in each tenant DB) (006-upload-schema)
+- C++23 (repo baseline) + Angular 21 / strict TypeScript for `src/ui` + Angular standalone APIs/signals, Angular Router, RxJS interop (`toSignal`), Tailwind CSS 3.x, DaisyUI 4.x, existing GraphQL service (`/graphql`), Playwright, Jest/Karma test harness in `src/ui` (007-webui-nav-status-bars)
+- N/A for new persistence; consumes existing in-memory auth/session state and GraphQL-backed user/session data (007-webui-nav-status-bars)
 
 - (004-add-isched-webui)
 
@@ -30,9 +32,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 007-webui-nav-status-bars: Added C++23 (repo baseline) + Angular 21 / strict TypeScript for `src/ui` + Angular standalone APIs/signals, Angular Router, RxJS interop (`toSignal`), Tailwind CSS 3.x, DaisyUI 4.x, existing GraphQL service (`/graphql`), Playwright, Jest/Karma test harness in `src/ui`
+- 007-webui-nav-status-bars: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 006-upload-schema: Added C++23 + `cpp-httplib`, `nlohmann_json`, `taocpp-pegtl`, `sqlite3`, `jwt-cpp`, `spdlog`
-- 006-upload-schema: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- 006-upload-schema: Added C++23 backend (no frontend code required for this increment) + `cpp-httplib`, `nlohmann_json`, `taocpp-pegtl`, `sqlite3`, `jwt-cpp`, `spdlog`
 
 
 <!-- MANUAL ADDITIONS START -->
