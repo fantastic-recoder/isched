@@ -10,6 +10,7 @@
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 #include <openssl/rand.h>
+#include <openssl/sha.h>
 
 #include <cstring>
 #include <memory>
@@ -206,3 +207,24 @@ std::string decrypt_secret(const std::string& base64_ciphertext,
 }
 
 } // namespace isched::v0_0_1::backend
+
+namespace isched::v0_0_1::backend {
+
+std::string sha256_hex(const std::string& data) {
+    unsigned char digest[SHA256_DIGEST_LENGTH];
+    if (SHA256(reinterpret_cast<const unsigned char*>(data.data()),
+               data.size(), digest) == nullptr) {
+        throw std::runtime_error("sha256_hex: SHA256 failed");
+    }
+    std::string hex;
+    hex.reserve(SHA256_DIGEST_LENGTH * 2);
+    static constexpr char k_hex[] = "0123456789abcdef";
+    for (const unsigned char b : digest) {
+        hex += k_hex[(b >> 4) & 0xF];
+        hex += k_hex[b & 0xF];
+    }
+    return hex;
+}
+
+} // namespace isched::v0_0_1::backend
+

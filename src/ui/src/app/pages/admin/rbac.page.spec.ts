@@ -76,6 +76,26 @@ describe('RbacPage', () => {
     expect(roleSubmit?.className).toContain('focus-visible:outline');
   });
 
+  it('displays globalError when backend returns a resolver error for the roles query', async () => {
+    const fixture = TestBed.createComponent(RbacPage);
+    fixture.detectChanges();
+
+    httpMock.expectOne('/graphql').flush({
+      errors: [{ message: 'Missing resolver for field roles in Query type' }],
+    });
+
+    fixture.detectChanges();
+    await flushMicrotasks();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const errorEl = root.querySelector('[role="alert"]');
+    expect(errorEl).toBeTruthy();
+    expect(errorEl?.textContent).toContain('Missing resolver for field roles in Query type');
+    // The role list should be empty.
+    expect(fixture.componentInstance.roles().length).toBe(0);
+  });
+
   it('supports keyboard-only create/edit/assign path with focus-managed status feedback', async () => {
     const fixture = createComponentWithRoles([{ id: 'role_user', name: 'User', scope: 'tenant' }]);
     const root = fixture.nativeElement as HTMLElement;

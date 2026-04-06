@@ -1491,8 +1491,28 @@ namespace isched::v0_0_1::backend {
         require_roles("terminateAllSessions", {std::string(Role::PLATFORM_ADMIN)});
 
         // ---------------------------------------------------------------
-        // T047-004: createRole / deleteRole mutations
+        // T047-004: roles query + createRole / deleteRole mutations
         // ---------------------------------------------------------------
+        register_resolver({}, "roles",
+            [this](const json&, const json&, const ResolverCtx&) -> json {
+                auto result = m_database->list_platform_roles();
+                if (!result) {
+                    throw std::runtime_error("Failed to list roles");
+                }
+                json arr = json::array();
+                for (const auto& rec : result.value()) {
+                    json role_obj = json::object();
+                    role_obj["id"]          = rec.id;
+                    role_obj["name"]        = rec.name;
+                    role_obj["description"] = rec.description;
+                    role_obj["scope"]       = rec.scope;
+                    arr.push_back(std::move(role_obj));
+                }
+                return arr;
+            });
+        require_roles("roles", {std::string(Role::PLATFORM_ADMIN),
+                                std::string(Role::TENANT_ADMIN)});
+
         register_resolver({}, "createRole",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const auto& input = args.value("input", json::object());
@@ -1505,7 +1525,7 @@ namespace isched::v0_0_1::backend {
                     throw std::invalid_argument("createRole: id, name, and scope are required");
                 }
                 if (scope == "platform") {
-                    if (auto res = m_database->create_platform_role(id, name, desc); !res) {
+                    if (auto res = m_database->create_platform_role(id, name, desc, scope); !res) {
                         switch (res.error()) {
                             case DatabaseError::DuplicateKey:
                                 throw std::runtime_error("Role '" + id + "' already exists");
@@ -2361,6 +2381,285 @@ namespace isched::v0_0_1::backend {
                     }).detach();
                 }
                 return true;
+            });
+
+        // =============================================================
+        // spec-006: uploadSchemaDocument mutation (T009-T022)
+        // =============================================================
+        // Constants and shared helpers
+        static constexpr std::size_t k_default_schema_max_bytes = 1024 * 1024; // 1 MB
+
+        // Name validator: [A-Za-z0-9._-]{1,128}
+        static const auto validate_schema_name = [](const std::string& name) -> bool {
+            if (name.empty() || name.size() > 128) return false;
+            for (const char c : name) {
+                if (!std::isalnum(static_cast<unsigned char>(c)) &&
+                    c != '.' && c != '_' && c != '-') {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // SDL parse validator (reuses existing PEGTL path)
+        static const auto validate_sdl = [](const std::string& content) -> bool {
+            try {
+                tao::pegtl::string_input<> in(content, "SDL-validate-upload");
+                auto [ok, _] = gql::generate_ast_and_log<gql::Document>(
+                    in, "SDL-validate-upload", false, false);
+                return ok;
+            } catch (...) {
+                return false;
+            }
+        };
+
+        // ---------------------------------------------------------------
+        // uploadSchemaDocument (tenant_admin only)
+        // ---------------------------------------------------------------
+        register_resolver({}, "uploadSchemaDocument",
+            [this](
+                const json&, const json& args, const ResolverCtx& ctx) -> json
+            {
+                // T018: Auth guard — unauthenticated callers are rejected before
+                //       reaching this resolver via require_roles(); but also guard
+                //       explicitly for empty tenant context
+                if (ctx.current_user_id.empty()) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",           "UNAUTHENTICATED"},
+                            {"message",        "Authentication required"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                if (!args.contains("input") || !args["input"].is_object()) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",           "VALIDATION_FAILED"},
+                            {"message",        "Missing required argument: input"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                const auto& inp = args["input"];
+                const std::string doc_name    = inp.value("name", "");
+                const std::string doc_content = inp.value("content", "");
+                const bool overwrite          = inp.value("overwrite", false);
+
+                // T019: Name validation
+                if (!validate_schema_name(doc_name)) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",    "VALIDATION_FAILED"},
+                            {"message", "Invalid schema document name: must match [A-Za-z0-9._-]{1,128}"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                // T019: Content non-empty + size cap (T010/T011)
+                if (doc_content.empty()) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",    "VALIDATION_FAILED"},
+                            {"message", "Schema document content must not be empty"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+                if (doc_content.size() > k_default_schema_max_bytes) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",    "VALIDATION_FAILED"},
+                            {"message", std::format("Schema document content exceeds maximum size of {} bytes",
+                                k_default_schema_max_bytes)},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                // T019: SDL parse validation
+                if (!validate_sdl(doc_content)) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",    "VALIDATION_FAILED"},
+                            {"message", "Schema document content is not valid GraphQL SDL"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                // Compute SHA-256 hash of content (for audit/diagnostics)
+                std::string content_hash;
+                try {
+                    content_hash = sha256_hex(doc_content);
+                } catch (...) {
+                    content_hash = "";
+                }
+
+                const std::string tenant_id = ctx.tenant_id;
+                const std::string updated_by = ctx.current_user_id;
+
+                // T020: Conflict detection + overwrite gate
+                // T021: Atomic overwrite path
+                auto& db = *m_database; // NOLINT(*-use-auto)
+
+                // Ensure the table exists (idempotent; safe for test scenarios
+                // where initialize_tenant was not called on this tenant)
+                std::ignore = db.ensure_schema_documents_table(tenant_id);
+
+                auto existing = db.get_schema_document_by_name(tenant_id, doc_name);
+                bool exists = existing.has_value();
+
+                if (exists && !overwrite) {
+                    // T020: conflict without overwrite
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",           "CONFLICT"},
+                            {"message",        "Schema document name already exists: " + doc_name},
+                            {"conflictingName", doc_name}
+                        }}
+                    };
+                }
+
+                DatabaseResult<void> write_result;
+                if (exists) {
+                    // T021: atomic replace (last-successful-write-wins)
+                    write_result = db.replace_schema_document(
+                        tenant_id, doc_name, doc_content, content_hash, updated_by);
+                } else {
+                    write_result = db.insert_schema_document(
+                        tenant_id, doc_name, doc_content, content_hash, updated_by);
+                }
+
+                if (!write_result) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",    "UNKNOWN_ERROR"},
+                            {"message", "Failed to persist schema document"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                // T022: Fetch stored metadata to return accurate timestamps
+                auto stored = db.get_schema_document_by_name(tenant_id, doc_name);
+                if (!stored) {
+                    return json{
+                        {"success", false},
+                        {"schema",  nullptr},
+                        {"error", json{
+                            {"code",    "UNKNOWN_ERROR"},
+                            {"message", "Schema document written but metadata not readable"},
+                            {"conflictingName", nullptr}
+                        }}
+                    };
+                }
+
+                return json{
+                    {"success", true},
+                    {"schema", json{
+                        {"name",      stored.value().name},
+                        {"createdAt", stored.value().created_at},
+                        {"updatedAt", stored.value().updated_at},
+                        {"updatedBy", stored.value().updated_by}
+                    }},
+                    {"error", nullptr}
+                };
+            });
+        require_roles("uploadSchemaDocument", {std::string(Role::TENANT_ADMIN)});
+
+        // =============================================================
+        // spec-006: schemaDocuments query (T026-T028, US2)
+        // =============================================================
+        register_resolver({}, "schemaDocuments",
+            [this](const json&, const json&, const ResolverCtx& ctx) -> json
+            {
+                if (ctx.current_user_id.empty()) {
+                    throw std::runtime_error("Authentication required");
+                }
+                if (ctx.tenant_id.empty()) {
+                    throw std::runtime_error("Tenant context required");
+                }
+
+                // Ensure table exists (idempotent)
+                std::ignore = m_database->ensure_schema_documents_table(ctx.tenant_id);
+
+                auto result = m_database->list_schema_documents(ctx.tenant_id);
+                if (!result) {
+                    throw std::runtime_error("Failed to list schema documents");
+                }
+
+                json arr = json::array();
+                for (const auto& r : result.value()) {
+                    arr.push_back(json{
+                        {"name",      r.name},
+                        {"createdAt", r.created_at},
+                        {"updatedAt", r.updated_at},
+                        {"updatedBy", r.updated_by}
+                    });
+                }
+                return arr;
+            });
+
+        // =============================================================
+        // spec-006: schemaDocument(name:) query (T033-T035, US3)
+        // =============================================================
+        register_resolver({}, "schemaDocument",
+            [this](
+                const json&, const json& args, const ResolverCtx& ctx) -> json
+            {
+                if (ctx.current_user_id.empty()) {
+                    throw std::runtime_error("Authentication required");
+                }
+                if (ctx.tenant_id.empty()) {
+                    throw std::runtime_error("Tenant context required");
+                }
+
+                const std::string doc_name = args.value("name", "");
+                if (!validate_schema_name(doc_name)) {
+                    throw std::runtime_error(
+                        "Invalid schema document name: must match [A-Za-z0-9._-]{1,128}");
+                }
+
+                // Ensure table exists (idempotent)
+                std::ignore = m_database->ensure_schema_documents_table(ctx.tenant_id);
+
+                auto result = m_database->get_schema_document_by_name(ctx.tenant_id, doc_name);
+                if (!result) {
+                    if (result.error() == DatabaseError::NotFound) {
+                        // T034: canonical null-on-miss — no error, just null
+                        return nullptr;
+                    }
+                    throw std::runtime_error("Failed to fetch schema document");
+                }
+
+                const auto& r = result.value();
+                return json{
+                    {"name",      r.name},
+                    {"content",   r.content},
+                    {"createdAt", r.created_at},
+                    {"updatedAt", r.updated_at},
+                    {"updatedBy", r.updated_by}
+                };
             });
 
         load_schema(BUILTIN_SCHEMA);

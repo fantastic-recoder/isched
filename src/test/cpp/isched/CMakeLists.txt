@@ -192,6 +192,13 @@ target_link_libraries(test_seed_mode PRIVATE isched Catch2::Catch2WithMain
     taocpp::pegtl openssl::openssl)
 add_test(NAME test_seed_mode COMMAND test_seed_mode)
 
+# spec-006: Schema Document Upload / List / Fetch (T001-T040)
+add_executable(test_graphql_schema_upload ../integration/test_graphql_schema_upload.cpp)
+target_link_libraries(test_graphql_schema_upload PRIVATE isched Catch2::Catch2WithMain
+    spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 sago::platform_folders
+    taocpp::pegtl openssl::openssl httplib::httplib)
+add_test(NAME test_graphql_schema_upload COMMAND test_graphql_schema_upload)
+
 # T048: RestDataSource / CryptoUtils unit tests
 add_executable(isched_rest_datasource_tests isched_rest_datasource_tests.cpp)
 target_link_libraries(isched_rest_datasource_tests PRIVATE isched Catch2::Catch2WithMain
@@ -278,6 +285,7 @@ set(_isched_integration_tests
     test_admin_ui
     test_webui_embedded_serving
     test_seed_mode
+    test_graphql_schema_upload
 )
 
 # Fast suites: 60s, integration suites: 180s.
