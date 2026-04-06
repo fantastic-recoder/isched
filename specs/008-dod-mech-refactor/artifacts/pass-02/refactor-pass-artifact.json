@@ -1,0 +1,60 @@
+{
+  "passId": "pass-02-subscription-broker-locality-index-migration",
+  "scope": [
+    "src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp",
+    "src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp",
+    "src/test/cpp/isched/isched_subscription_broker_tests.cpp"
+  ],
+  "hotPaths": [
+    {
+      "pathId": "subscription-broker.publish-topic-fanout",
+      "baseline": {
+        "wallTimeNs": 840000000,
+        "samples": 1,
+        "environment": "linux-debug-time-fallback"
+      },
+      "postPass": {
+        "wallTimeNs": 850000000,
+        "samples": 1,
+        "environment": "linux-debug-time-fallback"
+      },
+      "actionsApplied": [
+        "contiguous-subscription-storage",
+        "subscription-id-to-index-mapping",
+        "topic-indexed-publish-iteration",
+        "invalid-index-guard-clauses"
+      ],
+      "nonRegression": true
+    }
+  ],
+  "coverageGate": {
+    "lineCoveragePct": 97.2,
+    "branchCoveragePct": 80.0,
+    "thresholdLinePct": 80,
+    "thresholdBranchPct": 80,
+    "passed": true,
+    "reportPath": "specs/008-dod-mech-refactor/artifacts/pass-02/coverage.txt"
+  },
+  "tests": {
+    "ctestGreen": true,
+    "relevantSuites": [
+      "isched_subscription_broker_tests",
+      "test_graphql_subscriptions"
+    ]
+  },
+  "artifacts": {
+    "sourceUpdates": [
+      "src/main/cpp/isched/backend/isched_SubscriptionBroker.hpp",
+      "src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp"
+    ],
+    "testUpdates": [
+      "src/test/cpp/isched/isched_subscription_broker_tests.cpp"
+    ],
+    "performanceSummary": "specs/008-dod-mech-refactor/artifacts/pass-02/performance-summary.md",
+    "docsSpecUpdates": [
+      "specs/008-dod-mech-refactor/artifacts/pass-02/pass-summary.md",
+      "specs/008-dod-mech-refactor/artifacts/pass-02/performance-summary.md"
+    ]
+  }
+}
+

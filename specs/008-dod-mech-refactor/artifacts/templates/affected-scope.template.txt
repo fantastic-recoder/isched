@@ -1,0 +1,6 @@
+# One regex filter per line for gcovr --filter
+src/main/cpp/isched/backend/isched_GqlExecutor\.hpp
+src/main/cpp/isched/backend/isched_GqlExecutor\.cpp
+src/test/cpp/isched/isched_gql_executor_tests\.cpp
+src/test/cpp/isched/isched_graphql_tests\.cpp
+

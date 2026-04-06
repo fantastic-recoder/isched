@@ -30,6 +30,7 @@ add_library(isched
         shared/fs/isched_fs_utils.cpp
         backend/isched_gql_grammar.hpp
         backend/isched_GqlExecutor.cpp
+        backend/isched_GqlExecutor_field_nodes.cpp
         backend/isched_GqlExecutor.hpp
         backend/isched_ExecutionResult.hpp
         backend/isched_SubscriptionBroker.hpp

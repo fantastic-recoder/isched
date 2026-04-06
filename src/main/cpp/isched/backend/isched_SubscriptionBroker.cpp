@@ -8,7 +8,9 @@
 
 #include "isched_SubscriptionBroker.hpp"
 
+#include <algorithm>
 #include <atomic>
+#include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -46,11 +48,15 @@ struct AuthSessionRecord {
 struct SubscriptionBroker::Impl {
     mutable std::shared_mutex mutex;
 
-    // Primary index: subscription_id → record
-    std::unordered_map<std::string, SubscriptionRecord> subscriptions;
+    // Primary storage: contiguous subscription records.
+    std::vector<SubscriptionRecord> subscriptions;
 
-    // Secondary index: session_id → set of subscription_ids (for fast disconnect)
-    std::unordered_map<std::string, std::vector<std::string>> session_index;
+    // Primary lookup: subscription_id -> index into subscriptions.
+    std::unordered_map<std::string, SubscriptionBroker::SubscriptionIndex> subscription_id_index;
+
+    // Secondary indices: session/topic -> record indices.
+    std::unordered_map<std::string, std::vector<SubscriptionBroker::SubscriptionIndex>> session_index;
+    std::unordered_map<std::string, std::vector<SubscriptionBroker::SubscriptionIndex>> topic_index;
 
     // Auth-session tracking (T049-007):
     //   auth_session_id → AuthSessionRecord
@@ -61,6 +67,97 @@ struct SubscriptionBroker::Impl {
     // T050-002: count-change callback (set once before listen(), then read-only)
     mutable std::mutex count_cb_mutex;
     std::function<void(std::size_t)> count_change_cb;
+
+    [[nodiscard]] bool isValidIndex(SubscriptionBroker::SubscriptionIndex index) const noexcept {
+        return index < subscriptions.size();
+    }
+
+    [[nodiscard]] const SubscriptionRecord* getRecordByIndex(SubscriptionBroker::SubscriptionIndex index) const noexcept {
+        if (SubscriptionBroker::isInvalidSubscriptionIndex(index) || !isValidIndex(index)) {
+            return nullptr;
+        }
+        return &subscriptions[index];
+    }
+
+    static void removeIndex(std::vector<SubscriptionBroker::SubscriptionIndex>& indices,
+                            SubscriptionBroker::SubscriptionIndex index) {
+        indices.erase(std::remove(indices.begin(), indices.end(), index), indices.end());
+    }
+
+    static void remapIndex(std::vector<SubscriptionBroker::SubscriptionIndex>& indices,
+                           SubscriptionBroker::SubscriptionIndex from,
+                           SubscriptionBroker::SubscriptionIndex to) {
+        for (auto& existing : indices) {
+            if (existing == from) {
+                existing = to;
+                return;
+            }
+        }
+    }
+
+    void removeFromSessionIndex(const std::string& session_id,
+                                SubscriptionBroker::SubscriptionIndex index) {
+        const auto it = session_index.find(session_id);
+        if (it == session_index.end()) {
+            return;
+        }
+
+        removeIndex(it->second, index);
+        if (it->second.empty()) {
+            session_index.erase(it);
+        }
+    }
+
+    void removeFromTopicIndex(const std::string& topic,
+                              SubscriptionBroker::SubscriptionIndex index) {
+        const auto it = topic_index.find(topic);
+        if (it == topic_index.end()) {
+            return;
+        }
+
+        removeIndex(it->second, index);
+        if (it->second.empty()) {
+            topic_index.erase(it);
+        }
+    }
+
+    [[nodiscard]] bool eraseSubscriptionAt(SubscriptionBroker::SubscriptionIndex index) {
+        if (SubscriptionBroker::isInvalidSubscriptionIndex(index) || !isValidIndex(index)) {
+            return false;
+        }
+
+        const auto removed_id = subscriptions[index].subscription_id;
+        const auto removed_session_id = subscriptions[index].session_id;
+        const auto removed_topic = subscriptions[index].topic;
+
+        removeFromSessionIndex(removed_session_id, index);
+        removeFromTopicIndex(removed_topic, index);
+
+        const SubscriptionBroker::SubscriptionIndex last = subscriptions.size() - 1;
+        if (index != last) {
+            auto& moved = subscriptions[last];
+            const auto moved_id = moved.subscription_id;
+            const auto moved_session_id = moved.session_id;
+            const auto moved_topic = moved.topic;
+
+            subscriptions[index] = std::move(moved);
+            subscription_id_index[moved_id] = index;
+
+            auto moved_session_it = session_index.find(moved_session_id);
+            if (moved_session_it != session_index.end()) {
+                remapIndex(moved_session_it->second, last, index);
+            }
+
+            auto moved_topic_it = topic_index.find(moved_topic);
+            if (moved_topic_it != topic_index.end()) {
+                remapIndex(moved_topic_it->second, last, index);
+            }
+        }
+
+        subscriptions.pop_back();
+        subscription_id_index.erase(removed_id);
+        return true;
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -87,9 +184,11 @@ std::string SubscriptionBroker::subscribe(const std::string& session_id,
     std::size_t new_count = 0;
     {
         std::unique_lock lock(m_impl->mutex);
-        m_impl->subscriptions.emplace(sub_id,
-            SubscriptionRecord{sub_id, session_id, topic, std::move(handler)});
-        m_impl->session_index[session_id].push_back(sub_id);
+        const SubscriptionIndex index = m_impl->subscriptions.size();
+        m_impl->subscriptions.push_back(SubscriptionRecord{sub_id, session_id, topic, std::move(handler)});
+        m_impl->subscription_id_index[sub_id] = index;
+        m_impl->session_index[session_id].push_back(index);
+        m_impl->topic_index[topic].push_back(index);
         new_count = m_impl->subscriptions.size();
     }
     // T050-002: notify outside the main lock
@@ -111,25 +210,17 @@ void SubscriptionBroker::unsubscribe(const std::string& subscription_id) {
     {
         std::unique_lock lock(m_impl->mutex);
 
-        auto it = m_impl->subscriptions.find(subscription_id);
-        if (it == m_impl->subscriptions.end()) {
+        auto it = m_impl->subscription_id_index.find(subscription_id);
+        if (it == m_impl->subscription_id_index.end()) {
             return;
         }
 
-        const std::string session_id = it->second.session_id;
-        m_impl->subscriptions.erase(it);
+        if (!m_impl->eraseSubscriptionAt(it->second)) {
+            return;
+        }
+
         new_count = m_impl->subscriptions.size();
         changed = true;
-
-        // Remove from session index
-        auto sess_it = m_impl->session_index.find(session_id);
-        if (sess_it != m_impl->session_index.end()) {
-            auto& ids = sess_it->second;
-            ids.erase(std::remove(ids.begin(), ids.end(), subscription_id), ids.end());
-            if (ids.empty()) {
-                m_impl->session_index.erase(sess_it);
-            }
-        }
     }
     // T050-002: notify outside the main lock
     if (changed) {
@@ -150,15 +241,24 @@ void SubscriptionBroker::disconnect_session(const std::string& session_id) {
     {
         std::unique_lock lock(m_impl->mutex);
 
-        auto sess_it = m_impl->session_index.find(session_id);
-        if (sess_it == m_impl->session_index.end()) {
+        const bool had_session = m_impl->session_index.find(session_id) != m_impl->session_index.end();
+        if (!had_session) {
             return;
         }
 
-        for (const auto& sub_id : sess_it->second) {
-            m_impl->subscriptions.erase(sub_id);
+        while (true) {
+            auto sess_it = m_impl->session_index.find(session_id);
+            if (sess_it == m_impl->session_index.end() || sess_it->second.empty()) {
+                break;
+            }
+
+            const SubscriptionIndex index = sess_it->second.back();
+            if (!m_impl->eraseSubscriptionAt(index)) {
+                // Guard against stale/sentinel index entries.
+                sess_it->second.pop_back();
+            }
         }
-        m_impl->session_index.erase(sess_it);
+
         new_count = m_impl->subscriptions.size();
         changed = true;
     }
@@ -187,10 +287,18 @@ void SubscriptionBroker::publish(const std::string& topic,
     std::vector<SubscriptionHandler> handlers;
     {
         std::shared_lock lock(m_impl->mutex);
-        for (const auto& [sub_id, record] : m_impl->subscriptions) {
-            if (record.topic == topic) {
-                handlers.push_back(record.handler);
+        auto topic_it = m_impl->topic_index.find(topic);
+        if (topic_it == m_impl->topic_index.end()) {
+            return;
+        }
+
+        handlers.reserve(topic_it->second.size());
+        for (const SubscriptionIndex index : topic_it->second) {
+            const SubscriptionRecord* record = m_impl->getRecordByIndex(index);
+            if (record == nullptr) {
+                continue;
             }
+            handlers.push_back(record->handler);
         }
     }
 
@@ -219,9 +327,15 @@ std::size_t SubscriptionBroker::get_subscriber_count(const std::string& topic) c
         return m_impl->subscriptions.size();
     }
 
+    auto topic_it = m_impl->topic_index.find(topic);
+    if (topic_it == m_impl->topic_index.end()) {
+        return 0;
+    }
+
     std::size_t count = 0;
-    for (const auto& [sub_id, record] : m_impl->subscriptions) {
-        if (record.topic == topic) {
+    for (const SubscriptionIndex index : topic_it->second) {
+        const SubscriptionRecord* record = m_impl->getRecordByIndex(index);
+        if (record != nullptr && record->topic == topic) {
             ++count;
         }
     }

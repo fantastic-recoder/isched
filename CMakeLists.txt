@@ -138,6 +138,36 @@ add_subdirectory("src/test/cpp/isched")
 # until the generated isched_ui_assets.hpp header exists (produced by isched_ui_embed).
 add_dependencies(isched isched_ui_embed)
 
+# US3/T042: Unified refactor-pass gate target for local and CI pass verification.
+set(ISCHED_REFACTOR_PASS_DIR
+    "specs/008-dod-mech-refactor/artifacts/pass-01"
+    CACHE STRING "Refactor pass artifact directory used by refactor_pass_verify target")
+set(ISCHED_REFACTOR_SCHEMA_PATH
+    "specs/008-dod-mech-refactor/contracts/refactor-pass-artifact.schema.json"
+    CACHE STRING "Refactor pass artifact schema path")
+set(ISCHED_REFACTOR_CTEST_REGEX
+    "isched_.*_tests"
+    CACHE STRING "ctest regex used by refactor_pass_verify target")
+set(ISCHED_REFACTOR_SCOPE_FILE
+    ""
+    CACHE STRING "Affected-scope manifest path (defaults to <pass-dir>/affected-scope.txt)")
+
+if(ISCHED_REFACTOR_SCOPE_FILE STREQUAL "")
+    set(_isched_refactor_scope_file "${ISCHED_REFACTOR_PASS_DIR}/affected-scope.txt")
+else()
+    set(_isched_refactor_scope_file "${ISCHED_REFACTOR_SCOPE_FILE}")
+endif()
+
+add_custom_target(refactor_pass_verify
+    COMMAND "${CMAKE_SOURCE_DIR}/tools/refactor_pass/verify_pass_gates.sh"
+            "${ISCHED_REFACTOR_PASS_DIR}"
+            "${ISCHED_REFACTOR_SCHEMA_PATH}"
+            "${ISCHED_REFACTOR_CTEST_REGEX}"
+            "${_isched_refactor_scope_file}"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Running refactor-pass verification gates (tests, coverage, schema)"
+    VERBATIM)
+
 # T056: Security scan target using clang-tidy with a security-focused check set.
 # Run: cmake --build ./cmake-build-debug/ --target security_scan
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy-18" "clang-tidy")

@@ -1,0 +1,85 @@
+Test project /home/groby/dev/isched/cmake-build-debug
+      Start  1: isched_grammar_tests
+ 1/40 Test  #1: isched_grammar_tests ...............   Passed    0.54 sec
+      Start  2: isched_graphql_tests
+ 2/40 Test  #2: isched_graphql_tests ...............   Passed    0.28 sec
+      Start  3: isched_gql_executor_tests
+ 3/40 Test  #3: isched_gql_executor_tests ..........   Passed    1.51 sec
+      Start  4: isched_srv_test
+ 4/40 Test  #4: isched_srv_test ....................   Passed    5.16 sec
+      Start  5: basic_server_test
+ 5/40 Test  #5: basic_server_test ..................   Passed    1.06 sec
+      Start  6: tenant_manager_test
+ 6/40 Test  #6: tenant_manager_test ................   Passed    0.03 sec
+      Start  7: isched_resolver_tests
+ 7/40 Test  #7: isched_resolver_tests ..............   Passed    0.00 sec
+      Start  8: database_test
+ 8/40 Test  #8: database_test ......................   Passed    0.02 sec
+      Start  9: isched_auth_tests
+ 9/40 Test  #9: isched_auth_tests ..................   Passed    0.59 sec
+      Start 10: isched_subscription_broker_tests
+10/40 Test #10: isched_subscription_broker_tests ...   Passed    0.01 sec
+      Start 11: isched_config_tests
+11/40 Test #11: isched_config_tests ................   Passed    0.01 sec
+      Start 12: test_server_startup
+12/40 Test #12: test_server_startup ................   Passed    9.35 sec
+      Start 13: test_builtin_schema
+13/40 Test #13: test_builtin_schema ................   Passed   10.33 sec
+      Start 14: test_health_queries
+14/40 Test #14: test_health_queries ................   Passed    8.31 sec
+      Start 15: isched_fs_utils_tests
+15/40 Test #15: isched_fs_utils_tests ..............   Passed    0.02 sec
+      Start 16: isched_ast_node_tests
+16/40 Test #16: isched_ast_node_tests ..............   Passed    0.01 sec
+      Start 17: isched_multi_dim_map_tests
+17/40 Test #17: isched_multi_dim_map_tests .........   Passed    0.01 sec
+      Start 18: test_configuration_snapshots
+18/40 Test #18: test_configuration_snapshots .......   Passed    6.21 sec
+      Start 19: test_schema_activation
+19/40 Test #19: test_schema_activation .............   Passed    4.16 sec
+      Start 20: test_configuration_rollback
+20/40 Test #20: test_configuration_rollback ........   Passed    4.15 sec
+      Start 21: test_configuration_conflicts
+21/40 Test #21: test_configuration_conflicts .......   Passed    0.12 sec
+      Start 22: test_graphql_websocket
+22/40 Test #22: test_graphql_websocket .............   Passed    4.13 sec
+      Start 23: test_graphql_subscriptions
+23/40 Test #23: test_graphql_subscriptions .........   Passed    2.07 sec
+      Start 24: test_client_compatibility
+24/40 Test #24: test_client_compatibility ..........   Passed    3.13 sec
+      Start 25: test_user_management
+25/40 Test #25: test_user_management ...............   Passed    3.70 sec
+      Start 26: test_bootstrap_platform_admin
+26/40 Test #26: test_bootstrap_platform_admin ......   Passed    2.13 sec
+      Start 27: test_auth_lockout_policy
+27/40 Test #27: test_auth_lockout_policy ...........   Passed   19.86 sec
+      Start 28: test_rate_limiting
+28/40 Test #28: test_rate_limiting .................   Passed    3.17 sec
+      Start 29: test_webui_bootstrap_contract
+29/40 Test #29: test_webui_bootstrap_contract ......   Passed    0.69 sec
+      Start 30: test_session_revocation
+30/40 Test #30: test_session_revocation ............   Passed    5.25 sec
+      Start 31: test_admin_ui
+31/40 Test #31: test_admin_ui ......................   Passed    9.27 sec
+      Start 32: test_webui_embedded_serving
+32/40 Test #32: test_webui_embedded_serving ........   Passed    6.24 sec
+      Start 33: test_webui_security_foundation
+33/40 Test #33: test_webui_security_foundation .....   Passed    0.18 sec
+      Start 34: test_webui_jwt_leakage
+34/40 Test #34: test_webui_jwt_leakage .............   Passed    0.05 sec
+      Start 35: test_seed_mode
+35/40 Test #35: test_seed_mode .....................   Passed    2.76 sec
+      Start 36: test_graphql_schema_upload
+36/40 Test #36: test_graphql_schema_upload .........   Passed    1.23 sec
+      Start 37: isched_rest_datasource_tests
+37/40 Test #37: isched_rest_datasource_tests .......   Passed    0.18 sec
+      Start 38: isched_tenant_thread_pool_tests
+38/40 Test #38: isched_tenant_thread_pool_tests ....   Passed    0.05 sec
+      Start 39: isched_metrics_tests
+39/40 Test #39: isched_metrics_tests ...............   Passed    0.15 sec
+      Start 40: benchmark_suite
+40/40 Test #40: benchmark_suite ....................   Passed   10.19 sec
+
+100% tests passed, 0 tests failed out of 40
+
+Total Test time (real) = 126.34 sec

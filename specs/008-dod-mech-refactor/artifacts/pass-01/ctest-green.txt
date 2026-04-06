@@ -1,0 +1,9 @@
+Test project /home/groby/dev/isched/cmake-build-debug
+    Start 2: isched_graphql_tests
+1/2 Test #2: isched_graphql_tests .............   Passed    0.30 sec
+    Start 3: isched_gql_executor_tests
+2/2 Test #3: isched_gql_executor_tests ........   Passed    1.55 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   1.86 sec

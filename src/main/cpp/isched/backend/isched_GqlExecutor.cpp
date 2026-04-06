@@ -3028,6 +3028,7 @@ namespace isched::v0_0_1::backend {
         return my_ret_val;
     }
 
+
     void GqlExecutor::process_sub_selection(const json& p_parent_result, const ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
         // Arguments nodes are already extracted by process_argument_field before sub-selections run.
         if (node->type == "isched::v0_0_1::gql::Arguments") {
@@ -3038,18 +3039,8 @@ namespace isched::v0_0_1::backend {
                 "Expected a selection set while processing sub selection, got a {}.", node->type)});
             return;
         }
-        for (const auto &my_selection: node->children) {
-            if (my_selection->type != "isched::v0_0_1::gql::Selection") {
-                p_errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR,.message=format(
-                    "Expected a selection, got a {}.", my_selection->type)});
-                continue;
-            }
-            for (const auto &my_field: my_selection->children) {
-                if (my_field->type == "isched::v0_0_1::gql::Field") {
-                    resolve_field_selection_details(p_parent_result, p_path, my_field, p_result, p_errors);
-                }
-            }
-        }
+        const auto fields = collect_field_nodes(node, p_errors);
+        process_field_nodes(p_parent_result, p_path, fields, p_result, p_errors);
         spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
     }
 
@@ -3268,34 +3259,8 @@ namespace isched::v0_0_1::backend {
 
     void GqlExecutor::process_field_selection(const json& p_parent_result,const ResolverPath& p_path, const TAstNodePtr &p_selection_set,
         json &p_result, gql::TErrorVector& p_errors) const {
-        for (const auto &mySelection: p_selection_set->children) {
-            if (mySelection->type == "isched::v0_0_1::gql::SelectionSet") {
-                process_field_selection(p_parent_result, p_path,mySelection, p_result, p_errors);
-            } else if (mySelection->type == "isched::v0_0_1::gql::Selection") {
-                if (mySelection->children.empty()) {
-                    p_errors.push_back(gql::Error{
-                        .code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty selection"
-                    });
-                    continue;
-                }
-                const auto &myField = mySelection->children[0];
-                if (myField->type != "isched::v0_0_1::gql::Field") {
-                    p_errors.push_back(gql::Error{
-                        .code = gql::EErrorCodes::PARSE_ERROR,
-                        .message = format("Expected a field, got a {}", myField->type)
-                    });
-                    continue;
-                }
-                resolve_field_selection_details(p_parent_result, p_path, myField,p_result, p_errors);
-            } else if (mySelection->type == "isched::v0_0_1::gql::Name") {
-                spdlog::debug("Skipping node name while processing field children");
-            } else {
-                p_errors.push_back(gql::Error{
-                    gql::EErrorCodes::PARSE_ERROR,
-                    format("Expected a selection or selection set, got a {}", mySelection->type)
-                });
-            }
-        }
+        const auto fields = collect_field_nodes(p_selection_set, p_errors);
+        process_field_nodes(p_parent_result, p_path, fields, p_result, p_errors);
     }
 
     TAstNodePtr const *GqlExecutor::find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const {

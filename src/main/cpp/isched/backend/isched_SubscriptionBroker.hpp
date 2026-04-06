@@ -22,6 +22,8 @@
 #pragma once
 
 #include <functional>
+#include <cstddef>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -180,6 +182,14 @@ public:
     void set_subscription_count_callback(std::function<void(std::size_t)> cb);
 
 private:
+    using SubscriptionIndex = std::size_t;
+    static constexpr SubscriptionIndex kInvalidSubscriptionIndex =
+        std::numeric_limits<SubscriptionIndex>::max();
+
+    [[nodiscard]] static bool isInvalidSubscriptionIndex(SubscriptionIndex index) noexcept {
+        return index == kInvalidSubscriptionIndex;
+    }
+
     SubscriptionBroker();
 
     struct Impl;

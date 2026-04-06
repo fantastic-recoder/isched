@@ -1,0 +1,1 @@
+PASS: verify_pass_gates acceptance/rejection cases passed
