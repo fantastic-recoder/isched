@@ -1,18 +1,15 @@
 <!--
 Sync Impact Report:
-- Version change: 2.1.0 → 2.2.0
-- Modified principles:
-  - VI. Angular WebUI Engineering (NON-NEGOTIABLE) → VI. Angular WebUI Engineering (NON-NEGOTIABLE) (expanded with explicit app-owned state rule)
+- Version change: 2.2.0 → 2.3.0
+- Modified principles: None
 - Added sections:
-  - None
+  - "Clean Code Principles" (new top-level section between Technical Standards and Development Workflow)
 - Removed sections: None
 - Templates requiring updates:
-  ✅ .specify/templates/plan-template.md (Constitution Check now forbids async-pipe-driven app-owned UI state)
-  ✅ .specify/templates/spec-template.md (frontend constitutional requirements now forbid async-pipe-driven app-owned UI state)
-  ✅ .specify/templates/tasks-template.md (WebUI implementation/testing tasks now include signal-backed template-state verification)
+  ✅ .specify/templates/plan-template.md (Constitution Check now includes Clean Code compliance gate)
+  ✅ .specify/templates/tasks-template.md (Polish phase now includes explicit clean code review task)
+  ✅ .specify/templates/spec-template.md (reviewed; no change required)
   ✅ `.specify/templates/commands/*.md` (not present; no updates required)
-  ✅ AGENTS.md (Angular guidance now explicitly forbids async-pipe-driven app-owned UI state)
-  ✅ .github/copilot-instructions.md (Angular guidance now explicitly forbids async-pipe-driven app-owned UI state)
   ✅ README.md (reviewed; no constitution reference change required)
 - Follow-up TODOs: None
 -->
@@ -75,6 +72,40 @@ All Isched WebUI work MUST use modern Angular conventions. State management MUST
 
 Frontend work MUST use Angular standalone APIs and strict TypeScript settings. State consumed by templates for application-owned UI behavior MUST come from signals (or signal-derived selectors/view models); async-pipe-driven template state over component-owned observables is disallowed except when bridging immutable third-party stream contracts with explicit documentation. New templates MUST use `@if`, `@for`, and `@switch` instead of legacy structural-directive microsyntax unless integrating immutable third-party code. Typed reactive forms are mandatory for user input flows, particularly authentication and administration screens. Local development MUST use an Angular dev-server proxy that forwards `/graphql` HTTP and WebSocket traffic to the backend origin; frontend source code MUST avoid hard-coded backend hostnames for dev mode.
 
+## Clean Code Principles
+
+Code MUST favor readability, maintainability, and compiler-friendly structure at every level of the codebase.
+
+### Prefer Polymorphism Over Conditionals
+
+Code SHOULD use polymorphism in place of complex conditional chains (`if/else` or `switch` blocks). Polymorphic
+dispatch reduces branching complexity, enables extension without modifying existing structures, and carries
+neutral-to-positive runtime performance characteristics compared to deep conditional trees.
+
+**Rationale**: Replacing conditional complexity with polymorphic design lowers cognitive load, makes intent
+explicit, and keeps extension paths open without risking regressions in existing branches.
+
+### Small and Focused Functions
+
+Functions MUST be small and perform a single, well-defined task. Single-responsibility functions improve
+readability and give the compiler better opportunities for inlining and optimization.
+
+**Rationale**: Small, focused functions reduce the bug surface, simplify testing, and directly reinforce the
+C++ Core Guidelines already mandated by this constitution.
+
+### Balancing Clean Code with Performance
+
+Clean code practices MUST NOT be applied so rigidly that they introduce measurable performance regressions on
+critical paths. Overzealous abstraction (e.g., gratuitous virtual dispatch layers, unnecessary heap allocation)
+on hot paths requires explicit justification when profiling confirms a trade-off. The table below summarizes
+expected impacts; deviations MUST be documented with profiling evidence.
+
+| Principle               | Performance Impact                                        |
+|-------------------------|-----------------------------------------------------------|
+| Prefer Polymorphism     | Generally positive; reduces branching complexity          |
+| Small Functions         | Positive; aids compiler inlining and optimization         |
+| Overzealous Abstraction | Can degrade performance if applied without profiling data |
+
 ## Development Workflow
 
 **Code Review**: All changes require review with explicit verification of constitution compliance.
@@ -99,4 +130,4 @@ Compliance reviews are mandatory at plan, implementation, and review time; any n
 
 Constitution violations are critical issues requiring immediate resolution.
 
-**Version**: 2.2.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2026-04-05
+**Version**: 2.3.0 | **Ratified**: 2025-11-01 | **Last Amended**: 2026-04-06

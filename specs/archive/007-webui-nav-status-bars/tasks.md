@@ -10,7 +10,7 @@
 ## Format: `[ID] [P?] [Story] Description`
 
 - `[P]` indicates a task that can run in parallel with other tasks that touch different files and have no unfinished prerequisites.
-- `[Story]` labels appear only in user story phases.
+- `[Story]` labels appear only in user story phases (for example, ``[US1]``).
 - Every task includes exact file paths so `speckit.implement` can execute them directly.
 
 ---
@@ -48,15 +48,15 @@
 
 ### Tests for User Story 1
 
-- [x] T008 [P] [US1] Add root-app shell visibility tests for authenticated versus unauthenticated routes in `src/ui/src/app/app.spec.ts`
-- [x] T009 [P] [US1] Add authenticated-shell navigation render, active-route, and sign-out tests in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.spec.ts`
+- [x] T008 [P] `[US1]` Add root-app shell visibility tests for authenticated versus unauthenticated routes in `src/ui/src/app/app.spec.ts`
+- [x] T009 [P] `[US1]` Add authenticated-shell navigation render, active-route, and sign-out tests in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.spec.ts`
 
 ### Implementation for User Story 1
 
-- [x] T010 [P] [US1] Implement the DaisyUI top navbar with asset logo, primary menu links, and active-route classes in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.html` and `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.scss`
-- [x] T011 [P] [US1] Implement shell navigation state and sign-out behavior with signal-backed view state in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.ts`
-- [x] T012 [US1] Refactor root app composition so authenticated routes use the shared shell as the single navigation source in `src/ui/src/app/app.ts`, `src/ui/src/app/app.html`, and `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.ts`
-- [x] T013 [US1] Remove dashboard-local navbar/sign-out chrome and keep dashboard content layout compatible with the shared shell in `src/ui/src/app/pages/dashboard/dashboard.ts`, `src/ui/src/app/pages/dashboard/dashboard.html`, and `src/ui/src/app/pages/dashboard/dashboard.scss`
+- [x] T010 [P] `[US1]` Implement the DaisyUI top navbar with asset logo, primary menu links, and active-route classes in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.html` and `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.scss`
+- [x] T011 [P] `[US1]` Implement shell navigation state and sign-out behavior with signal-backed view state in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.ts`
+- [x] T012 `[US1]` Refactor root app composition so authenticated routes use the shared shell as the single navigation source in `src/ui/src/app/app.ts`, `src/ui/src/app/app.html`, and `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.ts`
+- [x] T013 `[US1]` Remove dashboard-local navbar/sign-out chrome and keep dashboard content layout compatible with the shared shell in `src/ui/src/app/pages/dashboard/dashboard.ts`, `src/ui/src/app/pages/dashboard/dashboard.html`, and `src/ui/src/app/pages/dashboard/dashboard.scss`
 
 **Checkpoint**: Authenticated users can navigate core areas from the global top shell without duplicate page-local navigation UI.
 
@@ -70,15 +70,15 @@
 
 ### Tests for User Story 2
 
-- [x] T014 [P] [US2] Add `ShellStatusService` unit tests for loading/success/error transitions, latest-wins sequencing, and identity fallback in `src/ui/src/app/services/shell-status.service.spec.ts`
-- [x] T015 [P] [US2] Extend shell and users-page tests for bottom status digest text and current-user label behavior in `src/ui/src/app/app.spec.ts`, `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.spec.ts`, and `src/ui/src/app/pages/admin/users.page.spec.ts`
+- [x] T014 [P] `[US2]` Add `ShellStatusService` unit tests for loading/success/error transitions, latest-wins sequencing, and identity fallback in `src/ui/src/app/services/shell-status.service.spec.ts`
+- [x] T015 [P] `[US2]` Extend shell and users-page tests for bottom status digest text and current-user label behavior in `src/ui/src/app/app.spec.ts`, `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.spec.ts`, and `src/ui/src/app/pages/admin/users.page.spec.ts`
 
 ### Implementation for User Story 2
 
-- [x] T016 [P] [US2] Implement the DaisyUI/Tailwind bottom status bar layout, truncation rules, and polite live-region semantics in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.html` and `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.scss`
-- [x] T017 [P] [US2] Populate shell identity from authenticated session bootstrap and clear it back to fallback state on sign-out in `src/ui/src/app/services/auth.service.ts` and `src/ui/src/app/services/shell-status.service.ts`
-- [x] T018 [P] [US2] Emit normalized organization-user loading/success/error digests from GraphQL user-list calls in `src/ui/src/app/services/user.service.ts`
-- [x] T019 [US2] Coordinate `UsersPage` organization-switch and initial-load flows with shell digest publication without duplicating status UI in `src/ui/src/app/pages/admin/users.page.ts` and `src/ui/src/app/pages/admin/users.page.html`
+- [x] T016 [P] `[US2]` Implement the DaisyUI/Tailwind bottom status bar layout, truncation rules, and polite live-region semantics in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.html` and `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.scss`
+- [x] T017 [P] `[US2]` Populate shell identity from authenticated session bootstrap and clear it back to fallback state on sign-out in `src/ui/src/app/services/auth.service.ts` and `src/ui/src/app/services/shell-status.service.ts`
+- [x] T018 [P] `[US2]` Emit normalized organization-user loading/success/error digests from GraphQL user-list calls in `src/ui/src/app/services/user.service.ts`
+- [x] T019 `[US2]` Coordinate `UsersPage` organization-switch and initial-load flows with shell digest publication without duplicating status UI in `src/ui/src/app/pages/admin/users.page.ts` and `src/ui/src/app/pages/admin/users.page.html`
 
 **Checkpoint**: Authenticated screens now show a persistent bottom status bar with deterministic digest and identity behavior.
 
@@ -92,15 +92,15 @@
 
 ### Tests for User Story 3
 
-- [x] T020 [P] [US3] Add auth/session integration tests for resolved display-name replacement and sign-out fallback reset in `src/ui/src/app/services/auth.service.spec.ts` and `src/ui/src/app/services/shell-status.service.spec.ts`
-- [x] T021 [P] [US3] Add user-service digest publication tests for organization-user loading, success, and failure sequences in `src/ui/src/app/services/user.service.spec.ts`
-- [x] T022 [P] [US3] Add Playwright smoke coverage for shell navigation, status bar, current-user label, and organization-user digest transitions in `src/ui/e2e/shell-smoke.spec.ts`
+- [x] T020 [P] `[US3]` Add auth/session integration tests for resolved display-name replacement and sign-out fallback reset in `src/ui/src/app/services/auth.service.spec.ts` and `src/ui/src/app/services/shell-status.service.spec.ts`
+- [x] T021 [P] `[US3]` Add user-service digest publication tests for organization-user loading, success, and failure sequences in `src/ui/src/app/services/user.service.spec.ts`
+- [x] T022 [P] `[US3]` Add Playwright smoke coverage for shell navigation, status bar, current-user label, and organization-user digest transitions in `src/ui/e2e/shell-smoke.spec.ts`
 
 ### Implementation for User Story 3
 
-- [x] T023 [US3] Add stable shell/status automation selectors and ARIA hooks for smoke coverage in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.html` and `src/ui/src/app/pages/admin/users.page.html`
-- [x] T024 [US3] Add focused shell unit/smoke execution scripts in `src/ui/package.json`
-- [x] T025 [US3] Reuse authenticated Playwright bootstrap helpers for the shell smoke flow in `src/ui/e2e/bootstrap.spec.ts` and `src/ui/e2e/global-setup.ts`
+- [x] T023 `[US3]` Add stable shell/status automation selectors and ARIA hooks for smoke coverage in `src/ui/src/app/components/authenticated-shell/authenticated-shell.component.html` and `src/ui/src/app/pages/admin/users.page.html`
+- [x] T024 `[US3]` Add focused shell unit/smoke execution scripts in `src/ui/package.json`
+- [x] T025 `[US3]` Reuse authenticated Playwright bootstrap helpers for the shell smoke flow in `src/ui/e2e/bootstrap.spec.ts` and `src/ui/e2e/global-setup.ts`
 
 **Checkpoint**: Automated unit and smoke coverage protects the new global shell and its representative digest behavior.
 
@@ -113,6 +113,7 @@
 - [x] T026 [P] Update shared-shell ownership, signal-first status publication guidance, and shell smoke commands in `src/ui/README.md`
 - [x] T027 Update final regression commands and validation notes for `pnpm run test`, focused shell tests, `pnpm run e2e -- e2e/shell-smoke.spec.ts`, and `ctest --output-on-failure` in `specs/007-webui-nav-status-bars/quickstart.md`
 - [x] T028 Add explicit dev-server proxy preservation coverage for `/graphql` routing in `src/ui/e2e/dev-proxy.spec.ts`, `src/ui/proxy.conf.json`, and `src/ui/package.json`
+- [x] T029 Review the shared-shell refactor for clean code compliance in `src/ui/src/app/`, verifying small/focused functions, preference for focused service/component boundaries over complex conditionals, and documenting that no profiling-backed hot-path abstraction exception was needed
 
 ---
 
@@ -220,7 +221,7 @@ Task T025: src/ui/e2e/bootstrap.spec.ts + src/ui/e2e/global-setup.ts
 
 ### Implementation Readiness Checklist
 
-- All tasks follow the required checklist format: `- [ ] T### [P?] [US?] Description with file path`.
+- All tasks follow the required checklist format: `- [ ] T### [P?] [Story] Description with file path`.
 - Every user story has explicit verification tasks and implementation tasks.
 - The dependency order supports MVP-first delivery and multi-developer parallelization.
 - The task list explicitly covers signal-first Angular state, separate template/style files, DaisyUI/Tailwind styling, smoke Playwright coverage, and removal of duplicated route/page shell chrome.

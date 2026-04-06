@@ -39,6 +39,8 @@
 - [ ] Local Angular development (if any) uses a proxy for `/graphql` (HTTP + WebSocket) with no hard-coded backend hostnames in client source
 - [ ] Test plan proves required coverage before each user story is marked complete
 - [ ] Security-sensitive changes include both feature-scoped and project-level threat-model updates
+- [ ] New code follows Clean Code Principles: functions are small and focused, polymorphism preferred over
+  complex conditional chains, and any hot-path abstraction trade-offs are documented with profiling evidence
 
 ## Project Structure
 
