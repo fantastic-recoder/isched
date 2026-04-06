@@ -1,7 +1,7 @@
 # Implementation Plan: Tenant Admin Schema Upload
 
-**Branch**: `006-upload-schema` | **Date**: 2026-04-06 | **Spec**: `/home/groby/dev/isched/specs/006-upload-schema/spec.md`
-**Input**: Feature specification from `/home/groby/dev/isched/specs/006-upload-schema/spec.md`
+**Branch**: `006-upload-schema` | **Date**: 2026-04-06 | **Spec**: `/home/groby/dev/isched/specs/archive/006-upload-schema/spec.md`
+**Input**: Feature specification from `/home/groby/dev/isched/specs/archive/006-upload-schema/spec.md`
 
 ## Summary
 
@@ -37,10 +37,10 @@ Implement tenant-scoped GraphQL schema document upload/list/fetch with clarified
 
 ## Project Structure
 
-### Documentation (this feature)
+### Documentation (archived feature record)
 
 ```text
-specs/006-upload-schema/
+specs/archive/006-upload-schema/
 ├── plan.md
 ├── research.md
 ├── data-model.md

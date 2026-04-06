@@ -21,7 +21,7 @@
   - Controlled-restart durability (in-process recreate)
   - Concurrent overwrite resolves to last successful commit
   - Upload P95 < 2 s (N=100), list P95 < 500 ms (200 docs), fetch P95 < 300 ms (200 docs)
-- Feature threat model in `specs/006-upload-schema/threat-model.md` covering 7 identified threats.
+- Feature threat model in `specs/archive/006-upload-schema/threat-model.md` covering 7 identified threats.
 - Feature 006 security closeout snapshot in `docs/security-threat-model.md`.
 
 ### Changed
@@ -30,6 +30,9 @@
 ### Validation
 - Backend focused gate: `ctest -R test_graphql_schema_upload --output-on-failure` -> PASS (13 test cases, 1561 assertions).
 - Backend full gate: `ctest --output-on-failure` -> PASS (40/40).
+
+### Status
+- Feature `006-upload-schema` is merged to `main`; implementation artifacts are archived under `specs/archive/006-upload-schema/`.
 
 ## [Feature 005] RATE_LIMITED + Auth Bootstrap Consistency (Phase 6) — 2026-04-05
 

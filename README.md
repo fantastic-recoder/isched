@@ -34,6 +34,8 @@ Full methodology and raw results: [docs/comparable-benchmark-results.md](docs/co
 
 ## Documentation
 
+Completed feature-spec artifacts are retained under `specs/archive/` once they have been merged to `main`. Feature 006 is archived at `specs/archive/006-upload-schema/`.
+
 ### Doxygen Documentation Specification
 This project follows comprehensive Doxygen documentation standards to ensure high-quality, maintainable code. All public APIs, classes, and functions must include detailed Doxygen comments following these conventions:
 

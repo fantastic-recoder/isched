@@ -1,6 +1,6 @@
 # Tasks: Tenant Admin Schema Upload
 
-**Input**: Design documents from `/home/groby/dev/isched/specs/006-upload-schema/`
+**Input**: Design documents from `/home/groby/dev/isched/specs/archive/006-upload-schema/`
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/graphql-schema-upload.md`, `quickstart.md`
 
 **Tests**: Automated coverage is required for SC-001 through SC-010 plus constitution-mandated performance/scalability verification on core upload/list/fetch paths with explicit measurable thresholds. Canonical deterministic null-on-miss behavior and controlled-restart durability must each have explicit automated verification tasks.
@@ -112,11 +112,11 @@
 
 **Purpose**: Documentation, threat-model updates, performance evidence capture, and full validation closure.
 
-- [X] T036 [P] Create/update feature threat model with authz/isolation/overwrite-race controls in `specs/006-upload-schema/threat-model.md`
+- [X] T036 [P] Create/update feature threat model with authz/isolation/overwrite-race controls in `specs/archive/006-upload-schema/threat-model.md`
 - [X] T037 [P] Add feature linkage and mitigations summary in `docs/security-threat-model.md`
 - [X] T038 [P] Add changelog entry for schema upload/list/fetch behavior and clarified contracts in `CHANGELOG.md`
-- [X] T039 Update feature quickstart with explicit regex/case/size/concurrency/null-on-miss/restart and upload-list-fetch performance-threshold verification notes in `specs/006-upload-schema/quickstart.md`
-- [X] T040 Record regression and performance verification evidence (`ctest --output-on-failure` and core-path threshold results) in `specs/006-upload-schema/quickstart.md`
+- [X] T039 Update feature quickstart with explicit regex/case/size/concurrency/null-on-miss/restart and upload-list-fetch performance-threshold verification notes in `specs/archive/006-upload-schema/quickstart.md`
+- [X] T040 Record regression and performance verification evidence (`ctest --output-on-failure` and core-path threshold results) in `specs/archive/006-upload-schema/quickstart.md`
 
 ---
 

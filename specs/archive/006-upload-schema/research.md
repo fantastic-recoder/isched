@@ -78,7 +78,7 @@
 
 ## Decision 10: Security documentation and verification are mandatory deliverables
 
-- **Decision**: Produce a feature threat model in `specs/006-upload-schema/threat-model.md` and add feature summary linkage to `docs/security-threat-model.md` during implementation closeout.
+- **Decision**: Produce a feature threat model in `specs/archive/006-upload-schema/threat-model.md` and add feature summary linkage to `docs/security-threat-model.md` during implementation closeout.
 - **Rationale**: Constitution mandates threat-model updates for security-sensitive authz/tenant-isolation changes.
 - **Alternatives considered**:
   - Defer threat modeling to post-implementation: rejected due to gate risk and incomplete planning evidence.
