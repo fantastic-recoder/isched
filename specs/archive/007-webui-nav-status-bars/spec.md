@@ -2,7 +2,7 @@
 
 **Feature Branch**: `007-webui-nav-status-bars`  
 **Created**: 2026-04-06  
-**Status**: Draft  
+**Status**: Done  
 **Input**: User description: "Isched WebUI enhancements"
 
 ## User Scenarios & Testing *(mandatory)*
@@ -62,15 +62,15 @@ As a delivery team member, I want thorough unit coverage and smoke end-to-end ch
 
 ### Functional Requirements
 
-- **FR-001**: The WebUI MUST display a top navigation bar on all authenticated application screens included in this feature scope.
+- **FR-001**: The WebUI MUST display a top navigation bar on all authenticated application screens in scope: `/dashboard`, `/admin/organizations`, `/admin/users`, and `/admin/rbac`.
 - **FR-002**: The top navigation bar MUST display the isched logo sourced from the WebUI assets directory.
 - **FR-003**: The top navigation bar MUST include a navigation menu that allows users to move between defined primary application destinations.
-- **FR-004**: The WebUI MUST display a bottom status bar on all authenticated application screens included in this feature scope.
+- **FR-004**: The WebUI MUST display a bottom status bar on all authenticated application screens in scope: `/dashboard`, `/admin/organizations`, `/admin/users`, and `/admin/rbac`.
 - **FR-005**: The bottom status bar MUST display a last-operation digest describing the most recent tracked user-visible operation.
 - **FR-006**: The operation digest MUST support at least in-progress and success states using normalized user-facing wording, including "Loading organization users" and "Organization users loaded" for the representative flow.
 - **FR-007**: The bottom status bar MUST display the current authenticated user name.
-- **FR-008**: The shell styling for top navigation and bottom status bars MUST present a simple, clean appearance aligned with DaisyUI component conventions and project utility styling standards.
-- **FR-009**: The navigation and status shell MUST remain usable across supported viewport sizes without hiding critical information by default.
+- **FR-008**: The shell styling for top navigation and bottom status bars MUST use DaisyUI/Tailwind classes, keep controls visually distinct, and avoid overlapping interactive content at viewport widths >= 320px.
+- **FR-009**: The navigation and status shell MUST remain usable at viewport widths 320px, 768px, and 1280px without clipping the current-user label or digest text region.
 - **FR-010**: The feature MUST include thorough unit tests that cover shell rendering, digest state transitions, and current-user display behavior.
 - **FR-011**: The feature MUST include smoke end-to-end tests that validate the top navigation bar, bottom status bar, and representative digest transition behavior in a running environment.
 
@@ -101,6 +101,7 @@ As a delivery team member, I want thorough unit coverage and smoke end-to-end ch
 ### Measurable Outcomes
 
 - **SC-001**: In acceptance testing, 100% of authenticated primary screens in scope show both the top navigation bar and bottom status bar.
-- **SC-002**: In moderated usability checks, at least 90% of participants correctly identify both the current user name and latest operation status within 5 seconds.
+- **SC-002**: In automated UI tests, the shell status bar shows a non-empty current-user label and latest-operation digest on every successful authenticated render of `/dashboard` and `/admin/users`.
 - **SC-003**: For the representative organization-user loading flow, status text changes from in-progress to success wording in every observed successful run.
 - **SC-004**: Before release, all new unit and smoke end-to-end tests for this feature pass in the CI validation run.
+- **SC-005**: Local dev proxy validation confirms `/graphql` forwarding from Angular dev server to backend (HTTP and WebSocket routing configuration preserved).

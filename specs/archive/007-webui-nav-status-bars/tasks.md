@@ -112,6 +112,7 @@
 
 - [x] T026 [P] Update shared-shell ownership, signal-first status publication guidance, and shell smoke commands in `src/ui/README.md`
 - [x] T027 Update final regression commands and validation notes for `pnpm run test`, focused shell tests, `pnpm run e2e -- e2e/shell-smoke.spec.ts`, and `ctest --output-on-failure` in `specs/007-webui-nav-status-bars/quickstart.md`
+- [x] T028 Add explicit dev-server proxy preservation coverage for `/graphql` routing in `src/ui/e2e/dev-proxy.spec.ts`, `src/ui/proxy.conf.json`, and `src/ui/package.json`
 
 ---
 
@@ -223,4 +224,3 @@ Task T025: src/ui/e2e/bootstrap.spec.ts + src/ui/e2e/global-setup.ts
 - Every user story has explicit verification tasks and implementation tasks.
 - The dependency order supports MVP-first delivery and multi-developer parallelization.
 - The task list explicitly covers signal-first Angular state, separate template/style files, DaisyUI/Tailwind styling, smoke Playwright coverage, and removal of duplicated route/page shell chrome.
-

@@ -22,6 +22,7 @@ Validate top navigation visibility and routing, bottom status bar digest + user 
 | FR-006 | Unit tests for digest loading/success/failure wording and representative organization-user flow |
 | FR-010 | `pnpm run test` and `pnpm run test:shell` include shell rendering + digest transition suites |
 | FR-011 | `pnpm run e2e` and `pnpm run e2e:shell` validate global shell behavior in a running app |
+| FCR-006, SC-005 | `pnpm run e2e:dev-proxy` validates Angular dev-server `/graphql` proxy forwarding |
 | SC-001, SC-003, SC-004 | Combined unit + smoke suite execution in CI-like run |
 
 ## 1) Run focused frontend unit tests (shell + tracked operations)
@@ -52,7 +53,14 @@ cd /home/groby/dev/isched/src/ui
 pnpm run e2e
 ```
 
-## 5) Run repository regression gate before merge
+## 5) Run Angular dev-server proxy health check
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm run e2e:dev-proxy
+```
+
+## 6) Run repository regression gate before merge
 
 ```bash
 cd /home/groby/dev/isched/cmake-build-debug
@@ -82,9 +90,9 @@ cd /home/groby/dev/isched/src/ui
 pnpm run test:shell
 pnpm run test
 pnpm run e2e:shell
+pnpm run e2e:dev-proxy
 pnpm run e2e
 
 cd /home/groby/dev/isched/cmake-build-debug
 ctest --output-on-failure
 ```
-

@@ -93,7 +93,7 @@ Equivalent inline form:
 ./cmake-build-debug/src/main/cpp/isched/isched_srv --data-dir=/tmp/isched-data
 ```
 
-WebUI remains served at `GET /graphql`, with SPA routes under `/graphql/*`.
+WebUI is served at `GET /isched`; `GET /` and `GET /graphql` redirect to `/isched`.
 
 Build on Ubuntu with Docker
 ---------------------------
