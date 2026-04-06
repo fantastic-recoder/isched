@@ -2388,6 +2388,35 @@ namespace isched::v0_0_1::backend {
         // =============================================================
         // Constants and shared helpers
         static constexpr std::size_t k_default_schema_max_bytes = 1024 * 1024; // 1 MB
+        static constexpr std::string_view k_schema_upload_max_bytes_env =
+            "ISCHED_SCHEMA_UPLOAD_MAX_BYTES";
+
+        static const auto resolve_schema_upload_max_bytes = []() -> std::size_t {
+            const char* configured = std::getenv(k_schema_upload_max_bytes_env.data());
+            if (configured == nullptr || *configured == '\0') {
+                return k_default_schema_max_bytes;
+            }
+
+            try {
+                const auto parsed = std::stoull(configured);
+                if (parsed == 0U) {
+                    spdlog::warn(
+                        "Ignoring {}=0; falling back to default schema upload size limit of {} bytes",
+                        k_schema_upload_max_bytes_env,
+                        k_default_schema_max_bytes);
+                    return k_default_schema_max_bytes;
+                }
+                return static_cast<std::size_t>(parsed);
+            } catch (const std::exception& ex) {
+                spdlog::warn(
+                    "Ignoring invalid {}='{}' ({}); falling back to default schema upload size limit of {} bytes",
+                    k_schema_upload_max_bytes_env,
+                    configured,
+                    ex.what(),
+                    k_default_schema_max_bytes);
+                return k_default_schema_max_bytes;
+            }
+        };
 
         // Name validator: [A-Za-z0-9._-]{1,128}
         static const auto validate_schema_name = [](const std::string& name) -> bool {
@@ -2477,14 +2506,15 @@ namespace isched::v0_0_1::backend {
                         }}
                     };
                 }
-                if (doc_content.size() > k_default_schema_max_bytes) {
+                const std::size_t max_schema_bytes = resolve_schema_upload_max_bytes();
+                if (doc_content.size() > max_schema_bytes) {
                     return json{
                         {"success", false},
                         {"schema",  nullptr},
                         {"error", json{
                             {"code",    "VALIDATION_FAILED"},
                             {"message", std::format("Schema document content exceeds maximum size of {} bytes",
-                                k_default_schema_max_bytes)},
+                                max_schema_bytes)},
                             {"conflictingName", nullptr}
                         }}
                     };

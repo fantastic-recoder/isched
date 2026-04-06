@@ -11,6 +11,8 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
+#include <filesystem>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <variant>
@@ -30,6 +32,124 @@ using nlohmann::json;
 using isched::v0_0_1::gql::EErrorCodes;
 
 namespace isched::v0_0_1::backend {
+
+    namespace {
+
+        constexpr std::string_view k_schema_upload_test_sdl = "type Query { ping: String }";
+
+        struct ScopedEnvVar {
+            explicit ScopedEnvVar(const char* name)
+                : name_(name) {
+                const char* existing = std::getenv(name_);
+                if (existing != nullptr) {
+                    had_original_ = true;
+                    original_value_ = existing;
+                }
+            }
+
+            ScopedEnvVar(const ScopedEnvVar&) = delete;
+            ScopedEnvVar& operator=(const ScopedEnvVar&) = delete;
+
+            ~ScopedEnvVar() {
+                if (had_original_) {
+                    setenv(name_, original_value_.c_str(), 1);
+                } else {
+                    unsetenv(name_);
+                }
+            }
+
+            void set(const std::string& value) const {
+                setenv(name_, value.c_str(), 1);
+            }
+
+            void unset() const {
+                unsetenv(name_);
+            }
+
+        private:
+            const char* name_;
+            bool had_original_{false};
+            std::string original_value_;
+        };
+
+        struct SchemaUploadExecutorFixture {
+            std::shared_ptr<DatabaseManager> db;
+            std::shared_ptr<GqlExecutor> executor;
+        };
+
+        [[nodiscard]] auto schema_upload_has_error_code(
+            const ExecutionResult& result,
+            const EErrorCodes code) -> bool
+        {
+            return std::any_of(result.errors.begin(), result.errors.end(),
+                [code](const auto& error) { return error.code == code; });
+        }
+
+        [[nodiscard]] auto make_schema_upload_executor(const std::string& label)
+            -> SchemaUploadExecutorFixture
+        {
+            const auto root = std::filesystem::temp_directory_path()
+                / ("isched_schema_exec_" + label + "_"
+                   + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()));
+            std::filesystem::create_directories(root / "tenants");
+
+            DatabaseManager::Config cfg;
+            cfg.base_path = (root / "tenants").string();
+            cfg.system_db_path = (root / "system.sqlite3").string();
+
+            auto db = std::make_shared<DatabaseManager>(cfg);
+            REQUIRE(db->ensure_system_db());
+            return {db, std::make_shared<GqlExecutor>(db)};
+        }
+
+        [[nodiscard]] auto schema_upload_admin_ctx(const std::string& tenant_id)
+            -> ResolverCtx
+        {
+            ResolverCtx ctx;
+            ctx.tenant_id = tenant_id;
+            ctx.current_user_id = "tenant_admin_test";
+            ctx.roles = {"role_tenant_admin"};
+            return ctx;
+        }
+
+        [[nodiscard]] auto schema_upload_user_ctx(const std::string& tenant_id)
+            -> ResolverCtx
+        {
+            ResolverCtx ctx;
+            ctx.tenant_id = tenant_id;
+            ctx.current_user_id = "tenant_user_test";
+            ctx.roles = {"role_user"};
+            return ctx;
+        }
+
+        [[nodiscard]] auto schema_upload_upload_mutation() -> std::string
+        {
+            return R"(
+                mutation($input: UploadSchemaDocumentInput!) {
+                    uploadSchemaDocument(input: $input) {
+                        success
+                        schema { name createdAt updatedAt updatedBy }
+                        error { code message conflictingName }
+                    }
+                }
+            )";
+        }
+
+        [[nodiscard]] auto schema_upload_upload_variables(
+            const std::string& name,
+            const std::string& content,
+            const bool overwrite = false) -> std::string
+        {
+            return json{
+                {"input", {
+                    {"name", name},
+                    {"content", content},
+                    {"overwrite", overwrite}
+                }}
+            }.dump();
+        }
+
+    } // namespace
 
     TEST_CASE("GqlExecutor can be constructed", "[gql][processor][smoke]") {
         GqlExecutor proc(std::make_shared<backend::DatabaseManager>());
@@ -980,6 +1100,163 @@ namespace isched::v0_0_1::backend {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
         const auto reply = proc.execute("{ hello version uptime }");
         REQUIRE(reply.is_success());
+    }
+
+    TEST_CASE("Schema upload executor enforces tenant-admin authorization and conflict semantics",
+              "[gql][executor][schema-upload][auth][conflict]") {
+        auto fixture = make_schema_upload_executor("auth_conflict");
+        auto& db = fixture.db;
+        auto& exec = fixture.executor;
+        REQUIRE(db->initialize_tenant("org_auth"));
+        const auto mutation = schema_upload_upload_mutation();
+
+        const auto create_result = exec->execute(
+            mutation,
+            schema_upload_upload_variables("billing-v1", std::string(k_schema_upload_test_sdl)),
+            schema_upload_admin_ctx("org_auth"));
+        REQUIRE(create_result.is_success());
+        REQUIRE(create_result.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(create_result.data["uploadSchemaDocument"]["schema"]["name"] == "billing-v1");
+
+        SECTION("regular tenant user is rejected before resolver execution") {
+            const auto result = exec->execute(
+                mutation,
+                schema_upload_upload_variables("billing-v2", std::string(k_schema_upload_test_sdl)),
+                schema_upload_user_ctx("org_auth"));
+            REQUIRE_FALSE(result.is_success());
+            REQUIRE(schema_upload_has_error_code(result, EErrorCodes::FORBIDDEN));
+            REQUIRE(result.data["uploadSchemaDocument"].is_null());
+        }
+
+        SECTION("duplicate without overwrite returns structured conflict payload") {
+            const auto result = exec->execute(
+                mutation,
+                schema_upload_upload_variables("billing-v1", std::string(k_schema_upload_test_sdl)),
+                schema_upload_admin_ctx("org_auth"));
+            REQUIRE(result.is_success());
+            REQUIRE(result.data["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(result.data["uploadSchemaDocument"]["error"]["code"] == "CONFLICT");
+            REQUIRE(result.data["uploadSchemaDocument"]["error"]["conflictingName"] == "billing-v1");
+        }
+    }
+
+    TEST_CASE("Schema upload executor validates names and configurable content size limit",
+              "[gql][executor][schema-upload][validation]") {
+        ScopedEnvVar schema_upload_max_bytes{"ISCHED_SCHEMA_UPLOAD_MAX_BYTES"};
+        auto fixture = make_schema_upload_executor("validation");
+        auto& db = fixture.db;
+        auto& exec = fixture.executor;
+        REQUIRE(db->initialize_tenant("org_validation"));
+        const auto ctx = schema_upload_admin_ctx("org_validation");
+        const auto mutation = schema_upload_upload_mutation();
+
+        SECTION("invalid document names are rejected") {
+            const auto result = exec->execute(
+                mutation,
+                schema_upload_upload_variables("bad name", std::string(k_schema_upload_test_sdl)),
+                ctx);
+            REQUIRE(result.is_success());
+            REQUIRE(result.data["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(result.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        }
+
+        SECTION("default 1 MB limit rejects oversized SDL before parse") {
+            schema_upload_max_bytes.unset();
+            const auto oversized = std::string((1024U * 1024U) + 1U, 'x');
+            const auto result = exec->execute(
+                mutation,
+                schema_upload_upload_variables("oversized-default", oversized),
+                ctx);
+            REQUIRE(result.is_success());
+            REQUIRE(result.data["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(result.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+            REQUIRE(result.data["uploadSchemaDocument"]["error"]["message"]
+                    .get<std::string>()
+                    .find("1048576") != std::string::npos);
+        }
+
+        SECTION("environment override changes the active byte cap") {
+            schema_upload_max_bytes.set("32");
+            const auto accepted = exec->execute(
+                mutation,
+                schema_upload_upload_variables("small-doc", std::string(k_schema_upload_test_sdl)),
+                ctx);
+            REQUIRE(accepted.is_success());
+            REQUIRE(accepted.data["uploadSchemaDocument"]["success"] == true);
+
+            const auto oversized = std::string(k_schema_upload_test_sdl) + "      ";
+            REQUIRE(oversized.size() > 32U);
+            const auto rejected = exec->execute(
+                mutation,
+                schema_upload_upload_variables("too-large", oversized),
+                ctx);
+            REQUIRE(rejected.is_success());
+            REQUIRE(rejected.data["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(rejected.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+            REQUIRE(rejected.data["uploadSchemaDocument"]["error"]["message"]
+                    .get<std::string>()
+                    .find("32") != std::string::npos);
+        }
+    }
+
+    TEST_CASE("Schema document executor queries remain tenant-scoped and null on miss",
+              "[gql][executor][schema-upload][read-paths]") {
+        auto fixture = make_schema_upload_executor("read_paths");
+        auto& db = fixture.db;
+        auto& exec = fixture.executor;
+        REQUIRE(db->initialize_tenant("org_a"));
+        REQUIRE(db->initialize_tenant("org_b"));
+        const auto mutation = schema_upload_upload_mutation();
+
+        const auto upload = exec->execute(
+            mutation,
+            schema_upload_upload_variables("Billing", std::string(k_schema_upload_test_sdl)),
+            schema_upload_admin_ctx("org_a"));
+        REQUIRE(upload.is_success());
+        REQUIRE(upload.data["uploadSchemaDocument"]["success"] == true);
+
+        SECTION("schemaDocuments returns only tenant-local summaries") {
+            const auto list_a = exec->execute(
+                "query { schemaDocuments { name createdAt updatedAt updatedBy } }",
+                "{}",
+                schema_upload_user_ctx("org_a"));
+            REQUIRE(list_a.is_success());
+            REQUIRE(list_a.data["schemaDocuments"].is_array());
+            REQUIRE(list_a.data["schemaDocuments"].size() == 1);
+            REQUIRE(list_a.data["schemaDocuments"][0]["name"] == "Billing");
+            REQUIRE_FALSE(list_a.data["schemaDocuments"][0].contains("sizeBytes"));
+
+            const auto list_b = exec->execute(
+                "query { schemaDocuments { name } }",
+                "{}",
+                schema_upload_user_ctx("org_b"));
+            REQUIRE(list_b.is_success());
+            REQUIRE(list_b.data["schemaDocuments"].empty());
+        }
+
+        SECTION("schemaDocument fetch is exact-name, tenant-scoped, and null on miss") {
+            const auto fetch_hit = exec->execute(
+                R"(query { schemaDocument(name: "Billing") { name content updatedBy } })",
+                "{}",
+                schema_upload_user_ctx("org_a"));
+            REQUIRE(fetch_hit.is_success());
+            REQUIRE(fetch_hit.data["schemaDocument"]["name"] == "Billing");
+            REQUIRE(fetch_hit.data["schemaDocument"]["content"] == k_schema_upload_test_sdl);
+
+            const auto fetch_miss_case = exec->execute(
+                R"(query { schemaDocument(name: "billing") { name } })",
+                "{}",
+                schema_upload_user_ctx("org_a"));
+            REQUIRE(fetch_miss_case.is_success());
+            REQUIRE(fetch_miss_case.data["schemaDocument"].is_null());
+
+            const auto fetch_miss_tenant = exec->execute(
+                R"(query { schemaDocument(name: "Billing") { name } })",
+                "{}",
+                schema_upload_user_ctx("org_b"));
+            REQUIRE(fetch_miss_tenant.is_success());
+            REQUIRE(fetch_miss_tenant.data["schemaDocument"].is_null());
+        }
     }
 
 } // namespace isched::v0_0_1::backend
