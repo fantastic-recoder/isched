@@ -1,0 +1,24 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.shell {
+  min-height: 100vh;
+}
+
+.shell__content {
+  min-height: 0;
+}
+
+.shell__logo {
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08);
+}
+
+.shell__nav-link {
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+

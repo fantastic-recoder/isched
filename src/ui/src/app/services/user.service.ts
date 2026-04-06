@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { defer, map, Observable, throwError } from 'rxjs';
+import { catchError, defer, map, Observable, tap, throwError } from 'rxjs';
 import { OrgContextService } from './org-context.service';
 import { FilterInput, PageInput, PageInfo, SortInput } from './organization.service';
 import { GraphQLRequestError, GraphQLService } from './graphql.service';
+import { ShellStatusService } from './shell-status.service';
 
 export interface RoleAssignmentSummary {
   roleId: string;
@@ -62,41 +63,66 @@ const DEFAULT_SORT: SortInput[] = [{ field: 'displayName', direction: 'ASC' }];
 export class UserService {
   private readonly gql = inject(GraphQLService);
   private readonly orgContext = inject(OrgContextService);
+  private readonly shellStatus = inject(ShellStatusService);
 
   listUsers(options: UserListOptions): Observable<UserConnection> {
-    return this.gql
-      .query<UsersResponse>(
-        `query Users($organizationId: ID!, $page: PageInput!, $sort: [SortInput!], $filter: [FilterInput!]) {
-          users(organizationId: $organizationId, page: $page, sort: $sort, filter: $filter) {
-            nodes {
-              id
-              organizationId
-              loginId
-              displayName
-              status
-              revision
-              updatedAt
-              roleAssignments {
-                roleId
-                effective
+    return defer(() => {
+      const sequence = this.shellStatus.beginOperation(
+        'organization-users:list',
+        'Loading organization users',
+      );
+
+      return this.gql
+        .query<UsersResponse>(
+          `query Users($organizationId: ID!, $page: PageInput!, $sort: [SortInput!], $filter: [FilterInput!]) {
+            users(organizationId: $organizationId, page: $page, sort: $sort, filter: $filter) {
+              nodes {
+                id
+                organizationId
+                loginId
+                displayName
+                status
+                revision
+                updatedAt
+                roleAssignments {
+                  roleId
+                  effective
+                }
+              }
+              pageInfo {
+                number
+                size
+                totalElements
+                totalPages
               }
             }
-            pageInfo {
-              number
-              size
-              totalElements
-              totalPages
-            }
-          }
-        }`,
-        {
-          organizationId: options.organizationId,
-          page: options.page ?? DEFAULT_PAGE,
-          sort: options.sort ?? DEFAULT_SORT,
-          filter: options.filter,
-        },
-      )
-      .pipe(map(({ users }) => users));
+          }`,
+          {
+            organizationId: options.organizationId,
+            page: options.page ?? DEFAULT_PAGE,
+            sort: options.sort ?? DEFAULT_SORT,
+            filter: options.filter,
+          },
+        )
+        .pipe(
+          map(({ users }) => users),
+          tap(() => {
+            this.shellStatus.completeOperation(
+              'organization-users:list',
+              'Organization users loaded',
+              sequence,
+            );
+          }),
+          catchError((error: unknown) => {
+            this.shellStatus.failOperation(
+              'organization-users:list',
+              this.organizationUsersFailureMessage(error),
+              sequence,
+            );
+            return throwError(() => error);
+          }),
+        );
+    });
   }
 
   createUser(organizationId: string, input: CreateUserInput): Observable<UserRecord> {
@@ -167,6 +193,16 @@ export class UserService {
         )
         .pipe(map(({ updateUser }) => updateUser));
     });
+  }
+
+  private organizationUsersFailureMessage(error: unknown): string {
+    if (error instanceof GraphQLRequestError) {
+      return 'Unable to load organization users';
+    }
+
+    return error instanceof Error && error.message.trim().length > 0
+      ? 'Unable to load organization users'
+      : 'Unable to load organization users';
   }
 }
 

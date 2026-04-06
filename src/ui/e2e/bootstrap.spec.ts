@@ -1,14 +1,18 @@
 import { expect, test } from '@playwright/test';
+import {
+  ADMIN_DISPLAY_NAME,
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+  BOOTSTRAP_BANNER_TEXT,
+  bootstrapPlatformAdmin,
+  logInAsPlatformAdmin,
+} from './authenticated-session.helpers';
+import { APP_ENTRY_PATH } from './global-setup';
 
 // ---------------------------------------------------------------------------
-// Credentials used throughout the bootstrap + login flow tests.
-// The server is started with a fresh temporary data directory by global-setup,
-// so the platform is always in seed / bootstrap mode at the start of a run.
+// Shared bootstrap/login credentials and flows are centralized in
+// authenticated-session.helpers.ts so other smoke tests can reuse them.
 // ---------------------------------------------------------------------------
-const ADMIN_EMAIL = 'admin@e2e.test';
-const ADMIN_DISPLAY_NAME = 'E2E Admin';
-const ADMIN_PASSWORD = 'Str0ng!Password2025'; // ≥ 12 chars, satisfies validator
-const BOOTSTRAP_BANNER_TEXT = 'Bootstrap mode active';
 
 const assertDashboardMinimumContent = async (page: import('@playwright/test').Page) => {
   await expect(page.locator('[data-testid="dashboard-health-badge"]')).toContainText('Healthy');
@@ -30,7 +34,7 @@ const assertDashboardMinimumContent = async (page: import('@playwright/test').Pa
 // Test 1 — UI shape check (no state mutation)
 // ---------------------------------------------------------------------------
 test('bootstrap form is visible in seed mode', async ({ page }) => {
-  await page.goto('/isched');
+  await page.goto(APP_ENTRY_PATH);
 
   // The app should redirect to the bootstrap route while seed mode is active.
   await expect(page).toHaveURL(/\/isched\/bootstrap(?:$|\?)/);
@@ -70,7 +74,7 @@ test('redirects to sign-in with a bootstrap-unavailable notice when bootstrap co
     route.continue();
   });
 
-  await page.goto('/isched');
+  await page.goto(APP_ENTRY_PATH);
   await expect(page).toHaveURL(/\/isched\/bootstrap(?:$|\?)/, { timeout: 10_000 });
 
   await page.locator('#bs-email').fill(ADMIN_EMAIL);
@@ -94,25 +98,10 @@ test('redirects to sign-in with a bootstrap-unavailable notice when bootstrap co
 // ---------------------------------------------------------------------------
 test('complete bootstrap, auto-login, sign out, and log back in', async ({ page }) => {
   // ── Step 1: navigate to app → should still be in bootstrap / seed mode ──
-  await page.goto('/isched');
-  await expect(page).toHaveURL(/\/isched\/bootstrap(?:$|\?)/, { timeout: 10_000 });
-  await expect(page.getByRole('heading', { name: 'Initialize Platform' })).toBeVisible();
+  await bootstrapPlatformAdmin(page);
 
-  // ── Step 2: fill in and submit the bootstrap form ──────────────────────
-  // Use element IDs to avoid ambiguity with the "Show password" aria-label button.
-  await page.locator('#bs-email').fill(ADMIN_EMAIL);
-  await page.locator('#bs-displayName').fill(ADMIN_DISPLAY_NAME);
-  await page.locator('#bs-password').fill(ADMIN_PASSWORD);
-
-  await page.locator('#bs-submit').click();
-
-  // ── Step 3: after successful bootstrap the page auto-logs in and navigates
-  //           to the dashboard ─────────────────────────────────────────────
-  await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });
   // The navbar brand is always visible on the dashboard.
   await expect(page.getByText('isched', { exact: false })).toBeVisible();
-  // Bootstrap mode should be off after successful completion.
-  await expect(page.getByText(BOOTSTRAP_BANNER_TEXT)).toHaveCount(0);
   await assertDashboardMinimumContent(page);
 
   // ── Step 4: sign out ───────────────────────────────────────────────────
@@ -125,12 +114,9 @@ test('complete bootstrap, auto-login, sign out, and log back in', async ({ page 
   await expect(page).toHaveURL(/\/isched\/login(?:$|\?)/, { timeout: 10_000 });
 
   // ── Step 5: log back in with the credentials created during bootstrap ──
-  await page.locator('#email').fill(ADMIN_EMAIL);
-  await page.locator('#password').fill(ADMIN_PASSWORD);
-  await page.locator('#login-submit').click();
+  await logInAsPlatformAdmin(page);
 
   // Should arrive at the dashboard again.
-  await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });
   await expect(page.getByText('isched', { exact: false })).toBeVisible();
   await expect(page.getByText(BOOTSTRAP_BANNER_TEXT)).toHaveCount(0);
   await assertDashboardMinimumContent(page);

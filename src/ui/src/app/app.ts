@@ -6,10 +6,11 @@ import { catchError, filter, firstValueFrom, from, map, of, startWith, switchMap
 import { AuthService } from './services/auth.service';
 import { BootstrapService } from './services/bootstrap.service';
 import { SessionBootstrapStateService } from './services/session-bootstrap-state.service';
+import { AuthenticatedShellComponent } from './components/authenticated-shell/authenticated-shell.component';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, RouterOutlet],
+  imports: [CommonModule, RouterOutlet, AuthenticatedShellComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -44,6 +45,8 @@ export class App {
     // Depending on runtime/base-href the URL may be '/dashboard' or '/graphql/dashboard'.
     return bootstrapModeActive && !url.includes('/dashboard');
   });
+
+  readonly showAuthenticatedShell = computed(() => this.isAuthenticatedRoute(this.currentUrl()));
 
   private async resolveInitialDestination(): Promise<void> {
     await firstValueFrom(
@@ -96,6 +99,10 @@ export class App {
 
   private isProtectedStartupUrl(url: string): boolean {
     return url.startsWith('/dashboard') || url.startsWith('/admin/');
+  }
+
+  private isAuthenticatedRoute(url: string): boolean {
+    return url.includes('/dashboard') || url.includes('/admin/');
   }
 
   private navigateIfNeeded(targetUrl: string) {

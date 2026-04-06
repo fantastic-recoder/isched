@@ -1,0 +1,82 @@
+<div class="shell bg-base-200" data-testid="authenticated-shell">
+  <header class="navbar sticky top-0 z-30 border-b border-base-300 bg-base-100/95 px-4 shadow-sm backdrop-blur">
+    <div class="flex flex-1 flex-wrap items-center gap-3">
+      <a
+        routerLink="/dashboard"
+        class="btn btn-ghost h-auto min-h-0 gap-3 px-2 normal-case"
+        data-testid="shell-brand"
+        aria-label="Navigate to dashboard"
+      >
+        <img
+          class="shell__logo h-9 w-9 rounded-box object-cover"
+          [src]="viewModel().logoAssetPath"
+          alt="isched logo"
+          data-testid="shell-logo"
+        />
+        <span class="text-base font-semibold tracking-tight">isched</span>
+      </a>
+
+      <nav
+        class="flex flex-wrap items-center gap-2"
+        aria-label="Primary navigation"
+        data-testid="shell-nav"
+      >
+        @for (item of navigationItems(); track trackNavigationItem($index, item)) {
+          <a
+            [routerLink]="item.route"
+            class="btn btn-sm btn-ghost shell__nav-link"
+            [class.btn-active]="item.active"
+            [attr.aria-current]="item.active ? 'page' : null"
+            [attr.data-testid]="'shell-nav-' + item.id"
+          >
+            {{ item.label }}
+          </a>
+        }
+      </nav>
+    </div>
+
+    <div class="flex-none">
+      <button
+        type="button"
+        class="btn btn-sm btn-outline"
+        data-testid="shell-sign-out"
+        [disabled]="signingOut()"
+        (click)="signOut()"
+      >
+        Sign out
+      </button>
+    </div>
+  </header>
+
+  <main class="shell__content px-4 py-4 md:px-6 md:py-6" data-testid="shell-content">
+    <ng-content />
+  </main>
+
+  <footer
+    class="sticky bottom-0 z-20 border-t border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur"
+    data-testid="shell-status-bar"
+  >
+    <div class="flex flex-col gap-2 text-sm md:flex-row md:items-center md:justify-between md:gap-4">
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/60">Latest activity</p>
+        <p
+          class="truncate font-medium text-base-content"
+          data-testid="shell-status-digest"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {{ operationDigest().message }}
+        </p>
+      </div>
+
+      <div class="flex min-w-0 items-center gap-2 md:max-w-[40%] md:justify-end">
+        <span class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/60">Current user</span>
+        <span class="truncate font-medium text-base-content" data-testid="shell-current-user">
+          {{ currentUserLabel() }}
+        </span>
+      </div>
+    </div>
+  </footer>
+</div>
+

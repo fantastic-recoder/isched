@@ -1,9 +1,8 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { GraphQLService } from '../../services/graphql.service';
-import { AuthService } from '../../services/auth.service';
 
 interface Organization {
   id: string;
@@ -24,12 +23,11 @@ interface User {
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent implements OnInit {
   private readonly fb     = inject(FormBuilder);
   private readonly gql    = inject(GraphQLService);
-  private readonly auth   = inject(AuthService);
-  private readonly router = inject(Router);
 
   readonly loading    = signal(true);
   readonly orgs       = signal<Organization[]>([]);
@@ -189,18 +187,6 @@ export class DashboardComponent implements OnInit {
           this.userError.set(err.message);
         },
       });
-  }
-
-  signOut(): void {
-    if (!confirm('Sign out of isched?')) return;
-    this.auth.signOut().subscribe({
-      next: () => {
-        void this.router.navigate(['/login']);
-      },
-      error: () => {
-        void this.router.navigate(['/login']);
-      },
-    });
   }
 }
 

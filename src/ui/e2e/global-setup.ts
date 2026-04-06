@@ -9,7 +9,8 @@ type E2EState = {
   port: number;
 };
 
-const SERVER_PORT = 18080;
+export const SERVER_PORT = 18080;
+export const APP_ENTRY_PATH = '/isched';
 const STATE_FILE = resolve(__dirname, '.server-state.json');
 
 async function waitForServerReady(url: string, timeoutMs = 20_000): Promise<void> {
@@ -51,8 +52,8 @@ export default async function globalSetup(): Promise<void> {
   // ISCHED_EXTERNAL_SERVER=1.  In that case we skip launching a new process
   // and only wait until the already-running server is reachable.
   if (process.env['ISCHED_EXTERNAL_SERVER'] === '1') {
-    console.log(`[e2e] ISCHED_EXTERNAL_SERVER=1 — skipping server launch, waiting for http://127.0.0.1:${port}/isched`);
-    await waitForServerReady(`http://127.0.0.1:${port}/isched`);
+    console.log(`[e2e] ISCHED_EXTERNAL_SERVER=1 — skipping server launch, waiting for http://127.0.0.1:${port}${APP_ENTRY_PATH}`);
+    await waitForServerReady(`http://127.0.0.1:${port}${APP_ENTRY_PATH}`);
     // Write a sentinel state so teardown knows not to touch the process.
     const state: E2EState = { pid: 0, dataDir: '', port };
     writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
@@ -110,7 +111,7 @@ export default async function globalSetup(): Promise<void> {
   };
   writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
 
-  await waitForServerReady(`http://127.0.0.1:${port}/isched`);
+  await waitForServerReady(`http://127.0.0.1:${port}${APP_ENTRY_PATH}`);
   console.log(`[e2e] Server is ready — running tests`);
 }
 
