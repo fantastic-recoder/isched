@@ -1,14 +1,24 @@
 :host {
   display: block;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .shell {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .shell__content {
   min-height: 0;
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
+}
+
+.shell__status-bar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 
 .shell__logo {
@@ -21,4 +31,3 @@
     color 150ms ease,
     border-color 150ms ease;
 }
-

@@ -42,11 +42,17 @@ pnpm start
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+### WebStorm run configuration (important)
+
+- Use the `start` script (or plain `ng serve` from `src/ui/`).
+- Frontend GraphQL calls must stay on relative `/graphql`; do not hard-code backend origins.
+- In dev mode the Angular app base href is `/`; production build still uses `/isched/` from `angular.json`.
+
 ### GraphQL Proxy Rule (Required)
 
 - Frontend GraphQL calls must use the relative path `/graphql` only.
 - Do not hard-code backend origins in Angular services.
-- `pnpm start` runs `ng serve --proxy-config proxy.conf.json` so HTTP and WebSocket traffic on `/graphql` is proxied to local backend `:8080`.
+- `pnpm start` runs `ng serve`; proxy forwarding is configured in `angular.json` (`serve.options.proxyConfig = "proxy.conf.json"`) so HTTP and WebSocket traffic on `/graphql` is proxied to local backend `:8080`.
 
 ```bash
 cd /home/groby/dev/isched/src/ui
@@ -121,6 +127,13 @@ Run only the shared-shell smoke coverage:
 ```bash
 cd /home/groby/dev/isched/src/ui
 pnpm run e2e:shell
+```
+
+Run the Angular dev-server proxy health check (starts `ng serve` with proxy and verifies `/graphql` forwarding):
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm run e2e:dev-proxy
 ```
 
 ### Selecting a different CMake build directory
