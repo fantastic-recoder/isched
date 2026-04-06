@@ -31,7 +31,6 @@ Add a shared authenticated app-shell frame in Angular WebUI with a top navigatio
 - [x] Local Angular development keeps proxy routing for `/graphql` (HTTP + WS) and avoids hard-coded backend origins
 - [x] Test plan includes required coverage before each user story closes (unit shell coverage + Playwright smoke flow)
 - [x] Security-sensitive change gate: no new auth boundary/credential transport change; feature-scoped threat-model update is not required beyond existing auth model
-- [x] New code follows Clean Code Principles: functions remain small and focused, shared shell behavior is modeled with focused services/components instead of complex conditionals, and no hot-path abstraction trade-off requires profiling-backed exception documentation
 
 **Gate result (pre-Phase 0)**: PASS  
 **Gate result (post-Phase 1 design)**: PASS
