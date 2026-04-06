@@ -37,9 +37,9 @@
 ## [Feature 005] RATE_LIMITED + Auth Bootstrap Consistency (Phase 6) — 2026-04-05
 
 ### Added
-- Final mitigation/evidence closeout for feature threat modeling in `specs/005-rate-limited-auth-bootstrap/threat-model.md`.
+- Final mitigation/evidence closeout for feature threat modeling in `specs/archive/005-rate-limited-auth-bootstrap/threat-model.md`.
 - Project-level security summary snapshot for Feature 005 in `docs/security-threat-model.md`.
-- Recorded full feature regression command matrix with observed outcomes in `specs/005-rate-limited-auth-bootstrap/quickstart.md`.
+- Recorded full feature regression command matrix with observed outcomes in `specs/archive/005-rate-limited-auth-bootstrap/quickstart.md`.
 
 ### Validation
 - Backend focused gate: `ctest -R 'test_rate_limiting|test_seed_mode|isched_auth_tests' --output-on-failure` -> PASS.
@@ -61,18 +61,18 @@
 - Explicit closeout evidence indexing for additional success criteria:
     - **SC-001** timed quickstart validation
     - **SC-004** configuration activation latency validation
-- Concrete traceability links in `specs/001-universal-backend/closeout-validation.md` to:
-    - `specs/001-universal-backend/quickstart.md`
+- Concrete traceability links in `specs/archive/001-universal-backend/closeout-validation.md` to:
+    - `specs/archive/001-universal-backend/quickstart.md`
     - `src/test/cpp/integration/test_server_startup.cpp`
     - `src/test/cpp/integration/test_schema_activation.cpp`
-    - `specs/001-universal-backend/plan.md`
+    - `specs/archive/001-universal-backend/plan.md`
 
 ### Changed
 - Finalized closeout wording and traceability across:
-    - `specs/001-universal-backend/spec.md`
-    - `specs/001-universal-backend/plan.md`
-    - `specs/001-universal-backend/tasks.md`
-    - `specs/001-universal-backend/closeout-validation.md`
+    - `specs/archive/001-universal-backend/spec.md`
+    - `specs/archive/001-universal-backend/plan.md`
+    - `specs/archive/001-universal-backend/tasks.md`
+    - `specs/archive/001-universal-backend/closeout-validation.md`
 - Normalized remaining terminology and documentation consistency issues for sign-off quality.
 - Confirmed SC-005 capability checklist outcome:
     - **Threshold:** >=19/20

@@ -1,7 +1,7 @@
 # Tasks: Seed Mode and Administration UI
 
 **Status**: 🔲 OPEN
-**Input**: Design documents from `/specs/003-seed-mode-admin-ui/`
+**Input**: Design documents from `/specs/archive/003-seed-mode-admin-ui/`
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`
 **Tests**: TDD — test tasks precede or accompany every implementation task.
 **Organization**: Tasks are grouped by phase matching `plan.md`.
@@ -17,7 +17,7 @@
 - **C++ implementation**: `src/main/cpp/isched/`
 - **C++ tests**: `src/test/cpp/`
 - **Angular subproject**: `src/ui/`
-- **Spec and planning**: `specs/003-seed-mode-admin-ui/`
+- **Spec and planning**: `specs/archive/003-seed-mode-admin-ui/`
 
 ## Constitutional Compliance Checklist
 

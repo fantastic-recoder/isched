@@ -1,8 +1,8 @@
-# Specification Quality Checklist: RATE_LIMITED + Auth Bootstrap Consistency
+# Specification Quality Checklist: Isched WebUI
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-04-05
-**Feature**: [/home/groby/dev/isched/specs/005-rate-limited-auth-bootstrap/spec.md](/home/groby/dev/isched/specs/005-rate-limited-auth-bootstrap/spec.md)
+**Purpose**: Validate specification completeness and quality before proceeding to planning  
+**Created**: 2026-04-04  
+**Feature**: [/home/groby/dev/isched/specs/archive/004-add-isched-webui/spec.md](/home/groby/dev/isched/specs/archive/004-add-isched-webui/spec.md)
 
 ## Content Quality
 
@@ -31,6 +31,7 @@
 
 ## Notes
 
-- Validation iteration 1 complete: all checklist items pass.
-- No clarification markers were required based on repository context and recent work.
+- Validation pass completed on 2026-04-04.
+- Implementation conventions and UI stack references are intentionally included because they are explicit stakeholder constraints for this feature.
+- No blocking issues found; specification is ready for `/speckit.clarify` or `/speckit.plan`.
 

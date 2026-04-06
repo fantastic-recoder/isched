@@ -1,6 +1,6 @@
 # Tasks: Isched WebUI (`004-add-isched-webui`)
 
-**Input**: Design documents from `/specs/004-add-isched-webui/`  
+**Input**: Design documents from `/specs/archive/004-add-isched-webui/`  
 **Prerequisites**: `plan.md` (required), `spec.md` (required), `research.md`, `data-model.md`, `contracts/webui-graphql-contract.md`, `quickstart.md`
 
 **Tests**: Required by specification for each story (contract, integration, UI, and e2e where applicable).
@@ -165,7 +165,7 @@
 - [X] T052 [P] [US4] Implement standalone proxy health diagnostics page in `src/ui/src/app/pages/dev/dev-proxy-health.page.ts`
 - [X] T053 [US4] Ensure backend CLI supports `--data-dir` and `--data-dir=<path>` for isolated local runs in `src/main/cpp/isched/backend/isched_srv_main.cpp`
 - [X] T054 [US4] Ensure backend runtime honors configured work/data directory isolation for temporary test data in `src/main/cpp/isched/backend/isched_Server.cpp`
-- [X] T055 [US4] Update WebUI local development instructions and proxy verification steps in `specs/004-add-isched-webui/quickstart.md`
+- [X] T055 [US4] Update WebUI local development instructions and proxy verification steps in `specs/archive/004-add-isched-webui/quickstart.md`
 - [X] T056 [US4] Update frontend developer guide for proxy-based GraphQL-only workflow in `src/ui/README.md`
 
 **Checkpoint**: Local workflow implementation is in place; verification remains open until T050 and T051 are complete.
@@ -176,20 +176,20 @@
 
 **Purpose**: Complete non-functional gates, evidence, and release hardening.
 
-- [ ] T057 [P] Update feature threat model for cookie auth, CSRF, org context, and embedded UI surfaces in `specs/004-add-isched-webui/threat-model.md`
+- [ ] T057 [P] Update feature threat model for cookie auth, CSRF, org context, and embedded UI surfaces in `specs/archive/004-add-isched-webui/threat-model.md`
 - [ ] T058 [P] Update project-level security threat model with WebUI controls in `docs/security-threat-model.md`
 - [ ] T067 Implement the single dedicated FR-010f release-blocking task: remove all `AuthService.accessToken` reads/writes, complete cookie-only session handling migration, and update/pass related Angular unit tests plus auth integration/e2e tests in `src/ui/src/app/services/auth.service.ts`
 - [ ] T059 [P] Add performance/scalability harness for static assets + representative admin GraphQL flows (50 VUs, 5 minutes) in `src/test/cpp/integration/test_webui_performance.cpp`
 - [ ] T060 Add scale dataset and assertions for 10,000 users / 1,000 roles pagination/filter/sort behavior in `src/test/cpp/integration/test_webui_scale_baseline.cpp`
 - [ ] T061 Add audit event integration tests for success/failure admin mutations and required fields/immutability in `src/test/cpp/integration/test_webui_audit_events.cpp`
 - [ ] T062 Add audit retention verification tests for 90-day queryability baseline in `src/test/cpp/integration/test_webui_audit_retention.cpp`
-- [ ] T063 Capture SC-001 and SC-003 UAT timing/outcome evidence in `specs/004-add-isched-webui/evidence/sc001-sc003-uat.md`
-- [ ] T064 Capture SC-011 and SC-011a performance/scale evidence in `specs/004-add-isched-webui/evidence/sc011-performance.md`
+- [ ] T063 Capture SC-001 and SC-003 UAT timing/outcome evidence in `specs/archive/004-add-isched-webui/evidence/sc001-sc003-uat.md`
+- [ ] T064 Capture SC-011 and SC-011a performance/scale evidence in `specs/archive/004-add-isched-webui/evidence/sc011-performance.md`
 - [ ] T065 Capture SC-015 availability and RTO<=60 recovery drill procedure/evidence in `docs/operations/isched-webui-recovery.md`
-- [ ] T066 Run full verification suite and record command outputs and pass criteria in `specs/004-add-isched-webui/quickstart.md`
-- [X] T073 Capture focused validation evidence for startup Admin UI log contract, embedded-route `404`/SPA split, security headers, `ETag`/`304`, and rate-limit config chain precedence in `specs/004-add-isched-webui/evidence/`
-- [ ] T083 Add FR-021/SC-019 WCAG 2.1 AA verification trace (keyboard-only journeys + interactive-control labeling evidence) in `specs/004-add-isched-webui/evidence/sc019-accessibility.md`
-- [ ] T084 Add FR-020/SC-017 dashboard minimum-content verification trace (health badge + admin quicklinks) in `specs/004-add-isched-webui/evidence/sc017-dashboard-minimum-content.md`
+- [ ] T066 Run full verification suite and record command outputs and pass criteria in `specs/archive/004-add-isched-webui/quickstart.md`
+- [X] T073 Capture focused validation evidence for startup Admin UI log contract, embedded-route `404`/SPA split, security headers, `ETag`/`304`, and rate-limit config chain precedence in `specs/archive/004-add-isched-webui/evidence/`
+- [ ] T083 Add FR-021/SC-019 WCAG 2.1 AA verification trace (keyboard-only journeys + interactive-control labeling evidence) in `specs/archive/004-add-isched-webui/evidence/sc019-accessibility.md`
+- [ ] T084 Add FR-020/SC-017 dashboard minimum-content verification trace (health badge + admin quicklinks) in `specs/archive/004-add-isched-webui/evidence/sc017-dashboard-minimum-content.md`
 
 ---
 

@@ -1,6 +1,6 @@
 # Tasks: RATE_LIMITED + Auth Bootstrap Consistency
 
-**Input**: Design documents from `/specs/005-rate-limited-auth-bootstrap/`
+**Input**: Design documents from `/specs/archive/005-rate-limited-auth-bootstrap/`
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/graphql-auth-bootstrap-consistency.md`
 
 **Tests**: Automated coverage is required by `FR-010`; include backend integration, Angular unit tests, and Playwright E2E tasks before story completion.
@@ -11,8 +11,8 @@
 
 **Purpose**: Align feature-specific validation docs and local run surfaces before code changes.
 
-- [X] T001 Refresh feature validation matrix and focused run steps in `specs/005-rate-limited-auth-bootstrap/quickstart.md`
-- [X] T002 [P] Align GraphQL auth/bootstrap error contract examples in `specs/005-rate-limited-auth-bootstrap/contracts/graphql-auth-bootstrap-consistency.md`
+- [X] T001 Refresh feature validation matrix and focused run steps in `specs/archive/005-rate-limited-auth-bootstrap/quickstart.md`
+- [X] T002 [P] Align GraphQL auth/bootstrap error contract examples in `specs/archive/005-rate-limited-auth-bootstrap/contracts/graphql-auth-bootstrap-consistency.md`
 - [X] T003 [P] Verify `/graphql` HTTP+WS proxy routing assumptions for this feature in `src/ui/proxy.conf.json`
 - [X] T004 [P] Add/adjust focused auth/bootstrap verification scripts in `src/ui/package.json`
 
@@ -111,10 +111,10 @@
 
 **Purpose**: Final hardening, documentation, and full-regression readiness.
 
-- [X] T035 [P] Update feature threat model with final mitigations/evidence in `specs/005-rate-limited-auth-bootstrap/threat-model.md`
+- [X] T035 [P] Update feature threat model with final mitigations/evidence in `specs/archive/005-rate-limited-auth-bootstrap/threat-model.md`
 - [X] T036 [P] Update project-level security summary for this feature in `docs/security-threat-model.md`
 - [X] T037 [P] Add feature completion note and validation outcomes in `CHANGELOG.md`
-- [X] T038 Run/record full feature regression command matrix in `specs/005-rate-limited-auth-bootstrap/quickstart.md`
+- [X] T038 Run/record full feature regression command matrix in `specs/archive/005-rate-limited-auth-bootstrap/quickstart.md`
 
 ---
 

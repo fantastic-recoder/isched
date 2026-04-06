@@ -2,7 +2,7 @@
 
 **Feature Branch**: `005-rate-limited-auth-bootstrap`  
 **Created**: 2026-04-05  
-**Status**: Draft  
+**Status**: Implemented and Archived  
 **Input**: User description: "Execute the speckit.specify workflow for the current feature in /home/groby/dev/isched. Use the repository's existing context and recent work (including RATE_LIMITED gap closure and WebUI auth/bootstrap behavior) to create or update the active feature specification according to Speckit conventions, and write changes to the appropriate spec artifacts."
 
 ## Clarifications

@@ -1,7 +1,7 @@
 # Implementation Plan: Isched WebUI
 
-**Branch**: `004-add-isched-webui` | **Date**: 2026-04-05 | **Spec**: `/home/groby/dev/isched/specs/004-add-isched-webui/spec.md`
-**Input**: Feature specification from `/home/groby/dev/isched/specs/004-add-isched-webui/spec.md`
+**Branch**: `004-add-isched-webui` | **Date**: 2026-04-05 | **Spec**: `/home/groby/dev/isched/specs/archive/004-add-isched-webui/spec.md`
+**Input**: Feature specification from `/home/groby/dev/isched/specs/archive/004-add-isched-webui/spec.md`
 
 ## Summary
 
@@ -41,7 +41,7 @@ Deliver an embedded Angular 21 WebUI for bootstrap, organization/user administra
 ### Documentation (this feature)
 
 ```text
-specs/004-add-isched-webui/
+specs/archive/004-add-isched-webui/
 ├── plan.md
 ├── research.md
 ├── data-model.md
@@ -66,7 +66,7 @@ src/
     └── e2e/              ← Playwright specs + global setup/teardown
 ```
 
-**Structure Decision**: Keep the existing single-repository backend + embedded Angular WebUI layout. Add WebUI contracts and design artifacts under `specs/004-add-isched-webui/` and validate flows through both backend and frontend automated test layers.
+**Structure Decision**: Keep the existing single-repository backend + embedded Angular WebUI layout. Add WebUI contracts and design artifacts under `specs/archive/004-add-isched-webui/` and validate flows through both backend and frontend automated test layers.
 
 ## Complexity Tracking
 

@@ -1,7 +1,7 @@
 # Tasks: Universal Application Server Backend
 
 **Status**: ✅ CLOSED — merged to `master` on 2026-03-15 (commit `089c09f`)  
-**Input**: Revised design documents from `/specs/001-universal-backend/`  
+**Input**: Revised design documents from `/specs/archive/001-universal-backend/`  
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`  
 **Tests**: Test tasks included based on constitutional TDD requirements.  
 **Organization**: Tasks are grouped by user story to match the revised GraphQL-only scope.
@@ -16,7 +16,7 @@
 
 - **Implementation**: `src/main/cpp/`
 - **Tests**: `src/test/cpp/`
-- **Contracts and planning**: `specs/001-universal-backend/`
+- **Contracts and planning**: `specs/archive/001-universal-backend/`
 
 > **Terminology note**: `organization` is the canonical architecture term. Historical GraphQL schema/type names that still use `tenant` remain equivalent for cross-artifact traceability unless a reference is explicitly platform-scoped.
 
@@ -308,7 +308,7 @@ Each task implementation MUST verify:
 
 #### System database
 
-- [x] T047-000 Define and create the `isched_system.db` bootstrap database in `DatabaseManager`: opened/created at server startup using the platform data directory (`platformfolders`); contains tables `platform_admins` (`id`, `email`, `password_hash`, `display_name`, `is_active`, `created_at`, `last_login`), `platform_roles` (`id`, `name`, `description`, `created_at`), and `organizations` (`id`, `name`, `domain`, `subscription_tier`, `user_limit`, `storage_limit`, `created_at`); document schema and lifecycle in `specs/001-universal-backend/data-model.md`; all writes require `platform_admin` role
+- [x] T047-000 Define and create the `isched_system.db` bootstrap database in `DatabaseManager`: opened/created at server startup using the platform data directory (`platformfolders`); contains tables `platform_admins` (`id`, `email`, `password_hash`, `display_name`, `is_active`, `created_at`, `last_login`), `platform_roles` (`id`, `name`, `description`, `created_at`), and `organizations` (`id`, `name`, `domain`, `subscription_tier`, `user_limit`, `storage_limit`, `created_at`); document schema and lifecycle in `specs/archive/001-universal-backend/data-model.md`; all writes require `platform_admin` role
 - [x] T047-000b [P] Add `BootstrapPlatformAdminInput` and `bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!` to `isched_builtin_server_schema.graphql`; implement the mutation so it is available only while `platform_admins` is empty, creates the initial platform admin, creates the initial authenticated session, and becomes unavailable immediately afterward
 
 #### SDL schema additions for Phase 6 core types
@@ -351,7 +351,7 @@ Each task implementation MUST verify:
 - [x] T047-018b [P] Add integration coverage verifying an authenticated `platform_admin` can create an additional platform admin through the platform account-management workflow, while unauthenticated callers and organization-scoped admins cannot
 - [x] T047-018c [P] Add explicit negative auth matrix coverage verifying that every administrative provisioning path other than `bootstrapPlatformAdmin` is rejected for unauthenticated callers (FR-008-C enforcement)
 - [x] T047-018a [P] Add integration tests in `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`: `bootstrapPlatformAdmin` succeeds exactly once on a fresh server, returns `AuthPayload`, persists the initial platform admin, and is rejected on all subsequent unauthenticated attempts with no additional account creation
-- [x] T047-019 [P] Update `specs/001-universal-backend/data-model.md` with all Phase 6 entity definitions that live in organization SQLite files: `users` table (from T047-010), `sessions` table (from T049-001), `data_sources` table (from T048-001); cross-reference `isched_system.db` tables already documented by T047-000; mark each entity with its owning DB, write access role, and created-by task
+- [x] T047-019 [P] Update `specs/archive/001-universal-backend/data-model.md` with all Phase 6 entity definitions that live in organization SQLite files: `users` table (from T047-010), `sessions` table (from T049-001), `data_sources` table (from T048-001); cross-reference `isched_system.db` tables already documented by T047-000; mark each entity with its owning DB, write access role, and created-by task
 
 ---
 
@@ -450,7 +450,7 @@ Each task implementation MUST verify:
 - [x] T052-004 [P] Add benchmark: WebSocket subscription fan-out — open 50 simultaneous WebSocket connections, subscribe each, broadcast one event, assert all 50 receive it within 500 ms
 - [x] T052-005 [P] Add benchmark: introspection under load — 10 concurrent `__schema { types }` requests, assert each completes within 500 ms as a Tier 1 regression guard (non-normative; canonical FR-012/SC-006 acceptance remains the HTTP-level gate in `performance-protocol.md`)
 - [x] T052-006 [P] Add benchmark: in-process p95 latency ≤ 20ms regression guard — send 1000 sequential `{ version }` queries in-process, record per-request wall time, and track p95 for fast local regression detection
-- [x] T052-007 Define the canonical two-tier benchmark gate in `specs/001-universal-backend/performance-protocol.md` (fixed query mix, fixed concurrency, warmup window, percentile method, and pass/fail criteria), and record measured results in `docs/performance.md` as the release-facing summary for both tiers (FR-PERF-003)
+- [x] T052-007 Define the canonical two-tier benchmark gate in `specs/archive/001-universal-backend/performance-protocol.md` (fixed query mix, fixed concurrency, warmup window, percentile method, and pass/fail criteria), and record measured results in `docs/performance.md` as the release-facing summary for both tiers (FR-PERF-003)
 
 ---
 
@@ -473,8 +473,8 @@ Each task implementation MUST verify:
 - [x] T055-002 Review `README.md` for accurate startup, query, and transport instructions; remove any REST or IPC references
 - [x] T055-003 Review `docs/` generated output and `specs/` planning documents; update any outdated architecture descriptions
 - [x] T055-004 Review source-file header comments in `src/main/cpp/` for obsolete descriptions; update to reflect GraphQL-only transport
-- [x] T055-005 Document all non-standard `extensions` fields (`code`, `timestamp`, `requestId`) in `specs/001-universal-backend/contracts/http-api.md` with example error response shapes (FR-GQL-003)
-- [x] T055-006 [P] Update `specs/001-universal-backend/contracts/graphql-schema.md` with all Phase 6 additions and reconcile existing discrepancies:
+- [x] T055-005 Document all non-standard `extensions` fields (`code`, `timestamp`, `requestId`) in `specs/archive/001-universal-backend/contracts/http-api.md` with example error response shapes (FR-GQL-003)
+- [x] T055-006 [P] Update `specs/archive/001-universal-backend/contracts/graphql-schema.md` with all Phase 6 additions and reconcile existing discrepancies:
   - **Reconcile login**: replace `login(input: LoginInput!)` with `login(email: String!, password: String!, organizationId: ID): AuthPayload!` per T047 decision; update `LoginInput` or remove if unused
   - **Reconcile AuthPayload**: replace 4-field `{ accessToken, refreshToken, expiresAt, user }` with 2-field `{ token: String!, expiresAt: String! }` per T047 decision; remove `register` and `refreshToken` mutations if not in scope
   - **Add**: `HttpError` type (T048-006), `ServerMetrics` / `TenantMetrics` types (T051-001), data source types and mutations (`DataSource`, `createDataSource`, `updateDataSource`, `deleteDataSource`, `dataSources`) (T048), session revocation mutations (`revokeSession`, `revokeAllSessions`, `terminateAllSessions`) (T049), RBAC mutations (`createRole`, `deleteRole`) (T047-004), metrics subscriptions (`serverMetricsUpdated`, `tenantMetricsUpdated`) (T051), thread pool config mutation (`updateTenantConfig`) (T050-001)
@@ -485,14 +485,14 @@ Each task implementation MUST verify:
 **Decisions recorded (2026-03-14)**:
 - Tool: clang-tidy (already partially configured); additional scanners deferred to a later release
 - Integration: CMake target `security_scan` (does not block the default build; run explicitly)
-- Threat-model deliverables: maintain both `specs/001-universal-backend/threat-model.md` and `docs/security-threat-model.md` for security-sensitive behavior
+- Threat-model deliverables: maintain both `specs/archive/001-universal-backend/threat-model.md` and `docs/security-threat-model.md` for security-sensitive behavior
 
 - [x] T056-001 [P] Add a `security_scan` CMake custom target in `CMakeLists.txt` that runs `clang-tidy` with a security-focused `.clang-tidy` config (enable `cert-*`, `bugprone-*`, `cppcoreguidelines-*`, `clang-analyzer-security.*` checks) over all library sources in `src/main/cpp/`
 - [x] T056-002 [P] Create or update `.clang-tidy` at the repo root to include the security checks listed above; suppress only checks that conflict with intentional design decisions (document each suppression)
 - [x] T056-003 [P] Verify `cmake --build ./cmake-build-debug/ --target security_scan` runs without new errors on the current codebase; fix any findings before marking done
 - [x] T056-004 [P] Document the `security_scan` target in `README.md` under a "Security" section
-- [x] T056-005 [P] Create `specs/001-universal-backend/threat-model.md` covering assets, trust boundaries, threat scenarios, mitigations, residual risks, and assumptions for bootstrap flow, JWT auth, RBAC, organization isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
-- [x] T056-006 [P] Create `docs/security-threat-model.md` as the project-wide security summary, linking to `specs/001-universal-backend/threat-model.md` and capturing reusable mitigations and operational guidance
+- [x] T056-005 [P] Create `specs/archive/001-universal-backend/threat-model.md` covering assets, trust boundaries, threat scenarios, mitigations, residual risks, and assumptions for bootstrap flow, JWT auth, RBAC, organization isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
+- [x] T056-006 [P] Create `docs/security-threat-model.md` as the project-wide security summary, linking to `specs/archive/001-universal-backend/threat-model.md` and capturing reusable mitigations and operational guidance
 
 ---
 
@@ -503,10 +503,10 @@ Each task implementation MUST verify:
 
 ### T058: Constitution Compliance Review Gate
 
-- [x] T058-001 Populate closeout review evidence in `specs/001-universal-backend/plan.md` under `Constitution Review Evidence (Closeout Record)`, with explicit code-review verification for constitution compliance (performance, GraphQL spec conformance, security/isolation, portability, C++ Core Guidelines/deviation documentation) before feature completion
-- [x] T058-002 Generate `specs/001-universal-backend/closeout-validation.md` with SC-005 automated capability checklist results (>=19/20 threshold), mapped evidence paths, and final pass/fail ratio
-- [x] T058-003 Record SC-001 timed quickstart validation evidence in `specs/001-universal-backend/closeout-validation.md`, linking the closeout note to `quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, and `plan.md`
-- [x] T058-004 Record SC-004 configuration-activation latency validation evidence in `specs/001-universal-backend/closeout-validation.md`, linking the closeout note to `src/test/cpp/integration/test_schema_activation.cpp` and `plan.md`
+- [x] T058-001 Populate closeout review evidence in `specs/archive/001-universal-backend/plan.md` under `Constitution Review Evidence (Closeout Record)`, with explicit code-review verification for constitution compliance (performance, GraphQL spec conformance, security/isolation, portability, C++ Core Guidelines/deviation documentation) before feature completion
+- [x] T058-002 Generate `specs/archive/001-universal-backend/closeout-validation.md` with SC-005 automated capability checklist results (>=19/20 threshold), mapped evidence paths, and final pass/fail ratio
+- [x] T058-003 Record SC-001 timed quickstart validation evidence in `specs/archive/001-universal-backend/closeout-validation.md`, linking the closeout note to `quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, and `plan.md`
+- [x] T058-004 Record SC-004 configuration-activation latency validation evidence in `specs/archive/001-universal-backend/closeout-validation.md`, linking the closeout note to `src/test/cpp/integration/test_schema_activation.cpp` and `plan.md`
 
 ---
 

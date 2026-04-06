@@ -1,7 +1,7 @@
 # Implementation Plan: Universal Application Server Backend
 
 **Branch**: `001-universal-backend` | **Date**: 2026-03-14 | **Spec**: [Universal Application Server Backend](spec.md)
-**Input**: Revised feature specification from `/specs/001-universal-backend/spec.md`
+**Input**: Revised feature specification from `/specs/archive/001-universal-backend/spec.md`
 
 **Note**: This plan supersedes the earlier scripting and IPC-oriented design. The implementation baseline is now a GraphQL-only HTTP/WebSocket backend.
 
@@ -318,7 +318,7 @@ Full details in `tasks.md` (T047–T052). Summary of sub-areas:
 
 **T052 — Catch2 Benchmark Suite**
 - `benchmark_suite.cpp` using `CATCH_BENCHMARK`
-- Two-tier protocol: in-process benchmark suite for fast regression checks, plus HTTP-level `/graphql` benchmark profile as the FR-012 acceptance gate (canonical profile in `specs/001-universal-backend/performance-protocol.md`)
+- Two-tier protocol: in-process benchmark suite for fast regression checks, plus HTTP-level `/graphql` benchmark profile as the FR-012 acceptance gate (canonical profile in `specs/archive/001-universal-backend/performance-protocol.md`)
 - `hello` throughput retains an approximately `1000 req/s` in-process check only as a non-normative local regression guard; it is not the release acceptance criterion
 - T052-006: `REQUIRE(p95_latency_ms <= 20.0)` asserting FR-012
 - T052-007: results documented in `docs/performance.md` as release-facing summary linked to the canonical profile
@@ -412,7 +412,7 @@ Full details in `tasks.md` (T054–T058). Summary:
 - `REQUIRE(p95_latency_ms <= 20.0)` asserting the fast local FR-012 regression guard
 - Results documented in `docs/performance.md`
 - `security_scan` CMake target running clang-tidy with security-oriented checks (T056)
-- Threat-model deliverables maintained at `specs/001-universal-backend/threat-model.md` and `docs/security-threat-model.md`
+- Threat-model deliverables maintained at `specs/archive/001-universal-backend/threat-model.md` and `docs/security-threat-model.md`
 
 ## Current Planning Status
 
@@ -431,12 +431,12 @@ This section is the authoritative closeout evidence record for constitution comp
 - **Review Date**: 2026-04-04 (`RVW-2026-04-04-001`)
 - **Reviewer(s)**: Isched Development Team (`RVW-2026-04-04-001`)
 - **Scope Reviewed**: `spec.md`, `plan.md`, `tasks.md`, `data-model.md`, threat-model docs, and key implementation/test changes
-- **Performance Compliance Evidence**: `specs/001-universal-backend/performance-protocol.md`, `docs/performance.md`, `specs/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-002`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
-- **GraphQL Compliance Evidence**: `src/test/cpp/isched/isched_gql_executor_tests.cpp`, `src/test/cpp/isched/isched_grammar_tests.cpp`, `specs/001-universal-backend/contracts/graphql-schema.md` (`RVW-2026-04-04-003`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
-- **Security & Isolation Evidence**: `specs/001-universal-backend/threat-model.md`, `docs/security-threat-model.md`, `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`, `src/test/cpp/integration/test_session_revocation.cpp` (`RVW-2026-04-04-004`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **Performance Compliance Evidence**: `specs/archive/001-universal-backend/performance-protocol.md`, `docs/performance.md`, `specs/archive/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-002`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **GraphQL Compliance Evidence**: `src/test/cpp/isched/isched_gql_executor_tests.cpp`, `src/test/cpp/isched/isched_grammar_tests.cpp`, `specs/archive/001-universal-backend/contracts/graphql-schema.md` (`RVW-2026-04-04-003`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
+- **Security & Isolation Evidence**: `specs/archive/001-universal-backend/threat-model.md`, `docs/security-threat-model.md`, `src/test/cpp/integration/test_bootstrap_platform_admin.cpp`, `src/test/cpp/integration/test_session_revocation.cpp` (`RVW-2026-04-04-004`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
 - **Portability Evidence**: `README.md`, `docs/deployment.md`, `conanfile.txt`, `CMakeLists.txt` (`RVW-2026-04-04-005`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
 - **C++ Core Guidelines Evidence**: `.clang-tidy`, `CMakeLists.txt` `security_scan` target (`RVW-2026-04-04-006`, `SHA 1004c583edf2687119e7cd18f53ef4573422dd6b`)
-- **SC-001 Quickstart Timing Evidence**: `specs/001-universal-backend/quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, `specs/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-007`)
-- **SC-004 Activation Latency Evidence**: `src/test/cpp/integration/test_schema_activation.cpp`, `specs/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-008`)
+- **SC-001 Quickstart Timing Evidence**: `specs/archive/001-universal-backend/quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, `specs/archive/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-007`)
+- **SC-004 Activation Latency Evidence**: `src/test/cpp/integration/test_schema_activation.cpp`, `specs/archive/001-universal-backend/closeout-validation.md` (`RVW-2026-04-04-008`)
 - **Approval Decision**: approved
 

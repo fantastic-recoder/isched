@@ -10,7 +10,7 @@ This document records measured results from the automated benchmark suite
 The suite runs as part of `ctest --output-on-failure` and must pass at every commit.
 
 Canonical benchmark protocol and release-gate criteria are defined in
-`specs/001-universal-backend/performance-protocol.md`. This document is the
+`specs/archive/001-universal-backend/performance-protocol.md`. This document is the
 release-facing summary of measured outcomes.
 
 ---

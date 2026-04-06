@@ -16,13 +16,13 @@
 
 - **Closeout status**: Evidence recorded
 - **Traceability**: `quickstart.md` defines the timed developer workflow; `src/test/cpp/integration/test_server_startup.cpp` provides the automated startup/bootstrap availability guard; `plan.md` records the sign-off evidence reference under the constitution closeout record (`RVW-2026-04-04-007`)
-- **Evidence paths**: `specs/001-universal-backend/quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, `specs/001-universal-backend/plan.md`
+- **Evidence paths**: `specs/archive/001-universal-backend/quickstart.md`, `src/test/cpp/integration/test_server_startup.cpp`, `specs/archive/001-universal-backend/plan.md`
 
 ### SC-004 — Configuration Activation Latency Validation
 
 - **Closeout status**: Evidence recorded
 - **Traceability**: `src/test/cpp/integration/test_schema_activation.cpp` remains the primary automated activation/availability guard; this closeout report and `plan.md` now explicitly index the final latency-validation evidence for sign-off (`RVW-2026-04-04-008`)
-- **Evidence paths**: `src/test/cpp/integration/test_schema_activation.cpp`, `specs/001-universal-backend/plan.md`
+- **Evidence paths**: `src/test/cpp/integration/test_schema_activation.cpp`, `specs/archive/001-universal-backend/plan.md`
 
 ## Checklist Evidence Mapping
 
@@ -51,9 +51,9 @@
 
 ## Related Closeout Evidence
 
-- Performance protocol: `specs/001-universal-backend/performance-protocol.md`
+- Performance protocol: `specs/archive/001-universal-backend/performance-protocol.md`
 - Performance measurements: `docs/performance.md`
-- Security threat models: `specs/001-universal-backend/threat-model.md`, `docs/security-threat-model.md`
-- Constitution review evidence record: `specs/001-universal-backend/plan.md`
-- Quickstart validation procedure: `specs/001-universal-backend/quickstart.md`
+- Security threat models: `specs/archive/001-universal-backend/threat-model.md`, `docs/security-threat-model.md`
+- Constitution review evidence record: `specs/archive/001-universal-backend/plan.md`
+- Quickstart validation procedure: `specs/archive/001-universal-backend/quickstart.md`
 

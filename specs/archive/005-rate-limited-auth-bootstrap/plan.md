@@ -1,7 +1,7 @@
 # Implementation Plan: RATE_LIMITED + Auth Bootstrap Consistency
 
-**Branch**: `005-rate-limited-auth-bootstrap` | **Date**: 2026-04-05 | **Spec**: `/home/groby/dev/isched/specs/005-rate-limited-auth-bootstrap/spec.md`
-**Input**: Feature specification from `/home/groby/dev/isched/specs/005-rate-limited-auth-bootstrap/spec.md`
+**Branch**: `005-rate-limited-auth-bootstrap` | **Date**: 2026-04-05 | **Spec**: `/home/groby/dev/isched/specs/archive/005-rate-limited-auth-bootstrap/spec.md`
+**Input**: Feature specification from `/home/groby/dev/isched/specs/archive/005-rate-limited-auth-bootstrap/spec.md`
 
 ## Summary
 
@@ -40,7 +40,7 @@ Align backend GraphQL auth rate-limit signaling and Angular startup/bootstrap/au
 ### Documentation (this feature)
 
 ```text
-specs/005-rate-limited-auth-bootstrap/
+specs/archive/005-rate-limited-auth-bootstrap/
 ├── plan.md
 ├── research.md
 ├── data-model.md

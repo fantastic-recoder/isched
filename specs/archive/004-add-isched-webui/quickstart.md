@@ -149,7 +149,7 @@ ctest --output-on-failure
 
 Core WebUI validation for embedded serving and merged seed/bootstrap behavior is recorded in:
 
-- `specs/004-add-isched-webui/evidence/t022-embedded-serving-validation-2026-04-05.md`
+- `specs/archive/004-add-isched-webui/evidence/t022-embedded-serving-validation-2026-04-05.md`
 - `docs/validation/isched-webui-004-core-validation-2026-04-05.md`
 
 Focused command matrix used for this validation pass:

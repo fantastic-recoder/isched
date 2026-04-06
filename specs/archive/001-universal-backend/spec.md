@@ -3,7 +3,7 @@
 **Feature Branch**: `001-universal-backend`  
 **Created**: 2025-11-01  
 **Updated**: 2026-04-04  
-**Status**: Closeout Approved  
+**Status**: Implemented and Archived (merged to `main`)  
 **Input**: User description: "The Isched universal application server backend should simplify web application development. No IPC, no scripting. The only interface MUST be GraphQL via HTTP and WebSocket."
 
 ## Clarifications
@@ -31,10 +31,10 @@
 - Q: Should bootstrap/admin setup be unauthenticated, and if so, when? → A: Allow unauthenticated bootstrap/admin setup only once when no admin exists, and automatically disable bootstrap setup immediately after the initial admin is provisioned.
 - Q: What is the bootstrap scope in multi-organization mode? → A: Bootstrap scope is global to the server instance; unauthenticated setup is allowed only once for the entire server instance.
 - Q: Are admin identities and admin operations organization-scoped or global? → A: The system uses an RBAC model with multiple platform admins, multiple organization admins, and users. Implementations MAY also expose a built-in `service` role for machine-to-machine principals. Bootstrap provisions the initial platform admin for the server instance, platform-scoped administrative operations are performed by platform admins, organization-scoped administrative operations are performed by organization admins within their organization, and both platform admins and organization admins can define additional scoped roles for use in schema-defined access control.
-- Q: What threat-model documentation is required for security-sensitive functionality? → A: Maintain both a feature-scoped threat model at `specs/001-universal-backend/threat-model.md` and a summarized project-wide security threat model at `docs/security-threat-model.md`. They must cover bootstrap flow, JWT auth, RBAC, organization isolation, session revocation, WebSocket authentication, and outbound HTTP secret handling.
+- Q: What threat-model documentation is required for security-sensitive functionality? → A: Maintain both a feature-scoped threat model at `specs/archive/001-universal-backend/threat-model.md` and a summarized project-wide security threat model at `docs/security-threat-model.md`. They must cover bootstrap flow, JWT auth, RBAC, organization isolation, session revocation, WebSocket authentication, and outbound HTTP secret handling.
 - Q: What GraphQL API shape is required for optimistic concurrency on configuration updates? → A: Configuration-changing mutations use input objects, and the optimistic-concurrency token is carried as a required `expectedVersion` field inside the mutation input object (for example, `ApplyConfigurationInput.expectedVersion`).
 - Q: What GraphQL API shape is required for one-time bootstrap admin provisioning? → A: Use a dedicated mutation `bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!`. It is the only unauthenticated bootstrap path, it is callable only while no platform admin exists for the server instance, and it becomes permanently unavailable after the initial platform admin is created.
-- Q: What performance validation protocol is required for FR-012/SC-006? → A: Use a two-tier protocol: (1) in-process benchmarks are a fast regression guard during development, and (2) HTTP-level `/graphql` benchmarks are the normative acceptance gate for p95 claims. The canonical procedure is documented in `specs/001-universal-backend/performance-protocol.md`; `docs/performance.md` provides release-facing measurement summaries.
+- Q: What performance validation protocol is required for FR-012/SC-006? → A: Use a two-tier protocol: (1) in-process benchmarks are a fast regression guard during development, and (2) HTTP-level `/graphql` benchmarks are the normative acceptance gate for p95 claims. The canonical procedure is documented in `specs/archive/001-universal-backend/performance-protocol.md`; `docs/performance.md` provides release-facing measurement summaries.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -123,7 +123,7 @@ Clients can use GraphQL over WebSocket for subscriptions and other real-time eve
 - **FR-009**: System MUST provide enhanced GraphQL error responses with `extensions` containing error codes, timestamps, and request IDs.
 - **FR-010**: System MUST support GraphQL subscriptions over WebSocket using `graphql-transport-ws`.
 - **FR-011**: System MUST maintain logical organization isolation within a single runtime using organization-scoped authorization, database separation, and resource quotas.
-- **FR-012**: System MUST complete requests within 20 milliseconds p95 on Ryzen 7 or Intel i5 class Linux hardware under the HTTP-level benchmark profile defined in `specs/001-universal-backend/performance-protocol.md` (fixed query mix, fixed concurrency, warmup window, and explicit percentile method). In-process benchmarks are regression guards and do not replace the HTTP-level acceptance gate.
+- **FR-012**: System MUST complete requests within 20 milliseconds p95 on Ryzen 7 or Intel i5 class Linux hardware under the HTTP-level benchmark profile defined in `specs/archive/001-universal-backend/performance-protocol.md` (fixed query mix, fixed concurrency, warmup window, and explicit percentile method). In-process benchmarks are regression guards and do not replace the HTTP-level acceptance gate.
 - **FR-013**: System MUST provide adaptive worker-thread management using a hybrid policy: aggregate active subscription count is the primary scaling signal, and response-time metrics are secondary scaling signals. Acceptance bounds: scale-up when subscription load increases by >=20% over the prior window or p95 latency exceeds 20 ms for 2 consecutive 30-second windows; scale-down only after 5 consecutive healthy windows; apply a minimum 60-second cooldown between resize actions.
 - **FR-014**: System MUST maintain per-organization SQLite database connections with pooling.
 - **FR-014-A**: System MUST implement automatic schema migration with backup for safe changes, while rejecting destructive changes that could cause data loss.
@@ -131,7 +131,7 @@ Clients can use GraphQL over WebSocket for subscriptions and other real-time eve
 - **FR-015-A**: System MUST enforce per-organization optimistic concurrency for configuration mutations by requiring an `expectedVersion` field inside the mutation input object (for example, `ApplyConfigurationInput.expectedVersion`); if `expectedVersion` does not equal the organization's current active version, the mutation MUST be rejected as a conflict and MUST NOT persist or activate any change.
 - **FR-016**: System MUST expose operational health, uptime, and runtime information through GraphQL queries and subscriptions instead of a REST management surface.
 - **FR-017**: System MUST store configuration metadata, schema metadata, and deployment history in JSON and GraphQL SDL forms suitable for debugging and audit.
-- **FR-018**: System MUST provide built-in resolvers for the common data operations exposed by the built-in GraphQL contract. For outbound HTTP integrations, the minimum supported operation set is the contract defined in `specs/001-universal-backend/contracts/graphql-schema.md`: create, update, delete, and list `DataSource` records, plus execute resolver bindings described by `ResolverBindingInput`, returning mapped data or `HttpError`. All such operations MUST remain accessible only through GraphQL.
+- **FR-018**: System MUST provide built-in resolvers for the common data operations exposed by the built-in GraphQL contract. For outbound HTTP integrations, the minimum supported operation set is the contract defined in `specs/archive/001-universal-backend/contracts/graphql-schema.md`: create, update, delete, and list `DataSource` records, plus execute resolver bindings described by `ResolverBindingInput`, returning mapped data or `HttpError`. All such operations MUST remain accessible only through GraphQL.
 - **FR-019**: System MUST use smart pointers (`std::unique_ptr`, `std::shared_ptr`) for all owned resources.
 - **FR-020**: System MUST generate comprehensive source code documentation as part of the build process, including API references, inline code examples, and source snippets.
 
@@ -182,7 +182,7 @@ Clients can use GraphQL over WebSocket for subscriptions and other real-time eve
 - **FR-SEC-001**: Authentication MUST use JWT Bearer tokens as the default and required mechanism for GraphQL operations, with OAuth-compatible federation optional and non-blocking. Authorization MUST enforce scope-aware RBAC for platform and organization operations.
 - **FR-SEC-002**: Default configuration MUST be secure-by-default.
 - **FR-SEC-003**: Organization data isolation MUST be maintained for both HTTP and WebSocket operations.
-- **FR-SEC-004**: Security-sensitive functionality MUST be documented in both `specs/001-universal-backend/threat-model.md` and `docs/security-threat-model.md`, covering assets, trust boundaries, threat scenarios, mitigations, residual risks, and operational assumptions for bootstrap, JWT auth, RBAC, organization isolation, session revocation, WebSocket auth, and outbound HTTP secret handling.
+- **FR-SEC-004**: Security-sensitive functionality MUST be documented in both `specs/archive/001-universal-backend/threat-model.md` and `docs/security-threat-model.md`, covering assets, trust boundaries, threat scenarios, mitigations, residual risks, and operational assumptions for bootstrap, JWT auth, RBAC, organization isolation, session revocation, WebSocket auth, and outbound HTTP secret handling.
 
 **Execution Engine Requirements** (Field Resolution Correctness):
 

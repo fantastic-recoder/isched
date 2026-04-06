@@ -35,7 +35,7 @@ All tests passed (31 assertions in 4 test cases)
 
 ## 📋 Task Completion Status
 
-All User Story 1 tasks have been marked as completed in `specs/001-universal-backend/tasks.md`:
+All User Story 1 tasks have been marked as completed in `specs/archive/001-universal-backend/tasks.md`:
 
 - ✅ **T019** [P] [US1] Implement BuiltInSchema class in src/main/cpp/isched/isched_built_in_schema.hpp/cpp with health queries
 - ✅ **T020** [P] [US1] Create default GraphQL resolvers for hello, version, clientCount, uptime in src/main/cpp/isched/isched_built_in_schema.cpp  

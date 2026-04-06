@@ -47,7 +47,7 @@ No ctest changes are required (benchmark is a developer tool, not a CI test suit
 ## Phase B — Apollo Reference Server
 
 [x] T007  Implement `tools/comparable_benchmark/src/apollo-server.ts`:
-           - GraphQL schema matching `specs/001-universal-backend/contracts/graphql-schema.md` subset:
+           - GraphQL schema matching `specs/archive/001-universal-backend/contracts/graphql-schema.md` subset:
              `hello`, `version`, `uptime: Int`, `serverInfo` (8 fields), `health` queries **and** `healthChanged` subscription
            - Resolvers (values must match isched exactly, sourced from `isched_GqlExecutor.cpp`):
              - `hello` → `"Hello, GraphQL!"`  (**not** `"Hello, World!"`)

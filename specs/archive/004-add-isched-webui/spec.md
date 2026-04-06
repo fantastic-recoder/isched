@@ -2,7 +2,7 @@
 
 **Feature Branch**: `004-add-isched-webui`  
 **Created**: 2026-04-04  
-**Status**: In Progress  
+**Status**: Archived Historical Implementation Record  
 **Input**: User description: "Isched WebUI. Requirements: Add an embedded Angular 21 based Web UI to isched backend. UI capabilities must include: one-time platform bootstrap flow, create/edit organizations, create/edit users, and RBAC management (built-in roles + custom role definitions and assignments). UI stack must use Tailwind CSS and DaisyUI. Angular app must support standalone local development with proxy to locally running isched server (background), documenting proxy setup and dev workflow. Include acceptance criteria and measurable success criteria for these flows. Ensure architecture remains GraphQL-only integration with backend /graphql endpoint and JWT-based auth model. Include constraints for security (token handling), multi-organization context, and error surfacing.
 
 Also include a section that references modern Angular coding conventions expected in this feature implementation: signal-first state management, standalone components, `@if/@for/@switch` template control flow, typed reactive forms, and no NgModule-centric architecture unless required by third-party constraints."
@@ -49,7 +49,7 @@ Also include a section that references modern Angular coding conventions expecte
 ### Implementation Evidence 2026-04-05
 
 - Dedicated embedded-serving integration coverage (task T022) and focused validation logs are recorded in:
-  - `specs/004-add-isched-webui/evidence/t022-embedded-serving-validation-2026-04-05.md`
+  - `specs/archive/004-add-isched-webui/evidence/t022-embedded-serving-validation-2026-04-05.md`
   - `docs/validation/isched-webui-004-core-validation-2026-04-05.md`
 
 ## User Scenarios & Testing *(mandatory)*
@@ -257,9 +257,9 @@ As a developer, I can run the WebUI independently in local development with a do
 
 ### Measurable Outcomes
 
-- **SC-001**: In UAT, at least 95% of first-time operators complete platform bootstrap in under 5 minutes without manual backend intervention, measured using a sample of 20 clean-environment bootstrap trials (`CompleteBootstrap`) executed via the feature quickstart workflow from bootstrap screen load to successful mutation response; pass threshold is >=19/20 runs under 5:00, and raw timing/outcome evidence is recorded in `specs/004-add-isched-webui/evidence/sc001-sc003-uat.md`.
+- **SC-001**: In UAT, at least 95% of first-time operators complete platform bootstrap in under 5 minutes without manual backend intervention, measured using a sample of 20 clean-environment bootstrap trials (`CompleteBootstrap`) executed via the feature quickstart workflow from bootstrap screen load to successful mutation response; pass threshold is >=19/20 runs under 5:00, and raw timing/outcome evidence is recorded in `specs/archive/004-add-isched-webui/evidence/sc001-sc003-uat.md`.
 - **SC-002**: In role-based acceptance testing, 100% of unauthorized attempts to create/edit organizations, users, or role assignments are blocked and surfaced with clear user feedback.
-- **SC-003**: In scripted acceptance tests, admins complete organization/user create-or-edit flows with at least a 95% first-attempt completion rate, measured using 40 scripted trials (10 organization-create, 10 organization-edit, 10 user-create, 10 user-edit) run without operator retries or facilitator intervention; pass threshold is >=38/40 first-attempt successes, and per-trial outcomes/failure reasons are recorded in `specs/004-add-isched-webui/evidence/sc001-sc003-uat.md`.
+- **SC-003**: In scripted acceptance tests, admins complete organization/user create-or-edit flows with at least a 95% first-attempt completion rate, measured using 40 scripted trials (10 organization-create, 10 organization-edit, 10 user-create, 10 user-edit) run without operator retries or facilitator intervention; pass threshold is >=38/40 first-attempt successes, and per-trial outcomes/failure reasons are recorded in `specs/archive/004-add-isched-webui/evidence/sc001-sc003-uat.md`.
 - **SC-004**: In RBAC validation tests, 100% of tested built-in and custom role assignment changes are reflected in effective access behavior within one user refresh cycle.
 - **SC-005**: In multi-organization test runs, 0 cross-organization write operations occur when users switch context during active sessions.
 - **SC-006**: For local developer onboarding, a new team member can follow documented setup and run the WebUI against a local backend via proxy in under 20 minutes.

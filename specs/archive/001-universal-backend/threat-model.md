@@ -3,7 +3,7 @@
 **Feature**: `001-universal-backend`  
 **Created**: 2026-04-04  
 **Status**: Draft  
-**Related Spec**: `specs/001-universal-backend/spec.md`
+**Related Spec**: `specs/archive/001-universal-backend/spec.md`
 
 ## Scope
 

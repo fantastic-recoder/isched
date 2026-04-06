@@ -7,7 +7,7 @@ Focused validation pass for outstanding core WebUI deliverables on feature `004-
 - Added dedicated integration suite: `src/test/cpp/integration/test_webui_embedded_serving.cpp`
 - Extended legacy embedded-serving coverage in `src/test/cpp/integration/test_admin_ui.cpp` with canonical routing assertions (`GET /`, `GET /graphql` redirect to `/isched`; `POST /graphql` remains API)
 - Registered suite in build/test graph: `src/test/cpp/isched/CMakeLists.txt`
-- Marked task complete: `specs/004-add-isched-webui/tasks.md` (`T022` -> `[X]`)
+- Marked task complete: `specs/archive/004-add-isched-webui/tasks.md` (`T022` -> `[X]`)
 
 ## Validation summary
 
@@ -33,6 +33,6 @@ Focused validation pass for outstanding core WebUI deliverables on feature `004-
 
 ## Detailed evidence
 
-- `specs/004-add-isched-webui/evidence/t022-embedded-serving-validation-2026-04-05.md`
-- `specs/004-add-isched-webui/evidence/t073-gap-closure-validation-2026-04-05.md`
+- `specs/archive/004-add-isched-webui/evidence/t022-embedded-serving-validation-2026-04-05.md`
+- `specs/archive/004-add-isched-webui/evidence/t073-gap-closure-validation-2026-04-05.md`
 

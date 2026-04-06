@@ -70,7 +70,7 @@
 
 ## Decision 9: Security documentation updates are mandatory deliverables
 
-- **Decision**: Include a feature-scoped threat model (`specs/005-rate-limited-auth-bootstrap/threat-model.md`) and add a summary entry in `docs/security-threat-model.md`.
+- **Decision**: Include a feature-scoped threat model (`specs/archive/005-rate-limited-auth-bootstrap/threat-model.md`) and add a summary entry in `docs/security-threat-model.md`.
 - **Rationale**: Constitution requires threat-model coverage for security-sensitive auth/session behavior changes.
 - **Alternatives considered**:
   - Defer threat model updates until implementation review: rejected (gate violation risk).

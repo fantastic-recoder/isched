@@ -3,7 +3,7 @@
 **Feature Branch**: `003-seed-mode-admin-ui`
 **Created**: 2026-03-15
 **Updated**: 2026-03-15
-**Status**: Draft
+**Status**: Archived Historical Specification
 **Input**: User story — "As a developer I want to check initial Isched functionality. I start `isched_srv`, get the configured host and port on stdout, open `/isched`, and find a responsive Angular UI with a login form. When no users exist the server enters seed mode and lets me create the first platform administrator; after that it switches to normal mode."
 
 ---

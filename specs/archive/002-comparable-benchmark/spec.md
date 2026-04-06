@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-comparable-benchmark`
 **Created**: 2026-03-15
-**Status**: Draft
+**Status**: Implemented and Archived (retained as historical benchmark feature record)
 
 ---
 

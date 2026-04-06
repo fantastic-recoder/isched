@@ -19,7 +19,7 @@ src/
     backend/              # Server, GqlExecutor, TenantManager, DatabaseManager
     shared/               # config, fs utils, exceptions
   test/cpp/isched/        # unit tests (catch2)
-specs/001-universal-backend/  # feature specification docs
+specs/archive/001-universal-backend/  # feature specification docs
 ```
 
 ## Build Commands

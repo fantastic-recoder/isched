@@ -128,7 +128,7 @@ This is the **first Node.js artefact** in the repo, so no existing workspace con
 
 ## 5. GraphQL Schema — Apollo Reference Server
 
-The operations that isched exposes as built-ins (see `specs/001-universal-backend/contracts/graphql-schema.md`), augmented with the subscription:
+The operations that isched exposes as built-ins (see `specs/archive/001-universal-backend/contracts/graphql-schema.md`), augmented with the subscription:
 
 ```graphql
 type Query {
@@ -166,7 +166,7 @@ type HealthChangedEvent {
 }
 ```
 
-> Schema sourced from `specs/001-universal-backend/contracts/graphql-schema.md` (version 3.0.0).
+> Schema sourced from `specs/archive/001-universal-backend/contracts/graphql-schema.md` (version 3.0.0).
 > The benchmark only queries the subset used in the four benchmark scenarios; full schema fidelity
 > is not required for the Apollo reference server.
 
