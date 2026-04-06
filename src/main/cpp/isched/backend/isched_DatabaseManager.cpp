@@ -536,6 +536,12 @@ DatabaseResult<void> DatabaseManager::initialize_tenant(const std::string& tenan
         spdlog::warn("initialize_tenant: ensure_data_sources_table failed for tenant '{}'", tenant_id);
     }
 
+    // Ensure the schema_documents table exists (spec-006)
+    auto sd_res = ensure_schema_documents_table(tenant_id);
+    if (!sd_res) {
+        spdlog::warn("initialize_tenant: ensure_schema_documents_table failed for tenant '{}'", tenant_id);
+    }
+
     return DatabaseResult<void>{};
 }
 
@@ -1090,6 +1096,7 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
             id          TEXT PRIMARY KEY,
             name        TEXT NOT NULL UNIQUE,
             description TEXT NOT NULL DEFAULT '',
+            scope       TEXT NOT NULL DEFAULT 'platform',
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -1100,7 +1107,10 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
             subscription_tier TEXT NOT NULL DEFAULT 'free',
             user_limit        INTEGER NOT NULL DEFAULT 10,
             storage_limit     INTEGER NOT NULL DEFAULT 1073741824,
-            created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+            status            TEXT NOT NULL DEFAULT 'ACTIVE',
+            revision          INTEGER NOT NULL DEFAULT 0,
+            updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS tenant_settings (
@@ -1118,13 +1128,35 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
         return DatabaseError::SchemaValidationFailed;
     }
 
+    // -----------------------------------------------------------------------
+    // Schema migrations: add columns that may be absent in older databases.
+    // SQLite does not support "IF NOT EXISTS" for ALTER TABLE ADD COLUMN, so
+    // we attempt each migration and ignore SQLITE_ERROR (column already exists).
+    // -----------------------------------------------------------------------
+    const char* migrations[] = {
+        "ALTER TABLE organizations ADD COLUMN status   TEXT NOT NULL DEFAULT 'ACTIVE';",
+        "ALTER TABLE organizations ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;",
+        "ALTER TABLE organizations ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';",
+        "ALTER TABLE platform_roles ADD COLUMN scope TEXT NOT NULL DEFAULT 'platform';",
+        nullptr
+    };
+    for (int mi = 0; migrations[mi] != nullptr; ++mi) {
+        // Ignore error — column already present is SQLITE_ERROR which is fine
+        sqlite3_exec(system_db_.get(), migrations[mi], nullptr, nullptr, nullptr);
+    }
+
     // Seed the four built-in platform roles (idempotent via INSERT OR IGNORE)
     const char* seed_sql = R"sql(
-        INSERT OR IGNORE INTO platform_roles (id, name, description) VALUES
-            ('role_platform_admin', 'platform_admin', 'Full platform administration access'),
-            ('role_tenant_admin',   'tenant_admin',   'Administration access for a single organization'),
-            ('role_user',           'user',           'Standard authenticated user'),
-            ('role_service',        'service',        'Machine-to-machine service account');
+        INSERT OR IGNORE INTO platform_roles (id, name, description, scope) VALUES
+            ('role_platform_admin', 'platform_admin', 'Full platform administration access',            'platform'),
+            ('role_tenant_admin',   'tenant_admin',   'Administration access for a single organization','tenant'),
+            ('role_user',           'user',           'Standard authenticated user',                    'tenant'),
+            ('role_service',        'service',        'Machine-to-machine service account',             'tenant');
+        -- Correct scope for tenant roles that were inserted before the scope column existed.
+        -- These rows will have scope='platform' after the ALTER TABLE migration (the default).
+        UPDATE platform_roles SET scope = 'tenant'
+            WHERE id IN ('role_tenant_admin', 'role_user', 'role_service')
+              AND scope = 'platform';
     )sql";
 
     rc = sqlite3_exec(system_db_.get(), seed_sql, nullptr, nullptr, nullptr);
@@ -1141,7 +1173,8 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
 DatabaseResult<void> DatabaseManager::create_platform_role(
     const std::string& id,
     const std::string& name,
-    const std::string& description)
+    const std::string& description,
+    const std::string& scope)
 {
     std::lock_guard<std::mutex> lk(system_db_mutex_);
     if (!system_db_initialized_ || !system_db_) {
@@ -1149,7 +1182,7 @@ DatabaseResult<void> DatabaseManager::create_platform_role(
     }
 
     const char* sql =
-        "INSERT INTO platform_roles (id, name, description) VALUES (?, ?, ?);";
+        "INSERT INTO platform_roles (id, name, description, scope) VALUES (?, ?, ?, ?);";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1157,6 +1190,7 @@ DatabaseResult<void> DatabaseManager::create_platform_role(
     sqlite3_bind_text(stmt, 1, id.c_str(),          -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, name.c_str(),        -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, scope.c_str(),       -1, SQLITE_TRANSIENT);
 
     const int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -1232,7 +1266,7 @@ DatabaseResult<PlatformRoleRecord> DatabaseManager::get_platform_role(const std:
     }
 
     const char* sql =
-        "SELECT id, name, description, created_at FROM platform_roles WHERE id = ?;";
+        "SELECT id, name, description, scope, created_at FROM platform_roles WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1246,7 +1280,9 @@ DatabaseResult<PlatformRoleRecord> DatabaseManager::get_platform_role(const std:
         rec.id          = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         rec.name        = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         rec.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        auto* ca = sqlite3_column_text(stmt, 3);
+        auto* sc = sqlite3_column_text(stmt, 3);
+        rec.scope       = sc ? reinterpret_cast<const char*>(sc) : "platform";
+        auto* ca = sqlite3_column_text(stmt, 4);
         rec.created_at  = ca ? reinterpret_cast<const char*>(ca) : "";
     }
     sqlite3_finalize(stmt);
@@ -1265,7 +1301,7 @@ DatabaseResult<std::vector<PlatformRoleRecord>> DatabaseManager::list_platform_r
     }
 
     const char* sql =
-        "SELECT id, name, description, created_at FROM platform_roles ORDER BY created_at;";
+        "SELECT id, name, description, scope, created_at FROM platform_roles ORDER BY created_at;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1277,7 +1313,9 @@ DatabaseResult<std::vector<PlatformRoleRecord>> DatabaseManager::list_platform_r
         rec.id          = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         rec.name        = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         rec.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        auto* ca = sqlite3_column_text(stmt, 3);
+        auto* sc = sqlite3_column_text(stmt, 3);
+        rec.scope       = sc ? reinterpret_cast<const char*>(sc) : "platform";
+        auto* ca = sqlite3_column_text(stmt, 4);
         rec.created_at  = ca ? reinterpret_cast<const char*>(ca) : "";
         rows.push_back(std::move(rec));
     }
@@ -1303,8 +1341,10 @@ DatabaseResult<void> DatabaseManager::create_organization(
     }
 
     const char* sql =
-        "INSERT INTO organizations (id, name, domain, subscription_tier, user_limit, storage_limit)"
-        " VALUES (?, ?, ?, ?, ?, ?);";
+        "INSERT INTO organizations"
+        " (id, name, domain, subscription_tier, user_limit, storage_limit,"
+        "  status, revision, updated_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', 0, datetime('now'));";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1337,7 +1377,8 @@ DatabaseResult<OrganizationRecord> DatabaseManager::get_organization(const std::
     }
 
     const char* sql =
-        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at"
+        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at,"
+        "       status, revision, updated_at"
         " FROM organizations WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -1358,6 +1399,11 @@ DatabaseResult<OrganizationRecord> DatabaseManager::get_organization(const std::
         rec.storage_limit     = sqlite3_column_int(stmt, 5);
         auto* ca              = sqlite3_column_text(stmt, 6);
         rec.created_at        = ca ? reinterpret_cast<const char*>(ca) : "";
+        auto* st              = sqlite3_column_text(stmt, 7);
+        rec.status            = st ? reinterpret_cast<const char*>(st) : "ACTIVE";
+        rec.revision          = sqlite3_column_int(stmt, 8);
+        auto* ua              = sqlite3_column_text(stmt, 9);
+        rec.updated_at        = ua ? reinterpret_cast<const char*>(ua) : "";
     }
     sqlite3_finalize(stmt);
 
@@ -1375,8 +1421,9 @@ DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizati
     }
 
     const char* sql =
-        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at"
-        " FROM organizations ORDER BY created_at;";
+        "SELECT id, name, domain, subscription_tier, user_limit, storage_limit, created_at,"
+        "       status, revision, updated_at"
+        " FROM organizations ORDER BY name;";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return DatabaseError::QueryFailed;
@@ -1394,6 +1441,11 @@ DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizati
         rec.storage_limit     = sqlite3_column_int(stmt, 5);
         auto* ca              = sqlite3_column_text(stmt, 6);
         rec.created_at        = ca ? reinterpret_cast<const char*>(ca) : "";
+        auto* st              = sqlite3_column_text(stmt, 7);
+        rec.status            = st ? reinterpret_cast<const char*>(st) : "ACTIVE";
+        rec.revision          = sqlite3_column_int(stmt, 8);
+        auto* ua              = sqlite3_column_text(stmt, 9);
+        rec.updated_at        = ua ? reinterpret_cast<const char*>(ua) : "";
         rows.push_back(std::move(rec));
     }
     sqlite3_finalize(stmt);
@@ -1403,14 +1455,39 @@ DatabaseResult<std::vector<OrganizationRecord>> DatabaseManager::list_organizati
 DatabaseResult<void> DatabaseManager::update_organization(
     const std::string&         id,
     std::optional<std::string> name,
+    std::optional<std::string> status,
     std::optional<std::string> domain,
     std::optional<std::string> subscription_tier,
     std::optional<int>         user_limit,
-    std::optional<int>         storage_limit)
+    std::optional<int>         storage_limit,
+    std::optional<int>         expected_revision)
 {
     std::lock_guard<std::mutex> lk(system_db_mutex_);
     if (!system_db_initialized_ || !system_db_) {
         return DatabaseError::ConnectionFailed;
+    }
+
+    // Fetch current revision and verify existence (and optionally enforce optimistic lock)
+    {
+        const char* check = "SELECT revision FROM organizations WHERE id = ?;";
+        sqlite3_stmt* cs = nullptr;
+        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
+            return DatabaseError::QueryFailed;
+        }
+        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
+        int current_revision = -1;
+        bool found = false;
+        if (sqlite3_step(cs) == SQLITE_ROW) {
+            found = true;
+            current_revision = sqlite3_column_int(cs, 0);
+        }
+        sqlite3_finalize(cs);
+        if (!found) {
+            return DatabaseError::NotFound;
+        }
+        if (expected_revision.has_value() && *expected_revision != current_revision) {
+            return DatabaseError::VersionConflict;
+        }
     }
 
     // Build SET clause dynamically from non-null optionals
@@ -1434,29 +1511,15 @@ DatabaseResult<void> DatabaseManager::update_organization(
     };
 
     append_text("name",              name);
+    append_text("status",            status);
     append_text("domain",            domain);
     append_text("subscription_tier", subscription_tier);
     append_int ("user_limit",        user_limit);
     append_int ("storage_limit",     storage_limit);
 
-    if (set_clause.empty()) {
-        // Nothing to update — treat as success
-        return DatabaseResult<void>{};
-    }
-
-    // Verify existence
-    {
-        const char* check = "SELECT COUNT(*) FROM organizations WHERE id = ?;";
-        sqlite3_stmt* cs = nullptr;
-        if (sqlite3_prepare_v2(system_db_.get(), check, -1, &cs, nullptr) != SQLITE_OK) {
-            return DatabaseError::QueryFailed;
-        }
-        sqlite3_bind_text(cs, 1, id.c_str(), -1, SQLITE_TRANSIENT);
-        int count = 0;
-        if (sqlite3_step(cs) == SQLITE_ROW) { count = sqlite3_column_int(cs, 0); }
-        sqlite3_finalize(cs);
-        if (count == 0) { return DatabaseError::NotFound; }
-    }
+    // Always bump revision and touch updated_at
+    if (!set_clause.empty()) { set_clause += ", "; }
+    set_clause += "revision = revision + 1, updated_at = datetime('now')";
 
     const std::string sql = "UPDATE organizations SET " + set_clause + " WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;
@@ -2583,5 +2646,201 @@ DatabaseResult<std::string> DatabaseManager::get_tenant_setting(
     return DatabaseError::QueryFailed;
 }
 
+// ---------------------------------------------------------------------------
+// spec-006: schema_documents table helpers (T005-T007)
+// ---------------------------------------------------------------------------
+
+DatabaseResult<void> DatabaseManager::ensure_schema_documents_table(
+    const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* ddl =
+        "CREATE TABLE IF NOT EXISTS schema_documents ("
+        "  name          TEXT PRIMARY KEY NOT NULL,"
+        "  content       TEXT NOT NULL,"
+        "  content_sha256 TEXT NOT NULL DEFAULT '',"
+        "  created_at    TEXT NOT NULL DEFAULT (datetime('now')),"
+        "  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),"
+        "  updated_by    TEXT NOT NULL DEFAULT ''"
+        ");"
+        "CREATE INDEX IF NOT EXISTS idx_schema_documents_name"
+        "  ON schema_documents(name);";
+
+    char* errmsg = nullptr;
+    const int rc = sqlite3_exec(conn.get(), ddl, nullptr, nullptr, &errmsg);
+    if (rc != SQLITE_OK) {
+        const std::string msg = errmsg ? errmsg : "unknown";
+        sqlite3_free(errmsg);
+        spdlog::warn("ensure_schema_documents_table: DDL failed for '{}': {}", tenant_id, msg);
+        return DatabaseError::SchemaValidationFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::insert_schema_document(
+    const std::string& tenant_id,
+    const std::string& name,
+    const std::string& content,
+    const std::string& content_sha256,
+    const std::string& updated_by)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "INSERT INTO schema_documents (name, content, content_sha256, updated_by)"
+        " VALUES (?, ?, ?, ?);";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, name.c_str(),          -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, content.c_str(),       -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, content_sha256.c_str(),-1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, updated_by.c_str(),    -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_CONSTRAINT) { return DatabaseError::DuplicateKey; }
+    if (rc != SQLITE_DONE)       { return DatabaseError::QueryFailed; }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::replace_schema_document(
+    const std::string& tenant_id,
+    const std::string& name,
+    const std::string& content,
+    const std::string& content_sha256,
+    const std::string& updated_by)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // Atomic replace inside an immediate transaction to enforce last-write-wins.
+    const int begin_rc = sqlite3_exec(conn.get(), "BEGIN IMMEDIATE;", nullptr, nullptr, nullptr);
+    if (begin_rc != SQLITE_OK) return DatabaseError::TransactionFailed;
+
+    const char* sql =
+        "UPDATE schema_documents"
+        " SET content = ?, content_sha256 = ?, updated_at = datetime('now'), updated_by = ?"
+        " WHERE name = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        sqlite3_exec(conn.get(), "ROLLBACK;", nullptr, nullptr, nullptr);
+        return DatabaseError::QueryFailed;
+    }
+
+    sqlite3_bind_text(stmt, 1, content.c_str(),        -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, content_sha256.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, updated_by.c_str(),     -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, name.c_str(),           -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        sqlite3_exec(conn.get(), "ROLLBACK;", nullptr, nullptr, nullptr);
+        return DatabaseError::QueryFailed;
+    }
+    if (sqlite3_changes(conn.get()) == 0) {
+        sqlite3_exec(conn.get(), "ROLLBACK;", nullptr, nullptr, nullptr);
+        return DatabaseError::NotFound;
+    }
+
+    if (sqlite3_exec(conn.get(), "COMMIT;", nullptr, nullptr, nullptr) != SQLITE_OK)
+        return DatabaseError::TransactionFailed;
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<std::vector<SchemaDocumentRecord>> DatabaseManager::list_schema_documents(
+    const std::string& tenant_id)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    // List projection — content is intentionally excluded (spec-006 Decision 9)
+    const char* sql =
+        "SELECT name, created_at, updated_at, updated_by"
+        " FROM schema_documents ORDER BY name ASC;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    auto text = [&](int col) -> std::string {
+        const unsigned char* v = sqlite3_column_text(stmt, col);
+        return v ? reinterpret_cast<const char*>(v) : "";
+    };
+
+    std::vector<SchemaDocumentRecord> records;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        SchemaDocumentRecord r;
+        r.name       = text(0);
+        r.created_at = text(1);
+        r.updated_at = text(2);
+        r.updated_by = text(3);
+        records.push_back(std::move(r));
+    }
+    sqlite3_finalize(stmt);
+    return records;
+}
+
+DatabaseResult<SchemaDocumentRecord> DatabaseManager::get_schema_document_by_name(
+    const std::string& tenant_id,
+    const std::string& name)
+{
+    auto pool_result = get_tenant_pool(tenant_id);
+    if (!pool_result) { return pool_result.error(); }
+    auto conn_result = pool_result.value()->acquire();
+    if (!conn_result) { return conn_result.error(); }
+    auto conn = std::move(conn_result.value());
+
+    const char* sql =
+        "SELECT name, content, content_sha256, created_at, updated_at, updated_by"
+        " FROM schema_documents WHERE name = ?;";
+
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(conn.get(), sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return DatabaseError::QueryFailed;
+
+    sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
+
+    auto text = [&](int col) -> std::string {
+        const unsigned char* v = sqlite3_column_text(stmt, col);
+        return v ? reinterpret_cast<const char*>(v) : "";
+    };
+
+    const int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        SchemaDocumentRecord r;
+        r.name           = text(0);
+        r.content        = text(1);
+        r.content_sha256 = text(2);
+        r.created_at     = text(3);
+        r.updated_at     = text(4);
+        r.updated_by     = text(5);
+        sqlite3_finalize(stmt);
+        return r;
+    }
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_DONE) { return DatabaseError::NotFound; }
+    return DatabaseError::QueryFailed;
+}
 
 } // namespace isched::v0_0_1::backend

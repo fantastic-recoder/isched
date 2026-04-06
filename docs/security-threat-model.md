@@ -1,6 +1,6 @@
 # Security Threat Model Summary
 
-**Updated**: 2026-04-05
+**Updated**: 2026-04-06
 
 ## Purpose
 
@@ -11,6 +11,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - `specs/001-universal-backend/threat-model.md` — GraphQL transport, bootstrap flow, JWT auth, RBAC, tenant isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
 - `specs/004-add-isched-webui/threat-model.md` — Embedded WebUI serving, proxy-backed local GraphQL flow, CSRF/cookie auth behavior, and organization-context write boundaries
 - `specs/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling
+- `specs/006-upload-schema/threat-model.md` — Tenant-admin schema upload authorization, overwrite conflict controls, SDL validation, and cross-tenant read isolation for schema documents
 
 ## Feature 005 Security Closeout Snapshot (2026-04-05)
 
@@ -29,6 +30,25 @@ This document summarizes the security posture and recurring mitigations for Isch
 - **Open blocker**:
   - None for Feature 005 closeout gates after lockout selector/classification alignment and bootstrap/login precondition stabilization in `src/ui/e2e/rate-limiting.spec.ts`.
 - **Risk posture**: No new critical auth/session exposure identified from Feature 005 closeout validation; lockout E2E release-confidence blocker is resolved.
+
+## Feature 006 Security Closeout Snapshot (2026-04-06)
+
+- **Scope**: `006-upload-schema` (tenant-admin schema document upload, list, fetch; overwrite conflict controls; SDL validation; cross-tenant isolation)
+- **Validated mitigations**:
+  - Upload gated by `require_roles({"role_tenant_admin"})` — unauthenticated and non-admin callers receive `FORBIDDEN` before resolver runs
+  - All list/fetch operations derive tenant scope from auth context only — no caller-supplied `organizationId` accepted
+  - Default `overwrite=false` prevents accidental destructive writes; explicit opt-in required
+  - SDL content validated with existing PEGTL parser before persistence — malformed SDL returns `VALIDATION_FAILED`
+  - Content size capped at 1 MB (configurable) with early rejection before parsing
+  - Schema name validated against `[A-Za-z0-9._-]{1,128}` before any DB interaction
+  - All SQL queries use parameterized binding — no string interpolation of user-supplied values
+  - Atomic `BEGIN IMMEDIATE` transaction for overwrite path — last-successful-write-wins
+- **Validation evidence**:
+  - Backend gate: `ctest --output-on-failure` PASS (40/40)
+  - Dedicated integration test suite: `test_graphql_schema_upload` PASS (13 test cases, 1561 assertions)
+  - Unit tests in `isched_gql_executor_tests`: PASS (new schema upload test cases)
+- **Open blocker**: None — all security controls implemented and verified.
+- **Risk posture**: No new critical auth/session exposure introduced by spec-006; all identified threats addressed with controls consistent with existing RBAC and tenant-isolation patterns.
 
 ## Common Security Themes
 

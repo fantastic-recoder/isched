@@ -517,3 +517,76 @@ TEST_CASE("deleteRole mutation: deleting non-existent role returns error respons
     REQUIRE_FALSE(result.errors.empty());
 }
 
+// =============================================================================
+// roles query (T047-018)
+// =============================================================================
+
+TEST_CASE("roles query: anonymous caller is denied by RBAC gate", "[rbac][e2e]") {
+    auto exec = std::make_unique<GqlExecutor>(make_system_db_manager());
+    auto result = exec->execute("{ roles { id name scope } }", "{}", ResolverCtx{});
+    REQUIRE_FALSE(result.is_success());
+    REQUIRE(result.errors[0].code == EErrorCodes::FORBIDDEN);
+}
+
+TEST_CASE("roles query: platform_admin receives built-in roles", "[rbac][e2e]") {
+    auto exec = std::make_unique<GqlExecutor>(make_system_db_manager());
+
+    ResolverCtx ctx;
+    ctx.current_user_id = "admin-user";
+    ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
+
+    auto result = exec->execute("{ roles { id name scope } }", "{}", std::move(ctx));
+
+    REQUIRE(result.is_success());
+    REQUIRE(result.data["roles"].is_array());
+    REQUIRE_FALSE(result.data["roles"].empty());
+
+    // Verify built-in roles are present
+    const auto& roles = result.data["roles"];
+    bool found_platform_admin = false;
+    bool found_tenant_admin   = false;
+    for (const auto& role : roles) {
+        if (role["id"] == "role_platform_admin") {
+            found_platform_admin = true;
+            REQUIRE(role["name"] == "platform_admin");
+            REQUIRE(role["scope"] == "platform");
+        }
+        if (role["id"] == "role_tenant_admin") {
+            found_tenant_admin = true;
+            REQUIRE(role["name"] == "tenant_admin");
+            REQUIRE(role["scope"] == "tenant");
+        }
+    }
+    REQUIRE(found_platform_admin);
+    REQUIRE(found_tenant_admin);
+}
+
+TEST_CASE("roles query: tenant_admin can list roles", "[rbac][e2e]") {
+    auto exec = std::make_unique<GqlExecutor>(make_system_db_manager());
+
+    ResolverCtx ctx;
+    ctx.current_user_id = "tenant-user";
+    ctx.roles = {std::string(Role::TENANT_ADMIN)};
+
+    auto result = exec->execute("{ roles { id name scope } }", "{}", std::move(ctx));
+
+    REQUIRE(result.is_success());
+    REQUIRE(result.data["roles"].is_array());
+    REQUIRE_FALSE(result.data["roles"].empty());
+}
+
+TEST_CASE("create_platform_role stores and retrieves scope", "[rbac][db]") {
+    auto db = make_system_db_manager();
+    constexpr std::string_view kScopedRoleId = "role_test_scope_t047018";
+    (void)db->delete_platform_role(std::string(kScopedRoleId));
+
+    REQUIRE(db->create_platform_role(
+        std::string(kScopedRoleId), "Scoped Test Role", "desc", "tenant"));
+
+    auto rec = db->get_platform_role(std::string(kScopedRoleId));
+    REQUIRE(rec);
+    REQUIRE(rec.value().scope == "tenant");
+
+    (void)db->delete_platform_role(std::string(kScopedRoleId));
+}
+

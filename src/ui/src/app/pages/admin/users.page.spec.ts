@@ -152,5 +152,29 @@ describe('UsersPage accessibility', () => {
     expect(root.querySelector('#users-status')?.textContent).toContain('Jane Doe is now active.');
     expect(updateUser).toHaveBeenLastCalledWith('org-a', 'user-1', { status: 'ACTIVE' }, 2);
   });
+
+  it('should hide loading spinner when organization selection results in empty user list', async () => {
+    const fixture = TestBed.createComponent(UsersPage);
+    fixture.detectChanges();
+    await flushMicrotasks();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const orgSelect = root.querySelector<HTMLSelectElement>('#user-org-select');
+
+    // Initially, no spinner should be visible
+    expect(root.querySelector('.loading')).toBeFalsy();
+
+    // Simulate selecting an organization
+    orgSelect!.value = 'org-a';
+    orgSelect!.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+    await flushMicrotasks();
+    fixture.detectChanges();
+
+    // Spinner should be hidden after API returns (even with empty user list)
+    expect(root.querySelector('.loading')).toBeFalsy();
+    expect(root.querySelector('#users-list')?.textContent).toContain('No users match the current server-side query.');
+  });
 });
 

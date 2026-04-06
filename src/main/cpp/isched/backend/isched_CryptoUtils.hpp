@@ -38,4 +38,10 @@ namespace isched::v0_0_1::backend {
                                           const std::string& tenant_id,
                                           const std::string& master_secret);
 
+/**
+ * @brief Compute the SHA-256 digest of @p data and return it as a lowercase hex string.
+ * @throws std::runtime_error on OpenSSL failure.
+ */
+[[nodiscard]] std::string sha256_hex(const std::string& data);
+
 } // namespace isched::v0_0_1::backend

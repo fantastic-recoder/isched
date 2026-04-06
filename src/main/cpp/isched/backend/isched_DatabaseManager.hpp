@@ -63,9 +63,10 @@ enum class DatabaseError {
     MigrationFailed,
     BackupFailed,
     PoolExhausted,
-    NotFound,       ///< Requested record does not exist
-    DuplicateKey,   ///< INSERT failed due to UNIQUE constraint
-    AccessDenied    ///< Operation refused (e.g. deleting a built-in role)
+    NotFound,         ///< Requested record does not exist
+    DuplicateKey,     ///< INSERT failed due to UNIQUE constraint
+    AccessDenied,     ///< Operation refused (e.g. deleting a built-in role)
+    VersionConflict   ///< Optimistic concurrency: expectedRevision != current revision
 };
 
 /**
@@ -213,6 +214,9 @@ struct OrganizationRecord {
     int         user_limit{0};
     int         storage_limit{0};
     std::string created_at;
+    std::string status{"ACTIVE"};     ///< ACTIVE | SUSPENDED
+    int         revision{0};          ///< Optimistic concurrency counter
+    std::string updated_at;           ///< ISO-8601 last-modified timestamp
 };
 
 /// A row from the @c platform_admins table in @c isched_system.db.
@@ -232,6 +236,7 @@ struct PlatformRoleRecord {
     std::string id;
     std::string name;
     std::string description;
+    std::string scope;        ///< "platform" or "tenant"
     std::string created_at;
 };
 
@@ -260,6 +265,16 @@ struct SessionRecord {
     std::string last_activity;
     std::string transport_scope{"any"};     ///< 'http' | 'websocket' | 'any'
     bool        is_revoked{false};
+};
+
+/// A row from the @c schema_documents table in a tenant SQLite DB (T006/spec-006).
+struct SchemaDocumentRecord {
+    std::string name;           ///< Organization-unique document name (case-sensitive)
+    std::string content;        ///< Full GraphQL SDL text
+    std::string content_sha256; ///< SHA-256 hex digest of content
+    std::string created_at;     ///< ISO-8601 creation timestamp
+    std::string updated_at;     ///< ISO-8601 last-update timestamp
+    std::string updated_by;     ///< User ID of last writer
 };
 
 /// Describes one registered outbound-HTTP data source (T048).
@@ -720,7 +735,8 @@ public:
     [[nodiscard]] DatabaseResult<void> create_platform_role(
         const std::string& id,
         const std::string& name,
-        const std::string& description);
+        const std::string& description,
+        const std::string& scope = "platform");
 
     /**
      * @brief Remove a custom platform-scope role from @c platform_roles.
@@ -763,13 +779,18 @@ public:
 
     /// Partially update an organization.  Only non-null optionals are written.
     /// Returns @c NotFound if @p id does not exist.
+    /// Returns @c VersionConflict if @p expected_revision is provided and does not match the
+    /// current revision (optimistic concurrency guard).
+    /// On success, increments @c revision and sets @c updated_at to UTC-now.
     [[nodiscard]] DatabaseResult<void> update_organization(
         const std::string& id,
         std::optional<std::string> name,
+        std::optional<std::string> status,
         std::optional<std::string> domain,
         std::optional<std::string> subscription_tier,
         std::optional<int>         user_limit,
-        std::optional<int>         storage_limit);
+        std::optional<int>         storage_limit,
+        std::optional<int>         expected_revision = std::nullopt);
 
     /// Delete an organization by @p id; returns @c NotFound if absent.
     [[nodiscard]] DatabaseResult<void> delete_organization(const std::string& id);
@@ -944,6 +965,39 @@ public:
     [[nodiscard]] DatabaseResult<void> delete_data_source(
         const std::string& tenant_id,
         const std::string& id);
+
+    // ── Schema documents (spec-006) ──────────────────────────────────────────
+
+    /// Ensure the @c schema_documents table exists in the tenant DB.
+    /// Called automatically from @c initialize_tenant().
+    [[nodiscard]] DatabaseResult<void> ensure_schema_documents_table(const std::string& tenant_id);
+
+    /// Insert a new schema document with the given @p name and @p content.
+    /// @p updated_by is the user_id of the uploader.
+    /// Returns @c DuplicateKey if @p name already exists in that tenant.
+    [[nodiscard]] DatabaseResult<void> insert_schema_document(
+        const std::string& tenant_id,
+        const std::string& name,
+        const std::string& content,
+        const std::string& content_sha256,
+        const std::string& updated_by);
+
+    /// Atomically replace content and update metadata for an existing document.
+    /// Returns @c NotFound if @p name does not exist in that tenant.
+    [[nodiscard]] DatabaseResult<void> replace_schema_document(
+        const std::string& tenant_id,
+        const std::string& name,
+        const std::string& content,
+        const std::string& content_sha256,
+        const std::string& updated_by);
+
+    /// Return all schema document summaries for @p tenant_id (name/timestamps/updatedBy only).
+    [[nodiscard]] DatabaseResult<std::vector<SchemaDocumentRecord>>
+    list_schema_documents(const std::string& tenant_id);
+
+    /// Fetch one schema document by exact name; returns @c NotFound if absent.
+    [[nodiscard]] DatabaseResult<SchemaDocumentRecord>
+    get_schema_document_by_name(const std::string& tenant_id, const std::string& name);
 
     // T050-001: per-tenant advisory key-value settings (isched_system.db)
     /// Store (or overwrite) a key-value setting for an org in @c tenant_settings.
