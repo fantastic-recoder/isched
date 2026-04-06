@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-ast-enum-dispatch`  
 **Created**: 2026-04-06  
-**Status**: Draft  
+**Status**: Completed  
 **Input**: User description: "Provide a complete C++ implementation for a custom AST node system in PEGTL replacing string-based rule identification with high-performance enum class dispatch."
 
 ## Clarifications
@@ -113,7 +113,6 @@ As a contributor, I can read complete API documentation for the custom node and 
   | `gql::ListType` | `ListType` |
   | `gql::NonNullType` | `NonNullType` |
   | `gql::SchemaDefinition` | `SchemaDefinition` |
-  | `gql::ObjectTypeDefinition` | `ObjectTypeDefinition` |
   | `gql::InterfaceTypeDefinition` | `InterfaceTypeDefinition` |
   | `gql::UnionTypeDefinition` | `UnionTypeDefinition` |
   | `gql::EnumTypeDefinition` | `EnumTypeDefinition` |
@@ -121,6 +120,10 @@ As a contributor, I can read complete API documentation for the custom node and 
   | `gql::ScalarTypeDefinition` | `ScalarTypeDefinition` |
   | `gql::FieldDefinition` | `FieldDefinition` |
   | `gql::InputValueDefinition` | `InputValueDefinition` |
+
+  > **Note — intentionally excluded transparent wrappers** (children bubble up to parent; retained as enum values and `transform` arms for future use, but not added to the node-retention list):
+  > - `gql::ObjectTypeDefinition` — transparent `sor<>` wrapper; `Name` and `FieldDefinition` children lift to parent `TypeDefinition`. Retaining it would break existing tests expecting flat child layout.
+  > - `gql::FieldsDefinition` — transparent braced-list wrapper; `FieldDefinition` children lift to parent. Same rationale as `gql::Selection` (already excluded in legacy `GqlSelector`).
   | `gql::DirectiveDefinition` | `DirectiveDefinition` |
   | `gql::Description` | `Description` |
   | `gql::StringValue` | `StringValue` |
