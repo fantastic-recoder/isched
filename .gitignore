@@ -87,3 +87,4 @@ nohup.out
 /cmake-build-profile/
 /cmake-build-release/
 data/tenants/config_snapshots.sqlite3*
+/docs/.scratch.md.kate-swp
