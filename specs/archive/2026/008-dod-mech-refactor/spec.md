@@ -2,8 +2,9 @@
 
 **Feature Branch**: `008-dod-mech-refactor`  
 **Created**: 2026-04-06  
-**Status**: Draft  
+**Status**: Completed  
 **Input**: User description: "Refactoring initiative for the C++ project using Data-Oriented Design and mechanical sympathy with constraints including Performance > Clean Code tradeoff, SoA transition, preserve existing tests, and target >=80% line/branch coverage. Include requirements for hot-path analysis, branch elimination strategies, stateless system functions over flat arrays, pointer-to-index replacement, contiguous memory locality, guard clauses, descriptive naming, implementation workflow (analyze, redefine data, refactor logic, expand tests), required outputs (refactored header/cpp, test suite updates, performance summary), and mandatory green tests + docs/spec updates after each pass."
+**Completion Note**: SC-002 recovery and compliance closure were completed in archived follow-up `specs/archive/2026/009-raise-pass-improvement-ratio/`.
 
 ## User Scenarios & Testing *(mandatory)*
 
