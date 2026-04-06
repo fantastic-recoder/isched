@@ -13,6 +13,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - Tenant-local SQLite databases managed by `DatabaseManager` (`schema_documents` table in each tenant DB) (006-upload-schema)
 - C++23 (repo baseline) + Angular 21 / strict TypeScript for `src/ui` + Angular standalone APIs/signals, Angular Router, RxJS interop (`toSignal`), Tailwind CSS 3.x, DaisyUI 4.x, existing GraphQL service (`/graphql`), Playwright, Jest/Karma test harness in `src/ui` (007-webui-nav-status-bars)
 - N/A for new persistence; consumes existing in-memory auth/session state and GraphQL-backed user/session data (007-webui-nav-status-bars)
+- C++23 + Catch2 3.x, Boost 1.84, cpp-httplib, nlohmann_json, spdlog, jwt-cpp, sqlite3, taocpp-pegtl (008-dod-mech-refactor)
+- SQLite3 (embedded, per-tenant) (008-dod-mech-refactor)
 
 - (004-add-isched-webui)
 
@@ -32,9 +34,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 008-dod-mech-refactor: Added C++23 + Catch2 3.x, Boost 1.84, cpp-httplib, nlohmann_json, spdlog, jwt-cpp, sqlite3, taocpp-pegtl
+- 008-dod-mech-refactor: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 007-webui-nav-status-bars: Added C++23 (repo baseline) + Angular 21 / strict TypeScript for `src/ui` + Angular standalone APIs/signals, Angular Router, RxJS interop (`toSignal`), Tailwind CSS 3.x, DaisyUI 4.x, existing GraphQL service (`/graphql`), Playwright, Jest/Karma test harness in `src/ui`
-- 007-webui-nav-status-bars: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
-- 006-upload-schema: Added C++23 + `cpp-httplib`, `nlohmann_json`, `taocpp-pegtl`, `sqlite3`, `jwt-cpp`, `spdlog`
 
 
 <!-- MANUAL ADDITIONS START -->
