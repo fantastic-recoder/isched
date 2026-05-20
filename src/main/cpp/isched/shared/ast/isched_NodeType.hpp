@@ -166,6 +166,57 @@ enum class NodeType : uint8_t {
     /// @brief Directive definition `directive @Name on …`.
     DirectiveDefinition,
 
+    /// @brief GraphQL type definition wrapper rule.
+    TypeDefinition,
+
+    /// @brief GraphQL Type rule wrapper.
+    Type,
+
+    /// @brief Constant directives list.
+    DirectivesConst,
+
+    /// @brief Constant single directive.
+    DirectiveConst,
+
+    /// @brief Constant arguments list.
+    ArgumentsConst,
+
+    /// @brief Constant single argument.
+    ArgumentConst,
+
+    /// @brief Constant value wrapper.
+    ValueConst,
+
+    /// @brief Default value wrapper.
+    DefaultValue,
+
+    /// @brief Variables definition list.
+    VariablesDefinition,
+
+    /// @brief Enum values definition list.
+    EnumValuesDefinition,
+
+    /// @brief Input fields definition list.
+    InputFieldsDefinition,
+
+    /// @brief Type name reference.
+    TypeName,
+
+    /// @brief Arguments definition list.
+    ArgumentsDefinition,
+
+    /// @brief Union member types list.
+    UnionMemberTypes,
+
+    /// @brief Enum value definition.
+    EnumValueDefinition,
+
+    /// @brief List value literal.
+    ListValue,
+
+    /// @brief Object field name-value pair.
+    ObjectField,
+
     // ---- Miscellaneous ----
 
     /// @brief String description preceding a type or field definition.

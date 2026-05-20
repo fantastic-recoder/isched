@@ -18,6 +18,12 @@
 #include <memory>
 #include <string>
 #include <system_error>
+#ifdef _WIN32
+#include <process.h>
+#define getpid _getpid
+#else
+#include <unistd.h>
+#endif
 
 #include "isched/shared/config/isched_config.hpp"
 

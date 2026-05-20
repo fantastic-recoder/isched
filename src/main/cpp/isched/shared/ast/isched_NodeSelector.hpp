@@ -100,6 +100,8 @@ namespace isched::v0_0_1::gql {
     struct ScalarTypeExtension;
     struct SchemaExtension;
     struct TypeSystemExtension;
+    struct DefaultValue;
+    struct VariablesDefinition;
 } // namespace isched::v0_0_1::gql
 
 namespace isched::v0_0_1::ast {
@@ -227,6 +229,8 @@ struct NodeSelector<TRule> {
         gql::ArgumentsConst,
         gql::ArgumentConst,
         gql::Description,
+        gql::DefaultValue,
+        gql::VariablesDefinition,
         // Extensions
         gql::ObjectTypeExtension,
         gql::InterfaceTypeExtension,
@@ -310,6 +314,10 @@ struct NodeSelector<TRule> {
             n->node_type = NT::EnumValue;
         else if constexpr (std::is_same_v<TRule, gql::ObjectValue>)
             n->node_type = NT::ObjectValue;
+        else if constexpr (std::is_same_v<TRule, gql::ListValue>)
+            n->node_type = NT::ListValue;
+        else if constexpr (std::is_same_v<TRule, gql::ObjectField>)
+            n->node_type = NT::ObjectField;
         // ---- Names and types ----
         else if constexpr (std::is_same_v<TRule, gql::Name>)
             n->node_type = NT::Name;
@@ -328,18 +336,48 @@ struct NodeSelector<TRule> {
             n->node_type = NT::InterfaceTypeDefinition;
         else if constexpr (std::is_same_v<TRule, gql::UnionTypeDefinition>)
             n->node_type = NT::UnionTypeDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::UnionMemberTypes>)
+            n->node_type = NT::UnionMemberTypes;
         else if constexpr (std::is_same_v<TRule, gql::EnumTypeDefinition>)
             n->node_type = NT::EnumTypeDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::EnumValueDefinition>)
+            n->node_type = NT::EnumValueDefinition;
         else if constexpr (std::is_same_v<TRule, gql::InputObjectTypeDefinition>)
             n->node_type = NT::InputObjectTypeDefinition;
         else if constexpr (std::is_same_v<TRule, gql::ScalarTypeDefinition>)
             n->node_type = NT::ScalarTypeDefinition;
         else if constexpr (std::is_same_v<TRule, gql::FieldDefinition>)
             n->node_type = NT::FieldDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::ArgumentsDefinition>)
+            n->node_type = NT::ArgumentsDefinition;
         else if constexpr (std::is_same_v<TRule, gql::InputValueDefinition>)
             n->node_type = NT::InputValueDefinition;
         else if constexpr (std::is_same_v<TRule, gql::DirectiveDefinition>)
             n->node_type = NT::DirectiveDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::TypeDefinition>)
+            n->node_type = NT::TypeDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::Type>)
+            n->node_type = NT::Type;
+        else if constexpr (std::is_same_v<TRule, gql::DirectivesConst>)
+            n->node_type = NT::DirectivesConst;
+        else if constexpr (std::is_same_v<TRule, gql::DirectiveConst>)
+            n->node_type = NT::DirectiveConst;
+        else if constexpr (std::is_same_v<TRule, gql::ArgumentsConst>)
+            n->node_type = NT::ArgumentsConst;
+        else if constexpr (std::is_same_v<TRule, gql::ArgumentConst>)
+            n->node_type = NT::ArgumentConst;
+        else if constexpr (std::is_same_v<TRule, gql::ValueConst>)
+            n->node_type = NT::ValueConst;
+        else if constexpr (std::is_same_v<TRule, gql::DefaultValue>)
+            n->node_type = NT::DefaultValue;
+        else if constexpr (std::is_same_v<TRule, gql::VariablesDefinition>)
+            n->node_type = NT::VariablesDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::EnumValuesDefinition>)
+            n->node_type = NT::EnumValuesDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::InputFieldsDefinition>)
+            n->node_type = NT::InputFieldsDefinition;
+        else if constexpr (std::is_same_v<TRule, gql::TypeName>)
+            n->node_type = NT::TypeName;
         else if constexpr (std::is_same_v<TRule, gql::Description>)
             n->node_type = NT::Description;
         else if constexpr (std::is_same_v<TRule, gql::GqlQuery>)

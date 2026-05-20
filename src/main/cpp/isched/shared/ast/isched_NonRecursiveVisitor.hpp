@@ -220,6 +220,7 @@ private:
             // ---- Variables ----
             case NodeType::Variable:            [[fallthrough]];
             case NodeType::VariableDefinition:  [[fallthrough]];
+            case NodeType::VariablesDefinition: [[fallthrough]];
             case NodeType::VariableDefinitions: break;
             // ---- Values ----
             case NodeType::Value:               [[fallthrough]];
@@ -229,10 +230,16 @@ private:
             case NodeType::BooleanValue:        [[fallthrough]];
             case NodeType::NullValue:           [[fallthrough]];
             case NodeType::EnumValue:           [[fallthrough]];
+            case NodeType::ValueConst:          [[fallthrough]];
+            case NodeType::DefaultValue:        [[fallthrough]];
+            case NodeType::ListValue:           [[fallthrough]];
+            case NodeType::ObjectField:         [[fallthrough]];
             case NodeType::ObjectValue:         break;
             // ---- Names and types ----
             case NodeType::Name:                [[fallthrough]];
             case NodeType::NamedType:           [[fallthrough]];
+            case NodeType::TypeName:            [[fallthrough]];
+            case NodeType::Type:                [[fallthrough]];
             case NodeType::ListType:            [[fallthrough]];
             case NodeType::NonNullType:         break;
             // ---- Type system definitions ----
@@ -240,12 +247,22 @@ private:
             case NodeType::ObjectTypeDefinition:      [[fallthrough]];
             case NodeType::InterfaceTypeDefinition:   [[fallthrough]];
             case NodeType::UnionTypeDefinition:       [[fallthrough]];
+            case NodeType::UnionMemberTypes:          [[fallthrough]];
             case NodeType::EnumTypeDefinition:        [[fallthrough]];
+            case NodeType::EnumValueDefinition:       [[fallthrough]];
             case NodeType::InputObjectTypeDefinition: [[fallthrough]];
             case NodeType::ScalarTypeDefinition:      [[fallthrough]];
             case NodeType::FieldDefinition:           [[fallthrough]];
+            case NodeType::ArgumentsDefinition:       [[fallthrough]];
             case NodeType::InputValueDefinition:      [[fallthrough]];
             case NodeType::DirectiveDefinition:       [[fallthrough]];
+            case NodeType::TypeDefinition:            [[fallthrough]];
+            case NodeType::DirectivesConst:           [[fallthrough]];
+            case NodeType::DirectiveConst:            [[fallthrough]];
+            case NodeType::ArgumentsConst:            [[fallthrough]];
+            case NodeType::ArgumentConst:             [[fallthrough]];
+            case NodeType::EnumValuesDefinition:      [[fallthrough]];
+            case NodeType::InputFieldsDefinition:     [[fallthrough]];
             case NodeType::Description:               [[fallthrough]];
             case NodeType::GqlQuery:                  break;
             // ---- Unknown / Sentinel: defined fallback — no UB ----

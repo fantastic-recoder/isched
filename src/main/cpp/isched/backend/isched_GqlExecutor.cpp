@@ -9,6 +9,8 @@
  */
 
 #include "isched_GqlExecutor.hpp"
+#include <isched/shared/ast/isched_CustomNode.hpp>
+#include <isched/shared/ast/isched_NodeType.hpp>
 
 #include <atomic>
 #include <algorithm>
@@ -52,6 +54,36 @@ thread_local isched::v0_0_1::backend::ResolverCtx tl_resolver_ctx;
 using nlohmann::json;
 using isched::v0_0_1::gql::TAstNodePtr;
 using TAstNodeMap = std::map<std::string, const TAstNodePtr*>;
+using isched::v0_0_1::ast::NodeType;
+
+static NodeType get_node_type(const tao::pegtl::parse_tree::node* n) {
+    if (!n) return NodeType::Unknown;
+    return static_cast<const isched::v0_0_1::ast::CustomNode*>(n)->node_type;
+}
+
+static NodeType get_node_type(const TAstNodePtr& n) {
+    return get_node_type(n.get());
+}
+
+static bool is_non_field_non_operation_definition(NodeType t) {
+    return t == NodeType::SchemaDefinition ||
+           t == NodeType::TypeDefinition ||
+           t == NodeType::ObjectTypeDefinition ||
+           t == NodeType::InterfaceTypeDefinition ||
+           t == NodeType::UnionTypeDefinition ||
+           t == NodeType::EnumTypeDefinition ||
+           t == NodeType::InputObjectTypeDefinition ||
+           t == NodeType::ScalarTypeDefinition ||
+           t == NodeType::InputValueDefinition ||
+           t == NodeType::ArgumentsDefinition ||
+           t == NodeType::DirectiveDefinition ||
+           t == NodeType::VariableDefinition ||
+           t == NodeType::VariableDefinitions ||
+           t == NodeType::FragmentDefinition ||
+           t == NodeType::ExecutableDefinition ||
+           t == NodeType::EnumValuesDefinition ||
+           t == NodeType::InputFieldsDefinition;
+}
 
 /// Strip surrounding ("…") or ("""…""") from a Description raw string.
 static std::string strip_description(std::string_view raw) {
@@ -69,7 +101,7 @@ static std::string strip_description(std::string_view raw) {
 static json extract_description(const TAstNodePtr& node) {
     if (!node) return nullptr;
     for (const auto& c : node->children) {
-        if (c->type.ends_with("gql::Description")) {
+        if (get_node_type(c) == NodeType::Description) {
             return strip_description(c->string_view());
         }
     }
@@ -86,21 +118,21 @@ static bool is_builtin_scalar(const std::string& name) {
 /// The stored node may be TypeDefinition (for OBJECT) or a specific
 /// definition node (SCALAR, INTERFACE, UNION, ENUM, INPUT_OBJECT).
 static std::string get_type_kind_for_node(const TAstNodePtr& node) {
-    const auto t = node->type;
-    if (t.ends_with("ScalarTypeDefinition"))      return "SCALAR";
-    if (t.ends_with("InterfaceTypeDefinition"))   return "INTERFACE";
-    if (t.ends_with("UnionTypeDefinition"))       return "UNION";
-    if (t.ends_with("EnumTypeDefinition"))        return "ENUM";
-    if (t.ends_with("InputObjectTypeDefinition")) return "INPUT_OBJECT";
+    const auto t = get_node_type(node);
+    if (t == NodeType::ScalarTypeDefinition)      return "SCALAR";
+    if (t == NodeType::InterfaceTypeDefinition)   return "INTERFACE";
+    if (t == NodeType::UnionTypeDefinition)       return "UNION";
+    if (t == NodeType::EnumTypeDefinition)        return "ENUM";
+    if (t == NodeType::InputObjectTypeDefinition) return "INPUT_OBJECT";
     // TypeDefinition without a specific child  → ObjectTypeDefinition bubbled up
-    if (t.ends_with("gql::TypeDefinition")) {
+    if (t == NodeType::TypeDefinition) {
         for (const auto& c : node->children) {
-            const auto ct = c->type;
-            if (ct.ends_with("ScalarTypeDefinition"))      return "SCALAR";
-            if (ct.ends_with("InterfaceTypeDefinition"))   return "INTERFACE";
-            if (ct.ends_with("UnionTypeDefinition"))       return "UNION";
-            if (ct.ends_with("EnumTypeDefinition"))        return "ENUM";
-            if (ct.ends_with("InputObjectTypeDefinition")) return "INPUT_OBJECT";
+            const auto ct = get_node_type(c);
+            if (ct == NodeType::ScalarTypeDefinition)      return "SCALAR";
+            if (ct == NodeType::InterfaceTypeDefinition)   return "INTERFACE";
+            if (ct == NodeType::UnionTypeDefinition)       return "UNION";
+            if (ct == NodeType::EnumTypeDefinition)        return "ENUM";
+            if (ct == NodeType::InputObjectTypeDefinition) return "INPUT_OBJECT";
         }
         return "OBJECT";
     }
@@ -118,26 +150,26 @@ static std::string named_type_kind(const std::string& name, const TAstNodeMap& t
 /// Recursively build the { kind, name, ofType } chain for a Type AST node.
 static json build_type_ref_json(const TAstNodePtr& node, const TAstNodeMap& type_map) {
     if (!node) return nullptr;
-    const auto t = node->type;
+    const auto t = get_node_type(node);
 
-    if (t.ends_with("NonNullType")) {
+    if (t == NodeType::NonNullType) {
         json inner = nullptr;
         for (const auto& c : node->children) inner = build_type_ref_json(c, type_map);
         return json{{"kind","NON_NULL"},{"name",nullptr},{"ofType",inner}};
     }
-    if (t.ends_with("ListType")) {
+    if (t == NodeType::ListType) {
         json inner = nullptr;
         for (const auto& c : node->children) {
-            const auto& ct = c->type;
-            if (ct.ends_with("NonNullType") || ct.ends_with("NamedType") ||
-                ct.ends_with("ListType") || ct.ends_with("gql::Type")) {
+            const auto ct = get_node_type(c);
+            if (ct == NodeType::NonNullType || ct == NodeType::NamedType ||
+                ct == NodeType::ListType || ct == NodeType::Type) {
                 inner = build_type_ref_json(c, type_map);
                 break;
             }
         }
         return json{{"kind","LIST"},{"name",nullptr},{"ofType",inner}};
     }
-    if (t.ends_with("NamedType")) {
+    if (t == NodeType::NamedType) {
         std::string name;
         if (node->has_content()) {
             name = std::string(node->string_view());
@@ -147,7 +179,7 @@ static json build_type_ref_json(const TAstNodePtr& node, const TAstNodeMap& type
         }
         return json{{"kind", named_type_kind(name, type_map)},{"name",name},{"ofType",nullptr}};
     }
-    if (t.ends_with("gql::Type")) {
+    if (t == NodeType::Type) {
         // Generic Type wrapper — recurse into its first relevant child
         for (const auto& c : node->children) return build_type_ref_json(c, type_map);
     }
@@ -157,31 +189,30 @@ static json build_type_ref_json(const TAstNodePtr& node, const TAstNodeMap& type
 /// Return { isDeprecated, deprecationReason } by scanning DirectivesConst children.
 static std::pair<bool, json> check_deprecated(const TAstNodePtr& node) {
     for (const auto& c : node->children) {
-        const auto& ct = c->type;
-        if (!ct.ends_with("DirectivesConst") && !ct.ends_with("DirectiveConst")) continue;
-        for (const auto& dir : c->children) {
-            const auto& dt = dir->type;
-            if (!dt.ends_with("DirectiveConst") && !dt.ends_with("gql::Directive")) continue;
-            // First Name child = directive name
+        const auto ct = get_node_type(c);
+        if (ct != NodeType::DirectivesConst && ct != NodeType::DirectiveConst) continue;
+        
+        auto process_directive = [](const TAstNodePtr& dir) -> std::pair<bool, json> {
             std::string dir_name;
             for (const auto& dc : dir->children) {
-                if (dc->type.ends_with("gql::Name") && dc->has_content()) {
-                    dir_name = std::string(dc->string_view()); break;
+                if (get_node_type(dc) == NodeType::Name && dc->has_content()) {
+                    dir_name = std::string(dc->string_view());
+                    break;
                 }
             }
-            if (dir_name != "deprecated") continue;
-            // Found @deprecated — look for reason argument
+            if (dir_name != "deprecated") return {false, nullptr};
             json reason = nullptr;
             for (const auto& ac : dir->children) {
-                const auto& act = ac->type;
-                if (!act.ends_with("ArgumentsConst") && !act.ends_with("gql::Arguments")) continue;
+                const auto act = get_node_type(ac);
+                if (act != NodeType::ArgumentsConst && act != NodeType::Arguments) continue;
                 for (const auto& arg : ac->children) {
                     std::string arg_name;
                     json arg_val = nullptr;
                     for (const auto& av : arg->children) {
-                        if (av->type.ends_with("gql::Name") && av->has_content())
+                        const auto avt = get_node_type(av);
+                        if (avt == NodeType::Name && av->has_content()) {
                             arg_name = std::string(av->string_view());
-                        else if (av->type.ends_with("StringValue") || av->type.ends_with("ValueConst")) {
+                        } else if (avt == NodeType::StringValue || avt == NodeType::ValueConst) {
                             auto s = std::string(av->string_view());
                             arg_val = (s.size() >= 2 && s.front() == '"')
                                       ? json(s.substr(1, s.size()-2)) : json(s);
@@ -191,6 +222,18 @@ static std::pair<bool, json> check_deprecated(const TAstNodePtr& node) {
                 }
             }
             return {true, reason};
+        };
+
+        if (ct == NodeType::DirectiveConst) {
+            auto [found, reason] = process_directive(c);
+            if (found) return {true, reason};
+        } else {
+            for (const auto& dir : c->children) {
+                const auto dt = get_node_type(dir);
+                if (dt != NodeType::DirectiveConst) continue;
+                auto [found, reason] = process_directive(dir);
+                if (found) return {true, reason};
+            }
         }
     }
     return {false, nullptr};
@@ -201,15 +244,15 @@ static json build_input_value_json(const TAstNodePtr& node, const TAstNodeMap& t
     json iv{{"name",nullptr},{"description",nullptr},{"type",nullptr},
              {"defaultValue",nullptr},{"isDeprecated",false},{"deprecationReason",nullptr}};
     for (const auto& c : node->children) {
-        const auto& ct = c->type;
-        if (ct.ends_with("gql::Description")) {
+        const auto ct = get_node_type(c);
+        if (ct == NodeType::Description) {
             iv["description"] = strip_description(c->string_view());
-        } else if (ct.ends_with("gql::Name") && c->has_content()) {
+        } else if (ct == NodeType::Name && c->has_content()) {
             if (iv["name"].is_null()) iv["name"] = std::string(c->string_view());
-        } else if (ct.ends_with("gql::Type") || ct.ends_with("NamedType") ||
-                   ct.ends_with("NonNullType") || ct.ends_with("ListType")) {
+        } else if (ct == NodeType::Type || ct == NodeType::NamedType ||
+                   ct == NodeType::NonNullType || ct == NodeType::ListType) {
             iv["type"] = build_type_ref_json(c, type_map);
-        } else if (ct.ends_with("DefaultValue")) {
+        } else if (ct == NodeType::DefaultValue) {
             auto s = isched::v0_0_1::gql::ast_node_to_str(c);
             iv["defaultValue"] = s ? json(*s) : json(nullptr);
         }
@@ -225,10 +268,10 @@ static json build_enum_value_json(const TAstNodePtr& node) {
     json ev{{"name",nullptr},{"description",nullptr},
              {"isDeprecated",false},{"deprecationReason",nullptr}};
     for (const auto& c : node->children) {
-        const auto& ct = c->type;
-        if (ct.ends_with("gql::Description")) {
+        const auto ct = get_node_type(c);
+        if (ct == NodeType::Description) {
             ev["description"] = strip_description(c->string_view());
-        } else if (ct.ends_with("gql::Name") && c->has_content()) {
+        } else if (ct == NodeType::Name && c->has_content()) {
             if (ev["name"].is_null()) ev["name"] = std::string(c->string_view());
         }
     }
@@ -243,17 +286,17 @@ static json build_field_json(const TAstNodePtr& node, const TAstNodeMap& type_ma
     json f{{"name",nullptr},{"description",nullptr},{"args",json::array()},
             {"type",nullptr},{"isDeprecated",false},{"deprecationReason",nullptr}};
     for (const auto& c : node->children) {
-        const auto& ct = c->type;
-        if (ct.ends_with("gql::Description")) {
+        const auto ct = get_node_type(c);
+        if (ct == NodeType::Description) {
             f["description"] = strip_description(c->string_view());
-        } else if (ct.ends_with("gql::Name") && c->has_content()) {
+        } else if (ct == NodeType::Name && c->has_content()) {
             if (f["name"].is_null()) f["name"] = std::string(c->string_view());
-        } else if (ct.ends_with("gql::Type") || ct.ends_with("NamedType") ||
-                   ct.ends_with("NonNullType") || ct.ends_with("ListType")) {
+        } else if (ct == NodeType::Type || ct == NodeType::NamedType ||
+                   ct == NodeType::NonNullType || ct == NodeType::ListType) {
             f["type"] = build_type_ref_json(c, type_map);
-        } else if (ct.ends_with("ArgumentsDefinition")) {
+        } else if (ct == NodeType::ArgumentsDefinition) {
             for (const auto& arg : c->children)
-                if (arg->type.ends_with("InputValueDefinition"))
+                if (get_node_type(arg) == NodeType::InputValueDefinition)
                     f["args"].push_back(build_input_value_json(arg, type_map));
         }
     }
@@ -266,7 +309,7 @@ static json build_field_json(const TAstNodePtr& node, const TAstNodeMap& type_ma
 /// Collect all FieldDefinition descendants of a type node.
 static void collect_fields_walk(const TAstNodePtr& n, nlohmann::json& fields, const TAstNodeMap& type_map) {
     if (!n) return;
-    if (n->type.ends_with("FieldDefinition")) {
+    if (get_node_type(n) == NodeType::FieldDefinition) {
         fields.push_back(build_field_json(n, type_map));
         return; // don't recurse inside a FieldDefinition
     }
@@ -277,7 +320,7 @@ static nlohmann::json collect_fields(const TAstNodePtr& type_node, const TAstNod
     nlohmann::json fields = nlohmann::json::array();
     // Walk only the type-specific sub-node (not the TypeDefinition wrapper)
     // to avoid picking up nested type definitions' fields.
-    if (type_node->type.ends_with("gql::TypeDefinition")) {
+    if (get_node_type(type_node) == NodeType::TypeDefinition) {
         for (const auto& c : type_node->children) collect_fields_walk(c, fields, type_map);
     } else {
         collect_fields_walk(type_node, fields, type_map);
@@ -288,7 +331,7 @@ static nlohmann::json collect_fields(const TAstNodePtr& type_node, const TAstNod
 /// Resolve the base type name from a Type/NonNullType/ListType/NamedType node.
 static std::string base_type_name(const TAstNodePtr& node) {
     if (!node) return {};
-    if (node->type.ends_with("NamedType")) {
+    if (get_node_type(node) == NodeType::NamedType) {
         if (node->has_content()) return std::string(node->string_view());
         for (const auto& c : node->children)
             if (c->has_content()) return std::string(c->string_view());
@@ -305,15 +348,16 @@ static std::string base_type_name(const TAstNodePtr& node) {
 static void field_return_type_walk(const TAstNodePtr& n, const std::string& field_name,
                                     std::string& result) {
     if (!n || !result.empty()) return;
-    if (n->type.ends_with("FieldDefinition")) {
+    if (get_node_type(n) == NodeType::FieldDefinition) {
         // Find the field's name
         std::string fname;
         const TAstNodePtr* type_ptr = nullptr;
         for (const auto& c : n->children) {
-            if (c->type.ends_with("gql::Name") && c->has_content() && fname.empty())
+            const auto ct = get_node_type(c);
+            if (ct == NodeType::Name && c->has_content() && fname.empty())
                 fname = std::string(c->string_view());
-            if (c->type.ends_with("gql::Type") || c->type.ends_with("NamedType") ||
-                c->type.ends_with("NonNullType") || c->type.ends_with("ListType"))
+            if (ct == NodeType::Type || ct == NodeType::NamedType ||
+                ct == NodeType::NonNullType || ct == NodeType::ListType)
                 type_ptr = &c;
         }
         if (fname == field_name && type_ptr)
@@ -354,7 +398,7 @@ static json build_type_json(const std::string& type_name, const TAstNodePtr& nod
         // Direct NamedType children of TypeDefinition are interface names
         // (they bubble up from ImplementsInterfaces which is not selected)
         for (const auto& c : n->children) {
-            if (c->type.ends_with("NamedType")) {
+            if (get_node_type(c) == NodeType::NamedType) {
                 std::string iname;
                 if (c->has_content()) iname = std::string(c->string_view());
                 else if (!c->children.empty() && c->children[0]->has_content())
@@ -372,9 +416,9 @@ static json build_type_json(const std::string& type_name, const TAstNodePtr& nod
         json possible = json::array();
         if (kind == "UNION") {
             std::function<void(const TAstNodePtr&)> find_members = [&](const TAstNodePtr& n) {
-                if (n->type.ends_with("UnionMemberTypes")) {
+                if (get_node_type(n) == NodeType::UnionMemberTypes) {
                     for (const auto& c : n->children)
-                        if (c->type.ends_with("NamedType")) {
+                        if (get_node_type(c) == NodeType::NamedType) {
                             std::string nm;
                             if (c->has_content()) nm = std::string(c->string_view());
                             else if (!c->children.empty()) nm = std::string(c->children[0]->string_view());
@@ -390,7 +434,7 @@ static json build_type_json(const std::string& type_name, const TAstNodePtr& nod
             for (const auto& [oname, optr] : type_map) {
                 if (get_type_kind_for_node(*optr) != "OBJECT") continue;
                 for (const auto& c : (*optr)->children) {
-                    if (c->type.ends_with("NamedType")) {
+                    if (get_node_type(c) == NodeType::NamedType) {
                         std::string iname;
                         if (c->has_content()) iname = std::string(c->string_view());
                         if (iname == type_name) { possible.push_back({{"name", oname}}); break; }
@@ -407,7 +451,7 @@ static json build_type_json(const std::string& type_name, const TAstNodePtr& nod
     if (kind == "ENUM") {
         json ev = json::array();
         std::function<void(const TAstNodePtr&)> walk_enum = [&](const TAstNodePtr& n) {
-            if (n->type.ends_with("EnumValueDefinition")) {
+            if (get_node_type(n) == NodeType::EnumValueDefinition) {
                 ev.push_back(build_enum_value_json(n)); return;
             }
             for (const auto& c : n->children) walk_enum(c);
@@ -422,7 +466,7 @@ static json build_type_json(const std::string& type_name, const TAstNodePtr& nod
     if (kind == "INPUT_OBJECT") {
         json iv = json::array();
         std::function<void(const TAstNodePtr&)> walk_iv = [&](const TAstNodePtr& n) {
-            if (n->type.ends_with("InputValueDefinition")) {
+            if (get_node_type(n) == NodeType::InputValueDefinition) {
                 iv.push_back(build_input_value_json(n, type_map)); return;
             }
             for (const auto& c : n->children) walk_iv(c);
@@ -460,9 +504,9 @@ static QueryAnalysis analyse_query_complexity(const isched::v0_0_1::gql::TAstNod
         void operator()(const isched::v0_0_1::gql::TAstNodePtr& node,
                         uint32_t cur_depth) const {
             if (!node) return;
-            const auto& t = node->type;
-            if (t.ends_with("gql::Field")) ++r.complexity;
-            if (t.ends_with("gql::SelectionSet")) {
+            const auto ct = get_node_type(node);
+            if (ct == NodeType::Field) ++r.complexity;
+            if (ct == NodeType::SelectionSet) {
                 const uint32_t next = cur_depth + 1;
                 if (next > r.depth) r.depth = next;
                 for (const auto& child : node->children) (*this)(child, next);
@@ -2782,9 +2826,10 @@ namespace isched::v0_0_1::backend {
             dirObj["args"]        = json::array();
 
             for (const auto& child : dirNode->children) {
-                if (child->type.ends_with("ArgumentsDefinition")) {
+                const auto ct = get_node_type(child);
+                if (ct == NodeType::ArgumentsDefinition) {
                     for (const auto& arg : child->children)
-                        if (arg->type.ends_with("InputValueDefinition"))
+                        if (get_node_type(arg) == NodeType::InputValueDefinition)
                             dirObj["args"].push_back(build_input_value_json(arg, m_type_map));
                 }
                 // TODO: extract DirectiveLocations if grammar captures them
@@ -2852,18 +2897,16 @@ namespace isched::v0_0_1::backend {
         // For ObjectTypeDefinition, name is usually child 0 or 1
         std::string myTypeName;
         for (const auto &child: p_typedef->children) {
-            if (child->type.find("Name") != std::string::npos) {
+            const auto ct = get_node_type(child);
+            if (ct == NodeType::Name || ct == NodeType::TypeName) {
                 myTypeName = std::string(child->string_view());
                 break;
             }
         }
         if (!myTypeName.empty()) {
-            // If the parent is a TypeDefinition or starts with it, it's a type
-            if (p_typedef->type.find("Definition") != std::string::npos &&
-                p_typedef->type.find("Field") == std::string::npos &&
-                p_typedef->type.find("Operation") == std::string::npos) {
-
-                if (p_typedef->type.find("DirectiveDefinition") != std::string::npos) {
+            const auto parent_t = get_node_type(p_typedef);
+            if (is_non_field_non_operation_definition(parent_t)) {
+                if (parent_t == NodeType::DirectiveDefinition) {
                     p_directives[myTypeName] = &p_typedef;
                 } else {
                     p_type_map[myTypeName] = &p_typedef;
@@ -2886,7 +2929,7 @@ namespace isched::v0_0_1::backend {
     void GqlExecutor::process_field_definition(const ResolverPath& p_path,ExecutionResult &p_result,
                                                const TAstNodePtr &p_typedef, size_t p_idx) {
         const auto &myField = p_typedef->children[p_idx];
-        if (!myField || myField->type.find("FieldDefinition") == std::string::npos) {
+        if (!myField || get_node_type(myField) != NodeType::FieldDefinition) {
             return;
         }
         if (myField->children.empty()) {
@@ -2896,7 +2939,8 @@ namespace isched::v0_0_1::backend {
         } else {
             const TAstNodePtr *nameNodePtr = nullptr;
             for (const auto &child: myField->children) {
-                if (child->type.find("Name") != std::string::npos) {
+                const auto ct = get_node_type(child);
+                if (ct == NodeType::Name || ct == NodeType::TypeName) {
                     nameNodePtr = &child;
                     break;
                 }
@@ -2918,7 +2962,8 @@ namespace isched::v0_0_1::backend {
 
     json GqlExecutor::extract_argument_value(const TAstNodePtr &p_arg, gql::TErrorVector& p_errors) const {
         json my_ret_val;
-        if (p_arg->type == "isched::v0_0_1::gql::Variable") {
+        const auto ct = get_node_type(p_arg);
+        if (ct == NodeType::Variable) {
             // Strip leading '$' to get the variable name
             const std::string var_sv(p_arg->string_view());
             const std::string var_name = var_sv.starts_with('$') ? var_sv.substr(1) : var_sv;
@@ -2926,44 +2971,44 @@ namespace isched::v0_0_1::backend {
                 return tl_gql_variables[var_name];
             }
             return nullptr;
-        } else if (p_arg->type == "isched::v0_0_1::gql::StringValue") {
+        } else if (ct == NodeType::StringValue) {
             const std::string my_ret_val_str(p_arg->string_view());
             if (my_ret_val_str.starts_with(R"(""")")) {
                 my_ret_val = my_ret_val_str.substr(3, my_ret_val_str.length() - 6);
             } else if (my_ret_val_str.length() >= 2 && my_ret_val_str.front() == '"') {
                 my_ret_val = my_ret_val_str.substr(1, my_ret_val_str.length() - 2);
             } else { my_ret_val = my_ret_val_str; }
-        } else if (p_arg->type == "isched::v0_0_1::gql::IntValue") {
+        } else if (ct == NodeType::IntValue) {
             const std::string_view my_ret_val_str(p_arg->string_view());
             my_ret_val = std::stoll(std::string(my_ret_val_str));
-        } else if (p_arg->type == "isched::v0_0_1::gql::FloatValue") {
+        } else if (ct == NodeType::FloatValue) {
             const std::string_view my_ret_val_str(p_arg->string_view());
             my_ret_val = std::stod(std::string(my_ret_val_str));
-        } else if (p_arg->type == "isched::v0_0_1::gql::BooleanValue") {
+        } else if (ct == NodeType::BooleanValue) {
             const std::string_view my_ret_val_str(p_arg->string_view());
             my_ret_val = (my_ret_val_str == "true");
-        } else if (p_arg->type == "isched::v0_0_1::gql::NullValue") {
+        } else if (ct == NodeType::NullValue) {
             my_ret_val = nullptr;
-        } else if (p_arg->type == "isched::v0_0_1::gql::EnumValue") {
+        } else if (ct == NodeType::EnumValue) {
             my_ret_val = std::string(p_arg->string_view());
-        } else if (p_arg->type == "isched::v0_0_1::gql::ListValue") {
+        } else if (ct == NodeType::ListValue) {
             my_ret_val = json::array();
             for (const auto &myChild: p_arg->children) {
                 my_ret_val.push_back(extract_argument_value(myChild, p_errors));
             }
-        } else if (p_arg->type == "isched::v0_0_1::gql::ObjectValue") {
+        } else if (ct == NodeType::ObjectValue) {
             my_ret_val = json::object();
             for (const auto &myField: p_arg->children) {
-                if (myField->type == "isched::v0_0_1::gql::ObjectField") {
+                if (get_node_type(myField) == NodeType::ObjectField) {
                     const auto myFieldName = std::string(myField->children[0]->string_view());
                     my_ret_val[myFieldName] = extract_argument_value(myField->children[1], p_errors);
                 }
             }
-        } else if (p_arg->type == "isched::v0_0_1::gql::Value") {
+        } else if (ct == NodeType::Value) {
             if (!p_arg->children.empty()) {
                 return extract_argument_value(p_arg->children[0], p_errors);
             }
-        } else if (p_arg->type == "isched::v0_0_1::gql::Argument") {
+        } else if (ct == NodeType::Argument) {
             if (p_arg->children.size() > 1) {
                 return extract_argument_value(p_arg->children[1], p_errors);
             }
@@ -2986,17 +3031,18 @@ namespace isched::v0_0_1::backend {
     json GqlExecutor::process_arguments(const TAstNodePtr &p_arguments_node,
                                         gql::TErrorVector &p_errors) const {
         json my_ret_val = json::object();
-        if (!p_arguments_node || p_arguments_node->type == "isched::v0_0_1::gql::SelectionSet") {
-            spdlog::debug("Skipping node {} in argument processing tree=.",p_arguments_node->type,
-                gql::dump_ast(p_arguments_node));
+        if (!p_arguments_node) return my_ret_val;
+        const auto ct = get_node_type(p_arguments_node);
+        if (ct == NodeType::SelectionSet) {
+            spdlog::debug("Skipping node SelectionSet in argument processing tree.");
             return my_ret_val;
         }
-        if (!p_arguments_node || p_arguments_node->type != "isched::v0_0_1::gql::Arguments") {
+        if (ct != NodeType::Arguments) {
             spdlog::error("Expected arguments or selection set, got a {}", gql::dump_ast(p_arguments_node));
             return my_ret_val;
         }
         for (const auto &myArg: p_arguments_node->children) {
-            if (myArg->type != "isched::v0_0_1::gql::Argument") {
+            if (get_node_type(myArg) != NodeType::Argument) {
                 p_errors.push_back(gql::Error{
                     .code = gql::EErrorCodes::PARSE_ERROR,
                     .message = format("Expected an argument, got a {}", myArg->type)
@@ -3019,7 +3065,7 @@ namespace isched::v0_0_1::backend {
         spdlog::debug("Will extract arguments out field: \n***\n{}\n***\n.", gql::dump_ast(p_field_node));
         json my_ret_val = json::object();
         for (const auto &my_arguments_node: p_field_node->children) {
-            if (my_arguments_node->type == "isched::v0_0_1::gql::Arguments") {
+            if (get_node_type(my_arguments_node) == NodeType::Arguments) {
                 my_ret_val = process_arguments(my_arguments_node, p_errors);
                 break; // a field has at most one Arguments node
             }
@@ -3031,10 +3077,11 @@ namespace isched::v0_0_1::backend {
 
     void GqlExecutor::process_sub_selection(const json& p_parent_result, const ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
         // Arguments nodes are already extracted by process_argument_field before sub-selections run.
-        if (node->type == "isched::v0_0_1::gql::Arguments") {
+        const auto ct = get_node_type(node);
+        if (ct == NodeType::Arguments) {
             return;
         }
-        if (node->type != "isched::v0_0_1::gql::SelectionSet") {
+        if (ct != NodeType::SelectionSet) {
             p_errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR,.message=format(
                 "Expected a selection set while processing sub selection, got a {}.", node->type)});
             return;
@@ -3224,7 +3271,7 @@ namespace isched::v0_0_1::backend {
             // Detect sub-selection set in Field node children (index > 0)
             bool has_sub_sel = false;
             for (size_t i = 1; i < p_field_node->children.size(); ++i) {
-                if (p_field_node->children[i]->type == "isched::v0_0_1::gql::SelectionSet") {
+                if (get_node_type(p_field_node->children[i]) == NodeType::SelectionSet) {
                     has_sub_sel = true;
                     break;
                 }
@@ -3302,13 +3349,13 @@ namespace isched::v0_0_1::backend {
             spdlog::debug("Parsing schema document:{}", gql::dump_ast(aRoot));
             update_type_map();
             if (aRoot && !aRoot->children.empty()) {
-                const TAstNodePtr &myDoc = (aRoot->type == "isched::v0_0_1::gql::Document")
+                const TAstNodePtr &myDoc = (get_node_type(aRoot) == NodeType::Document)
                                                ? aRoot
                                                : aRoot->children[0];
 
                 for (const auto &myDefNode: myDoc->children) {
-                    if (myDefNode->type == "isched::v0_0_1::gql::TypeDefinition" || myDefNode->type ==
-                        "isched::v0_0_1::gql::ObjectTypeDefinition") {
+                    const auto myDefType = get_node_type(myDefNode);
+                    if (myDefType == NodeType::TypeDefinition || myDefType == NodeType::ObjectTypeDefinition) {
                         const auto myTypedefName = myDefNode->children[0]->string_view();
                         if (myTypedefName == "Query") {
                             for (size_t myIdx = 1; myIdx < myDefNode->children.size(); ++myIdx) {
@@ -3321,9 +3368,9 @@ namespace isched::v0_0_1::backend {
                                 process_field_definition(my_path, myResult, myDefNode, myIdx);
                             }
                         }
-                    } else if (myDefNode->type == "isched::v0_0_1::gql::DirectiveDefinition") {
+                    } else if (myDefType == NodeType::DirectiveDefinition) {
                         spdlog::debug("Loaded directive definition: {}", myDefNode->children[0]->string_view());
-                    } else if (myDefNode->type == "isched::v0_0_1::gql::ExecutableDefinition") {
+                    } else if (myDefType == NodeType::ExecutableDefinition) {
                         myResult.errors.push_back(gql::Error{
                             .code=gql::EErrorCodes::EXECUTABLE_DEF_NOT_ALLOWED,
                             .message="Executable definition not allowed in schema load."
@@ -3364,7 +3411,7 @@ namespace isched::v0_0_1::backend {
         const TAstNodePtr &myOperation,
         json &p_result,
         gql::TErrorVector &p_errors) const {
-        if (myOperation->type != "isched::v0_0_1::gql::OperationDefinition") {
+        if (get_node_type(myOperation) != NodeType::OperationDefinition) {
             p_errors.push_back(gql::Error{
                 gql::EErrorCodes::PARSE_ERROR,
                 std::format("Expected with an operation definition, got {}.", myOperation->type)
@@ -3380,12 +3427,13 @@ namespace isched::v0_0_1::backend {
         if (a_op_type == "query") {
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 const auto& child = myOperation->children[myIdx];
-                if (child->type == "isched::v0_0_1::gql::SelectionSet") {
+                const auto ct = get_node_type(child);
+                if (ct == NodeType::SelectionSet) {
                     process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
-                } else if (child->type == "isched::v0_0_1::gql::VariablesDefinition"
-                        || child->type == "isched::v0_0_1::gql::VariableDefinitions"
-                        || child->type == "isched::v0_0_1::gql::VariableDefinition"
-                        || child->type == "isched::v0_0_1::gql::Name") {
+                } else if (ct == NodeType::VariablesDefinition
+                        || ct == NodeType::VariableDefinitions
+                        || ct == NodeType::VariableDefinition
+                        || ct == NodeType::Name) {
                     // Variable declarations and operation names are metadata; skip.
                 } else {
                     p_errors.push_back(gql::Error{
@@ -3397,12 +3445,13 @@ namespace isched::v0_0_1::backend {
         } else if (a_op_type == "mutation") {
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 const auto& child = myOperation->children[myIdx];
-                if (child->type == "isched::v0_0_1::gql::SelectionSet") {
+                const auto ct = get_node_type(child);
+                if (ct == NodeType::SelectionSet) {
                     process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
-                } else if (child->type == "isched::v0_0_1::gql::VariablesDefinition"
-                        || child->type == "isched::v0_0_1::gql::VariableDefinitions"
-                        || child->type == "isched::v0_0_1::gql::VariableDefinition"
-                        || child->type == "isched::v0_0_1::gql::Name") {
+                } else if (ct == NodeType::VariablesDefinition
+                        || ct == NodeType::VariableDefinitions
+                        || ct == NodeType::VariableDefinition
+                        || ct == NodeType::Name) {
                     // Variable declarations and operation names are metadata; skip.
                 } else {
                     p_errors.push_back(gql::Error{
@@ -3416,12 +3465,13 @@ namespace isched::v0_0_1::backend {
             // Ongoing event delivery is handled by the WebSocket server / SubscriptionBroker.
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 const auto& child = myOperation->children[myIdx];
-                if (child->type == "isched::v0_0_1::gql::SelectionSet") {
+                const auto ct = get_node_type(child);
+                if (ct == NodeType::SelectionSet) {
                     process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
-                } else if (child->type == "isched::v0_0_1::gql::VariablesDefinition"
-                        || child->type == "isched::v0_0_1::gql::VariableDefinitions"
-                        || child->type == "isched::v0_0_1::gql::VariableDefinition"
-                        || child->type == "isched::v0_0_1::gql::Name") {
+                } else if (ct == NodeType::VariablesDefinition
+                        || ct == NodeType::VariableDefinitions
+                        || ct == NodeType::VariableDefinition
+                        || ct == NodeType::Name) {
                     // skip metadata
                 } else {
                     p_errors.push_back(gql::Error{
@@ -3430,7 +3480,7 @@ namespace isched::v0_0_1::backend {
                     });
                 }
             }
-        } else if (myOperation->children[0]->type == "isched::v0_0_1::gql::SelectionSet") {
+        } else if (get_node_type(myOperation->children[0]) == NodeType::SelectionSet) {
             process_field_selection(p_parent_result, p_path,myOperation->children[0], p_result, p_errors);
         } else {
             p_errors.push_back(gql::Error{
@@ -3516,7 +3566,7 @@ namespace isched::v0_0_1::backend {
             return my_result;
         }
         const auto &myDoc = aRoot->children[0];
-        if (!myDoc || myDoc->type != "isched::v0_0_1::gql::Document") {
+        if (!myDoc || get_node_type(myDoc) != NodeType::Document) {
             my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="Expected with a document"});
             return my_result;
         }
@@ -3549,7 +3599,7 @@ namespace isched::v0_0_1::backend {
         }
 
         for (const auto &myChild: myDoc->children) {
-            if (myChild->type != "isched::v0_0_1::gql::ExecutableDefinition") {
+            if (get_node_type(myChild) != NodeType::ExecutableDefinition) {
                 my_result.errors.push_back(gql::Error{
                     .code=gql::EErrorCodes::PARSE_ERROR,
                     .message=std::format("Expected with an executable definition, got {}.", myChild->type)
