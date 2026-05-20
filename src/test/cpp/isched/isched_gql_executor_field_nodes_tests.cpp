@@ -165,7 +165,8 @@ namespace isched::v0_0_1::backend {
         with_null.push_back(fields.front());
 
         nlohmann::json result;
-        exec.process_field_nodes(nlohmann::json::object(), {}, with_null, result, errors);
+        ResolverPath path_context;
+        exec.process_field_nodes(nlohmann::json::object(), path_context, with_null, result, errors);
 
         REQUIRE(errors.empty());
         REQUIRE(result.contains("hello"));

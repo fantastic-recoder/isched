@@ -56,14 +56,7 @@ using isched::v0_0_1::gql::TAstNodePtr;
 using TAstNodeMap = std::map<std::string, const TAstNodePtr*>;
 using isched::v0_0_1::ast::NodeType;
 
-static NodeType get_node_type(const tao::pegtl::parse_tree::node* n) {
-    if (!n) return NodeType::Unknown;
-    return static_cast<const isched::v0_0_1::ast::CustomNode*>(n)->node_type;
-}
-
-static NodeType get_node_type(const TAstNodePtr& n) {
-    return get_node_type(n.get());
-}
+using isched::v0_0_1::ast::get_node_type;
 
 static bool is_non_field_non_operation_definition(NodeType t) {
     return t == NodeType::SchemaDefinition ||
@@ -3075,7 +3068,7 @@ namespace isched::v0_0_1::backend {
     }
 
 
-    void GqlExecutor::process_sub_selection(const json& p_parent_result, const ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
+    void GqlExecutor::process_sub_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
         // Arguments nodes are already extracted by process_argument_field before sub-selections run.
         const auto ct = get_node_type(node);
         if (ct == NodeType::Arguments) {
@@ -3093,30 +3086,27 @@ namespace isched::v0_0_1::backend {
 
     void GqlExecutor::process_field_sub_selections(
         const json &p_parent_result,
-        const ResolverPath &p_path,
+        ResolverPath &p_path,
         const TAstNodePtr &p_selection_set,
         json &p_result,
         gql::TErrorVector &p_error,
-        const std::string myFieldName
+        const std::string_view myFieldName
     ) const {
-        ResolverPath my_sub_path = p_path;
-        my_sub_path.push_back(myFieldName);
+        p_path.push_back(std::string(myFieldName));
         for (size_t myIdx = 1; myIdx < p_selection_set->children.size(); ++myIdx) {
-            process_sub_selection(p_parent_result,my_sub_path,p_selection_set->children[myIdx], p_result, p_error);
+            process_sub_selection(p_parent_result, p_path, p_selection_set->children[myIdx], p_result, p_error);
         }
+        p_path.pop_back();
     }
 
-    bool GqlExecutor::resolve_field_selection_details(const json& p_parent, const ResolverPath& p_path,const TAstNodePtr &p_field_node, json &p_result, gql::TErrorVector& p_error) const {
+    bool GqlExecutor::resolve_field_selection_details(const json& p_parent, ResolverPath& p_path,const TAstNodePtr &p_field_node, json &p_result, gql::TErrorVector& p_error) const {
         if (p_field_node->children.empty()) {
             p_error.push_back(
                 gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
             return true;
         }
-        const std::string myFieldName = std::string(p_field_node->children[0]->string_view());
+        const std::string_view myFieldName = p_field_node->children[0]->string_view();
         spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
-        // Build path element for error reporting
-        ResolverPath my_field_path = p_path;
-        my_field_path.push_back(myFieldName);
         if (p_result.empty()) {
             p_result = json::object();
         }
@@ -3137,7 +3127,7 @@ namespace isched::v0_0_1::backend {
                 current_type = field_return_type(*it->second, seg);
                 if (current_type.empty()) break;
             }
-            if (current_type.empty() && p_parent.is_object() && p_parent.contains("__typename"))
+            if (current_type.empty() && p_parent.is_object() && p_parent.contains(myFieldName))
                 current_type = p_parent["__typename"].get<std::string>();
             p_result[myFieldName] = current_type.empty() ? json(nullptr) : json(current_type);
             return false;
@@ -3146,16 +3136,18 @@ namespace isched::v0_0_1::backend {
         if (!m_resolvers.has_resolver(p_path,myFieldName)) {
             // Default field resolver: extract from parent when key is present
             if (p_parent.is_object() && p_parent.contains(myFieldName)) {
-                p_result[myFieldName] = p_parent.at(myFieldName);
+                p_result[myFieldName] = p_parent.at(std::string(myFieldName));
             } else {
+                p_path.push_back(std::string(myFieldName));
                 gql::ErrorPath ep;
-                for (const auto& s : my_field_path) ep.push_back(s);
+                for (const auto& s : p_path) ep.push_back(s);
                 p_error.push_back(gql::Error{
                     .code    = gql::EErrorCodes::MISSING_GQL_RESOLVER,
                     .message = std::format("Missing resolver for field {} in Query type",
-                                           concat_vector(my_field_path, ".")),
+                                           concat_vector(p_path, ".")),
                     .path    = std::move(ep),
                 });
+                p_path.pop_back();
             }
         } else {
             ResolverCtx my_ctx = tl_resolver_ctx;  // copy thread-local auth context for this field
@@ -3164,7 +3156,7 @@ namespace isched::v0_0_1::backend {
             // T047-003: RBAC gate — check if the caller holds at least one required role.
             // Only enforced at the top level (p_path is empty).
             if (p_path.empty()) {
-                auto gate_it = m_required_roles.find(myFieldName);
+                auto gate_it = m_required_roles.find(std::string(myFieldName));
                 if (gate_it != m_required_roles.end() && !gate_it->second.empty()) {
                     const auto& required = gate_it->second;
                     const auto& caller_roles = my_ctx.roles;
@@ -3174,8 +3166,9 @@ namespace isched::v0_0_1::backend {
                                    != caller_roles.end();
                         });
                     if (!has_role) {
+                        p_path.push_back(std::string(myFieldName));
                         gql::ErrorPath ep;
-                        for (const auto& s : my_field_path) ep.push_back(s);
+                        for (const auto& s : p_path) ep.push_back(s);
                         p_error.push_back(gql::Error{
                             .code    = gql::EErrorCodes::FORBIDDEN,
                             .message = std::format(
@@ -3191,6 +3184,7 @@ namespace isched::v0_0_1::backend {
                                 }()),
                             .path = std::move(ep),
                         });
+                        p_path.pop_back();
                         p_result[myFieldName] = nullptr;
                         return false;
                     }
@@ -3203,7 +3197,7 @@ namespace isched::v0_0_1::backend {
                     "createRole", "updateRole", "assignRole", "unassignRole",
                     "updateTenantConfig", "createDataSource", "updateDataSource", "deleteDataSource"
                 };
-                if (k_org_scoped_mutations.contains(myFieldName) &&
+                if (k_org_scoped_mutations.contains(std::string(myFieldName)) &&
                     my_args.contains("organizationId") && my_args["organizationId"].is_string() &&
                     !my_ctx.tenant_id.empty())
                 {
@@ -3213,8 +3207,9 @@ namespace isched::v0_0_1::backend {
                     if (!is_platform_admin) {
                         const std::string requested_org = my_args["organizationId"].get<std::string>();
                         if (requested_org != my_ctx.tenant_id) {
+                            p_path.push_back(std::string(myFieldName));
                             gql::ErrorPath ep;
-                            for (const auto& s : my_field_path) ep.push_back(s);
+                            for (const auto& s : p_path) ep.push_back(s);
                             p_error.push_back(gql::Error{
                                 .code = gql::EErrorCodes::CONTEXT_MISMATCH,
                                 .message = std::format(
@@ -3223,6 +3218,7 @@ namespace isched::v0_0_1::backend {
                                     my_ctx.tenant_id),
                                 .path = std::move(ep),
                             });
+                            p_path.pop_back();
                             p_result[myFieldName] = nullptr;
                             return false;
                         }
@@ -3237,22 +3233,25 @@ namespace isched::v0_0_1::backend {
                 my_result = my_found_resolver(p_parent, my_args, my_ctx);
             } catch (const gql::Error& gql_err) {
                 // Resolver threw a structured gql::Error (e.g. CONFLICT, FORBIDDEN)
+                p_path.push_back(std::string(myFieldName));
                 gql::ErrorPath ep;
-                for (const auto& s : my_field_path) ep.push_back(s);
+                for (const auto& s : p_path) ep.push_back(s);
                 p_error.push_back(gql::Error{
                     .code    = gql_err.code,
                     .message = gql_err.message,
                     .path    = std::move(ep),
                 });
+                p_path.pop_back();
                 p_result[myFieldName] = nullptr;
                 return false;
             } catch (const std::exception& ex) {
+                p_path.push_back(std::string(myFieldName));
                 gql::ErrorPath ep;
-                for (const auto& s : my_field_path) ep.push_back(s);
+                for (const auto& s : p_path) ep.push_back(s);
 
                 gql::EErrorCodes error_code = gql::EErrorCodes::UNKNOWN_ERROR;
                 std::string error_message = std::format("Resolver for field {} threw: {}",
-                                            concat_vector(my_field_path, "."), ex.what());
+                                            concat_vector(p_path, "."), ex.what());
                 if (const std::string_view msg = ex.what(); msg.rfind("RATE_LIMITED", 0) == 0) {
                     error_code = gql::EErrorCodes::RATE_LIMITED;
                     error_message = ex.what();
@@ -3263,6 +3262,7 @@ namespace isched::v0_0_1::backend {
                     .message = error_message,
                     .path    = std::move(ep),
                 });
+                p_path.pop_back();
                 p_result[myFieldName] = nullptr;
                 return false;
             }
@@ -3304,7 +3304,7 @@ namespace isched::v0_0_1::backend {
         return false;
     }
 
-    void GqlExecutor::process_field_selection(const json& p_parent_result,const ResolverPath& p_path, const TAstNodePtr &p_selection_set,
+    void GqlExecutor::process_field_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &p_selection_set,
         json &p_result, gql::TErrorVector& p_errors) const {
         const auto fields = collect_field_nodes(p_selection_set, p_errors);
         process_field_nodes(p_parent_result, p_path, fields, p_result, p_errors);
@@ -3423,7 +3423,7 @@ namespace isched::v0_0_1::backend {
             return true;
         }
         const auto a_op_type = myOperation->children[0]->string_view();
-        ResolverPath const p_path;
+        ResolverPath p_path;
         if (a_op_type == "query") {
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 const auto& child = myOperation->children[myIdx];

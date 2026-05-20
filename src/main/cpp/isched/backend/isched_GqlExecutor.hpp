@@ -141,7 +141,7 @@ namespace isched::v0_0_1::backend {
          * @return true if resolver is registered
          *
          */
-        [[nodiscard]] bool has_resolver(const ResolverPath& p_path, const std::string& field_name) const noexcept {
+        [[nodiscard]] bool has_resolver(const ResolverPath& p_path, std::string_view field_name) const noexcept {
             const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
             for (const auto& key : p_path) {
                 auto it = current->find(key);
@@ -154,7 +154,7 @@ namespace isched::v0_0_1::backend {
             return found != current->end() && found->second.has_value();
         }
 
-        [[nodiscard]] const ResolverFunction & get_resolver(const ResolverPath& p_path, const std::string & p_name) const {
+        [[nodiscard]] const ResolverFunction & get_resolver(const ResolverPath& p_path, std::string_view p_name) const {
             const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
             for (const auto& key : p_path) {
                 auto it = current->find(key);
@@ -165,7 +165,7 @@ namespace isched::v0_0_1::backend {
             }
             auto it = current->find(p_name);
             if (it == current->end()) {
-                throw std::out_of_range("Resolver not found: " + p_name);
+                throw std::out_of_range("Resolver not found: " + std::string(p_name));
             }
             return it->second.get_value();
         }
@@ -392,7 +392,7 @@ namespace isched::v0_0_1::backend {
 
         void process_field_nodes(
             const nlohmann::json& p_parent_result,
-            const ResolverPath& p_path,
+            ResolverPath& p_path,
             const FieldNodeList& p_fields,
             nlohmann::json& p_result,
             gql::TErrorVector& p_errors) const;
@@ -492,27 +492,27 @@ namespace isched::v0_0_1::backend {
 
         void process_sub_selection(
             const nlohmann::json &p_parent_result,
-            const ResolverPath &p_path, const gql::TAstNodePtr &node,
+            ResolverPath &p_path, const gql::TAstNodePtr &node,
             nlohmann::json &p_result,
             gql::TErrorVector &p_errors) const;
 
         void process_field_sub_selections(
             const nlohmann::json &p_parent_result,
-            const ResolverPath &p_path,
+            ResolverPath &p_path,
             const gql::TAstNodePtr &p_selection_set,
             nlohmann::json &p_result,
             gql::TErrorVector &p_error,
-            std::string myFieldName
+            std::string_view myFieldName
         ) const;
 
         bool resolve_field_selection_details(
             const nlohmann::json& p_parent,
-            const ResolverPath &p_path,
+            ResolverPath &p_path,
             const gql::TAstNodePtr &p_field_node, nlohmann::json &p_result, gql::TErrorVector &p_error) const;
 
         void process_field_selection(
             const nlohmann::json &p_parent_result,
-            const ResolverPath &p_path, const gql::TAstNodePtr &p_selection_set, nlohmann::json &p_result, gql::TErrorVector &
+            ResolverPath &p_path, const gql::TAstNodePtr &p_selection_set, nlohmann::json &p_result, gql::TErrorVector &
             p_errors) const;
 
         [[nodiscard]] gql::TAstNodePtr const * find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const ;

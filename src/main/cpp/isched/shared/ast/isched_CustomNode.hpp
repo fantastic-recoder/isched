@@ -73,6 +73,22 @@ struct CustomNode : tao::pegtl::parse_tree::node {
     NodeType node_type = NodeType::Unknown;
 };
 
+/**
+ * @brief Safely extracts the NodeType from a PEGTL parse tree node.
+ */
+inline NodeType get_node_type(const std::unique_ptr<tao::pegtl::parse_tree::node>& node) noexcept {
+    if (!node) return NodeType::Unknown;
+    return static_cast<const CustomNode*>(node.get())->node_type;
+}
+
+/**
+ * @brief Safely extracts the NodeType from a raw PEGTL parse tree node pointer.
+ */
+inline NodeType get_node_type(const tao::pegtl::parse_tree::node* node) noexcept {
+    if (!node) return NodeType::Unknown;
+    return static_cast<const CustomNode*>(node)->node_type;
+}
+
 } // namespace isched::v0_0_1::ast
 
 #endif // ISCHED_SHARED_AST_CUSTOM_NODE_HPP

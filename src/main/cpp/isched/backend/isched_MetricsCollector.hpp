@@ -46,9 +46,14 @@ public:
         std::atomic<uint64_t> total_errors{0};
         // Exponential moving average of response times (ms): α = 0.1
         std::atomic<double>   avg_response_ms{0.0};
-        // Interval boundary tracking
-        std::chrono::steady_clock::time_point interval_start{std::chrono::steady_clock::now()};
-        std::chrono::minutes interval_duration{60};
+        // Interval boundary tracking: stored as steady_clock duration ticks (nanoseconds since epoch)
+        std::atomic<int64_t>  interval_start_ns{0};
+        std::atomic<int64_t>  interval_duration_m{60};
+
+        TenantCounters() noexcept {
+            interval_start_ns.store(std::chrono::steady_clock::now().time_since_epoch().count(), std::memory_order_relaxed);
+            interval_duration_m.store(60, std::memory_order_relaxed);
+        }
     };
 
     MetricsCollector() = default;
@@ -114,11 +119,6 @@ public:
     void set_interval_minutes(const std::string& org_id, int minutes);
 
 private:
-    // Returns (or lazily creates) the counters entry for a tenant.
-    // Caller must hold at least a shared lock before calling; this method
-    // upgrades to exclusive when the entry must be created.
-    TenantCounters& get_or_create(const std::string& tenant_id);
-
     // Atomically reset interval counters if the boundary has passed.
     void maybe_reset_interval(TenantCounters& tc);
 

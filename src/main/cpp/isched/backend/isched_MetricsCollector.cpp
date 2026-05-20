@@ -15,18 +15,19 @@ namespace isched::v0_0_1::backend {
 
 void MetricsCollector::maybe_reset_interval(TenantCounters& tc) {
     const auto now = std::chrono::steady_clock::now();
-    if (now - tc.interval_start >= tc.interval_duration) {
-        tc.requests_in_interval.store(0, std::memory_order_relaxed);
-        tc.errors_in_interval.store(0, std::memory_order_relaxed);
-        tc.interval_start = now;
-    }
-}
+    const int64_t now_ns = now.time_since_epoch().count();
+    const int64_t start_ns = tc.interval_start_ns.load(std::memory_order_relaxed);
+    const int64_t duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::minutes{tc.interval_duration_m.load(std::memory_order_relaxed)}
+    ).count();
 
-MetricsCollector::TenantCounters& MetricsCollector::get_or_create(
-    const std::string& tenant_id)
-{
-    // NOTE: caller must hold the exclusive lock when calling this.
-    return m_tenants[tenant_id]; // default-constructs if absent
+    if (now_ns - start_ns >= duration_ns) {
+        int64_t expected_start = start_ns;
+        if (tc.interval_start_ns.compare_exchange_strong(expected_start, now_ns, std::memory_order_relaxed)) {
+            tc.requests_in_interval.store(0, std::memory_order_relaxed);
+            tc.errors_in_interval.store(0, std::memory_order_relaxed);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -37,25 +38,45 @@ void MetricsCollector::record_request(const std::string& tenant_id,
                                       double duration_ms,
                                       bool is_error)
 {
-    std::unique_lock lock(m_mutex);
-    TenantCounters& tc = get_or_create(tenant_id);
-    maybe_reset_interval(tc);
-    lock.unlock();
+    TenantCounters* tc_ptr = nullptr;
 
-    // All increments and EMA update can proceed lock-free.
-    tc.total_requests.fetch_add(1, std::memory_order_relaxed);
-    tc.requests_in_interval.fetch_add(1, std::memory_order_relaxed);
+    // 1. Try to find the tenant with a shared lock (fast path)
+    {
+        std::shared_lock lock(m_mutex);
+        auto it = m_tenants.find(tenant_id);
+        if (it != m_tenants.end()) {
+            tc_ptr = &it->second;
+        }
+    }
+
+    // 2. If not found, acquire exclusive lock to create it (slow path)
+    if (!tc_ptr) {
+        std::unique_lock lock(m_mutex);
+        auto it = m_tenants.find(tenant_id);
+        if (it != m_tenants.end()) {
+            tc_ptr = &it->second;
+        } else {
+            tc_ptr = &m_tenants[tenant_id];
+        }
+    }
+
+    // 3. Atomically check/reset interval (lock-free)
+    maybe_reset_interval(*tc_ptr);
+
+    // All increments and EMA update proceed lock-free.
+    tc_ptr->total_requests.fetch_add(1, std::memory_order_relaxed);
+    tc_ptr->requests_in_interval.fetch_add(1, std::memory_order_relaxed);
     if (is_error) {
-        tc.total_errors.fetch_add(1, std::memory_order_relaxed);
-        tc.errors_in_interval.fetch_add(1, std::memory_order_relaxed);
+        tc_ptr->total_errors.fetch_add(1, std::memory_order_relaxed);
+        tc_ptr->errors_in_interval.fetch_add(1, std::memory_order_relaxed);
     }
 
     // Exponential moving average: new_avg = old * 0.9 + sample * 0.1
-    double old_avg = tc.avg_response_ms.load(std::memory_order_relaxed);
+    double old_avg = tc_ptr->avg_response_ms.load(std::memory_order_relaxed);
     double new_avg{};
     do {
         new_avg = old_avg * 0.9 + duration_ms * 0.1;
-    } while (!tc.avg_response_ms.compare_exchange_weak(
+    } while (!tc_ptr->avg_response_ms.compare_exchange_weak(
                  old_avg, new_avg,
                  std::memory_order_relaxed, std::memory_order_relaxed));
 }
@@ -132,9 +153,29 @@ nlohmann::json MetricsCollector::get_tenant_metrics(const std::string& org_id) c
 void MetricsCollector::set_interval_minutes(const std::string& org_id, int minutes)
 {
     const int clamped = std::max(1, minutes);
-    std::unique_lock lock(m_mutex);
-    TenantCounters& tc = get_or_create(org_id);
-    tc.interval_duration = std::chrono::minutes{clamped};
+    TenantCounters* tc_ptr = nullptr;
+
+    // 1. Try to find the tenant with a shared lock (fast path)
+    {
+        std::shared_lock lock(m_mutex);
+        auto it = m_tenants.find(org_id);
+        if (it != m_tenants.end()) {
+            tc_ptr = &it->second;
+        }
+    }
+
+    // 2. If not found, acquire exclusive lock to create it (slow path)
+    if (!tc_ptr) {
+        std::unique_lock lock(m_mutex);
+        auto it = m_tenants.find(org_id);
+        if (it != m_tenants.end()) {
+            tc_ptr = &it->second;
+        } else {
+            tc_ptr = &m_tenants[org_id];
+        }
+    }
+
+    tc_ptr->interval_duration_m.store(clamped, std::memory_order_relaxed);
 }
 
 uint64_t MetricsCollector::tenant_count() const

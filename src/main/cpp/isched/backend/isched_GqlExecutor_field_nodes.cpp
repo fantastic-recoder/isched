@@ -7,6 +7,7 @@
  */
 
 #include "isched_GqlExecutor.hpp"
+#include "isched/shared/ast/isched_CustomNode.hpp"
 
 #include <nlohmann/json.hpp>
 
@@ -22,10 +23,7 @@ namespace isched::v0_0_1::backend {
             return fields;
         }
 
-        static constexpr std::string_view k_selection_set = "isched::v0_0_1::gql::SelectionSet";
-        static constexpr std::string_view k_selection = "isched::v0_0_1::gql::Selection";
-        static constexpr std::string_view k_field = "isched::v0_0_1::gql::Field";
-        if (p_selection_set->type != k_selection_set) {
+        if (ast::get_node_type(p_selection_set) != ast::NodeType::SelectionSet) {
             return fields;
         }
 
@@ -34,24 +32,21 @@ namespace isched::v0_0_1::backend {
             if (!selection) {
                 continue;
             }
-            if (selection->type == k_field) {
+            const auto type = ast::get_node_type(selection);
+            if (type == ast::NodeType::Field) {
                 fields.push_back(&selection);
                 continue;
             }
-            if (selection->type != k_selection) {
-                continue;
-            }
-            if (selection->children.empty()) {
-                continue;
-            }
-
-            const auto& first = selection->children.front();
-            if (!first || first->type != k_field) {
-                continue;
+            if (type == ast::NodeType::Unknown && selection->type == "isched::v0_0_1::gql::Selection") {
+                if (selection->children.empty()) {
+                    continue;
+                }
+                const auto& first = selection->children.front();
+                if (first && ast::get_node_type(first) == ast::NodeType::Field) {
+                    fields.push_back(&first);
+                }
             }
             // GCOVR_EXCL_STOP
-
-            fields.push_back(&first);
         }
 
         return fields;
@@ -59,7 +54,7 @@ namespace isched::v0_0_1::backend {
 
     void GqlExecutor::process_field_nodes(
         const json& p_parent_result,
-        const ResolverPath& p_path,
+        ResolverPath& p_path,
         const FieldNodeList& p_fields,
         json& p_result,
         gql::TErrorVector& p_errors) const {

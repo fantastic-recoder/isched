@@ -43,10 +43,10 @@ namespace isched::v0_0_1::backend {
         using const_reference = const value_type&;
         using pointer = value_type*;
         using const_pointer = const value_type*;
-        using iterator = typename std::map<T_key, multi_dim_map>::iterator;
-        using const_iterator = typename std::map<T_key, multi_dim_map>::const_iterator;
-        using reverse_iterator = typename std::map<T_key, multi_dim_map>::reverse_iterator;
-        using const_reverse_iterator = typename std::map<T_key, multi_dim_map>::const_reverse_iterator;
+        using iterator = typename std::map<T_key, multi_dim_map, std::less<>>::iterator;
+        using const_iterator = typename std::map<T_key, multi_dim_map, std::less<>>::const_iterator;
+        using reverse_iterator = typename std::map<T_key, multi_dim_map, std::less<>>::reverse_iterator;
+        using const_reverse_iterator = typename std::map<T_key, multi_dim_map, std::less<>>::const_reverse_iterator;
 
         multi_dim_map() = default;
 
@@ -96,10 +96,20 @@ namespace isched::v0_0_1::backend {
 
         // Lookup
         size_type count(const key_type& key) const { return m_children.count(key); }
+        template<typename K>
+        size_type count(const K& key) const { return m_children.count(key); }
+
         iterator find(const key_type& key) { return m_children.find(key); }
+        template<typename K>
+        iterator find(const K& key) { return m_children.find(key); }
+
         const_iterator find(const key_type& key) const { return m_children.find(key); }
+        template<typename K>
+        const_iterator find(const K& key) const { return m_children.find(key); }
 
         bool contains(const key_type& key) const { return m_children.find(key) != m_children.end(); }
+        template<typename K>
+        bool contains(const K& key) const { return m_children.find(key) != m_children.end(); }
 
         iterator lower_bound(const key_type& key) { return m_children.lower_bound(key); }
         const_iterator lower_bound(const key_type& key) const { return m_children.lower_bound(key); }
@@ -144,6 +154,15 @@ namespace isched::v0_0_1::backend {
 
         const multi_dim_map& operator[](const T_key& key) const {
             return m_children.at(key);
+        }
+
+        template<typename K>
+        const multi_dim_map& operator[](const K& key) const {
+            auto it = m_children.find(key);
+            if (it == m_children.end()) {
+                throw std::out_of_range("multi_dim_map: key not found");
+            }
+            return it->second;
         }
 
         const multi_dim_map& operator[](const std::vector<T_key>& p_path) const {
@@ -191,7 +210,7 @@ namespace isched::v0_0_1::backend {
     private:
         T_value m_value{};
         bool m_has_value = false;
-        std::map<T_key, multi_dim_map> m_children;
+        std::map<T_key, multi_dim_map, std::less<>> m_children;
     };
 
 }
