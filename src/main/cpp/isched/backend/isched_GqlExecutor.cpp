@@ -2738,7 +2738,7 @@ namespace isched::v0_0_1::backend {
     // Includes the four built-in directives plus any user-defined ones from
     // the loaded schema.
     // -------------------------------------------------------------------------
-    basic_json<> GqlExecutor::generate_directives_introspection() {
+    basic_json<> GqlExecutor::generate_directives_introspection() const {
         json result = json::array();
 
         // Helper: build one directive entry
@@ -2836,7 +2836,7 @@ namespace isched::v0_0_1::backend {
     // generate_schema_introspection  (T-INTRO-002 … T-INTRO-018)
     // Returns the full __schema response object.
     // -------------------------------------------------------------------------
-    json GqlExecutor::generate_schema_introspection() {
+    json GqlExecutor::generate_schema_introspection() const {
         json schema = json::object();
 
         // --- queryType / mutationType / subscriptionType (T-INTRO-010) ---
@@ -3068,20 +3068,30 @@ namespace isched::v0_0_1::backend {
     }
 
 
-    void GqlExecutor::process_sub_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_errors) const {
+    void GqlExecutor::process_sub_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_error) const {
         // Arguments nodes are already extracted by process_argument_field before sub-selections run.
         const auto ct = get_node_type(node);
         if (ct == NodeType::Arguments) {
             return;
         }
-        if (ct != NodeType::SelectionSet) {
-            p_errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR,.message=format(
-                "Expected a selection set while processing sub selection, got a {}.", node->type)});
+        if (ct == NodeType::Field) {
+            resolve_field_selection_details(p_parent_result, p_path, node, p_result, p_error);
             return;
         }
-        const auto fields = collect_field_nodes(node, p_errors);
-        process_field_nodes(p_parent_result, p_path, fields, p_result, p_errors);
-        spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
+        if (ct == NodeType::SelectionSet) {
+            const auto fields = collect_field_nodes(node, p_error);
+            process_field_nodes(p_parent_result, p_path, fields, p_result, p_error);
+            spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
+            return;
+        }
+        if (node->type == "isched::v0_0_1::gql::Selection") {
+            for (const auto& child : node->children) {
+                process_sub_selection(p_parent_result, p_path, child, p_result, p_error);
+            }
+            return;
+        }
+        // Legacy: if it's some other node, it might be a synthetic node. 
+        // We only enforce SelectionSet/Field for explicit sub-processing.
     }
 
     void GqlExecutor::process_field_sub_selections(
@@ -3093,7 +3103,7 @@ namespace isched::v0_0_1::backend {
         const std::string_view myFieldName
     ) const {
         p_path.push_back(std::string(myFieldName));
-        for (size_t myIdx = 1; myIdx < p_selection_set->children.size(); ++myIdx) {
+        for (size_t myIdx = 0; myIdx < p_selection_set->children.size(); ++myIdx) {
             process_sub_selection(p_parent_result, p_path, p_selection_set->children[myIdx], p_result, p_error);
         }
         p_path.pop_back();
@@ -3106,7 +3116,6 @@ namespace isched::v0_0_1::backend {
             return true;
         }
         const std::string_view myFieldName = p_field_node->children[0]->string_view();
-        spdlog::debug("Checking resolver for field {} in Query type", myFieldName);
         if (p_result.empty()) {
             p_result = json::object();
         }
@@ -3267,7 +3276,7 @@ namespace isched::v0_0_1::backend {
                 return false;
             }
             spdlog::debug("Got result: '{}' for field '{}' in Query type, going to process sub selections.",
-                p_result.dump(4,'.'), myFieldName);
+                my_result.dump(4,'.'), myFieldName);
             // Detect sub-selection set in Field node children (index > 0)
             bool has_sub_sel = false;
             for (size_t i = 1; i < p_field_node->children.size(); ++i) {
@@ -3277,6 +3286,15 @@ namespace isched::v0_0_1::backend {
                 }
             }
             if (has_sub_sel) {
+                // Find the selection set node
+                const TAstNodePtr* selection_set_node = nullptr;
+                for (size_t i = 1; i < p_field_node->children.size(); ++i) {
+                    if (get_node_type(p_field_node->children[i]) == NodeType::SelectionSet) {
+                        selection_set_node = &p_field_node->children[i];
+                        break;
+                    }
+                }
+                
                 if (my_result.is_null()) {
                     // Nullable field returned null — propagate without sub-selection processing
                     p_result[myFieldName] = nullptr;
@@ -3289,13 +3307,25 @@ namespace isched::v0_0_1::backend {
                             continue;
                         }
                         json elem_result = json::object();
-                        process_field_sub_selections(element, p_path, p_field_node, elem_result, p_error, myFieldName);
+                        process_field_sub_selections(element, p_path, *selection_set_node, elem_result, p_error, myFieldName);
                         arr.push_back(std::move(elem_result));
                     }
                     p_result[myFieldName] = std::move(arr);
-                } else {
+                } else if (my_result.is_object()) {
                     p_result[myFieldName] = json::object();
-                    process_field_sub_selections(my_result, p_path, p_field_node, p_result[myFieldName], p_error, myFieldName);
+                    process_field_sub_selections(my_result, p_path, *selection_set_node, p_result[myFieldName], p_error, myFieldName);
+                } else {
+                    // T-INT-ERR-001: Sub-selection applied to scalar result
+                    p_path.push_back(std::string(myFieldName));
+                    gql::ErrorPath ep;
+                    for (const auto& s : p_path) ep.push_back(s);
+                    p_error.push_back(gql::Error{
+                        .code    = gql::EErrorCodes::UNKNOWN_ERROR,
+                        .message = std::format("Sub-selection applied to scalar result of field {}", concat_vector(p_path, ".")),
+                        .path    = std::move(ep),
+                    });
+                    p_path.pop_back();
+                    p_result[myFieldName] = nullptr;
                 }
             } else {
                 p_result[myFieldName] = std::move(my_result);

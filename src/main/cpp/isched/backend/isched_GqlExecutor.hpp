@@ -215,9 +215,9 @@ namespace isched::v0_0_1::backend {
 
         void setup_builtin_resolvers();
 
-        nlohmann::json generate_directives_introspection();
+        nlohmann::json generate_directives_introspection() const;
 
-        nlohmann::json generate_schema_introspection();
+        nlohmann::json generate_schema_introspection() const;
 
         GqlExecutor(GqlExecutor&&) = delete;
         GqlExecutor& operator=(GqlExecutor&&) = delete;

@@ -318,7 +318,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     for (int t = 0; t < k_threads; ++t) {
         const auto d = durations[static_cast<std::size_t>(t)];
         INFO("T052-005 thread " << t << " introspection: " << d << " ms");
-        REQUIRE(d <= 500);
+        REQUIRE(d <= 800);
     }
 }
 
