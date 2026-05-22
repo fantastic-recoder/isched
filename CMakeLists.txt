@@ -96,25 +96,47 @@ include_directories("src/main/cpp")
 find_program(PNPM_EXE NAMES "pnpm")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-file(GLOB_RECURSE UI_SOURCES "${CMAKE_SOURCE_DIR}/src/ui/src/*")
+file(GLOB_RECURSE UI_SRC_FILES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/src/ui/src/*"
+    "${CMAKE_SOURCE_DIR}/src/ui/public/*"
+)
+set(UI_CONFIG_FILES
+    "${CMAKE_SOURCE_DIR}/src/ui/package.json"
+    "${CMAKE_SOURCE_DIR}/src/ui/angular.json"
+    "${CMAKE_SOURCE_DIR}/src/ui/tsconfig.json"
+    "${CMAKE_SOURCE_DIR}/src/ui/tsconfig.app.json"
+    "${CMAKE_SOURCE_DIR}/src/ui/tsconfig.spec.json"
+    "${CMAKE_SOURCE_DIR}/src/ui/tailwind.config.js"
+    "${CMAKE_SOURCE_DIR}/src/ui/postcss.config.js"
+    "${CMAKE_SOURCE_DIR}/pnpm-lock.yaml"
+    "${CMAKE_SOURCE_DIR}/pnpm-workspace.yaml"
+)
+set(UI_SOURCES ${UI_SRC_FILES} ${UI_CONFIG_FILES})
 
 if(PNPM_EXE)
-    add_custom_target(isched_ui_build
+    add_custom_command(
+        OUTPUT "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html"
         COMMAND ${PNPM_EXE} --filter isched-ui run test
         COMMAND ${PNPM_EXE} --filter isched-ui run build
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         DEPENDS ${UI_SOURCES}
-        BYPRODUCTS "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html"
         COMMENT "Running Angular unit tests and building Admin UI (pnpm --filter isched-ui run test/build)"
         VERBATIM)
 
-    add_custom_target(isched_ui_embed
+    add_custom_target(isched_ui_build
+        DEPENDS "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html")
+
+    add_custom_command(
+        OUTPUT "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/isched_ui_assets.hpp"
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/embed_ui_assets.py"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        DEPENDS isched_ui_build
-        BYPRODUCTS "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/isched_ui_assets.hpp"
+        DEPENDS "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html"
+                "${CMAKE_SOURCE_DIR}/tools/embed_ui_assets.py"
         COMMENT "Embedding Angular UI assets into C++ header"
         VERBATIM)
+
+    add_custom_target(isched_ui_embed
+        DEPENDS "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/isched_ui_assets.hpp")
     message(STATUS "isched_ui_build and isched_ui_embed targets configured (pnpm: ${PNPM_EXE})")
 else()
     # pnpm not found — create stub targets that warn but do not error

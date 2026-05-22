@@ -191,8 +191,11 @@ def main() -> None:
     header = generate_header(assets)
 
     OUTPUT_HEADER.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT_HEADER.write_text(header, encoding="utf-8")
-    print(f"\nWrote {OUTPUT_HEADER}  ({len(assets)} assets)")
+    if OUTPUT_HEADER.exists() and OUTPUT_HEADER.read_text(encoding="utf-8") == header:
+        print(f"\n{OUTPUT_HEADER} is up to date — skipping write")
+    else:
+        OUTPUT_HEADER.write_text(header, encoding="utf-8")
+        print(f"\nWrote {OUTPUT_HEADER}  ({len(assets)} assets)")
 
 
 if __name__ == "__main__":
