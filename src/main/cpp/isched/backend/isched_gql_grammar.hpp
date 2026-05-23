@@ -493,23 +493,19 @@ namespace isched::v0_0_1::gql {
 
     /// @see GraphQL Spec §2.8.2: "FragmentSpread" — `... FragmentName Directives?`
     /// FragmentName is Name but not `on`.
-    struct FragmentSpread : seq<
+    struct FragmentSpread : SeqWithComments<
         TSeps,
         Ellipsis,
-        TSeps,
-        not_at<seq<string<'o','n'>, not_at<NameContinue>>>,
-        Name,
+        seq<not_at<seq<string<'o','n'>, not_at<NameContinue>>>, Name>,
         opt<DirectivesConst>
     > {};
 
     /// @see GraphQL Spec §2.8.2: "InlineFragment" — `... TypeCondition? Directives? SelectionSet`
-    struct InlineFragment : seq<
+    struct InlineFragment : SeqWithComments<
         TSeps,
         Ellipsis,
-        TSeps,
         opt<TypeCondition>,
         opt<DirectivesConst>,
-        TSeps,
         SelectionSet
     > {};
 
@@ -572,10 +568,9 @@ namespace isched::v0_0_1::gql {
     > {};
 
     /// @see GraphQL Spec §3.8: "EnumValueDefinition" — `Description? EnumValue Directives?`
-    struct EnumValueDefinition : seq<
+    struct EnumValueDefinition : SeqWithComments<
         TSeps,
         opt<Description>,
-        TSeps,
         Name,
         opt<DirectivesConst>
     > {};
@@ -781,6 +776,7 @@ namespace isched::v0_0_1::gql {
             one<'@'>,
             Name,
             opt<ArgumentsDefinition>,
+            opt<seq<TSeps, string<'r','e','p','e','a','t','a','b','l','e'>>>,
             opt<seq<TSeps, string<'o','n'>, TSeps, DirectiveLocations>>,
             TSeps
     > {};

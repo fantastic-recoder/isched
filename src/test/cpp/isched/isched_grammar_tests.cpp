@@ -1882,3 +1882,108 @@ query {
     auto res = generate_ast_and_log<Document>(in, "Inline Fragments", false);
     REQUIRE(std::get<0>(res) == true);
 }
+
+TEST_CASE("Syntax - Exhaustive Type System (Section 3)", "[grammar][type-system][integration]") {
+    static const char* q = R"Qry(
+schema @directiveOnSchema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+"""
+Description of a scalar
+"""
+scalar CustomScalar @directiveOnScalar
+
+"""
+Description of an Interface
+"""
+interface Node @directiveOnInterface {
+  id: ID! @directiveOnFieldDefinition
+}
+
+interface AnotherInterface implements Node {
+  id: ID!
+}
+
+"""
+Description of a Type
+"""
+type Query implements Node & AnotherInterface @directiveOnObject {
+  id: ID!
+  
+  """
+  Field with arguments
+  """
+  field(
+    """
+    Argument description
+    """
+    arg1: CustomScalar = "default" @directiveOnArgumentDefinition
+  ): CustomScalar
+}
+
+type Mutation {
+  doSomething(input: MyInput!): MyEnum
+}
+
+type Subscription {
+  onSomething: UnionType
+}
+
+"""
+Union Type
+"""
+union UnionType @directiveOnUnion = Query | Mutation
+
+"""
+Enum Type
+"""
+enum MyEnum @directiveOnEnum {
+  """
+  Enum value description
+  """
+  VAL1 @directiveOnEnumValue
+  VAL2
+}
+
+"""
+Input Object Type
+"""
+input MyInput @directiveOnInputObject {
+  """
+  Input field description
+  """
+  inputField: Int! = 123 @directiveOnInputFieldDefinition
+}
+
+"""
+Directive Definition
+"""
+directive @directiveOnSchema(
+  arg: String
+) repeatable on SCHEMA | SCALAR | OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | INTERFACE | UNION | ENUM | ENUM_VALUE | INPUT_OBJECT | INPUT_FIELD_DEFINITION
+
+# Type System Extensions (3.1)
+extend schema @directiveOnSchema { query: Query }
+extend scalar CustomScalar @directiveOnScalar
+extend type Query implements Node @directiveOnObject {
+  extendedField: String
+}
+extend interface Node @directiveOnInterface {
+  extendedInterfaceField: String
+}
+extend union UnionType @directiveOnUnion = Subscription
+extend enum MyEnum @directiveOnEnum {
+  VAL3
+}
+extend input MyInput @directiveOnInputObject {
+  extendedInputField: String
+}
+)Qry";
+
+    string_input in(q, "Exhaustive Section 3 Type System");
+    auto res = generate_ast_and_log<Document>(in, "Exhaustive Section 3 Type System", false);
+    REQUIRE(std::get<0>(res) == true);
+}
