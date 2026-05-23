@@ -17,6 +17,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - SQLite3 (embedded, per-tenant) (008-dod-mech-refactor)
 - C++23 for product/test code; Python 3 for artifact-validation helpers and workflow scripts + Catch2 3.x, CMake + Ninja, Conan 2.x, existing `tools/refactor_pass/*` shell/Python tooling, JSON Schema Draft 2020-12 contracts (009-raise-pass-improvement-ratio)
 - File-based evidence in `specs/009-raise-pass-improvement-ratio/artifacts/` (JSON/Markdown/text gate outputs) (009-raise-pass-improvement-ratio)
+- TypeScript with Angular 21 on the frontend; existing C++23 backend preserved + Angular standalone APIs, RxJS for request streams, CodeMirror 6 GraphQL editor packages, existing `GraphQLService` transport, Tailwind CSS 3.x + DaisyUI 4.x (011-graphql-playground)
+- Browser-persistent layout preferences only; no new server-side storage (011-graphql-playground)
 
 - (004-add-isched-webui)
 
@@ -36,9 +38,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 011-graphql-playground: Added TypeScript with Angular 21 on the frontend; existing C++23 backend preserved + Angular standalone APIs, RxJS for request streams, CodeMirror 6 GraphQL editor packages, existing `GraphQLService` transport, Tailwind CSS 3.x + DaisyUI 4.x
 - 009-raise-pass-improvement-ratio: Added C++23 for product/test code; Python 3 for artifact-validation helpers and workflow scripts + Catch2 3.x, CMake + Ninja, Conan 2.x, existing `tools/refactor_pass/*` shell/Python tooling, JSON Schema Draft 2020-12 contracts
 - 008-dod-mech-refactor: Added C++23 + Catch2 3.x, Boost 1.84, cpp-httplib, nlohmann_json, spdlog, jwt-cpp, sqlite3, taocpp-pegtl
-- 008-dod-mech-refactor: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 
 <!-- MANUAL ADDITIONS START -->

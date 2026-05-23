@@ -14,7 +14,13 @@ owner: isched Development Team
 
 ## Clarifications
 
-*(to be filled during clarify phase)*
+### Session 2026-05-23
+
+- Q: What is the intended scope of introspection data in the playground tree? → A: Show the full introspection graph, including all types, inputs, enums, directives, and interfaces.
+- Q: Are subscription operations in scope for execution, or generate-only? → A: Generate-only; selecting a subscription generates a stub, and Run shows an advisory message.
+- Q: Which editor technology should the query panel use? → A: CodeMirror 6.
+- Q: How should left/right and top/bottom panel sizes be persisted, if at all? → A: Persist across browser sessions.
+- Q: How should uploaded schema documents be represented in the tree and result panels? → A: Merge them into the main tree rather than a separate uploaded-schemas group.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -24,12 +30,12 @@ As a logged-in user, I can open the GraphQL Playground page and see all active s
 
 **Why this priority**: Schema discovery is the foundation of the playground. Without it, query composition and execution have no context.
 
-**Independent Test**: Can be fully tested by navigating to `/playground`, expanding schema tree nodes, and verifying that all Query, Mutation, and Subscription root fields — and at least the schema documents returned by `schemaDocuments` — appear in the tree structure.
+**Independent Test**: Can be fully tested by navigating to `/playground`, expanding schema tree nodes, and verifying that the full introspection graph is represented in the tree together with uploaded schema document nodes.
 
 **Acceptance Scenarios**:
 
-1. **Given** a logged-in user navigates to `/playground`, **When** the page loads, **Then** a collapsible tree on the left panel is populated with at least Query, Mutation, and Subscription root operation groups and their fields, discovered via standard GraphQL introspection.
-2. **Given** the user has uploaded schema documents, **When** the schema tree is displayed, **Then** uploaded schema documents from `schemaDocuments` appear as a distinct group (e.g. "Uploaded Schemas") in the left panel tree.
+1. **Given** a logged-in user navigates to `/playground`, **When** the page loads, **Then** a collapsible tree on the left panel is populated from standard GraphQL introspection with operation groups plus type, input, enum, directive, and interface nodes.
+2. **Given** the user has uploaded schema documents, **When** the schema tree is displayed, **Then** uploaded schema documents from `schemaDocuments` are merged into the same tree rather than presented as a separate top-level group.
 3. **Given** the tree is populated, **When** the user expands an operation group, **Then** individual fields with their names and return types are visible.
 4. **Given** the tree is populated, **When** the user collapses a node, **Then** its children are hidden and the tree stays responsive and readable.
 
@@ -82,7 +88,7 @@ As a logged-in user, I can drag dividers to resize the left/right panels and the
 1. **Given** the playground is displayed, **When** the user drags the vertical divider between the left and right panels, **Then** both panels resize fluidly with no content overlap or broken layout.
 2. **Given** the playground is displayed, **When** the user drags the horizontal divider between the query editor (top-right) and result panel (bottom-right), **Then** both panels resize fluidly.
 3. **Given** a panel is resized to a minimum, **When** the user releases the divider, **Then** each panel enforces a minimum width/height so no panel becomes invisible.
-4. **Given** the page is navigated away and back, **When** the user returns to the playground, **Then** panel sizes either reset to defaults or are remembered from the previous session (implementation decision to be confirmed).
+4. **Given** the page is navigated away and back, **When** the user returns to the playground, **Then** panel sizes are restored from the previously persisted browser state.
 
 ---
 
@@ -102,7 +108,7 @@ As a delivery team member, I want unit tests and an end-to-end Playwright test c
 ### Edge Cases
 
 - Introspection is unavailable or returns an error (e.g. auth failure): the tree shows a non-empty error state and does not render a blank panel.
-- The schema document list is empty: the "Uploaded Schemas" group is either hidden or shows a "No uploaded schemas" placeholder.
+- The schema document list is empty: schema-document nodes are omitted or shown with a clear "No uploaded schemas" placeholder within the main tree.
 - A generated query stub contains characters that require escaping in the editor (e.g. quotation marks in default string arguments).
 - The user manually edits a generated stub before running it: the edited content is sent as-is without re-generation.
 - A query returns a very large JSON payload (> 100 kB): the result panel renders without freezing (virtual scrolling or truncation with expand-all option).
@@ -118,11 +124,11 @@ As a delivery team member, I want unit tests and an end-to-end Playwright test c
 - **FR-002**: The playground MUST be linked from the main navigation menu so users can reach it from any authenticated page.
 - **FR-003**: The playground MUST display a resizable left panel containing a collapsible schema tree.
 - **FR-004**: The schema tree MUST be populated by standard GraphQL introspection (`__schema` / `__type`) against the `/graphql` endpoint.
-- **FR-005**: The schema tree MUST group root operation fields under labelled groups: "Queries", "Mutations", "Subscriptions", each expandable to show individual fields.
+- **FR-005**: The schema tree MUST include the full introspection graph, including operation groups, object types, input types, enums, interfaces, directives, and scalar types needed for schema browsing and query generation.
 - **FR-006**: Each field node in the tree MUST display at minimum the field name and its return type.
-- **FR-007**: The schema tree MUST include a distinct "Uploaded Schemas" group populated from the `schemaDocuments` GraphQL query, showing each schema document by name.
+- **FR-007**: Uploaded schema documents returned by `schemaDocuments` MUST be merged into the same schema tree as named document nodes rather than rendered in a separate top-level panel.
 - **FR-008**: The playground MUST display a resizable right panel split vertically into a top query-editor sub-panel and a bottom result sub-panel.
-- **FR-009**: The query editor MUST be a multi-line text area or dedicated code editor widget supporting syntax highlighting for GraphQL (use CodeMirror 6 or Monaco Editor; decision to be confirmed during planning).
+- **FR-009**: The query editor MUST use CodeMirror 6 and support GraphQL syntax highlighting.
 - **FR-010**: The playground MUST provide a "Run" button that sends the current editor content to `/graphql` and displays the JSON response in the result panel.
 - **FR-011**: While a query is executing, the Run button MUST be disabled and the result panel MUST show a loading indicator.
 - **FR-012**: On a successful response, the result panel MUST display the JSON response with indented formatting.
@@ -133,6 +139,8 @@ As a delivery team member, I want unit tests and an end-to-end Playwright test c
 - **FR-017**: The vertical divider between the left and right panels MUST be draggable to resize both panels, enforcing minimum widths (≥ 200px each).
 - **FR-018**: The horizontal divider between the query editor and result panel MUST be draggable to resize both sub-panels, enforcing minimum heights (≥ 80px each).
 - **FR-019**: Panel resize MUST not break the overall page layout or overflow the viewport.
+- **FR-020**: Panel sizes MUST be persisted across browser sessions and restored when the user returns to the playground.
+- **FR-021**: Subscription fields MUST generate query stubs but MUST NOT execute in this initial iteration; the result panel MUST show an advisory message when Run is used on a subscription stub.
 
 ### Frontend Constitutional Requirements *(mandatory when feature includes `src/ui/` changes)*
 
@@ -148,7 +156,7 @@ As a delivery team member, I want unit tests and an end-to-end Playwright test c
 
 - **PlaygroundPage**: The top-level Angular standalone route component at `/playground`.
 - **SchemaTreeComponent**: Left-panel collapsible tree component that displays operation groups and fields discovered via GraphQL introspection.
-- **SchemaTreeNode**: Data model for a tree node — types: `operationGroup` (Queries/Mutations/Subscriptions/UploadedSchemas), `field`, `schemaDocument`.
+- **SchemaTreeNode**: Data model for a tree node — types: `operationGroup` (Queries/Mutations/Subscriptions), `field`, `type`, `input`, `enum`, `directive`, `interface`, `schemaDocument`.
 - **QueryEditorComponent**: Top-right editor panel wrapping a code editor widget (CodeMirror 6 or Monaco).
 - **ResultPanelComponent**: Bottom-right panel rendering JSON response, loading state, or error state.
 - **ResizableSplitComponent** (or equivalent): General-purpose container managing a draggable divider between two child panels (used twice: vertical L/R split, horizontal T/B split in right area).
@@ -160,17 +168,17 @@ As a delivery team member, I want unit tests and an end-to-end Playwright test c
 - The playground is only accessible to authenticated users; accessing `/playground` while unauthenticated redirects to `/login`.
 - GraphQL introspection is enabled on the server endpoint (no `__schema` disable flag); if introspection is disabled a clear error is shown.
 - The schema tree shows the server's currently active combined schema (built-in + uploaded/activated tenant schema merge) as seen through introspection.
-- Uploaded schema documents from `schemaDocuments` are shown by name only in the tree; clicking a document node may show its SDL in the result panel but full document editing is out of scope for this feature.
-- Subscription execution via WebSocket in the playground is deferred (out of scope for initial iteration); selecting a subscription field generates a stub but Run shows an advisory "Subscriptions not yet supported in playground" message.
-- Panel size persistence across navigation is nice-to-have; the implementation phase will decide whether to use localStorage signals or reset to defaults.
-- The code editor widget choice (CodeMirror 6 vs. Monaco) will be finalized during implementation planning; both satisfy the spec requirement. CodeMirror 6 is preferred due to its smaller bundle size.
+- Uploaded schema documents are merged into the main tree as named nodes; selecting a document node may show its SDL in the result panel, but full document editing is out of scope for this feature.
+- Subscription execution via WebSocket in the playground is deferred; selecting a subscription field generates a stub but Run shows an advisory "Subscriptions not yet supported in playground" message.
+- Panel size persistence is required and should survive browser sessions using the existing frontend persistence strategy chosen during implementation.
+- CodeMirror 6 is the chosen editor technology for the initial implementation.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
 - **SC-001**: The `/playground` route is guarded and redirects unauthenticated users to `/login` in all automated test runs.
-- **SC-002**: In acceptance testing, the schema tree populates at least the Query, Mutation, and Subscription operation groups from live introspection and matches the fields defined in `isched_builtin_server_schema.graphql`.
+- **SC-002**: In acceptance testing, the schema tree reflects the full introspection graph and includes uploaded schema document nodes.
 - **SC-003**: An end-to-end Playwright test executes the flow: navigate to playground → generate query from `health` field → run query → verify result panel shows `{ "data": { "health": ... } }` response.
 - **SC-004**: All Angular unit tests for playground components pass with ≥ 80% branch coverage on PlaygroundPage, SchemaTreeComponent, ResultPanelComponent, and IntrospectionService.
 - **SC-005**: Panel resize operations in Playwright tests do not produce JavaScript errors or broken layout at three representative viewport widths (1280px, 1024px, 768px).

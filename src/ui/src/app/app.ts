@@ -12,7 +12,7 @@ import { AuthenticatedShellComponent } from './components/authenticated-shell/au
   selector: 'app-root',
   imports: [CommonModule, RouterOutlet, AuthenticatedShellComponent],
   templateUrl: './app.html',
-  styleUrl: './app.scss'
+  host: { class: 'block min-h-screen' },
 })
 export class App {
   private readonly auth = inject(AuthService);
@@ -98,11 +98,11 @@ export class App {
   }
 
   private isProtectedStartupUrl(url: string): boolean {
-    return url.startsWith('/dashboard') || url.startsWith('/admin/');
+    return url.startsWith('/dashboard') || url.startsWith('/admin/') || url.startsWith('/playground');
   }
 
   private isAuthenticatedRoute(url: string): boolean {
-    return url.includes('/dashboard') || url.includes('/admin/');
+    return url.includes('/dashboard') || url.includes('/admin/') || url.includes('/playground');
   }
 
   private navigateIfNeeded(targetUrl: string) {

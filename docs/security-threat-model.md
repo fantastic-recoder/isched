@@ -1,6 +1,6 @@
 # Security Threat Model Summary
 
-**Updated**: 2026-04-06
+**Updated**: 2026-05-23
 
 ## Purpose
 
@@ -12,6 +12,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - `specs/archive/004-add-isched-webui/threat-model.md` — Embedded WebUI serving, proxy-backed local GraphQL flow, CSRF/cookie auth behavior, and organization-context write boundaries
 - `specs/archive/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling
 - `specs/archive/006-upload-schema/threat-model.md` — Tenant-admin schema upload authorization, overwrite conflict controls, SDL validation, and cross-tenant read isolation for schema documents
+- `specs/011-graphql-playground/threat-model.md` — Authenticated schema browsing, query execution, safe editor/result rendering, layout preference persistence, and subscription advisory-only behavior
 
 ## Feature 005 Security Closeout Snapshot (2026-04-05)
 
@@ -50,6 +51,19 @@ This document summarizes the security posture and recurring mitigations for Isch
 - **Open blocker**: None — all security controls implemented and verified.
 - **Risk posture**: No new critical auth/session exposure introduced by spec-006; all identified threats addressed with controls consistent with existing RBAC and tenant-isolation patterns.
 
+## Feature 011 Security Planning Snapshot (2026-05-23)
+
+- **Scope**: `011-graphql-playground` (authenticated playground route, introspection browsing, query execution, panel layout persistence)
+- **Validated mitigations planned**:
+  - `/playground` remains behind existing authentication routing
+  - All schema/query/result content is treated as text, not HTML
+  - Layout persistence stores only non-sensitive UI preferences
+  - GraphQL access stays on `/graphql` only
+  - Subscription operations remain generate-only with explicit advisory output
+- **Residual risk**:
+  - Authenticated users can inspect schema metadata and query responses by design
+  - Browser storage may retain harmless layout preferences across sessions
+
 ## Common Security Themes
 
 - **Secure bootstrap**: any unauthenticated bootstrap path must be narrow, explicitly documented, and automatically disabled after first-use conditions are satisfied.
@@ -59,6 +73,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - **Session revocation**: revoked sessions must be enforced at request time and propagated to long-lived WebSocket connections.
 - **Secret protection**: external integration secrets must not be stored in plaintext and must be protected against accidental disclosure in logs or responses.
 - **WebUI boundary controls**: browser-facing state must avoid persistent token storage and enforce explicit organization context for admin mutations.
+- **Playground safety**: authenticated-only playground features must render untrusted schema/query content as text and keep non-sensitive UI preferences separate from credentials.
 
 ## Reusable Mitigation Checklist
 

@@ -1422,11 +1422,12 @@ String Server::execute_graphql(const String& query, const String& variables_json
         result = m_impl->gql_executor->execute(query, variables_json, std::move(ctx));
 
         // T034: Apply any schema change queued by activateSnapshot / rollbackConfiguration
-        auto pending = m_impl->gql_executor->get_pending_schema_change();
-        if (pending) {
-            m_impl->gql_executor->clear_pending_schema_change();
-            std::ignore = m_impl->gql_executor->load_schema(pending->new_sdl);
-        }
+        std::ignore = m_impl->gql_executor->get_pending_schema_change()
+            .transform([this](const auto& pending) {
+                m_impl->gql_executor->clear_pending_schema_change();
+                std::ignore = m_impl->gql_executor->load_schema(pending.new_sdl);
+                return true;
+            });
     }
 
     const auto finished_at = std::chrono::steady_clock::now();

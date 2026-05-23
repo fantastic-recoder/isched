@@ -35,6 +35,7 @@
 #include "httplib.h"
 
 #include <isched/backend/isched_Server.hpp>
+#include <spdlog/spdlog.h>
 
 namespace beast     = boost::beast;
 namespace websocket = beast::websocket;
@@ -320,13 +321,12 @@ TEST_CASE_METHOD(BenchmarkFixture,
     REQUIRE(error_count.load() == 0);
     for (int t = 0; t < k_threads; ++t) {
         const auto d = durations[static_cast<std::size_t>(t)];
-        INFO("T052-005 thread " << t << " introspection: " << d << " ms");
 #ifdef NDEBUG
+        spdlog::info("T052-005 thread {} introspection: {} ms (NDEBUG)",t,d);
         REQUIRE(d <= 500);
-        INFO("T052-005 thread " << t << " introspection: " << d << " ms (NDEBUG)");
 #else
+        spdlog::info("T052-005 thread {} introspection: {} ms (DEBUG)",t,d);
         REQUIRE(d <= 1500);
-        INFO("T052-005 thread " << t << " introspection: " << d << " ms (DEBUG)");
 #endif
     }
 }

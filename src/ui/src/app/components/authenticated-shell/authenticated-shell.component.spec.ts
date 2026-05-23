@@ -21,6 +21,9 @@ class RbacRouteStubComponent {}
 @Component({ standalone: true, template: '<p>Login</p>' })
 class LoginRouteStubComponent {}
 
+@Component({ standalone: true, template: '<p>Playground</p>' })
+class PlaygroundRouteStubComponent {}
+
 describe('AuthenticatedShellComponent', () => {
   const auth = {
     signOut: jest.fn(() => of(true)),
@@ -38,6 +41,7 @@ describe('AuthenticatedShellComponent', () => {
           { path: 'admin/organizations', component: OrganizationsRouteStubComponent },
           { path: 'admin/users', component: UsersRouteStubComponent },
           { path: 'admin/rbac', component: RbacRouteStubComponent },
+          { path: 'playground', component: PlaygroundRouteStubComponent },
           { path: 'login', component: LoginRouteStubComponent },
         ]),
         {
@@ -76,6 +80,7 @@ describe('AuthenticatedShellComponent', () => {
     );
     expect(host.querySelector('[data-testid="shell-nav-users"]')?.textContent).toContain('Users');
     expect(host.querySelector('[data-testid="shell-nav-rbac"]')?.textContent).toContain('RBAC');
+    expect(host.querySelector('[data-testid="shell-nav-playground"]')?.textContent).toContain('Playground');
     expect(host.querySelector('[data-testid="shell-status-digest"]')?.textContent).toContain('Ready');
     expect(host.querySelector('[data-testid="shell-current-user"]')?.textContent).toContain('Jane Admin');
   });

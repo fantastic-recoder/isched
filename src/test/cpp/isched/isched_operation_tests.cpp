@@ -11,7 +11,7 @@
 #include "isched/backend/isched_DatabaseManager.hpp"
 #include <nlohmann/json.hpp>
 #include <memory>
-#include <iostream>
+#include <print>
 
 using namespace isched::v0_0_1::backend;
 using nlohmann::json;
@@ -36,14 +36,14 @@ TEST_CASE("GraphQL Operations and Fragments Execution", "[graphql][executor][ope
         
         auto resultOp1 = executor.execute(query, "{}", std::string_view("Op1"));
         if (!resultOp1.is_success() && !resultOp1.errors.empty()) {
-            std::cout << "Op1 error: " << resultOp1.errors[0].message << std::endl;
+            std::println("Op1 error: {}", resultOp1.errors[0].message);
         }
         REQUIRE(resultOp1.is_success());
         REQUIRE(resultOp1.data["hello"] == "world");
 
         auto resultOp2 = executor.execute(query, "{}", admin_ctx, std::string_view("Op2"));
         if (!resultOp2.is_success() && !resultOp2.errors.empty()) {
-            std::cout << "Op2 error: " << resultOp2.errors[0].message << std::endl;
+            std::println("Op2 error: {}", resultOp2.errors[0].message);
         }
         REQUIRE(resultOp2.is_success());
         REQUIRE(resultOp2.data["user"]["name"] == "Alice");
@@ -84,7 +84,7 @@ TEST_CASE("GraphQL Operations and Fragments Execution", "[graphql][executor][ope
         )";
         auto result = executor.execute(query, "{}", admin_ctx);
         if (!result.is_success() && !result.errors.empty()) {
-            std::cout << "Fragment spread error: " << result.errors[0].message << std::endl;
+            std::println("Fragment spread error: {}", result.errors[0].message);
         }
         REQUIRE(result.is_success());
         REQUIRE(result.data["user"]["id"] == "1");
@@ -109,7 +109,7 @@ TEST_CASE("GraphQL Operations and Fragments Execution", "[graphql][executor][ope
         )";
         auto result = executor.execute(query, "{}", admin_ctx);
         if (!result.is_success() && !result.errors.empty()) {
-            std::cout << "Nested fragment error: " << result.errors[0].message << std::endl;
+            std::println("Nested fragment error: {}", result.errors[0].message);
         }
         REQUIRE(result.is_success());
         REQUIRE(result.data["user"]["id"] == "1");
@@ -132,7 +132,7 @@ TEST_CASE("GraphQL Operations and Fragments Execution", "[graphql][executor][ope
         // Cyclic fragment spreads should be caught or gracefully ignored.
         // Our implementation ignores cyclic fragments by cycle detection.
         if (!result.is_success() && !result.errors.empty()) {
-            std::cout << "Cycle error: " << result.errors[0].message << std::endl;
+            std::println("Cycle error: {}", result.errors[0].message);
         }
         REQUIRE(result.is_success());
         REQUIRE(result.data["user"]["id"] == "1");
@@ -150,7 +150,7 @@ TEST_CASE("GraphQL Operations and Fragments Execution", "[graphql][executor][ope
         )";
         auto result = executor.execute(query, "{}", admin_ctx);
         if (!result.is_success() && !result.errors.empty()) {
-            std::cout << "Inline fragment error: " << result.errors[0].message << std::endl;
+            std::println("Inline fragment error: {}", result.errors[0].message);
         }
         REQUIRE(result.is_success());
         REQUIRE(result.data["user"]["email"] == "alice@example.com");

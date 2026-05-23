@@ -1,0 +1,23 @@
+/*
+ * Resizable split divider — contextual sizing and hover/drag states.
+ * These cannot be expressed as Tailwind utilities because they depend on
+ * parent-class context and dynamic :hover + .dragging combined states.
+ */
+
+.split-divider--vertical {
+  width: 5px;
+
+  &:hover,
+  &.dragging {
+    background-color: oklch(var(--p) / 0.5);
+  }
+}
+
+.split-divider--horizontal {
+  height: 5px;
+
+  &:hover,
+  &.dragging {
+    background-color: oklch(var(--p) / 0.5);
+  }
+}

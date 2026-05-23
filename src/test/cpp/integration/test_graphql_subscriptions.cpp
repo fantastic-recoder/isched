@@ -41,8 +41,11 @@ using namespace isched::v0_0_1::backend;
 
 static constexpr int k_http_port = 18088;
 static constexpr int k_ws_port   = 18089;
-static const std::string g_run_suffix = std::to_string(
-    std::chrono::system_clock::now().time_since_epoch().count());
+
+static std::string make_unique_suffix() {
+    return std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+           "-" + std::to_string(std::rand());
+}
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -52,9 +55,11 @@ public:
     std::unique_ptr<Server> server;
     std::unique_ptr<isched::test::GraphQLTestClient> auth_client;
     std::optional<isched::test::AuthPayload> auth;
+    std::string run_suffix;
 
     SubscriptionTestFixture() {
-        const std::string data_home = "/tmp/isched-test-subscriptions-" + g_run_suffix;
+        run_suffix = make_unique_suffix();
+        const std::string data_home = "/tmp/isched-test-subscriptions-" + run_suffix;
         (void)::setenv("XDG_DATA_HOME", data_home.c_str(), 1);
 
         Server::Configuration cfg;
@@ -77,7 +82,7 @@ public:
 
     const isched::test::AuthPayload& ensure_auth() {
         if (!auth.has_value()) {
-            const std::string email = "subscriptions-admin-" + g_run_suffix + "@example.com";
+            const std::string email = "subscriptions-admin-" + run_suffix + "@example.com";
             auth = auth_client->bootstrap_or_login_platform_admin(
                 email,
                 "SubscriptionsAdminPass!123",
@@ -193,6 +198,11 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     REQUIRE(hc["status"].get<std::string>() == "UP");
     REQUIRE(!hc["timestamp"].get<std::string>().empty());
 
+    c.send({{"type", "complete"}, {"id", "h-1"}});
+    auto complete = c.recv();
+    REQUIRE(complete["type"] == "complete");
+    REQUIRE(complete["id"] == "h-1");
+
     c.close();
 }
 
@@ -200,8 +210,7 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
                  "configurationActivated subscription delivers initial value",
                  "[subscriptions][T038]") {
     // Apply a snapshot first via HTTP
-    const std::string tenant_id = "sub-tenant-" + std::to_string(
-        std::chrono::system_clock::now().time_since_epoch().count());
+    const std::string tenant_id = "sub-tenant-" + run_suffix;
 
     const std::string sdl = "type Query { ping: String }";
     auto apply_result = post_graphql(
@@ -247,6 +256,11 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     REQUIRE(payload.contains("data"));
     const auto& data = payload["data"];
     REQUIRE(data.contains("configurationActivated"));
+
+    c.send({{"type", "complete"}, {"id", "ca-1"}});
+    auto complete = c.recv();
+    REQUIRE(complete["type"] == "complete");
+    REQUIRE(complete["id"] == "ca-1");
 
     c.close();
 }

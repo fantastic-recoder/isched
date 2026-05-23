@@ -17,8 +17,8 @@ import {
   standalone: true,
   imports: [CommonModule, RouterLink],
   templateUrl: './authenticated-shell.component.html',
-  styleUrl: './authenticated-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block min-h-screen' },
 })
 export class AuthenticatedShellComponent {
   private readonly auth = inject(AuthService);
@@ -60,6 +60,11 @@ export class AuthenticatedShellComponent {
     identity: this.identity(),
     authenticatedShellVisible: true,
   }));
+
+  /** Routes where the content area should fill edge-to-edge (no padding). */
+  readonly isFlushRoute = computed(() =>
+    this.normalizeUrl(this.currentUrl()).startsWith('/playground')
+  );
 
   signOut(): void {
     if (this.signingOut()) {

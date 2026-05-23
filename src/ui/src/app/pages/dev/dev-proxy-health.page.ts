@@ -6,7 +6,6 @@ import { CommonModule } from '@angular/common';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './dev-proxy-health.page.html',
-  styleUrl: './dev-proxy-health.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DevProxyHealthPage {}

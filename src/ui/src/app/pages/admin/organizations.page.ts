@@ -23,7 +23,6 @@ const EMPTY_PAGE_INFO: PageInfo = {
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './organizations.page.html',
-  styleUrl: './organizations.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OrganizationsPage {

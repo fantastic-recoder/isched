@@ -3,4 +3,43 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global application styles */
+/* ─── Shell chrome dimensions (CSS custom properties) ─────────────────────── */
+/* Defined here so all child components can reference them in calc() values.   */
+.shell {
+  --shell-navbar-h: 4rem;       /* DaisyUI navbar default height */
+  --shell-statusbar-h: 5.25rem; /* must match status-bar padding-bottom */
+}
+
+/* ─── Playground: fill viewport between navbar and status bar ──────────────── */
+app-playground {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--shell-navbar-h, 4rem) - var(--shell-statusbar-h, 5.25rem));
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ─── CodeMirror editor overrides (third-party, cannot use Tailwind) ───────── */
+.cm-editor {
+  height: 100%;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+}
+
+.cm-focused {
+  outline: none !important;
+}
+
+/* ─── Schema tree node interaction styles ─────────────────────────────────── */
+/* user-select and contextual focus-visible cannot be expressed as Tailwind     */
+/* utilities on individual template elements due to specificity requirements.   */
+.node-row {
+  user-select: none;
+}
+
+.node-row:focus-visible {
+  outline: 2px solid oklch(var(--p));
+  outline-offset: -2px;
+}
+
