@@ -15,7 +15,6 @@ const LARGE_PAYLOAD_THRESHOLD = 100_000; // characters
   standalone: true,
   imports: [CommonModule],
   templateUrl: './result-panel.html',
-  styleUrl: './result-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ResultPanelComponent {

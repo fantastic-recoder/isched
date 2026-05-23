@@ -8,7 +8,7 @@
         aria-label="Navigate to dashboard"
       >
         <img
-          class="shell__logo h-9 w-9 rounded-box object-cover"
+          class="h-9 w-9 rounded-box object-cover ring-1 ring-slate-900/5 shadow-sm"
           [src]="viewModel().logoAssetPath"
           alt="isched logo"
           data-testid="shell-logo"
@@ -24,7 +24,7 @@
         @for (item of navigationItems(); track trackNavigationItem($index, item)) {
           <a
             [routerLink]="item.route"
-            class="btn btn-sm btn-ghost shell__nav-link"
+            class="btn btn-sm btn-ghost transition-all duration-150 ease-in-out"
             [class.btn-active]="item.active"
             [attr.aria-current]="item.active ? 'page' : null"
             [attr.data-testid]="'shell-nav-' + item.id"

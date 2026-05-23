@@ -10,7 +10,6 @@ import { UserFacingAlert } from '../../services/auth-bootstrap.models';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './login.html',
-  styleUrl: './login.scss',
 })
 export class LoginComponent {
   private readonly fb     = inject(FormBuilder);

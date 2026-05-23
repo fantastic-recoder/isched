@@ -37,7 +37,6 @@ import { generateStub } from './query-stub-generator';
     ResultPanelComponent,
   ],
   templateUrl: './playground.html',
-  styleUrl: './playground.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PlaygroundPage implements OnInit {

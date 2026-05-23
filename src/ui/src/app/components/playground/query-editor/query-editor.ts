@@ -26,7 +26,6 @@ import { graphql } from 'cm6-graphql';
   standalone: true,
   imports: [],
   templateUrl: './query-editor.html',
-  styleUrl: './query-editor.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col h-full min-h-0' },
 })

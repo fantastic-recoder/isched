@@ -8,7 +8,6 @@ import { RbacService, RoleRecord } from '../../services/rbac.service';
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './rbac.page.html',
-  styleUrl: './rbac.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RbacPage {

@@ -21,7 +21,6 @@ import { SchemaTreeNode } from '../../../services/playground-introspection.model
   standalone: true,
   imports: [CommonModule],
   templateUrl: './schema-tree.html',
-  styleUrl: './schema-tree.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'flex flex-col h-full min-h-0' },
 })

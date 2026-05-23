@@ -25,7 +25,6 @@ const EMPTY_PAGE_INFO: PageInfo = {
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './users.page.html',
-  styleUrl: './users.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UsersPage {

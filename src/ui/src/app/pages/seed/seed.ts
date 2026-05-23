@@ -15,7 +15,6 @@ function passwordsMatch(ctrl: AbstractControl): ValidationErrors | null {
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './seed.html',
-  styleUrl: './seed.scss',
 })
 export class SeedComponent {
   private readonly fb    = inject(FormBuilder);

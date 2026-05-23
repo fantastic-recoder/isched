@@ -17,7 +17,6 @@ import {
   standalone: true,
   imports: [CommonModule, RouterLink],
   templateUrl: './authenticated-shell.component.html',
-  styleUrl: './authenticated-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-h-screen' },
 })

@@ -17,7 +17,6 @@ import { SessionBootstrapStateService } from '../../services/session-bootstrap-s
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './bootstrap.page.html',
-  styleUrl: './bootstrap.page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BootstrapPage implements OnInit {
