@@ -1,4 +1,4 @@
-<div class="result-container h-full flex flex-col overflow-hidden">
+<div class="h-full flex flex-col overflow-hidden min-h-0">
 
   @if (!result) {
     <div class="flex items-center justify-center h-full text-base-content/40 text-sm" data-testid="result-idle">
@@ -35,7 +35,7 @@
         </div>
       }
       <pre
-        class="result-pre flex-1 overflow-auto p-3 text-xs font-mono bg-base-200 rounded m-2"
+        class="flex-1 overflow-auto p-3 text-xs font-mono bg-base-200 rounded m-2 whitespace-pre-wrap break-words min-h-0"
         data-testid="result-json"
         aria-label="Query result JSON"
       >{{ displayJson }}</pre>

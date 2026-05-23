@@ -4,6 +4,15 @@
     <span class="font-semibold text-sm">GraphQL Playground</span>
     <div class="flex-1"></div>
     <button
+      class="btn btn-outline btn-sm"
+      [disabled]="!canGenerate()"
+      (click)="generateQueryFromToolbar()"
+      aria-label="Generate default query from selected field"
+      data-testid="generate-query-btn"
+    >
+      Generate Query
+    </button>
+    <button
       class="btn btn-primary btn-sm"
       [disabled]="isRunning()"
       (click)="runQuery()"
@@ -18,7 +27,7 @@
   </div>
 
   <!-- Main split: left tree | right workspace -->
-  <div class="flex-1 min-h-0">
+  <div class="flex-1 min-h-0 bg-white">
     <app-resizable-split
       direction="vertical"
       [initialSizePct]="layout.layout().leftWidthPct"

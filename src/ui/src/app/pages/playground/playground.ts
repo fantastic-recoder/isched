@@ -55,6 +55,8 @@ export class PlaygroundPage implements OnInit {
   readonly queryResult = signal<PlaygroundQueryResult | null>(null);
   readonly isRunning = signal(false);
   readonly editorContent = signal('');
+  readonly canGenerate = signal(false);
+  private selectedTreeNode: SchemaTreeNode | null = null;
 
   ngOnInit(): void {
     this.introspection.load();
@@ -64,8 +66,9 @@ export class PlaygroundPage implements OnInit {
     this.editorContent.set(content);
   }
 
-  onNodeSelected(_node: SchemaTreeNode | null): void {
-    // Reserved for future extension
+  onNodeSelected(node: SchemaTreeNode | null): void {
+    this.selectedTreeNode = node;
+    this.canGenerate.set(node !== null);
   }
 
   onGenerateQuery(node: SchemaTreeNode): void {
@@ -74,6 +77,12 @@ export class PlaygroundPage implements OnInit {
       this.editorRef.initialContent = stub;
     }
     this.editorContent.set(stub);
+  }
+
+  generateQueryFromToolbar(): void {
+    if (this.selectedTreeNode) {
+      this.onGenerateQuery(this.selectedTreeNode);
+    }
   }
 
   onLeftResize(pct: number): void {

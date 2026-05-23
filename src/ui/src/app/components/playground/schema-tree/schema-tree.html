@@ -1,4 +1,4 @@
-<div class="schema-tree-container flex flex-col h-full">
+<div class="flex flex-col h-full min-h-0">
 
   @if (loading) {
     <div class="flex flex-col gap-2 p-4" aria-label="Loading schema">
@@ -17,22 +17,10 @@
   }
 
   @if (!loading && !error) {
-    <div class="tree-scroll flex-1 overflow-y-auto p-1" role="tree" aria-label="Schema tree">
+    <div class="flex-1 overflow-y-auto min-h-0 p-1" role="tree" aria-label="Schema tree">
       <ng-container *ngTemplateOutlet="nodeList; context: { nodes: nodes, depth: 0 }" />
     </div>
   }
-
-  <div class="generate-btn-area border-t border-base-300 p-2">
-    <button
-      class="btn btn-primary btn-sm w-full"
-      [disabled]="!selectedNode"
-      (click)="onGenerateQuery()"
-      aria-label="Generate default query from selected field"
-      data-testid="generate-query-btn"
-    >
-      Generate Query
-    </button>
-  </div>
 
 </div>
 

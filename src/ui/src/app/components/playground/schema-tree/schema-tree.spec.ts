@@ -63,41 +63,50 @@ describe('SchemaTreeComponent', () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Introspection failed');
   });
 
-  it('renders operation group labels', () => {
-    component.nodes = [
-      groupNode('Queries', [queryField('health'), queryField('version')]),
-    ];
+  it('renders operation group labels (expand to see children)', () => {
+    const group = groupNode('Queries', [queryField('health'), queryField('version')]);
+    component.nodes = [group];
     fixture.detectChanges();
 
     const host = fixture.nativeElement as HTMLElement;
+    // Group header is always visible
     expect(host.textContent).toContain('Queries');
+
+    // Children are collapsed by default; expand first
+    component.toggleCollapse(group);
+    fixture.detectChanges();
+
     expect(host.textContent).toContain('health');
     expect(host.textContent).toContain('version');
   });
 
-  it('Generate Query button is disabled when nothing is selected', () => {
+  // Note: the "Generate Query" button was moved to the playground toolbar (SP-011).
+  // SchemaTreeComponent now signals selection state via the nodeSelected output;
+  // the parent PlaygroundPage uses that to drive canGenerate() for the toolbar button.
+
+  it('does NOT emit nodeSelected when no node is interacted with', () => {
+    const selected: SchemaTreeNode[] = [];
+    component.nodeSelected.subscribe((n) => { if (n) selected.push(n); });
+
     component.nodes = [groupNode('Queries', [queryField('health')])];
     fixture.detectChanges();
 
-    const btn = fixture.nativeElement.querySelector('[data-testid="generate-query-btn"]') as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
+    // No click — nothing should have been emitted
+    expect(selected.length).toBe(0);
   });
 
-  it('Generate Query button is enabled after selecting a selectable node', () => {
-    component.nodes = [groupNode('Queries', [queryField('health')])];
-    fixture.detectChanges();
+  it('emits nodeSelected with the node after a selectable node is activated', () => {
+    const selected: SchemaTreeNode[] = [];
+    component.nodeSelected.subscribe((n) => { if (n) selected.push(n); });
 
     const field = queryField('health');
-    component.selectNode(field);
-    component.selectedNodeId.set(field.id);
-    fixture.detectChanges();
-
-    // Force override nodes so findNode can find it
     component.nodes = [groupNode('Queries', [field])];
     fixture.detectChanges();
 
-    const btn = fixture.nativeElement.querySelector('[data-testid="generate-query-btn"]') as HTMLButtonElement;
-    expect(btn.disabled).toBe(false);
+    component.selectNode(field);
+
+    expect(selected.length).toBe(1);
+    expect(selected[0].name).toBe('health');
   });
 
   it('emits nodeSelected when a selectable node is clicked', () => {
@@ -136,15 +145,16 @@ describe('SchemaTreeComponent', () => {
     expect(generated[0].name).toBe('health');
   });
 
-  it('toggles node collapse state', () => {
+  it('toggles node collapse state (starts collapsed by default)', () => {
     const group = groupNode('Queries', [queryField('health')]);
-    expect(component.isCollapsed(group)).toBe(false);
-
-    component.toggleCollapse(group);
+    // Nodes are collapsed by default
     expect(component.isCollapsed(group)).toBe(true);
 
     component.toggleCollapse(group);
     expect(component.isCollapsed(group)).toBe(false);
+
+    component.toggleCollapse(group);
+    expect(component.isCollapsed(group)).toBe(true);
   });
 });
 

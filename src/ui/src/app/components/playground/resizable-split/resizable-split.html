@@ -1,17 +1,19 @@
 <div
   #container
-  class="split-container"
-  [class.split-vertical]="direction === 'vertical'"
-  [class.split-horizontal]="direction === 'horizontal'"
+  class="flex w-full h-full min-w-0 min-h-0 overflow-hidden"
+  [class.flex-row]="direction === 'vertical'"
+  [class.flex-col]="direction === 'horizontal'"
 >
-  <div class="split-panel" [attr.style]="firstStyle">
+  <div class="split-panel overflow-hidden shrink-0 min-w-0 min-h-0" [attr.style]="firstStyle">
     <ng-content select="[slot=first]" />
   </div>
 
   <div
-    class="split-divider"
-    [style.cursor]="dividerCursor"
+    class="split-divider shrink-0 self-stretch bg-base-300 transition-colors duration-150 z-10"
+    [class.split-divider--vertical]="direction === 'vertical'"
+    [class.split-divider--horizontal]="direction === 'horizontal'"
     [class.dragging]="_dragging()"
+    [style.cursor]="dividerCursor"
     (mousedown)="onDividerMouseDown($event)"
     role="separator"
     [attr.aria-orientation]="direction === 'vertical' ? 'vertical' : 'horizontal'"
@@ -19,7 +21,7 @@
     aria-label="Resize panels"
   ></div>
 
-  <div class="split-panel" [attr.style]="secondStyle">
+  <div class="split-panel overflow-hidden shrink-0 min-w-0 min-h-0" [attr.style]="secondStyle">
     <ng-content select="[slot=second]" />
   </div>
 </div>

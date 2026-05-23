@@ -28,6 +28,7 @@ import { graphql } from 'cm6-graphql';
   templateUrl: './query-editor.html',
   styleUrl: './query-editor.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'flex flex-col h-full min-h-0' },
 })
 export class QueryEditorComponent implements AfterViewInit, OnChanges, OnDestroy {
   /** Set this to programmatically replace the editor content */

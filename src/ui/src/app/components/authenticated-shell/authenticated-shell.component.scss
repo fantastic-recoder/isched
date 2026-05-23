@@ -1,25 +1,9 @@
-:host {
-  display: block;
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-.shell {
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-.shell__content {
-  min-height: 0;
-  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom));
-}
-
-.shell__status-bar {
-  position: fixed;
-  right: 0;
-  bottom: 0;
-  left: 0;
-}
+/*
+ * Shell chrome that cannot be expressed as Tailwind utilities:
+ * - CSS custom property inheritance via .shell (defined in styles.scss)
+ * - Logo inset shadow
+ * - Nav link transitions
+ */
 
 .shell__logo {
   box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08);

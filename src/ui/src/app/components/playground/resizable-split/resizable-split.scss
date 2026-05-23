@@ -1,52 +1,23 @@
-.split-container {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
+/*
+ * Resizable split divider — contextual sizing and hover/drag states.
+ * These cannot be expressed as Tailwind utilities because they depend on
+ * parent-class context and dynamic :hover + .dragging combined states.
+ */
 
-.split-vertical {
-  flex-direction: row;
-}
+.split-divider--vertical {
+  width: 5px;
 
-.split-horizontal {
-  flex-direction: column;
-}
-
-.split-panel {
-  overflow: hidden;
-  flex-shrink: 0;
-  min-width: 0;
-  min-height: 0;
-}
-
-.split-divider {
-  flex-shrink: 0;
-  align-self: stretch;
-  background-color: oklch(var(--b3));
-  transition: background-color 0.15s;
-  z-index: 10;
-
-  .split-vertical & {
-    width: 5px;
-    cursor: col-resize;
-
-    &:hover,
-    &.dragging {
-      background-color: oklch(var(--p) / 0.5);
-    }
-  }
-
-  .split-horizontal & {
-    height: 5px;
-    cursor: row-resize;
-
-    &:hover,
-    &.dragging {
-      background-color: oklch(var(--p) / 0.5);
-    }
+  &:hover,
+  &.dragging {
+    background-color: oklch(var(--p) / 0.5);
   }
 }
 
+.split-divider--horizontal {
+  height: 5px;
+
+  &:hover,
+  &.dragging {
+    background-color: oklch(var(--p) / 0.5);
+  }
+}

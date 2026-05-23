@@ -12,7 +12,8 @@ import { AuthenticatedShellComponent } from './components/authenticated-shell/au
   selector: 'app-root',
   imports: [CommonModule, RouterOutlet, AuthenticatedShellComponent],
   templateUrl: './app.html',
-  styleUrl: './app.scss'
+  styleUrl: './app.scss',
+  host: { class: 'block min-h-screen' },
 })
 export class App {
   private readonly auth = inject(AuthService);

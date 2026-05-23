@@ -23,6 +23,7 @@ import { SchemaTreeNode } from '../../../services/playground-introspection.model
   templateUrl: './schema-tree.html',
   styleUrl: './schema-tree.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'flex flex-col h-full min-h-0' },
 })
 export class SchemaTreeComponent implements OnChanges {
   @Input() nodes: SchemaTreeNode[] = [];
@@ -33,11 +34,13 @@ export class SchemaTreeComponent implements OnChanges {
   @Output() generateQuery = new EventEmitter<SchemaTreeNode>();
 
   readonly selectedNodeId = signal<string | null>(null);
-  readonly collapsedIds = signal<Set<string>>(new Set());
+  // Tracks explicitly expanded nodes — nodes are collapsed by default
+  readonly expandedIds = signal<Set<string>>(new Set());
 
   ngOnChanges(): void {
-    // Reset selection when tree data changes
+    // Reset selection and expansion state when tree data changes
     this.selectedNodeId.set(null);
+    this.expandedIds.set(new Set());
   }
 
   selectNode(node: SchemaTreeNode): void {
@@ -53,7 +56,7 @@ export class SchemaTreeComponent implements OnChanges {
   }
 
   toggleCollapse(node: SchemaTreeNode): void {
-    this.collapsedIds.update((prev) => {
+    this.expandedIds.update((prev) => {
       const next = new Set(prev);
       if (next.has(node.id)) {
         next.delete(node.id);
@@ -65,7 +68,8 @@ export class SchemaTreeComponent implements OnChanges {
   }
 
   isCollapsed(node: SchemaTreeNode): boolean {
-    return this.collapsedIds().has(node.id);
+    // Nodes are collapsed by default; only expanded if explicitly opened
+    return !this.expandedIds().has(node.id);
   }
 
   isSelected(node: SchemaTreeNode): boolean {
