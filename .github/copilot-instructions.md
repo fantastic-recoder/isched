@@ -1,6 +1,6 @@
 # isched Development Guidelines
 
-Updated: 2026-04-05
+Updated: 2026-05-24
 
 ## Active Technologies
 
@@ -125,7 +125,7 @@ This pattern allows you to:
 - Monitoring: Added `tee` pattern for real-time script output monitoring while preserving logs
 - 004-add-isched-webui: Added Tailwind CSS 3.x + DaisyUI 4.x with `corporate` theme
 - 004-add-isched-webui: Enforced separate template/style files convention (`templateUrl`/`styleUrl`)
-- 011-graphql-playground: Spec created — resizable 3-panel GraphQL Playground (schema tree, query editor, result panel) at `/playground`
+- 011-graphql-playground: Implemented and merged — resizable 3-panel GraphQL Playground at `/playground`: schema/type tree (introspection), CodeMirror 6 query editor, JSON result panel; split sizes persisted in localStorage; subscription advisory detection; archived under `specs/archive/011-graphql-playground/`
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->

@@ -1,3 +1,30 @@
+## [Feature 011] GraphQL Playground — 2026-05-24
+
+### Added
+- Interactive GraphQL Playground at `/playground` (requires authentication), accessible from the main nav bar.
+- Resizable 3-panel layout: schema/type tree (left), query editor (top-right), result panel (bottom-right) — all split sizes persisted in `localStorage`.
+- **Schema tree**: full GraphQL introspection graph rendered as a collapsible type/field tree (`PlaygroundIntrospectionService`); uploaded tenant schemas merged into the main tree.
+- **Query editor**: CodeMirror 6 with GraphQL syntax highlighting, bracket matching, and history; pre-populated with default query stubs when a field is selected (`QueryStubGenerator` helper).
+- **Result panel**: formatted JSON output with error/data differentiation; subscription operations show an advisory message (generate-only in v1, no execution).
+- `ResizableSplitComponent` — reusable drag-divider with horizontal and vertical split modes; emits `sizeChange` events and restores sizes from `localStorage` on init.
+- `PlaygroundQueryService` — executes raw GraphQL over HTTP POST (`/graphql`); detects subscription operations and surfaces advisory.
+- `PlaygroundLayoutService` — persists/restores all panel size preferences per session key.
+- 6 Playwright e2e tests covering navigation, panel resize, stub generation, query execution, and subscription advisory.
+- 30+ Angular unit tests across all playground services and components.
+
+### Changed
+- `AppRoutingModule` — added `/playground` lazy route guarded by `AuthGuard`.
+- `NavBarComponent` — added Playground link in authenticated navigation.
+
+### Validation
+- Backend full gate: `ctest --output-on-failure` → PASS (52/52).
+- Frontend unit gate: `pnpm test` → PASS (183/183).
+- Playwright gate: `pnpm e2e` → PASS (6/6 playground specs).
+- Fixed previously flaky `test_graphql_subscriptions` C++ integration test (WebSocket teardown race condition).
+
+### Status
+- Feature `011-graphql-playground` is merged to `master`; implementation artifacts are archived under `specs/archive/011-graphql-playground/`.
+
 ## [Feature 006] Tenant Admin Schema Upload / List / Fetch — 2026-04-06
 
 ### Added

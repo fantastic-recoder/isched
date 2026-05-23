@@ -1,7 +1,7 @@
 ---
 spec_id: SP-011
 title: GraphQL Playground
-status: active
+status: completed
 owner: isched Development Team
 ---
 
