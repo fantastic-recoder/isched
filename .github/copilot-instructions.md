@@ -125,6 +125,7 @@ This pattern allows you to:
 - Monitoring: Added `tee` pattern for real-time script output monitoring while preserving logs
 - 004-add-isched-webui: Added Tailwind CSS 3.x + DaisyUI 4.x with `corporate` theme
 - 004-add-isched-webui: Enforced separate template/style files convention (`templateUrl`/`styleUrl`)
+- 011-graphql-playground: Spec created — resizable 3-panel GraphQL Playground (schema tree, query editor, result panel) at `/playground`
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
