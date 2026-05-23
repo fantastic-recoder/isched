@@ -43,6 +43,7 @@ export const PRIMARY_NAVIGATION: readonly NavigationItem[] = [
   { id: 'organizations', label: 'Organizations', route: '/admin/organizations', visible: true },
   { id: 'users', label: 'Users', route: '/admin/users', visible: true },
   { id: 'rbac', label: 'RBAC', route: '/admin/rbac', visible: true },
+  { id: 'playground', label: 'Playground', route: '/playground', visible: true },
 ] as const;
 
 export function createInitialOperationDigest(): OperationDigest {

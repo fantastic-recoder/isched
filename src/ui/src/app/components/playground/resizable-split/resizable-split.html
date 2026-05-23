@@ -1,0 +1,26 @@
+<div
+  #container
+  class="split-container"
+  [class.split-vertical]="direction === 'vertical'"
+  [class.split-horizontal]="direction === 'horizontal'"
+>
+  <div class="split-panel" [attr.style]="firstStyle">
+    <ng-content select="[slot=first]" />
+  </div>
+
+  <div
+    class="split-divider"
+    [style.cursor]="dividerCursor"
+    [class.dragging]="_dragging()"
+    (mousedown)="onDividerMouseDown($event)"
+    role="separator"
+    [attr.aria-orientation]="direction === 'vertical' ? 'vertical' : 'horizontal'"
+    [attr.aria-valuenow]="_firstSizePct()"
+    aria-label="Resize panels"
+  ></div>
+
+  <div class="split-panel" [attr.style]="secondStyle">
+    <ng-content select="[slot=second]" />
+  </div>
+</div>
+

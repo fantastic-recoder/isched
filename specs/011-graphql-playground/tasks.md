@@ -19,6 +19,22 @@ T-06 → T-07 → T-08 → T-09 → T-10
 - T-06 through T-09 cover components (require services from T-03/T-04).
 - T-10 wires everything together and is the final integration + hardening pass.
 
+## Task Status
+
+- [X] T-01 — Add `/playground` route with auth guard
+- [X] T-02 — Install CodeMirror 6 and GraphQL language support packages (using `cm6-graphql` and `@codemirror/basic-setup`)
+- [X] T-03 — Implement `PlaygroundIntrospectionService`
+- [X] T-04 — Implement `PlaygroundQueryService`
+- [X] T-05 — Implement `PlaygroundLayoutService`
+- [X] T-06 — Implement `ResizableSplitComponent`
+- [X] T-07 — Implement `SchemaTreeComponent`
+- [X] T-08 — Implement `QueryEditorComponent`
+- [X] T-09 — Implement `ResultPanelComponent`
+- [X] T-10 — Assemble `PlaygroundPage` and `QueryStubGenerator`
+- [X] T-11 — Complete Angular unit test coverage
+- [X] T-12 — Playwright e2e tests for playground
+- [X] T-13 — Accessibility, performance, and final cleanup
+
 ---
 
 ## Phase 1 — Route & Shell Integration

@@ -98,11 +98,11 @@ export class App {
   }
 
   private isProtectedStartupUrl(url: string): boolean {
-    return url.startsWith('/dashboard') || url.startsWith('/admin/');
+    return url.startsWith('/dashboard') || url.startsWith('/admin/') || url.startsWith('/playground');
   }
 
   private isAuthenticatedRoute(url: string): boolean {
-    return url.includes('/dashboard') || url.includes('/admin/');
+    return url.includes('/dashboard') || url.includes('/admin/') || url.includes('/playground');
   }
 
   private navigateIfNeeded(targetUrl: string) {

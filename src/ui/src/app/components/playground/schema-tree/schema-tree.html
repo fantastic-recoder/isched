@@ -1,0 +1,99 @@
+<div class="schema-tree-container flex flex-col h-full">
+
+  @if (loading) {
+    <div class="flex flex-col gap-2 p-4" aria-label="Loading schema">
+      <div class="skeleton h-4 w-3/4"></div>
+      <div class="skeleton h-4 w-2/3"></div>
+      <div class="skeleton h-4 w-1/2"></div>
+      <div class="skeleton h-4 w-3/4"></div>
+      <div class="skeleton h-4 w-2/3"></div>
+    </div>
+  }
+
+  @if (!loading && error) {
+    <div class="alert alert-error m-2 text-sm" role="alert">
+      <span>{{ error }}</span>
+    </div>
+  }
+
+  @if (!loading && !error) {
+    <div class="tree-scroll flex-1 overflow-y-auto p-1" role="tree" aria-label="Schema tree">
+      <ng-container *ngTemplateOutlet="nodeList; context: { nodes: nodes, depth: 0 }" />
+    </div>
+  }
+
+  <div class="generate-btn-area border-t border-base-300 p-2">
+    <button
+      class="btn btn-primary btn-sm w-full"
+      [disabled]="!selectedNode"
+      (click)="onGenerateQuery()"
+      aria-label="Generate default query from selected field"
+      data-testid="generate-query-btn"
+    >
+      Generate Query
+    </button>
+  </div>
+
+</div>
+
+<ng-template #nodeList let-nodes="nodes" let-depth="depth">
+  @for (node of nodes; track trackById($index, node)) {
+    <div
+      class="tree-node"
+      [style.padding-left.px]="depth * 14 + 4"
+      [class.selected]="isSelected(node)"
+      [class.selectable]="node.isSelectable"
+      [attr.role]="node.children.length > 0 ? 'treeitem' : 'option'"
+      [attr.aria-expanded]="node.children.length > 0 ? !isCollapsed(node) : null"
+      [attr.aria-selected]="isSelected(node)"
+      [attr.tabindex]="node.isSelectable ? '0' : '-1'"
+      (click)="node.isSelectable ? onNodeActivate(node, $event) : null"
+      (keydown.enter)="node.isSelectable ? onNodeActivate(node, $event) : null"
+      (keydown.space)="node.isSelectable ? onNodeActivate(node, $event) : null"
+    >
+      <div
+        class="node-row flex w-full items-center gap-1 rounded px-1 py-0.5 cursor-pointer text-sm"
+        [class.bg-primary]="isSelected(node)"
+        [class.text-primary-content]="isSelected(node)"
+        [class.hover:bg-base-200]="!isSelected(node)"
+      >
+        @if (node.children.length > 0) {
+          <button
+            class="btn btn-ghost btn-xs p-0 min-h-0 h-4 w-4"
+            (click)="$event.stopPropagation(); toggleCollapse(node)"
+            [attr.aria-label]="isCollapsed(node) ? 'Expand ' + node.name : 'Collapse ' + node.name"
+          >
+            @if (isCollapsed(node)) {
+              <span>▶</span>
+            } @else {
+              <span>▼</span>
+            }
+          </button>
+        } @else {
+          <span class="w-4 inline-block"></span>
+        }
+
+        <span class="node-icon text-xs opacity-60">
+          @if (node.kind === 'field' && node.operationKind === 'query') { ⬡ }
+          @else if (node.kind === 'field' && node.operationKind === 'mutation') { ✎ }
+          @else if (node.kind === 'field' && node.operationKind === 'subscription') { ⚡ }
+          @else if (node.kind === 'schemaDocument') { 📄 }
+          @else if (node.kind === 'enumType') { ⊞ }
+          @else if (node.kind === 'directive') { &#64; }
+          @else { ○ }
+        </span>
+
+        <span class="node-name font-medium truncate">{{ node.name }}</span>
+
+        @if (node.typeName) {
+          <span class="node-type ml-auto text-xs opacity-50 shrink-0">{{ node.typeName }}</span>
+        }
+      </div>
+
+      @if (node.children.length > 0 && !isCollapsed(node)) {
+        <ng-container *ngTemplateOutlet="nodeList; context: { nodes: node.children, depth: depth + 1 }" />
+      }
+    </div>
+  }
+</ng-template>
+

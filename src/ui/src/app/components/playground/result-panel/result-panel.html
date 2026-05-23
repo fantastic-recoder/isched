@@ -1,0 +1,48 @@
+<div class="result-container h-full flex flex-col overflow-hidden">
+
+  @if (!result) {
+    <div class="flex items-center justify-center h-full text-base-content/40 text-sm" data-testid="result-idle">
+      Run a query to see results
+    </div>
+  }
+
+  @if (result?.loading) {
+    <div class="flex items-center justify-center h-full" data-testid="result-loading" aria-label="Loading results">
+      <span class="loading loading-spinner loading-md text-primary"></span>
+    </div>
+  }
+
+  @if (!result?.loading && result?.isSubscriptionAdvisory) {
+    <div class="alert alert-info m-2 text-sm" role="status" data-testid="result-subscription-advisory">
+      <span>⚡ Subscriptions are not yet supported in the playground. The query stub has been generated — copy it for use in a WebSocket client.</span>
+    </div>
+  }
+
+  @if (!result?.loading && !result?.isSubscriptionAdvisory && (result?.errors?.length ?? 0) > 0) {
+    <div class="alert alert-error m-2 text-sm" role="alert" data-testid="result-errors">
+      @for (err of result!.errors!; track $index) {
+        <div>{{ err }}</div>
+      }
+    </div>
+  }
+
+  @if (!result?.loading && !result?.isSubscriptionAdvisory && result?.data !== undefined && result?.data !== null) {
+    <div class="flex flex-col h-full overflow-hidden" data-testid="result-data">
+      @if (isLargePayload && !_expanded()) {
+        <div class="flex items-center justify-between px-2 py-1 bg-base-200 text-xs text-base-content/60 border-b border-base-300">
+          <span>Large response — truncated for display</span>
+          <button class="btn btn-ghost btn-xs" (click)="expandAll()" data-testid="result-expand-btn">Expand All</button>
+        </div>
+      }
+      <pre
+        class="result-pre flex-1 overflow-auto p-3 text-xs font-mono bg-base-200 rounded m-2"
+        data-testid="result-json"
+        aria-label="Query result JSON"
+      >{{ displayJson }}</pre>
+    </div>
+  }
+
+</div>
+
+
+

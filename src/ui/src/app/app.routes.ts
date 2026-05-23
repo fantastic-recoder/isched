@@ -126,6 +126,12 @@ export const routes: Routes = [
       import('./pages/admin/rbac.page').then((m) => m.RbacPage),
   },
   {
+    path: 'playground',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./pages/playground/playground').then((m) => m.PlaygroundPage),
+  },
+  {
     path: 'dev/proxy',
     loadComponent: () =>
       import('./pages/dev/dev-proxy-health.page').then((m) => m.DevProxyHealthPage),

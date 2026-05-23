@@ -1,0 +1,70 @@
+<div class="playground-page flex flex-col h-full overflow-hidden" data-testid="playground-page">
+  <!-- Toolbar -->
+  <div class="playground-toolbar flex items-center gap-2 px-3 py-2 border-b border-base-300 bg-base-200 shrink-0">
+    <span class="font-semibold text-sm">GraphQL Playground</span>
+    <div class="flex-1"></div>
+    <button
+      class="btn btn-primary btn-sm"
+      [disabled]="isRunning()"
+      (click)="runQuery()"
+      aria-label="Run GraphQL query"
+      data-testid="run-query-btn"
+    >
+      @if (isRunning()) {
+        <span class="loading loading-spinner loading-xs"></span>
+      }
+      Run
+    </button>
+  </div>
+
+  <!-- Main split: left tree | right workspace -->
+  <div class="flex-1 min-h-0">
+    <app-resizable-split
+      direction="vertical"
+      [initialSizePct]="layout.layout().leftWidthPct"
+      (sizeChange)="onLeftResize($event)"
+      class="h-full"
+    >
+      <!-- Left panel: schema tree -->
+      <div slot="first" class="h-full flex flex-col overflow-hidden border-r border-base-300">
+        <app-schema-tree
+          [nodes]="treeNodes()"
+          [loading]="treeLoading()"
+          [error]="treeError()"
+          (nodeSelected)="onNodeSelected($event)"
+          (generateQuery)="onGenerateQuery($event)"
+          class="flex-1 min-h-0"
+        />
+      </div>
+
+      <!-- Right panel: editor + result -->
+      <div slot="second" class="h-full flex flex-col overflow-hidden">
+        <app-resizable-split
+          direction="horizontal"
+          [initialSizePct]="layout.layout().topHeightPct"
+          (sizeChange)="onTopResize($event)"
+          class="h-full"
+        >
+          <!-- Top-right: query editor -->
+          <div slot="first" class="h-full flex flex-col overflow-hidden p-1">
+            <app-query-editor
+              #editor
+              [initialContent]="editorContent()"
+              (contentChange)="onEditorContentChange($event)"
+              class="flex-1 min-h-0"
+            />
+          </div>
+
+          <!-- Bottom-right: result panel -->
+          <div slot="second" class="h-full flex flex-col overflow-hidden border-t border-base-300">
+            <app-result-panel
+              [result]="queryResult()"
+              class="flex-1 min-h-0"
+            />
+          </div>
+        </app-resizable-split>
+      </div>
+    </app-resizable-split>
+  </div>
+</div>
+

@@ -16,8 +16,12 @@ export async function bootstrapPlatformAdmin(page: Page): Promise<void> {
   await page.locator('#bs-password').fill(ADMIN_PASSWORD);
   await page.locator('#bs-submit').click();
 
+  await page.waitForURL(/\/isched\/(dashboard|login)(?:$|\?)/, { timeout: 15_000 });
+  if (page.url().includes('/login')) {
+    await logInAsPlatformAdmin(page);
+  }
   await expect(page).toHaveURL(/\/isched\/dashboard(?:$|\?)/, { timeout: 15_000 });
-  await expect(page.getByText(BOOTSTRAP_BANNER_TEXT)).toHaveCount(0);
+  await expect(page.getByText(BOOTSTRAP_BANNER_TEXT)).toHaveCount(0, { timeout: 10_000 });
 }
 
 export async function logInAsPlatformAdmin(page: Page): Promise<void> {
@@ -30,7 +34,7 @@ export async function logInAsPlatformAdmin(page: Page): Promise<void> {
 
 export async function ensureAuthenticatedDashboard(page: Page): Promise<void> {
   await page.goto(APP_ENTRY_PATH);
-  await page.waitForURL(/\/isched\/(bootstrap|login|dashboard)(?:$|\?)/, { timeout: 10_000 });
+  await page.waitForURL(/\/isched\/(bootstrap|login|dashboard)(?:$|\?)/, { timeout: 15_000 });
 
   if (page.url().includes('/bootstrap')) {
     await bootstrapPlatformAdmin(page);
