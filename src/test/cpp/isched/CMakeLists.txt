@@ -8,12 +8,48 @@ add_executable(isched_graphql_tests isched_graphql_tests.cpp)
 target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
-add_executable(isched_gql_executor_tests
-        isched_gql_executor_tests.cpp
+add_executable(isched_gql_executor_smoke_tests
+        isched_gql_executor_smoke_tests.cpp
         isched_gql_executor_field_nodes_tests.cpp
         isched_test_run_listener.cpp)
-target_link_libraries(isched_gql_executor_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
-add_test(NAME isched_gql_executor_tests COMMAND isched_gql_executor_tests)
+target_link_libraries(isched_gql_executor_smoke_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_smoke_tests COMMAND isched_gql_executor_smoke_tests)
+
+add_executable(isched_gql_executor_introspection_tests
+        isched_gql_executor_introspection_tests.cpp
+        isched_test_run_listener.cpp)
+target_link_libraries(isched_gql_executor_introspection_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
+add_test(NAME isched_gql_executor_introspection_tests COMMAND isched_gql_executor_introspection_tests)
+
+add_executable(isched_gql_executor_coverage_tests
+        isched_gql_executor_coverage_tests.cpp
+        isched_test_run_listener.cpp)
+target_link_libraries(isched_gql_executor_coverage_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_coverage_tests COMMAND isched_gql_executor_coverage_tests)
+
+add_executable(isched_gql_executor_info_resolvers_tests isched_gql_executor_info_resolvers_tests.cpp)
+target_link_libraries(isched_gql_executor_info_resolvers_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_info_resolvers_tests COMMAND isched_gql_executor_info_resolvers_tests)
+
+add_executable(isched_gql_executor_config_resolvers_tests isched_gql_executor_config_resolvers_tests.cpp)
+target_link_libraries(isched_gql_executor_config_resolvers_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_config_resolvers_tests COMMAND isched_gql_executor_config_resolvers_tests)
+
+add_executable(isched_gql_executor_orgs_resolvers_tests isched_gql_executor_orgs_resolvers_tests.cpp)
+target_link_libraries(isched_gql_executor_orgs_resolvers_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_orgs_resolvers_tests COMMAND isched_gql_executor_orgs_resolvers_tests)
+
+add_executable(isched_gql_executor_users_resolvers_tests isched_gql_executor_users_resolvers_tests.cpp)
+target_link_libraries(isched_gql_executor_users_resolvers_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_users_resolvers_tests COMMAND isched_gql_executor_users_resolvers_tests)
+
+add_executable(isched_gql_executor_auth_resolvers_tests isched_gql_executor_auth_resolvers_tests.cpp)
+target_link_libraries(isched_gql_executor_auth_resolvers_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_auth_resolvers_tests COMMAND isched_gql_executor_auth_resolvers_tests)
+
+add_executable(isched_gql_executor_error_branches_tests isched_gql_executor_error_branches_tests.cpp)
+target_link_libraries(isched_gql_executor_error_branches_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl sago::platform_folders)
+add_test(NAME isched_gql_executor_error_branches_tests COMMAND isched_gql_executor_error_branches_tests)
 
 # Add the directory to include paths
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -266,7 +302,15 @@ target_link_libraries(benchmark_profile PRIVATE isched Catch2::Catch2WithMain
 set(_isched_fast_unit_tests
     isched_grammar_tests
     isched_graphql_tests
-    isched_gql_executor_tests
+    isched_gql_executor_smoke_tests
+    isched_gql_executor_introspection_tests
+    isched_gql_executor_coverage_tests
+    isched_gql_executor_info_resolvers_tests
+    isched_gql_executor_config_resolvers_tests
+    isched_gql_executor_orgs_resolvers_tests
+    isched_gql_executor_users_resolvers_tests
+    isched_gql_executor_auth_resolvers_tests
+    isched_gql_executor_error_branches_tests
     isched_srv_test
     basic_server_test
     tenant_manager_test

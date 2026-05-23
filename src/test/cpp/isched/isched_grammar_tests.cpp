@@ -1832,3 +1832,53 @@ TEST_CASE("Parse error location: fragment named 'on' is rejected", "[grammar][ex
     auto res = generate_ast_and_log<FragmentDefinition>(in, "fragment named on", false);
     REQUIRE(std::get<0>(res) == false);
 }
+
+TEST_CASE("Syntax - Variables", "[grammar][executable][integration]") {
+    static const char* q = R"Qry(
+query OperationName(
+  $var1: Int = 123,
+  $var2: Float = 3.14,
+  $var3: Boolean = true,
+  $var4: String = "string",
+  $var5: String = """block
+  string""",
+  $var6: MyEnum = ENUM_VAL,
+  $var7: [Int] = [1, 2, 3],
+  $var8: InputType = { field: "value", num: 1 }
+) {
+  field
+}
+)Qry";
+    string_input in(q, "Variables");
+    auto res = generate_ast_and_log<Document>(in, "Variables", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Syntax - Directives and Aliases", "[grammar][executable][integration]") {
+    static const char* q = R"Qry(
+query OperationName @directiveOnOperation {
+  aliasName: fieldName(arg1: 1, arg2: null) @directiveOnField {
+    subField
+  }
+}
+)Qry";
+    string_input in(q, "Directives and Aliases");
+    auto res = generate_ast_and_log<Document>(in, "Directives and Aliases", false);
+    REQUIRE(std::get<0>(res) == true);
+}
+
+TEST_CASE("Syntax - Inline Fragments", "[grammar][executable][integration]") {
+    static const char* q = R"Qry(
+query {
+  ... on TypeName @directiveOnInlineFragment {
+    field
+  }
+  ... {
+    anotherField
+  }
+}
+)Qry";
+    string_input in(q, "Inline Fragments");
+    auto res = generate_ast_and_log<Document>(in, "Inline Fragments", false);
+    REQUIRE(std::get<0>(res) == true);
+}

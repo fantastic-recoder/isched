@@ -725,12 +725,18 @@ namespace isched::v0_0_1::backend {
                     if (r == Role::PLATFORM_ADMIN) { is_platform_admin = true; break; }
                 }
                 if (!is_platform_admin && requested != org_id) {
-                    return json{{"errors", json::array({json{{"message", "Access denied: cannot view metrics for another organization"}}})}};
+                    throw gql::Error{
+                        .code = gql::EErrorCodes::FORBIDDEN,
+                        .message = "Access denied: cannot view metrics for another organization"
+                    };
                 }
                 org_id = requested;
             }
             if (org_id.empty()) {
-                return json{{"errors", json::array({json{{"message", "organizationId is required for unauthenticated requests"}}})}};
+                throw gql::Error{
+                    .code = gql::EErrorCodes::VALIDATION_FAILED,
+                    .message = "organizationId is required for unauthenticated requests"
+                };
             }
             if (m_metrics) {
                 return m_metrics->get_tenant_metrics(org_id);
@@ -790,11 +796,11 @@ namespace isched::v0_0_1::backend {
 
             // System properties
             env["systemProperties"] = {
-                {"os.name", "Linux"},
-                {"user.name", getenv("USER") ? getenv("USER") : "unknown"},
-                {"user.home", getenv("HOME") ? getenv("HOME") : "/"},
-                {"file.separator", "/"},
-                {"path.separator", ":"}
+                {"os_name", "Linux"},
+                {"user_name", getenv("USER") ? getenv("USER") : "unknown"},
+                {"user_home", getenv("HOME") ? getenv("HOME") : "/"},
+                {"file_separator", "/"},
+                {"path_separator", ":"}
             };
 
             // Environment variables (filtered for security)
