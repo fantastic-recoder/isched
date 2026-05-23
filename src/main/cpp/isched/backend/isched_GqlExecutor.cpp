@@ -3177,7 +3177,7 @@ namespace isched::v0_0_1::backend {
             const bool is_top_level = p_path.empty() || 
                 (p_path.size() == 1 && (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription"));
             if (is_top_level) {
-                auto gate_it = m_required_roles.find(std::string(myFieldName));
+                auto gate_it = m_required_roles.find(myFieldName);
                 if (gate_it != m_required_roles.end() && !gate_it->second.empty()) {
                     const auto& required = gate_it->second;
                     const auto& caller_roles = my_ctx.roles;
@@ -3213,12 +3213,12 @@ namespace isched::v0_0_1::backend {
 
                 // WebUI org-scope guard: reject writes where requested organizationId
                 // does not match the authenticated context tenant_id.
-                static const std::unordered_set<std::string> k_org_scoped_mutations = {
+                static const std::unordered_set<std::string_view> k_org_scoped_mutations = {
                     "createUser", "updateUser", "deleteUser",
                     "createRole", "updateRole", "assignRole", "unassignRole",
                     "updateTenantConfig", "createDataSource", "updateDataSource", "deleteDataSource"
                 };
-                if (k_org_scoped_mutations.contains(std::string(myFieldName)) &&
+                if (k_org_scoped_mutations.contains(myFieldName) &&
                     my_args.contains("organizationId") && my_args["organizationId"].is_string() &&
                     !my_ctx.tenant_id.empty())
                 {
@@ -3603,7 +3603,8 @@ namespace isched::v0_0_1::backend {
                     if (m_query_cache.size() >= k_query_cache_max) {
                         m_query_cache.erase(m_query_cache.begin());
                     }
-                    m_query_cache.emplace(std::string(p_query), new_entry);
+                    std::string_view key_view(new_entry->input->begin(), new_entry->input->size());
+                    m_query_cache.emplace(key_view, new_entry);
                 }
             }
             exec_entry = std::move(new_entry);

@@ -244,6 +244,15 @@ namespace isched::v0_0_1::backend {
     class GqlExecutor {
     public:
 
+        /// FNV-1a–style transparent hash so string_view lookups don't
+        /// allocate a std::string key.
+        struct TransparentStringHash {
+            using is_transparent = void;
+            std::size_t operator()(std::string_view sv) const noexcept {
+                return std::hash<std::string_view>{}(sv);
+            }
+        };
+
         using TDbManagerPtr = std::shared_ptr<DatabaseManager>;
 
         /**
@@ -485,7 +494,11 @@ namespace isched::v0_0_1::backend {
         std::vector<TSchemaDocPtr> m_schema_documents;
 
         /// Per-field RBAC gates: field_name → list of permitted roles (OR logic).
-        std::unordered_map<std::string, std::vector<std::string>> m_required_roles;
+        std::unordered_map<
+            std::string,
+            std::vector<std::string>,
+            TransparentStringHash,
+            std::equal_to<>> m_required_roles;
 
         // Pending schema change set by activateSnapshot resolver; consumed by Server.
         mutable std::mutex m_pending_change_mutex;
@@ -519,15 +532,6 @@ namespace isched::v0_0_1::backend {
         // the string_input buffer, so both must be kept alive together.
         // ------------------------------------------------------------------
 
-        /// FNV-1a–style transparent hash so string_view lookups don't
-        /// allocate a std::string key.
-        struct TransparentStringHash {
-            using is_transparent = void;
-            std::size_t operator()(std::string_view sv) const noexcept {
-                return std::hash<std::string_view>{}(sv);
-            }
-        };
-
         struct CachedParse {
             /// Owns the query text (PEGTL nodes hold char* into this buffer).
             std::unique_ptr<tao::pegtl::string_input<>> input;
@@ -539,7 +543,7 @@ namespace isched::v0_0_1::backend {
 
         mutable std::shared_mutex m_query_cache_mutex;
         mutable std::unordered_map<
-            std::string,
+            std::string_view,
             std::shared_ptr<CachedParse>,
             TransparentStringHash,
             std::equal_to<>>  m_query_cache;
