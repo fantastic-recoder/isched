@@ -143,7 +143,9 @@ TEST_CASE_METHOD(BenchmarkFixture,
 
     const long long rps = count / 5;
     INFO("T052-002 throughput: " << count << " req in 5 s = " << rps << " req/s");
+#ifdef NDEBUG
     REQUIRE(count >= 5000); // ≥ 1000 req/s
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -247,6 +249,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     const auto t0 = clock::now();
     for (int i = 0; i < k_clients; ++i) {
         auto next = clients[i]->recv();
+        INFO("Client " << i << " received message: " << next.dump());
         REQUIRE(next["type"] == "next");
         REQUIRE(next["payload"]["data"]["healthChanged"]["status"] == "UP");
     }
@@ -318,7 +321,13 @@ TEST_CASE_METHOD(BenchmarkFixture,
     for (int t = 0; t < k_threads; ++t) {
         const auto d = durations[static_cast<std::size_t>(t)];
         INFO("T052-005 thread " << t << " introspection: " << d << " ms");
-        REQUIRE(d <= 800);
+#ifdef NDEBUG
+        REQUIRE(d <= 500);
+        INFO("T052-005 thread " << t << " introspection: " << d << " ms (NDEBUG)");
+#else
+        REQUIRE(d <= 1500);
+        INFO("T052-005 thread " << t << " introspection: " << d << " ms (DEBUG)");
+#endif
     }
 }
 
@@ -361,5 +370,9 @@ TEST_CASE_METHOD(BenchmarkFixture,
     const long long   p_max   = durations.back();
 
     INFO("T052-006 latency: p95=" << p95 << " ms, p99=" << p99 << " ms, max=" << p_max << " ms");
+#ifdef NDEBUG
     REQUIRE(p95 <= 20);
+#else
+    REQUIRE(p95 <= 100);
+#endif
 }

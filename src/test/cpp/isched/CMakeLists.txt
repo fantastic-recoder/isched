@@ -8,6 +8,10 @@ add_executable(isched_graphql_tests isched_graphql_tests.cpp)
 target_link_libraries(isched_graphql_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
 add_test(NAME isched_graphql_tests COMMAND isched_graphql_tests)
 
+add_executable(isched_operation_tests isched_operation_tests.cpp)
+target_link_libraries(isched_operation_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl)
+add_test(NAME isched_operation_tests COMMAND isched_operation_tests)
+
 add_executable(isched_gql_executor_smoke_tests
         isched_gql_executor_smoke_tests.cpp
         isched_gql_executor_field_nodes_tests.cpp

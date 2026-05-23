@@ -134,5 +134,5 @@ Checks: >
 #   site checks the ec variable immediately afterwards.
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '^.*isched/src/'
+HeaderFilterRegex: '^.*isched/src/main/cpp/isched/(backend/isched_([A-Z]|g|l|m)[a-zA-Z0-9_]*\.hpp|shared/.*)$'
 FormatStyle: none

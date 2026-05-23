@@ -3074,25 +3074,25 @@ namespace isched::v0_0_1::backend {
     }
 
 
-    void GqlExecutor::process_sub_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &node,  json &p_result, gql::TErrorVector& p_error) const {
+    void GqlExecutor::process_sub_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &node, const TFragmentMap& p_fragments, json &p_result, gql::TErrorVector& p_error) const {
         // Arguments nodes are already extracted by process_argument_field before sub-selections run.
         const auto ct = get_node_type(node);
         if (ct == NodeType::Arguments) {
             return;
         }
         if (ct == NodeType::Field) {
-            resolve_field_selection_details(p_parent_result, p_path, node, p_result, p_error);
+            resolve_field_selection_details(p_parent_result, p_path, node, p_fragments, p_result, p_error);
             return;
         }
         if (ct == NodeType::SelectionSet) {
-            const auto fields = collect_field_nodes(node, p_error);
-            process_field_nodes(p_parent_result, p_path, fields, p_result, p_error);
+            const auto fields = collect_field_nodes(node, p_fragments, p_error);
+            process_field_nodes(p_parent_result, p_path, fields, p_fragments, p_result, p_error);
             spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
             return;
         }
         if (node->type == "isched::v0_0_1::gql::Selection") {
             for (const auto& child : node->children) {
-                process_sub_selection(p_parent_result, p_path, child, p_result, p_error);
+                process_sub_selection(p_parent_result, p_path, child, p_fragments, p_result, p_error);
             }
             return;
         }
@@ -3104,22 +3104,22 @@ namespace isched::v0_0_1::backend {
         const json &p_parent_result,
         ResolverPath &p_path,
         const TAstNodePtr &p_selection_set,
+        const TFragmentMap& p_fragments,
         json &p_result,
         gql::TErrorVector &p_error,
         const std::string_view myFieldName
     ) const {
         p_path.push_back(std::string(myFieldName));
-        for (size_t myIdx = 0; myIdx < p_selection_set->children.size(); ++myIdx) {
-            process_sub_selection(p_parent_result, p_path, p_selection_set->children[myIdx], p_result, p_error);
-        }
+        const auto fields = collect_field_nodes(p_selection_set, p_fragments, p_error);
+        process_field_nodes(p_parent_result, p_path, fields, p_fragments, p_result, p_error);
         p_path.pop_back();
     }
 
-    bool GqlExecutor::resolve_field_selection_details(const json& p_parent, ResolverPath& p_path,const TAstNodePtr &p_field_node, json &p_result, gql::TErrorVector& p_error) const {
+    void GqlExecutor::resolve_field_selection_details(const json& p_parent, ResolverPath& p_path,const TAstNodePtr &p_field_node, const TFragmentMap& p_fragments, json &p_result, gql::TErrorVector& p_error) const {
         if (p_field_node->children.empty()) {
             p_error.push_back(
                 gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
-            return true;
+            return;
         }
         const std::string_view myFieldName = p_field_node->children[0]->string_view();
         if (p_result.empty()) {
@@ -3136,7 +3136,11 @@ namespace isched::v0_0_1::backend {
             if (m_type_map.count("Query"))      current_type = "Query";
             else if (!m_type_map.empty())       current_type = m_type_map.begin()->first;
 
-            for (const auto& seg : p_path) {
+            for (size_t i = 0; i < p_path.size(); ++i) {
+                const auto& seg = p_path[i];
+                if (i == 0 && (seg == "Query" || seg == "Mutation" || seg == "Subscription")) {
+                    continue; // Skip root type
+                }
                 auto it = m_type_map.find(current_type);
                 if (it == m_type_map.end()) { current_type.clear(); break; }
                 current_type = field_return_type(*it->second, seg);
@@ -3145,7 +3149,7 @@ namespace isched::v0_0_1::backend {
             if (current_type.empty() && p_parent.is_object() && p_parent.contains(myFieldName))
                 current_type = p_parent["__typename"].get<std::string>();
             p_result[myFieldName] = current_type.empty() ? json(nullptr) : json(current_type);
-            return false;
+            return;
         }
 
         if (!m_resolvers.has_resolver(p_path,myFieldName)) {
@@ -3169,8 +3173,10 @@ namespace isched::v0_0_1::backend {
             json my_args = process_argument_field(p_field_node, p_error);
 
             // T047-003: RBAC gate — check if the caller holds at least one required role.
-            // Only enforced at the top level (p_path is empty).
-            if (p_path.empty()) {
+            // Only enforced at the top level (p_path is empty or contains only root type).
+            const bool is_top_level = p_path.empty() || 
+                (p_path.size() == 1 && (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription"));
+            if (is_top_level) {
                 auto gate_it = m_required_roles.find(std::string(myFieldName));
                 if (gate_it != m_required_roles.end() && !gate_it->second.empty()) {
                     const auto& required = gate_it->second;
@@ -3201,7 +3207,7 @@ namespace isched::v0_0_1::backend {
                         });
                         p_path.pop_back();
                         p_result[myFieldName] = nullptr;
-                        return false;
+                        return;
                     }
                 }
 
@@ -3235,7 +3241,7 @@ namespace isched::v0_0_1::backend {
                             });
                             p_path.pop_back();
                             p_result[myFieldName] = nullptr;
-                            return false;
+                            return;
                         }
                     }
                 }
@@ -3258,7 +3264,7 @@ namespace isched::v0_0_1::backend {
                 });
                 p_path.pop_back();
                 p_result[myFieldName] = nullptr;
-                return false;
+                return;
             } catch (const std::exception& ex) {
                 p_path.push_back(std::string(myFieldName));
                 gql::ErrorPath ep;
@@ -3279,7 +3285,7 @@ namespace isched::v0_0_1::backend {
                 });
                 p_path.pop_back();
                 p_result[myFieldName] = nullptr;
-                return false;
+                return;
             }
             spdlog::debug("Got result: '{}' for field '{}' in Query type, going to process sub selections.",
                 my_result.dump(4,'.'), myFieldName);
@@ -3313,13 +3319,13 @@ namespace isched::v0_0_1::backend {
                             continue;
                         }
                         json elem_result = json::object();
-                        process_field_sub_selections(element, p_path, *selection_set_node, elem_result, p_error, myFieldName);
+                        process_field_sub_selections(element, p_path, *selection_set_node, p_fragments, elem_result, p_error, myFieldName);
                         arr.push_back(std::move(elem_result));
                     }
                     p_result[myFieldName] = std::move(arr);
                 } else if (my_result.is_object()) {
                     p_result[myFieldName] = json::object();
-                    process_field_sub_selections(my_result, p_path, *selection_set_node, p_result[myFieldName], p_error, myFieldName);
+                    process_field_sub_selections(my_result, p_path, *selection_set_node, p_fragments, p_result[myFieldName], p_error, myFieldName);
                 } else {
                     // T-INT-ERR-001: Sub-selection applied to scalar result
                     p_path.push_back(std::string(myFieldName));
@@ -3337,13 +3343,12 @@ namespace isched::v0_0_1::backend {
                 p_result[myFieldName] = std::move(my_result);
             }
         }
-        return false;
     }
 
     void GqlExecutor::process_field_selection(const json& p_parent_result, ResolverPath& p_path, const TAstNodePtr &p_selection_set,
-        json &p_result, gql::TErrorVector& p_errors) const {
-        const auto fields = collect_field_nodes(p_selection_set, p_errors);
-        process_field_nodes(p_parent_result, p_path, fields, p_result, p_errors);
+        const TFragmentMap& p_fragments, json &p_result, gql::TErrorVector& p_errors) const {
+        const auto fields = collect_field_nodes(p_selection_set, p_fragments, p_errors);
+        process_field_nodes(p_parent_result, p_path, fields, p_fragments, p_result, p_errors);
     }
 
     TAstNodePtr const *GqlExecutor::find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const {
@@ -3443,10 +3448,12 @@ namespace isched::v0_0_1::backend {
     }
 
     bool GqlExecutor::process_operation_definitions(
-        json p_parent_result,
-        const TAstNodePtr &myOperation,
-        json &p_result,
-        gql::TErrorVector &p_errors) const {
+        const json& p_parent_result,
+        const TAstNodePtr& myOperation,
+        const TFragmentMap& p_fragments,
+        json& p_result,
+        gql::TErrorVector& p_errors) const {
+
         if (get_node_type(myOperation) != NodeType::OperationDefinition) {
             p_errors.push_back(gql::Error{
                 gql::EErrorCodes::PARSE_ERROR,
@@ -3460,12 +3467,47 @@ namespace isched::v0_0_1::backend {
         }
         const auto a_op_type = myOperation->children[0]->string_view();
         ResolverPath p_path;
-        if (a_op_type == "query") {
+
+        // Extract default variables
+        for (const auto& child : myOperation->children) {
+            const auto ct = get_node_type(child);
+            if (ct == NodeType::VariablesDefinition) {
+                for (const auto& varDef : child->children) {
+                    if (get_node_type(varDef) == NodeType::VariableDefinition) {
+                        std::string varName;
+                        json defaultValue;
+                        bool hasDefault = false;
+                        for (const auto& varChild : varDef->children) {
+                            if (get_node_type(varChild) == NodeType::Variable) {
+                                varName = std::string(varChild->string_view());
+                                if (varName.starts_with("$")) {
+                                    varName = varName.substr(1);
+                                }
+                            } else if (get_node_type(varChild) == NodeType::DefaultValue) {
+                                if (!varChild->children.empty()) {
+                                    defaultValue = extract_argument_value(varChild->children[0], p_errors);
+                                    hasDefault = true;
+                                }
+                            }
+                        }
+                        if (!varName.empty() && hasDefault && !tl_gql_variables.contains(varName)) {
+                            tl_gql_variables[varName] = defaultValue;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (a_op_type == "query" || a_op_type == "mutation" || a_op_type == "subscription") {
+            if (a_op_type == "query") p_path.push_back("Query");
+            else if (a_op_type == "mutation") p_path.push_back("Mutation");
+            else if (a_op_type == "subscription") p_path.push_back("Subscription");
+
             for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
                 const auto& child = myOperation->children[myIdx];
                 const auto ct = get_node_type(child);
                 if (ct == NodeType::SelectionSet) {
-                    process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
+                    process_field_selection(p_parent_result, p_path, child, p_fragments, p_result, p_errors);
                 } else if (ct == NodeType::VariablesDefinition
                         || ct == NodeType::VariableDefinitions
                         || ct == NodeType::VariableDefinition
@@ -3474,50 +3516,13 @@ namespace isched::v0_0_1::backend {
                 } else {
                     p_errors.push_back(gql::Error{
                         .code=gql::EErrorCodes::PARSE_ERROR,
-                        .message=std::format("Expected a selection set in query, got {}.", child->type)
-                    });
-                }
-            }
-        } else if (a_op_type == "mutation") {
-            for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
-                const auto& child = myOperation->children[myIdx];
-                const auto ct = get_node_type(child);
-                if (ct == NodeType::SelectionSet) {
-                    process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
-                } else if (ct == NodeType::VariablesDefinition
-                        || ct == NodeType::VariableDefinitions
-                        || ct == NodeType::VariableDefinition
-                        || ct == NodeType::Name) {
-                    // Variable declarations and operation names are metadata; skip.
-                } else {
-                    p_errors.push_back(gql::Error{
-                        .code=gql::EErrorCodes::PARSE_ERROR,
-                        .message=std::format("Expected a selection set in mutation, got {}.", child->type)
-                    });
-                }
-            }
-        } else if (a_op_type == "subscription") {
-            // Subscription operations: execute like a query to deliver the initial value.
-            // Ongoing event delivery is handled by the WebSocket server / SubscriptionBroker.
-            for (size_t myIdx = 1; myIdx < myOperation->children.size(); ++myIdx) {
-                const auto& child = myOperation->children[myIdx];
-                const auto ct = get_node_type(child);
-                if (ct == NodeType::SelectionSet) {
-                    process_field_selection(p_parent_result, p_path, child, p_result, p_errors);
-                } else if (ct == NodeType::VariablesDefinition
-                        || ct == NodeType::VariableDefinitions
-                        || ct == NodeType::VariableDefinition
-                        || ct == NodeType::Name) {
-                    // skip metadata
-                } else {
-                    p_errors.push_back(gql::Error{
-                        .code=gql::EErrorCodes::PARSE_ERROR,
-                        .message=std::format("Expected a selection set in subscription, got {}.", child->type)
+                        .message=std::format("Expected a selection set in {}, got {}.", a_op_type, child->type)
                     });
                 }
             }
         } else if (get_node_type(myOperation->children[0]) == NodeType::SelectionSet) {
-            process_field_selection(p_parent_result, p_path,myOperation->children[0], p_result, p_errors);
+            p_path.push_back("Query");
+            process_field_selection(p_parent_result, p_path, myOperation->children[0], p_fragments, p_result, p_errors);
         } else {
             p_errors.push_back(gql::Error{
                 .code=gql::EErrorCodes::PARSE_ERROR,
@@ -3530,6 +3535,15 @@ namespace isched::v0_0_1::backend {
     ExecutionResult GqlExecutor::execute(
         const std::string_view p_query,
         const std::string_view p_variables_json,
+        const bool p_print_dot
+    ) const {
+        return execute(p_query, p_variables_json, "", p_print_dot);
+    }
+
+    ExecutionResult GqlExecutor::execute(
+        const std::string_view p_query,
+        const std::string_view p_variables_json,
+        const std::string_view p_operation_name,
         const bool p_print_dot
     ) const {
         // Parse and install per-request variables (thread_local for thread safety)
@@ -3634,6 +3648,9 @@ namespace isched::v0_0_1::backend {
             }
         }
 
+        TFragmentMap fragments;
+        std::map<std::string_view, const TAstNodePtr*> operations;
+
         for (const auto &myChild: myDoc->children) {
             if (get_node_type(myChild) != NodeType::ExecutableDefinition) {
                 my_result.errors.push_back(gql::Error{
@@ -3642,10 +3659,46 @@ namespace isched::v0_0_1::backend {
                 });
                 return my_result;
             }
-            for (const auto &myOperation: myChild->children) {
-                process_operation_definitions(json::object(),myOperation, my_result.data, my_result.errors);
+            for (const auto &def: myChild->children) {
+                if (get_node_type(def) == NodeType::FragmentDefinition) {
+                    if (def->children.size() > 0 && get_node_type(def->children[0]) == NodeType::Name) {
+                        fragments[def->children[0]->string_view()] = &def;
+                    }
+                } else if (get_node_type(def) == NodeType::OperationDefinition) {
+                    std::string_view opName = "";
+                    for (const auto& opChild : def->children) {
+                        if (get_node_type(opChild) == NodeType::Name) {
+                            opName = opChild->string_view();
+                            break;
+                        }
+                    }
+                    operations[opName] = &def;
+                }
             }
         }
+
+        if (operations.empty()) {
+            my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::PARSE_ERROR, .message="No operations found in document."});
+            return my_result;
+        }
+
+        const TAstNodePtr* targetOp = nullptr;
+        if (p_operation_name.empty()) {
+            if (operations.size() > 1) {
+                my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR, .message="Must provide operation name if document contains multiple operations."});
+                return my_result;
+            }
+            targetOp = operations.begin()->second;
+        } else {
+            auto it = operations.find(p_operation_name);
+            if (it == operations.end()) {
+                my_result.errors.push_back(gql::Error{.code=gql::EErrorCodes::ARGUMENT_ERROR, .message=std::format("Unknown operation named '{}'.", p_operation_name)});
+                return my_result;
+            }
+            targetOp = it->second;
+        }
+
+        process_operation_definitions(json::object(), *targetOp, fragments, my_result.data, my_result.errors);
         return my_result;
     }
 
@@ -3655,12 +3708,22 @@ namespace isched::v0_0_1::backend {
         ResolverCtx p_ctx,
         const bool p_print_dot
     ) const {
+        return execute(p_query, p_variables_json, std::move(p_ctx), "", p_print_dot);
+    }
+
+    ExecutionResult GqlExecutor::execute(
+        const std::string_view p_query,
+        const std::string_view p_variables_json,
+        ResolverCtx p_ctx,
+        const std::string_view p_operation_name,
+        const bool p_print_dot
+    ) const {
         // Install the caller-supplied context into the thread-local slot so that
         // all resolvers dispatched by the inner execute() call can read it.
         tl_resolver_ctx = std::move(p_ctx);
         // Delegate to the base overload; tl_resolver_ctx will be picked up in
         // resolve_field_selection_details().
-        return execute(p_query, p_variables_json, p_print_dot);
+        return execute(p_query, p_variables_json, p_operation_name, p_print_dot);
     }
 
 

@@ -57,7 +57,7 @@ namespace isched::v0_0_1::backend {
         REQUIRE(selection_set != nullptr);
 
         gql::TErrorVector errors;
-        const auto fields = exec.collect_field_nodes(*selection_set, errors);
+        const auto fields = exec.collect_field_nodes(*selection_set, GqlExecutor::TFragmentMap{}, errors);
 
         REQUIRE(errors.empty());
         REQUIRE(fields.size() == 2);
@@ -71,28 +71,28 @@ namespace isched::v0_0_1::backend {
         gql::TErrorVector errors;
 
         SECTION("null selection set returns empty") {
-            const auto fields = exec.collect_field_nodes(nullptr, errors);
+            const auto fields = exec.collect_field_nodes(nullptr, GqlExecutor::TFragmentMap{}, errors);
             REQUIRE(fields.empty());
         }
 
         SECTION("direct Field child is accepted") {
             auto selection_set = make_node("isched::v0_0_1::gql::SelectionSet");
             selection_set->children.push_back(make_node("isched::v0_0_1::gql::Field"));
-            const auto fields = exec.collect_field_nodes(selection_set, errors);
+            const auto fields = exec.collect_field_nodes(selection_set, GqlExecutor::TFragmentMap{}, errors);
             REQUIRE(fields.size() <= 1);
         }
 
         SECTION("non-Selection child is ignored") {
             auto selection_set = make_node("isched::v0_0_1::gql::SelectionSet");
             selection_set->children.push_back(make_node("isched::v0_0_1::gql::Name"));
-            const auto fields = exec.collect_field_nodes(selection_set, errors);
+            const auto fields = exec.collect_field_nodes(selection_set, GqlExecutor::TFragmentMap{}, errors);
             REQUIRE(fields.empty());
         }
 
         SECTION("empty Selection child is ignored") {
             auto selection_set = make_node("isched::v0_0_1::gql::SelectionSet");
             selection_set->children.push_back(make_node("isched::v0_0_1::gql::Selection"));
-            const auto fields = exec.collect_field_nodes(selection_set, errors);
+            const auto fields = exec.collect_field_nodes(selection_set, GqlExecutor::TFragmentMap{}, errors);
             REQUIRE(fields.empty());
         }
 
@@ -101,7 +101,7 @@ namespace isched::v0_0_1::backend {
             auto selection = make_node("isched::v0_0_1::gql::Selection");
             selection->children.push_back(make_node("isched::v0_0_1::gql::Name"));
             selection_set->children.push_back(std::move(selection));
-            const auto fields = exec.collect_field_nodes(selection_set, errors);
+            const auto fields = exec.collect_field_nodes(selection_set, GqlExecutor::TFragmentMap{}, errors);
             REQUIRE(fields.empty());
         }
 
@@ -110,7 +110,7 @@ namespace isched::v0_0_1::backend {
             auto selection = make_node("isched::v0_0_1::gql::Selection");
             selection->children.push_back(make_node("isched::v0_0_1::gql::Field"));
             selection_set->children.push_back(std::move(selection));
-            const auto fields = exec.collect_field_nodes(selection_set, errors);
+            const auto fields = exec.collect_field_nodes(selection_set, GqlExecutor::TFragmentMap{}, errors);
             REQUIRE(fields.size() <= 1);
         }
     }
@@ -123,7 +123,7 @@ namespace isched::v0_0_1::backend {
         REQUIRE(selection_set != nullptr);
 
         gql::TErrorVector errors;
-        const auto fields = exec.collect_field_nodes(*selection_set, errors);
+        const auto fields = exec.collect_field_nodes(*selection_set, GqlExecutor::TFragmentMap{}, errors);
 
         REQUIRE(fields.empty());
         if (!errors.empty()) {
@@ -141,7 +141,7 @@ namespace isched::v0_0_1::backend {
         const auto& non_selection_set = (*selection_set)->children[0];
 
         gql::TErrorVector errors;
-        const auto fields = exec.collect_field_nodes(non_selection_set, errors);
+        const auto fields = exec.collect_field_nodes(non_selection_set, GqlExecutor::TFragmentMap{}, errors);
 
         REQUIRE(fields.empty());
         REQUIRE(errors.empty());
@@ -155,7 +155,7 @@ namespace isched::v0_0_1::backend {
         REQUIRE(selection_set != nullptr);
 
         gql::TErrorVector errors;
-        auto fields = exec.collect_field_nodes(*selection_set, errors);
+        auto fields = exec.collect_field_nodes(*selection_set, GqlExecutor::TFragmentMap{}, errors);
         REQUIRE(errors.empty());
         REQUIRE(fields.size() == 1);
         REQUIRE((*fields.front())->children[0]->string_view() == "hello");
@@ -166,7 +166,7 @@ namespace isched::v0_0_1::backend {
 
         nlohmann::json result;
         ResolverPath path_context;
-        exec.process_field_nodes(nlohmann::json::object(), path_context, with_null, result, errors);
+        exec.process_field_nodes(nlohmann::json::object(), path_context, with_null, GqlExecutor::TFragmentMap{}, result, errors);
 
         REQUIRE(errors.empty());
         REQUIRE(result.contains("hello"));

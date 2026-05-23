@@ -104,6 +104,8 @@ def generate_header(assets: list) -> str:
     lines.append("// Re-run via CMake target 'isched_ui_embed' or: python3 tools/embed_ui_assets.py")
     lines.append("#pragma once")
     lines.append("")
+    lines.append("// NOLINTBEGIN")
+    lines.append("")
     lines.append("#include <cstddef>")
     lines.append("#include <cstdint>")
     lines.append("#include <span>")
@@ -147,6 +149,8 @@ def generate_header(assets: list) -> str:
     lines.append(f"static const std::size_t ISCHED_UI_ASSET_MAP_SIZE = {len(assets)};")
     lines.append("")
     lines.append("} // namespace isched::v0_0_1::backend")
+    lines.append("")
+    lines.append("// NOLINTEND")
     lines.append("")
 
     return "\n".join(lines)

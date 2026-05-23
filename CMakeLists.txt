@@ -203,12 +203,14 @@ if(CLANG_TIDY_EXE AND RUN_CLANG_TIDY_EXE)
         COMMAND ${RUN_CLANG_TIDY_EXE}
             -clang-tidy-binary ${CLANG_TIDY_EXE}
             -p ${CMAKE_BINARY_DIR}
-            -header-filter "^${CMAKE_SOURCE_DIR}/src/"
+            -config-file=${CMAKE_SOURCE_DIR}/.clang-tidy
             -extra-arg=-isystem/usr/include/c++/13
             -extra-arg=-isystem/usr/include/x86_64-linux-gnu/c++/13
             # clang-18 defines __cpp_concepts=201907L but GCC-13 libstdc++ <expected>
             # guards with >= 202002L; override so that std::expected resolves correctly.
             "-extra-arg=-D__cpp_concepts=202002L"
+            "-extra-arg=-DFMT_USE_CONSTEVAL=0"
+            "-extra-arg=-DFMT_CONSTEVAL="
             ${ISCHED_SECURITY_SOURCES}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         COMMENT "Running clang-tidy security scan on isched library sources"

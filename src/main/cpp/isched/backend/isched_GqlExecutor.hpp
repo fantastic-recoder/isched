@@ -108,6 +108,19 @@ namespace isched::v0_0_1::backend {
             m_resolvers_map[p_scope][p_field_name]= p_resolver;
         }
 
+        [[nodiscard]] bool has_resolver_exact(const ResolverPath& p_path, std::string_view field_name) const noexcept {
+            const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
+            for (const auto& key : p_path) {
+                auto it = current->find(key);
+                if (it == current->end()) {
+                    return false;
+                }
+                current = &(it->second);
+            }
+            auto found = current->find(field_name);
+            return found != current->end() && found->second.has_value();
+        }
+
         /**
          * @brief Resolve field value
          * @param field_name Name of field to resolve
@@ -143,31 +156,82 @@ namespace isched::v0_0_1::backend {
          */
         [[nodiscard]] bool has_resolver(const ResolverPath& p_path, std::string_view field_name) const noexcept {
             const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
+            bool found_path = true;
             for (const auto& key : p_path) {
                 auto it = current->find(key);
                 if (it == current->end()) {
-                    return false;
+                    found_path = false;
+                    break;
                 }
                 current = &(it->second);
             }
-            auto found = current->find(field_name);
-            return found != current->end() && found->second.has_value();
+            if (found_path) {
+                auto found = current->find(field_name);
+                if (found != current->end() && found->second.has_value()) {
+                    return true;
+                }
+            }
+
+            // Fallback: if the path starts with Query/Mutation/Subscription, and it was not found,
+            // try to look up without the root type (i.e. start searching from m_resolvers_map).
+            if (p_path.size() >= 1 && (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription")) {
+                const multi_dim_map<std::string, ResolverFunction>* fallback_current = &m_resolvers_map;
+                bool fallback_found_path = true;
+                for (size_t i = 1; i < p_path.size(); ++i) {
+                    auto fallback_it = fallback_current->find(p_path[i]);
+                    if (fallback_it == fallback_current->end()) {
+                        fallback_found_path = false;
+                        break;
+                    }
+                    fallback_current = &(fallback_it->second);
+                }
+                if (fallback_found_path) {
+                    auto fallback_found = fallback_current->find(field_name);
+                    return fallback_found != fallback_current->end() && fallback_found->second.has_value();
+                }
+            }
+            return false;
         }
 
         [[nodiscard]] const ResolverFunction & get_resolver(const ResolverPath& p_path, std::string_view p_name) const {
             const multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
+            bool found_path = true;
             for (const auto& key : p_path) {
                 auto it = current->find(key);
                 if (it == current->end()) {
-                    throw std::out_of_range("Resolver path not found");
+                    found_path = false;
+                    break;
                 }
                 current = &(it->second);
             }
-            auto it = current->find(p_name);
-            if (it == current->end()) {
-                throw std::out_of_range("Resolver not found: " + std::string(p_name));
+            if (found_path) {
+                auto it = current->find(p_name);
+                if (it != current->end() && it->second.has_value()) {
+                    return it->second.get_value();
+                }
             }
-            return it->second.get_value();
+
+            // Fallback for root types
+            if (p_path.size() >= 1 && (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription")) {
+                const multi_dim_map<std::string, ResolverFunction>* fallback_current = &m_resolvers_map;
+                bool fallback_found_path = true;
+                for (size_t i = 1; i < p_path.size(); ++i) {
+                    auto fallback_it = fallback_current->find(p_path[i]);
+                    if (fallback_it == fallback_current->end()) {
+                        fallback_found_path = false;
+                        break;
+                    }
+                    fallback_current = &(fallback_it->second);
+                }
+                if (fallback_found_path) {
+                    auto it = fallback_current->find(p_name);
+                    if (it != fallback_current->end() && it->second.has_value()) {
+                        return it->second.get_value();
+                    }
+                }
+            }
+
+            throw std::out_of_range("Resolver not found: " + std::string(p_name));
         }
 
     private:
@@ -230,31 +294,38 @@ namespace isched::v0_0_1::backend {
         [[nodiscard]] std::pair<DocumentPtr, std::vector<std::string>> parse(std::string&& pQuery) const;
 
         /**
-         * @brief Execute GraphQL query
-         * @param p_query Query string
-         * @param p_variables_json Variables JSON object string (optional)
-         * @param p_print_dot
-         * @return Execution result
+         * @brief execute a GraphQL query
+         * @param p_query GraphQL query
+         * @param p_variables_json variables as JSON string
+         * @param p_print_dot print dot graph
+         * @return ExecutionResult
          */
         [[nodiscard]] ExecutionResult execute(std::string_view p_query,
                                               std::string_view p_variables_json = "{}",
                                               bool p_print_dot = false) const;
 
+        [[nodiscard]] ExecutionResult execute(std::string_view p_query,
+                                              std::string_view p_variables_json,
+                                              std::string_view p_operation_name,
+                                              bool p_print_dot = false) const;
+
         /**
-         * @brief Execute GraphQL query with an authenticated resolver context.
-         *
-         * Sets the thread-local resolver context (user id, roles, tenant) before
-         * dispatching so that all resolvers invoked during this call see the
-         * caller's authentication state.
-         *
-         * @param p_query           Query string
-         * @param p_variables_json  Variables JSON object string
-         * @param p_ctx             Populated auth/tenant context
-         * @param p_print_dot       Verbose AST-dot flag
+         * @brief execute a GraphQL query
+         * @param p_query GraphQL query
+         * @param p_variables_json variables as JSON string
+         * @param p_ctx the resolver context to install
+         * @param p_print_dot print dot graph
+         * @return ExecutionResult
          */
         [[nodiscard]] ExecutionResult execute(std::string_view p_query,
                                               std::string_view p_variables_json,
                                               ResolverCtx p_ctx,
+                                              bool p_print_dot = false) const;
+
+        [[nodiscard]] ExecutionResult execute(std::string_view p_query,
+                                              std::string_view p_variables_json,
+                                              ResolverCtx p_ctx,
+                                              std::string_view p_operation_name,
                                               bool p_print_dot = false) const;
 
         /**
@@ -276,7 +347,7 @@ namespace isched::v0_0_1::backend {
 
 
         void register_resolver(const ResolverPath& path, const std::string& field_name, ResolverFunction&& resolver) {
-            if (m_resolvers.has_resolver(path,field_name)) {
+            if (m_resolvers.has_resolver_exact(path,field_name)) {
                 throw std::runtime_error(std::format("GraphQL resolver \"{}.{}\" already registered.",
                     concat_vector(path,"."),field_name));
             };
@@ -385,15 +456,18 @@ namespace isched::v0_0_1::backend {
         }
 
         using FieldNodeList = std::vector<const gql::TAstNodePtr*>;
+        using TFragmentMap = std::unordered_map<std::string_view, const gql::TAstNodePtr*>;
 
         [[nodiscard]] FieldNodeList collect_field_nodes(
             const gql::TAstNodePtr& p_selection_set,
+            const TFragmentMap& p_fragments,
             gql::TErrorVector& p_errors) const;
 
         void process_field_nodes(
             const nlohmann::json& p_parent_result,
             ResolverPath& p_path,
             const FieldNodeList& p_fields,
+            const TFragmentMap& p_fragments,
             nlohmann::json& p_result,
             gql::TErrorVector& p_errors) const;
 
@@ -490,30 +564,44 @@ namespace isched::v0_0_1::backend {
             const gql::TAstNodePtr &p_field_node,
             gql::TErrorVector &p_error) const;
 
+        bool process_operation_definitions(
+            const nlohmann::json& p_parent_result,
+            const gql::TAstNodePtr& p_operation,
+            const TFragmentMap& p_fragments,
+            nlohmann::json& p_result,
+            gql::TErrorVector& p_errors) const;
+
+        void process_field_selection(
+            const nlohmann::json& p_parent_result,
+            ResolverPath& p_path,
+            const gql::TAstNodePtr& p_selection,
+            const TFragmentMap& p_fragments,
+            nlohmann::json& p_result,
+            gql::TErrorVector& p_errors) const;
+
+        void resolve_field_selection_details(
+            const nlohmann::json& p_parent_result,
+            ResolverPath& p_path,
+            const gql::TAstNodePtr& p_selection,
+            const TFragmentMap& p_fragments,
+            nlohmann::json& p_result,
+            gql::TErrorVector& p_errors) const;
+
         void process_sub_selection(
             const nlohmann::json &p_parent_result,
             ResolverPath &p_path, const gql::TAstNodePtr &node,
+            const TFragmentMap& p_fragments,
             nlohmann::json &p_result,
             gql::TErrorVector &p_errors) const;
 
         void process_field_sub_selections(
-            const nlohmann::json &p_parent_result,
-            ResolverPath &p_path,
-            const gql::TAstNodePtr &p_selection_set,
-            nlohmann::json &p_result,
-            gql::TErrorVector &p_error,
-            std::string_view myFieldName
-        ) const;
-
-        bool resolve_field_selection_details(
-            const nlohmann::json& p_parent,
-            ResolverPath &p_path,
-            const gql::TAstNodePtr &p_field_node, nlohmann::json &p_result, gql::TErrorVector &p_error) const;
-
-        void process_field_selection(
-            const nlohmann::json &p_parent_result,
-            ResolverPath &p_path, const gql::TAstNodePtr &p_selection_set, nlohmann::json &p_result, gql::TErrorVector &
-            p_errors) const;
+            const nlohmann::json& p_parent_result,
+            ResolverPath& p_path,
+            const gql::TAstNodePtr& p_selection_set,
+            const TFragmentMap& p_fragments,
+            nlohmann::json& p_result,
+            gql::TErrorVector& p_errors,
+            std::string_view myFieldName) const;
 
         [[nodiscard]] gql::TAstNodePtr const * find_node_by_type(const TAstNodeMap::value_type &pair, std::string_view p_type) const ;
 

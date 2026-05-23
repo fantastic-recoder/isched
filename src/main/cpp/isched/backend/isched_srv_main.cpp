@@ -185,7 +185,7 @@ int main(int argc, char** argv) {
 
     // Wire the shutdown mutation to the main-loop sentinel so that
     // `mutation { shutdown }` exits cleanly without SIGTERM.
-    server->set_shutdown_callback([&keep_running]() {
+    server->set_shutdown_callback([]() {
         keep_running.store(false, std::memory_order_relaxed);
     });
 
