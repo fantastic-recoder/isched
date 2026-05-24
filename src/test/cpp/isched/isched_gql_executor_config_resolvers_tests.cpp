@@ -39,25 +39,25 @@ TEST_CASE("Bootstrap & Configuration Resolvers", "[gql][resolvers][config]") {
     admin_ctx.db = db;
 
     SECTION("Bootstrap flow") {
-        auto res1 = exec_full(proc, "{ platformBootstrapStatus }");
+        auto res1 = exec_full(proc, "{ isched { platformBootstrapStatus } }");
         WARN_IF_ERROR(res1);
         
         auto res2 = exec_full(proc, R"(
-            mutation {
+            mutation { isched {
                 bootstrapPlatformAdmin(input: {
                     username: "admin",
                     password: "password123456",
                     email: "admin@isched.local"
                 })
-            }
+            } }
         )");
         if (!res2.is_success()) {
             WARN("Bootstrap error: " << (!res2.errors.empty() ? res2.errors[0].message : ""));
         } else {
             auto res3 = proc.execute(R"(
-                mutation {
+                mutation { isched {
                     completePlatformBootstrap
-                }
+                } }
             )", "{}", admin_ctx);
             WARN_IF_ERROR(res3);
         }
@@ -65,20 +65,20 @@ TEST_CASE("Bootstrap & Configuration Resolvers", "[gql][resolvers][config]") {
 
     SECTION("Configuration queries and mutations") {
         auto res = proc.execute(R"(
-            mutation {
+            mutation { isched {
                 applyConfiguration(input: {
                     configJson: "{}"
                 }) { snapshotId }
-            }
+            } }
         )", "{}", admin_ctx);
         WARN_IF_ERROR(res);
         std::string snap_id = "unknown";
-        if (res.is_success() && res.data.contains("applyConfiguration") && res.data["applyConfiguration"].is_object() &&
-            res.data["applyConfiguration"].contains("snapshotId") && res.data["applyConfiguration"]["snapshotId"].is_string()) {
-            snap_id = res.data["applyConfiguration"]["snapshotId"].get<std::string>();
+        if (res.is_success() && res.data.contains("applyConfiguration") && res.data["isched"]["applyConfiguration"].is_object() &&
+            res.data["isched"]["applyConfiguration"].contains("snapshotId") && res.data["isched"]["applyConfiguration"]["snapshotId"].is_string()) {
+            snap_id = res.data["isched"]["applyConfiguration"]["snapshotId"].get<std::string>();
         }
         
-        auto res2 = proc.execute("{ activeConfiguration { configJson } configurationHistory { id } }", "{}", admin_ctx);
+        auto res2 = proc.execute("{ isched { activeConfiguration { configJson } configurationHistory { id } } }", "{}", admin_ctx);
         WARN_IF_ERROR(res2);
         
         if (snap_id != "unknown") {

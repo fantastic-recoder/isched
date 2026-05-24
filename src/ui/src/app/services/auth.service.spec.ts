@@ -42,7 +42,7 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1', name: 'Jane Admin' } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' } } } });
   });
 
   it('signIn authenticates through bootstrapSession without exposing token storage', (done) => {
@@ -54,8 +54,8 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { login: { token: 'opaque-cookie-token' } } });
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1', name: 'Jane Admin' } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { login: { token: 'opaque-cookie-token' } } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' } } } });
   });
 
   it('isLoggedIn() returns false by default', () => {
@@ -82,7 +82,7 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { logout: true } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { logout: true } } });
   });
 
   it('does not write auth state to localStorage/sessionStorage during bootstrap', (done) => {
@@ -97,7 +97,7 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1', name: 'Jane Admin' } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' } } } });
   });
 
   it('does not write auth state to localStorage/sessionStorage during signOut', (done) => {
@@ -112,7 +112,7 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { logout: true } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { logout: true } } });
   });
 
   it('surfaces deterministic lockout guidance with retry timing when backend provides retryAfterMs', (done) => {

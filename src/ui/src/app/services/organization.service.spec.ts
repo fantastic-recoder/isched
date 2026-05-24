@@ -51,9 +51,11 @@ describe('OrganizationService', () => {
 
     req.flush({
       data: {
-        organizations: {
-          nodes: [{ id: 'org-1', name: 'Acme', status: 'ACTIVE', revision: 0, updatedAt: '2026-04-05T00:00:00Z' }],
-          pageInfo: { number: 1, size: 10, totalElements: 1, totalPages: 1 },
+        isched: {
+          organizations: {
+            nodes: [{ id: 'org-1', name: 'Acme', status: 'ACTIVE', revision: 0, updatedAt: '2026-04-05T00:00:00Z' }],
+            pageInfo: { number: 1, size: 10, totalElements: 1, totalPages: 1 },
+          },
         },
       },
     });
@@ -71,9 +73,11 @@ describe('OrganizationService', () => {
 
     req.flush({
       data: {
-        organizations: {
-          nodes: [],
-          pageInfo: { number: 1, size: 10, totalElements: 0, totalPages: 0 },
+        isched: {
+          organizations: {
+            nodes: [],
+            pageInfo: { number: 1, size: 10, totalElements: 0, totalPages: 0 },
+          },
         },
       },
     });
@@ -92,7 +96,7 @@ describe('OrganizationService', () => {
     });
 
     httpMock.expectOne('/graphql').flush({
-      data: { organizations: { nodes: mockNodes, pageInfo: mockPageInfo } },
+      data: { isched: { organizations: { nodes: mockNodes, pageInfo: mockPageInfo } },
     });
   });
 
@@ -113,7 +117,7 @@ describe('OrganizationService', () => {
 
     req.flush({
       data: {
-        updateOrganization: {
+        isched: { updateOrganization: {
           id: 'org-1', name: 'NewName', status: 'ACTIVE', revision: 4, updatedAt: '2026-04-05T01:00:00Z',
         },
       },
@@ -130,7 +134,7 @@ describe('OrganizationService', () => {
 
     httpMock.expectOne('/graphql').flush({
       data: {
-        updateOrganization: {
+        isched: { updateOrganization: {
           id: 'org-1', name: 'Acme', status: 'SUSPENDED', revision: 2, updatedAt: '2026-04-05T01:00:00Z',
         },
       },
@@ -151,7 +155,7 @@ describe('OrganizationService', () => {
 
     httpMock.expectOne('/graphql').flush({
       data: {
-        createOrganization: {
+        isched: { createOrganization: {
           id: 'org-new', name: 'NewOrg', status: 'ACTIVE', revision: 0, updatedAt: '2026-04-05T02:00:00Z',
         },
       },

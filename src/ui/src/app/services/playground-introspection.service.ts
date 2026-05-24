@@ -61,7 +61,9 @@ const INTROSPECTION_QUERY = `
 
 const SCHEMA_DOCUMENTS_QUERY = `
   query SchemaDocuments {
-    schemaDocuments { id name content }
+    isched {
+      schemaDocuments { id name content }
+    }
   }
 `;
 
@@ -78,8 +80,15 @@ export class PlaygroundIntrospectionService {
     this.error.set(null);
 
     this.gql.query<RawIntrospectionResult>(INTROSPECTION_QUERY).subscribe({
-      next: (introspection) => {
-        this.loadSchemaDocuments(introspection);
+      next: (response) => {
+        const schema = response?.__schema;
+        if (schema) {
+          const introspection: RawIntrospectionResult = { __schema: schema };
+          this.loadSchemaDocuments(introspection);
+        } else {
+          this.loading.set(false);
+          this.error.set('Failed to load schema introspection: missing __schema');
+        }
       },
       error: (err: unknown) => {
         this.loading.set(false);
@@ -90,11 +99,12 @@ export class PlaygroundIntrospectionService {
 
   private loadSchemaDocuments(introspection: RawIntrospectionResult): void {
     this.gql
-      .query<{ schemaDocuments: SchemaDocument[] }>(SCHEMA_DOCUMENTS_QUERY)
+      .query<{ isched?: { schemaDocuments?: SchemaDocument[] } }>(SCHEMA_DOCUMENTS_QUERY)
       .subscribe({
-        next: ({ schemaDocuments }) => {
+        next: (response) => {
+          const schemaDocuments = response?.isched?.schemaDocuments ?? [];
           this.loading.set(false);
-          this.treeNodes.set(buildTree(introspection, schemaDocuments ?? []));
+          this.treeNodes.set(buildTree(introspection, schemaDocuments));
         },
         error: () => {
           // Schema documents are optional – just continue without them
@@ -124,15 +134,15 @@ function buildTree(
 
   // Operation groups
   if (queryTypeName) {
-    const group = buildOperationGroup('Queries', 'query', typeMap.get(queryTypeName));
+    const group = buildOperationGroup('Queries', 'query', typeMap.get(queryTypeName), typeMap);
     if (group) nodes.push(group);
   }
   if (mutationTypeName) {
-    const group = buildOperationGroup('Mutations', 'mutation', typeMap.get(mutationTypeName));
+    const group = buildOperationGroup('Mutations', 'mutation', typeMap.get(mutationTypeName), typeMap);
     if (group) nodes.push(group);
   }
   if (subscriptionTypeName) {
-    const group = buildOperationGroup('Subscriptions', 'subscription', typeMap.get(subscriptionTypeName));
+    const group = buildOperationGroup('Subscriptions', 'subscription', typeMap.get(subscriptionTypeName), typeMap);
     if (group) nodes.push(group);
   }
 
@@ -171,12 +181,29 @@ function buildOperationGroup(
   label: string,
   opKind: OperationKind,
   type: RawIntrospectionType | undefined,
+  typeMap: Map<string, RawIntrospectionType>,
 ): SchemaTreeNode | null {
   if (!type || !type.fields) return null;
 
-  const children: SchemaTreeNode[] = type.fields.map((f) =>
-    buildFieldNode(f, opKind),
-  );
+  const visibleFields = type.fields.filter((f) => !f.name.startsWith('__'));
+
+  const children: SchemaTreeNode[] = visibleFields.flatMap((f) => {
+    const fieldTypeName = unwrapTypeName(f.type as RawTypeRef);
+    const fieldType = typeMap.get(fieldTypeName);
+    const fieldTypeFields = fieldType?.fields ?? [];
+
+    // Only treat OBJECT types ending with "Namespace" as namespace containers
+    if (
+      fieldType?.kind === 'OBJECT' &&
+      fieldTypeFields.length > 0 &&
+      fieldTypeName.endsWith('Namespace')
+    ) {
+      // This field is a namespace — create a namespace node with nested fields
+      return [buildNamespaceNode(f.name, fieldTypeFields, opKind, typeMap, [f.name])];
+    }
+
+    return [buildFieldNode(f, opKind)];
+  });
 
   return {
     id: `group:${opKind}`,
@@ -187,9 +214,47 @@ function buildOperationGroup(
   };
 }
 
-function buildFieldNode(field: RawFieldDef, opKind: OperationKind): SchemaTreeNode {
+function buildNamespaceNode(
+  namespaceName: string,
+  namespaceFields: RawFieldDef[],
+  opKind: OperationKind,
+  typeMap: Map<string, RawIntrospectionType>,
+  namespacePath: string[] = [],
+): SchemaTreeNode {
+  const children: SchemaTreeNode[] = namespaceFields.flatMap((f) => {
+    const fieldTypeName = unwrapTypeName(f.type as RawTypeRef);
+    const fieldType = typeMap.get(fieldTypeName);
+    const fieldTypeFields = fieldType?.fields ?? [];
+
+    // Only treat OBJECT types ending with "Namespace" as nested namespace containers
+    if (
+      fieldType?.kind === 'OBJECT' &&
+      fieldTypeFields.length > 0 &&
+      fieldTypeName.endsWith('Namespace')
+    ) {
+      // Nested namespace — recursively create namespace node
+      return [buildNamespaceNode(f.name, fieldTypeFields, opKind, typeMap, [...namespacePath, f.name])];
+    }
+
+    return [buildFieldNode(f, opKind, namespacePath)];
+  });
+
   return {
-    id: `field:${opKind}:${field.name}`,
+    id: `namespace:${namespacePath.join('.')}`,
+    kind: 'namespace',
+    name: namespaceName,
+    children,
+    isSelectable: false,
+  };
+}
+
+function buildFieldNode(
+  field: RawFieldDef,
+  opKind: OperationKind,
+  namespacePath: string[] = [],
+): SchemaTreeNode {
+  return {
+    id: `field:${opKind}:${namespacePath.join('.')}:${field.name}`,
     kind: 'field',
     name: field.name,
     typeName: typeRefToString(field.type as RawTypeRef),
@@ -197,6 +262,7 @@ function buildFieldNode(field: RawFieldDef, opKind: OperationKind): SchemaTreeNo
     children: [],
     isSelectable: true,
     operationKind: opKind,
+    namespacePath,
   };
 }
 
@@ -276,4 +342,3 @@ function errorMessage(err: unknown, fallback: string): string {
   }
   return fallback;
 }
-

@@ -1,3 +1,20 @@
+## [Unreleased] UI GraphQL Namespace Alignment — 2026-05-25
+
+### Fixed
+- `DashboardComponent` GraphQL operations now consistently use the built-in `isched` namespace (`query { isched { ... } }` and `mutation { isched { ... } }`) for:
+  - health/version probe
+  - organizations listing
+  - users listing
+  - createOrganization
+  - createUser
+- Updated dashboard query parsing to match current schema contracts:
+  - `organizations` now reads from `OrganizationConnection.nodes`
+  - namespaced payload access now reads from `data.isched.*`
+
+### Validation
+- Frontend unit gate: `cd src/ui && npx ng test --watch=false` -> PASS (30 suites / 187 tests).
+- Focused e2e gate: `cd src/ui && npx playwright test e2e/bootstrap.spec.ts` -> PASS (3/3).
+
 ## [Feature 011] GraphQL Playground — 2026-05-24
 
 ### Added

@@ -95,6 +95,32 @@ Equivalent inline form:
 
 WebUI is served at `GET /isched`; `GET /` and `GET /graphql` redirect to `/isched`.
 
+## GraphQL Namespace Contract
+
+Built-in GraphQL fields are exposed under the `isched` namespace. Client queries and mutations should target namespaced operations, not root-level fields.
+
+Example:
+
+```graphql
+query {
+  isched {
+    health { status }
+    version
+  }
+}
+```
+
+```graphql
+mutation($email: String!, $password: String!) {
+  isched {
+    login(email: $email, password: $password) {
+      token
+      expiresAt
+    }
+  }
+}
+```
+
 Build on Ubuntu with Docker
 ---------------------------
 

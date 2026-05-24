@@ -47,14 +47,15 @@ TEST_CASE("BootstrapStatus reports bootstrap availability on clean system", "[in
     (void)db;
 
     const auto status = exec->execute(
-        R"(query { platformBootstrapStatus { isBootstrapAllowed bootstrapState } })",
+        R"(query { isched { platformBootstrapStatus { isBootstrapAllowed bootstrapState } } })",
         "{}",
         isched::test::anonymous_ctx());
 
     REQUIRE(status.is_success());
-    REQUIRE(status.data.contains("platformBootstrapStatus"));
-    REQUIRE(status.data["platformBootstrapStatus"]["isBootstrapAllowed"].get<bool>());
-    REQUIRE(status.data["platformBootstrapStatus"]["bootstrapState"].get<std::string>() == "PendingInitialization");
+    REQUIRE(status.data.contains("isched"));
+    REQUIRE(status.data["isched"].contains("platformBootstrapStatus"));
+    REQUIRE(status.data["isched"]["platformBootstrapStatus"]["isBootstrapAllowed"].get<bool>());
+    REQUIRE(status.data["isched"]["platformBootstrapStatus"]["bootstrapState"].get<std::string>() == "PendingInitialization");
 }
 
 TEST_CASE("CompleteBootstrap initializes platform and flips status", "[integration][contract][bootstrap][T019]") {
@@ -64,13 +65,13 @@ TEST_CASE("CompleteBootstrap initializes platform and flips status", "[integrati
         std::chrono::system_clock::now().time_since_epoch().count()) + "@example.com";
 
     const auto complete = exec->execute(
-        R"(mutation($input: BootstrapPlatformAdminInput!) {
+        R"(mutation($input: BootstrapPlatformAdminInput!) { isched {
              completePlatformBootstrap(input: $input) {
                success
                bootstrapState
                requiresRedirectToLogin
              }
-           })",
+           } })",
         json{{"input", {
             {"email", email},
             {"password", "BootstrapContract123!"},
@@ -79,20 +80,20 @@ TEST_CASE("CompleteBootstrap initializes platform and flips status", "[integrati
         isched::test::anonymous_ctx());
 
     REQUIRE(complete.is_success());
-    REQUIRE(complete.data["completePlatformBootstrap"]["success"].get<bool>());
-    REQUIRE(complete.data["completePlatformBootstrap"]["bootstrapState"].get<std::string>() == "Initialized");
+    REQUIRE(complete.data["isched"]["completePlatformBootstrap"]["success"].get<bool>());
+    REQUIRE(complete.data["isched"]["completePlatformBootstrap"]["bootstrapState"].get<std::string>() == "Initialized");
 
     const auto admins = db->list_platform_admins();
     REQUIRE(admins);
     REQUIRE(admins.value().size() == 1);
 
     const auto status_after = exec->execute(
-        R"(query { platformBootstrapStatus { isBootstrapAllowed bootstrapState } })",
+        R"(query { isched { platformBootstrapStatus { isBootstrapAllowed bootstrapState } } })",
         "{}",
         isched::test::anonymous_ctx());
 
     REQUIRE(status_after.is_success());
-    REQUIRE_FALSE(status_after.data["platformBootstrapStatus"]["isBootstrapAllowed"].get<bool>());
-    REQUIRE(status_after.data["platformBootstrapStatus"]["bootstrapState"].get<std::string>() == "Initialized");
+    REQUIRE_FALSE(status_after.data["isched"]["platformBootstrapStatus"]["isBootstrapAllowed"].get<bool>());
+    REQUIRE(status_after.data["isched"]["platformBootstrapStatus"]["bootstrapState"].get<std::string>() == "Initialized");
 }
 

@@ -55,7 +55,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: hello query", "[srv][graph
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
-    std::string body = R"({"query":"{ hello }"})";
+    std::string body = R"({"query":"{ isched { hello } }"})";
     auto res = cli.Post("/graphql", body, "application/json");
 
     REQUIRE(res);
@@ -63,7 +63,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: hello query", "[srv][graph
 
     auto j = json::parse(res->body);
     REQUIRE(j.contains("data"));
-    REQUIRE(j["data"]["hello"] == "Hello, GraphQL!");
+    REQUIRE(j["data"]["isched"]["hello"] == "Hello, GraphQL!");
 }
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: version query", "[srv][graphql][http]") {
@@ -71,7 +71,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: version query", "[srv][gra
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
-    std::string body = R"({"query":"{ version }"})";
+    std::string body = R"({"query":"{ isched { version } }"})";
     auto res = cli.Post("/graphql", body, "application/json");
 
     REQUIRE(res);
@@ -79,7 +79,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: version query", "[srv][gra
 
     auto j = json::parse(res->body);
     REQUIRE(j.contains("data"));
-    REQUIRE(j["data"]["version"] == "0.0.1");
+    REQUIRE(j["data"]["isched"]["version"] == "0.0.1");
 }
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: missing query field returns 400", "[srv][graphql][http]") {
@@ -109,7 +109,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: extensions block present",
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
-    auto res = cli.Post("/graphql", R"({"query":"{ hello }"})", "application/json");
+    auto res = cli.Post("/graphql", R"({"query":"{ isched { hello } }"})", "application/json");
 
     REQUIRE(res);
     auto j = json::parse(res->body);

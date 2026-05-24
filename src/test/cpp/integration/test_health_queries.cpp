@@ -57,10 +57,10 @@ public:
 TEST_CASE_METHOD(HealthQueryTestFixture, "Health query: overall status is UP", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ health { status } }");
+    auto resp = post_graphql("{ isched { health { status } } }");
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["health"]["status"] == "UP");
+    REQUIRE(resp["data"]["isched"]["health"]["status"] == "UP");
 
     server->stop();
 }
@@ -68,10 +68,10 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "Health query: overall status is UP", "
 TEST_CASE_METHOD(HealthQueryTestFixture, "Health query: components are reported", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ health { status components } }");
-    REQUIRE(resp["data"]["health"]["status"] == "UP");
+    auto resp = post_graphql("{ isched { health { status components } } }");
+    REQUIRE(resp["data"]["isched"]["health"]["status"] == "UP");
     // components should be present (non-null)
-    REQUIRE_FALSE(resp["data"]["health"]["components"].is_null());
+    REQUIRE_FALSE(resp["data"]["isched"]["health"]["components"].is_null());
 
     server->stop();
 }
@@ -79,10 +79,10 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "Health query: components are reported"
 TEST_CASE_METHOD(HealthQueryTestFixture, "Health query: timestamp is present", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ health { status timestamp } }");
-    REQUIRE(resp["data"]["health"]["status"] == "UP");
+    auto resp = post_graphql("{ isched { health { status timestamp } } }");
+    REQUIRE(resp["data"]["isched"]["health"]["status"] == "UP");
     // timestamp in milliseconds since epoch — should be a large positive number
-    REQUIRE_FALSE(resp["data"]["health"]["timestamp"].is_null());
+    REQUIRE_FALSE(resp["data"]["isched"]["health"]["timestamp"].is_null());
 
     server->stop();
 }
@@ -90,10 +90,10 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "Health query: timestamp is present", "
 TEST_CASE_METHOD(HealthQueryTestFixture, "ServerInfo query: version and activeTenants", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ serverInfo { version activeTenants } }");
+    auto resp = post_graphql("{ isched { serverInfo { version activeTenants } } }");
     REQUIRE(resp.contains("data"));
-    REQUIRE(resp["data"]["serverInfo"]["version"] == "0.0.1");
-    REQUIRE(resp["data"]["serverInfo"]["activeTenants"] == 1);
+    REQUIRE(resp["data"]["isched"]["serverInfo"]["version"] == "0.0.1");
+    REQUIRE(resp["data"]["isched"]["serverInfo"]["activeTenants"] == 1);
 
     server->stop();
 }
@@ -101,10 +101,10 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "ServerInfo query: version and activeTe
 TEST_CASE_METHOD(HealthQueryTestFixture, "ServerInfo query: transportModes is an array", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ serverInfo { transportModes } }");
+    auto resp = post_graphql("{ isched { serverInfo { transportModes } } }");
     REQUIRE(resp.contains("data"));
-    REQUIRE(resp["data"]["serverInfo"]["transportModes"].is_array());
-    REQUIRE_FALSE(resp["data"]["serverInfo"]["transportModes"].empty());
+    REQUIRE(resp["data"]["isched"]["serverInfo"]["transportModes"].is_array());
+    REQUIRE_FALSE(resp["data"]["isched"]["serverInfo"]["transportModes"].empty());
 
     server->stop();
 }
@@ -112,10 +112,10 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "ServerInfo query: transportModes is an
 TEST_CASE_METHOD(HealthQueryTestFixture, "Metrics query: activeConnections and requestsInInterval", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ metrics { activeConnections requestsInInterval } }");
+    auto resp = post_graphql("{ isched { metrics { activeConnections requestsInInterval } } }");
     REQUIRE(resp.contains("data"));
-    REQUIRE(resp["data"]["metrics"]["activeConnections"].is_number());
-    REQUIRE(resp["data"]["metrics"]["requestsInInterval"].is_number());
+    REQUIRE(resp["data"]["isched"]["metrics"]["activeConnections"].is_number());
+    REQUIRE(resp["data"]["isched"]["metrics"]["requestsInInterval"].is_number());
 
     server->stop();
 }
@@ -123,14 +123,14 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "Metrics query: activeConnections and r
 TEST_CASE_METHOD(HealthQueryTestFixture, "Health and serverInfo in a single query", "[integration][health][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ health { status } serverInfo { version activeTenants transportModes } }");
+    auto resp = post_graphql("{ isched { health { status } serverInfo { version activeTenants transportModes } } }");
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
 
-    REQUIRE(resp["data"]["health"]["status"] == "UP");
-    REQUIRE(resp["data"]["serverInfo"]["version"] == "0.0.1");
-    REQUIRE(resp["data"]["serverInfo"]["activeTenants"] == 1);
-    REQUIRE(resp["data"]["serverInfo"]["transportModes"].is_array());
+    REQUIRE(resp["data"]["isched"]["health"]["status"] == "UP");
+    REQUIRE(resp["data"]["isched"]["serverInfo"]["version"] == "0.0.1");
+    REQUIRE(resp["data"]["isched"]["serverInfo"]["activeTenants"] == 1);
+    REQUIRE(resp["data"]["isched"]["serverInfo"]["transportModes"].is_array());
 
     server->stop();
 }
@@ -139,8 +139,8 @@ TEST_CASE_METHOD(HealthQueryTestFixture, "Health data is fresh: repeated queries
     REQUIRE(server->start());
 
     for (int i = 0; i < 3; ++i) {
-        auto resp = post_graphql("{ health { status } }");
-        REQUIRE(resp["data"]["health"]["status"] == "UP");
+        auto resp = post_graphql("{ isched { health { status } } }");
+        REQUIRE(resp["data"]["isched"]["health"]["status"] == "UP");
     }
 
     server->stop();

@@ -122,5 +122,18 @@ describe('generateStub', () => {
     );
     expect(stub).toContain('value: 0.0');
   });
+
+  it('wraps the selected field in namespace blocks when namespacePath is present', () => {
+    const stub = generateStub(
+      makeFieldNode({
+        name: 'health',
+        typeName: 'Health',
+        namespacePath: ['isched'],
+      }),
+    );
+
+    expect(stub).toContain('isched {');
+    expect(stub).toContain('health {');
+  });
 });
 

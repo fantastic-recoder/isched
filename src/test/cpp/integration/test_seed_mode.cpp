@@ -52,9 +52,9 @@ static ResolverCtx anon_ctx() {
 }
 
 static bool seed_active(GqlExecutor& exec) {
-    auto r = exec.execute("{ systemState { seedModeActive } }", "{}", anon_ctx());
+    auto r = exec.execute("{ isched { systemState { seedModeActive } } }", "{}", anon_ctx());
     REQUIRE(r.is_success());
-    return r.data["systemState"]["seedModeActive"].get<bool>();
+    return r.data["isched"]["systemState"]["seedModeActive"].get<bool>();
 }
 
 static ResolverCtx authenticated_platform_ctx() {
@@ -81,7 +81,7 @@ TEST_CASE("systemState: is callable without auth (anonymous)",
           "[integration][seed][T-UI-F-002]") {
     auto [db, exec] = make_executor();
     // Simply calling with empty roles must not return a FORBIDDEN error
-    auto result = exec->execute("{ systemState { seedModeActive } }", "{}", anon_ctx());
+    auto result = exec->execute("{ isched { systemState { seedModeActive } } }", "{}", anon_ctx());
     REQUIRE(result.is_success());
     for (const auto& err : result.errors) {
         REQUIRE(err.code != EErrorCodes::FORBIDDEN);
@@ -93,13 +93,20 @@ TEST_CASE("systemState: seed mode stays active even for authenticated startup pr
     auto [db, exec] = make_executor();
 
     auto result = exec->execute(
-        "{ systemState { seedModeActive } currentUser { id } }",
+        "{ isched { systemState { seedModeActive } currentUser { id } } }",
         "{}",
         authenticated_platform_ctx());
 
     REQUIRE(result.is_success());
-    REQUIRE(result.data["currentUser"]["id"] == "platform-admin-id");
-    REQUIRE(result.data["systemState"]["seedModeActive"].get<bool>());
+    REQUIRE(result.data["isched"]["currentUser"]["id"] == "platform-admin-id");
+    REQUIRE(result.data["isched"]["systemState"]["seedModeActive"].get<bool>());
+}
+
+TEST_CASE("systemState: non-namespaced legacy query is rejected",
+          "[integration][seed][namespace]") {
+    auto [db, exec] = make_executor();
+    auto legacy = exec->execute("{ systemState { seedModeActive } }", "{}", anon_ctx());
+    REQUIRE_FALSE(legacy.is_success());
 }
 
 // ============================================================================
@@ -114,13 +121,13 @@ TEST_CASE("createPlatformAdmin: valid credentials creates admin and disables see
     const std::string email = "admin_" + g_run_suffix + "@example.com";
     const std::string query =
         R"(mutation($email: String!, $password: String!) {
-             createPlatformAdmin(email: $email, password: $password) { id email }
+             isched { createPlatformAdmin(email: $email, password: $password) { id email } }
            })";
     const std::string vars = json{{"email", email}, {"password", "SecurePass1!"}}.dump();
 
     auto result = exec->execute(query, vars, anon_ctx());
     REQUIRE(result.is_success());
-    REQUIRE(result.data["createPlatformAdmin"]["email"] == email);
+    REQUIRE(result.data["isched"]["createPlatformAdmin"]["email"] == email);
 
     // Seed mode must now be off
     REQUIRE_FALSE(seed_active(*exec));
@@ -134,7 +141,7 @@ TEST_CASE("bootstrapPlatformAdmin: once bootstrap completes, later authenticated
     const std::string email = "bootstrap_" + g_run_suffix + "@example.com";
     const std::string mutation =
         R"(mutation($input: BootstrapPlatformAdminInput!) {
-             bootstrapPlatformAdmin(input: $input) { token expiresAt }
+             isched { bootstrapPlatformAdmin(input: $input) { token expiresAt } }
            })";
     const std::string variables = json{
         {"input", {
@@ -146,16 +153,16 @@ TEST_CASE("bootstrapPlatformAdmin: once bootstrap completes, later authenticated
 
     auto bootstrap_result = exec->execute(mutation, variables, anon_ctx());
     REQUIRE(bootstrap_result.is_success());
-    REQUIRE_FALSE(bootstrap_result.data["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
+    REQUIRE_FALSE(bootstrap_result.data["isched"]["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
 
     auto result = exec->execute(
-        "{ systemState { seedModeActive } currentUser { id } }",
+        "{ isched { systemState { seedModeActive } currentUser { id } } }",
         "{}",
         authenticated_platform_ctx());
 
     REQUIRE(result.is_success());
-    REQUIRE_FALSE(result.data["systemState"]["seedModeActive"].get<bool>());
-    REQUIRE(result.data["currentUser"]["id"] == "platform-admin-id");
+    REQUIRE_FALSE(result.data["isched"]["systemState"]["seedModeActive"].get<bool>());
+    REQUIRE(result.data["isched"]["currentUser"]["id"] == "platform-admin-id");
 }
 
 TEST_CASE("createPlatformAdmin: blocked when seed mode is already off",
@@ -166,7 +173,7 @@ TEST_CASE("createPlatformAdmin: blocked when seed mode is already off",
     const std::string email = "admin2_" + g_run_suffix + "@example.com";
     const std::string q =
         R"(mutation($e: String!, $p: String!) {
-             createPlatformAdmin(email: $e, password: $p) { id }
+             isched { createPlatformAdmin(email: $e, password: $p) { id } }
            })";
     auto r1 = exec->execute(q, json{{"e", email}, {"p", "SecurePass1!"}}.dump(), anon_ctx());
     REQUIRE(r1.is_success());
@@ -185,7 +192,7 @@ TEST_CASE("createPlatformAdmin: short password is rejected",
 
     const std::string q =
         R"(mutation($e: String!, $p: String!) {
-             createPlatformAdmin(email: $e, password: $p) { id }
+             isched { createPlatformAdmin(email: $e, password: $p) { id } }
            })";
     const std::string vars =
         json{{"e", "short_" + g_run_suffix + "@example.com"}, {"p", "short"}}.dump();
@@ -202,7 +209,7 @@ TEST_CASE("createPlatformAdmin: is callable without auth (anonymous)",
 
     const std::string q =
         R"(mutation($e: String!, $p: String!) {
-             createPlatformAdmin(email: $e, password: $p) { id email }
+             isched { createPlatformAdmin(email: $e, password: $p) { id email } }
            })";
     const std::string email = "anon_" + g_run_suffix + "@example.com";
     auto result = exec->execute(q, json{{"e", email}, {"p", "AnonPass1234!"}}.dump(), anon_ctx());
@@ -246,7 +253,7 @@ TEST_CASE("remote_ip: is populated in ResolverCtx and returned from a resolver",
     // successfully (the resolver uses ctx.remote_ip for the rate limiter).
     ResolverCtx ctx = anon_ctx();
     ctx.remote_ip = "192.0.2.42"; // TEST-NET address
-    auto result = exec->execute("{ systemState { seedModeActive } }", "{}", ctx);
+    auto result = exec->execute("{ isched { systemState { seedModeActive } } }", "{}", ctx);
     REQUIRE(result.is_success());
     // remote_ip was consumed without error — propagation confirmed.
 }
@@ -264,15 +271,15 @@ TEST_CASE("createUser: password exactly 11 chars is rejected (< 12)",
     pa_ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
     const std::string org_name = "PwdTestOrg_" + g_run_suffix;
     auto r_org = exec->execute(
-        R"(mutation($n: String!) { createOrganization(input: { name: $n }) { id } })",
+        R"(mutation($n: String!) { isched { createOrganization(input: { name: $n }) { id } } })",
         json{{"n", org_name}}.dump(), pa_ctx);
     REQUIRE(r_org.is_success());
-    const std::string org_id = r_org.data["createOrganization"]["id"].get<std::string>();
+    const std::string org_id = r_org.data["isched"]["createOrganization"]["id"].get<std::string>();
 
     // Try to create user with 11-char password
     const std::string q =
         R"(mutation($o:ID!,$e:String!,$p:String!){
-             createUser(organizationId:$o input:{email:$e password:$p}){id}
+             isched { createUser(organizationId:$o input:{email:$e password:$p}){id} }
            })";
     ResolverCtx ta_ctx;
     ta_ctx.tenant_id = org_id;
@@ -295,15 +302,15 @@ TEST_CASE("createUser: password exactly 12 chars succeeds",
     pa_ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
     const std::string org_name = "PwdTestOrg12_" + g_run_suffix;
     auto r_org = exec->execute(
-        R"(mutation($n: String!) { createOrganization(input: { name: $n }) { id } })",
+        R"(mutation($n: String!) { isched { createOrganization(input: { name: $n }) { id } } })",
         json{{"n", org_name}}.dump(), pa_ctx);
     REQUIRE(r_org.is_success());
-    const std::string org_id = r_org.data["createOrganization"]["id"].get<std::string>();
+    const std::string org_id = r_org.data["isched"]["createOrganization"]["id"].get<std::string>();
 
     // 12-char password must succeed
     const std::string q =
         R"(mutation($o:ID!,$e:String!,$p:String!){
-             createUser(organizationId:$o input:{email:$e password:$p}){id email}
+             isched { createUser(organizationId:$o input:{email:$e password:$p}){id email} }
            })";
     ResolverCtx ta_ctx;
     ta_ctx.tenant_id = org_id;

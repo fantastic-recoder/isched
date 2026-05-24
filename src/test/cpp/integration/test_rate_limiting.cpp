@@ -93,9 +93,9 @@ ExecutionResult login_attempt(
     const std::string& password)
 {
     return exec->execute(
-        R"(mutation($email: String!, $password: String!) {
+        R"(mutation($email: String!, $password: String!) { isched {
              login(email: $email, password: $password) { token expiresAt }
-           })",
+           } })",
         json{{"email", email}, {"password", password}}.dump(),
         isched::test::anonymous_ctx());
 }

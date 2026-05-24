@@ -50,19 +50,19 @@ describe('BootstrapPage', () => {
 
     // 1) Bootstrap mutation
     httpMock.expectOne('/graphql').flush({
-      data: { bootstrapPlatformAdmin: { token: 'x', expiresAt: '2099-01-01T00:00:00Z' } },
+      data: { isched: { bootstrapPlatformAdmin: { token: 'x', expiresAt: '2099-01-01T00:00:00Z' } } },
     });
     await flushMicrotasks();
 
     // 2) Auto-login mutation (AuthService.signIn)
     httpMock.expectOne('/graphql').flush({
-      data: { login: { token: 'session-jwt' } },
+      data: { isched: { login: { token: 'session-jwt' } } },
     });
     await flushMicrotasks();
 
     // 3) Session bootstrap query (AuthService.bootstrapSession → currentUser)
     httpMock.expectOne('/graphql').flush({
-      data: { currentUser: { id: '1' } },
+      data: { isched: { currentUser: { id: '1' } } },
     });
     await flushMicrotasks();
 
@@ -84,7 +84,7 @@ describe('BootstrapPage', () => {
 
     // 1) Bootstrap mutation succeeds
     httpMock.expectOne('/graphql').flush({
-      data: { bootstrapPlatformAdmin: { token: 'x', expiresAt: '2099-01-01T00:00:00Z' } },
+      data: { isched: { bootstrapPlatformAdmin: { token: 'x', expiresAt: '2099-01-01T00:00:00Z' } } },
     });
     await flushMicrotasks();
 

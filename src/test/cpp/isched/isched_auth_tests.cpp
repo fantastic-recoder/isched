@@ -376,7 +376,7 @@ TEST_CASE("createRole mutation: anonymous caller is denied by RBAC gate", "[rbac
     auto exec = std::make_unique<GqlExecutor>(make_system_db_manager());
     // No auth context → empty roles
     auto result = exec->execute(
-        R"(mutation { createRole(input: {id: "role_x", name: "X", scope: "platform"}) })",
+        R"(mutation { isched { createRole(input: {id: "role_x", name: "X", scope: "platform"}) } })",
         "{}",
         ResolverCtx{});
     REQUIRE_FALSE(result.is_success());
@@ -395,13 +395,13 @@ TEST_CASE("createRole mutation: tenant_admin caller is allowed", "[rbac][e2e]") 
     ctx.roles = {std::string(Role::TENANT_ADMIN)};
 
     auto result = exec->execute(
-        R"(mutation { createRole(input: {id: ")" + std::string(kE2eRoleId) +
-            R"(", name: "E2E Test Role", scope: "platform"}) })",
+        R"(mutation { isched { createRole(input: {id: ")" + std::string(kE2eRoleId) +
+            R"(", name: "E2E Test Role", scope: "platform"}) } })",
         "{}",
         std::move(ctx));
 
     REQUIRE(result.is_success());
-    REQUIRE(result.data["createRole"] == true);
+    REQUIRE(result.data["isched"]["createRole"] == true);
 
     // Post-clean
     (void)db->delete_platform_role(std::string(kE2eRoleId));
@@ -418,13 +418,13 @@ TEST_CASE("createRole mutation: platform_admin caller is allowed", "[rbac][e2e]"
     ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
 
     auto result = exec->execute(
-        R"(mutation { createRole(input: {id: ")" + std::string(kE2eRoleId) +
-            R"(", name: "E2E Test Role", scope: "platform"}) })",
+        R"(mutation { isched { createRole(input: {id: ")" + std::string(kE2eRoleId) +
+            R"(", name: "E2E Test Role", scope: "platform"}) } })",
         "{}",
         std::move(ctx));
 
     REQUIRE(result.is_success());
-    REQUIRE(result.data["createRole"] == true);
+    REQUIRE(result.data["isched"]["createRole"] == true);
 
     // Post-clean
     (void)db->delete_platform_role(std::string(kE2eRoleId));
@@ -441,8 +441,8 @@ TEST_CASE("createRole mutation: duplicate id returns error response", "[rbac][e2
     ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
 
     auto result = exec->execute(
-        R"(mutation { createRole(input: {id: ")" + std::string(kE2eRoleId) +
-            R"(", name: "Attempt Dup", scope: "platform"}) })",
+        R"(mutation { isched { createRole(input: {id: ")" + std::string(kE2eRoleId) +
+            R"(", name: "Attempt Dup", scope: "platform"}) } })",
         "{}",
         std::move(ctx));
 
@@ -456,7 +456,7 @@ TEST_CASE("createRole mutation: duplicate id returns error response", "[rbac][e2
 TEST_CASE("deleteRole mutation: anonymous caller is denied by RBAC gate", "[rbac][e2e]") {
     auto exec = std::make_unique<GqlExecutor>(make_system_db_manager());
     auto result = exec->execute(
-        R"(mutation { deleteRole(id: "role_test_ghost") })",
+        R"(mutation { isched { deleteRole(id: "role_test_ghost") } })",
         "{}",
         ResolverCtx{});
     REQUIRE_FALSE(result.is_success());
@@ -474,12 +474,12 @@ TEST_CASE("deleteRole mutation: platform_admin can delete a custom role", "[rbac
     ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
 
     auto result = exec->execute(
-        R"(mutation { deleteRole(id: ")" + std::string(kE2eRoleId) + R"(") })",
+        R"(mutation { isched { deleteRole(id: ")" + std::string(kE2eRoleId) + R"(") } })",
         "{}",
         std::move(ctx));
 
     REQUIRE(result.is_success());
-    REQUIRE(result.data["deleteRole"] == true);
+    REQUIRE(result.data["isched"]["deleteRole"] == true);
 }
 
 TEST_CASE("deleteRole mutation: deleting a built-in role returns error response", "[rbac][e2e]") {
@@ -489,7 +489,7 @@ TEST_CASE("deleteRole mutation: deleting a built-in role returns error response"
     ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
 
     auto result = exec->execute(
-        R"(mutation { deleteRole(id: "role_platform_admin") })",
+        R"(mutation { isched { deleteRole(id: "role_platform_admin") } })",
         "{}",
         std::move(ctx));
 
@@ -509,7 +509,7 @@ TEST_CASE("deleteRole mutation: deleting non-existent role returns error respons
     ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
 
     auto result = exec->execute(
-        R"(mutation { deleteRole(id: ")" + std::string(kE2eRoleId) + R"(") })",
+        R"(mutation { isched { deleteRole(id: ")" + std::string(kE2eRoleId) + R"(") } })",
         "{}",
         std::move(ctx));
 
@@ -523,7 +523,7 @@ TEST_CASE("deleteRole mutation: deleting non-existent role returns error respons
 
 TEST_CASE("roles query: anonymous caller is denied by RBAC gate", "[rbac][e2e]") {
     auto exec = std::make_unique<GqlExecutor>(make_system_db_manager());
-    auto result = exec->execute("{ roles { id name scope } }", "{}", ResolverCtx{});
+    auto result = exec->execute("{ isched { roles { id name scope } } }", "{}", ResolverCtx{});
     REQUIRE_FALSE(result.is_success());
     REQUIRE(result.errors[0].code == EErrorCodes::FORBIDDEN);
 }
@@ -535,14 +535,14 @@ TEST_CASE("roles query: platform_admin receives built-in roles", "[rbac][e2e]") 
     ctx.current_user_id = "admin-user";
     ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
 
-    auto result = exec->execute("{ roles { id name scope } }", "{}", std::move(ctx));
+    auto result = exec->execute("{ isched { roles { id name scope } } }", "{}", std::move(ctx));
 
     REQUIRE(result.is_success());
-    REQUIRE(result.data["roles"].is_array());
-    REQUIRE_FALSE(result.data["roles"].empty());
+    REQUIRE(result.data["isched"]["roles"].is_array());
+    REQUIRE_FALSE(result.data["isched"]["roles"].empty());
 
     // Verify built-in roles are present
-    const auto& roles = result.data["roles"];
+    const auto& roles = result.data["isched"]["roles"];
     bool found_platform_admin = false;
     bool found_tenant_admin   = false;
     for (const auto& role : roles) {
@@ -568,11 +568,11 @@ TEST_CASE("roles query: tenant_admin can list roles", "[rbac][e2e]") {
     ctx.current_user_id = "tenant-user";
     ctx.roles = {std::string(Role::TENANT_ADMIN)};
 
-    auto result = exec->execute("{ roles { id name scope } }", "{}", std::move(ctx));
+    auto result = exec->execute("{ isched { roles { id name scope } } }", "{}", std::move(ctx));
 
     REQUIRE(result.is_success());
-    REQUIRE(result.data["roles"].is_array());
-    REQUIRE_FALSE(result.data["roles"].empty());
+    REQUIRE(result.data["isched"]["roles"].is_array());
+    REQUIRE_FALSE(result.data["isched"]["roles"].empty());
 }
 
 TEST_CASE("create_platform_role stores and retrieves scope", "[rbac][db]") {

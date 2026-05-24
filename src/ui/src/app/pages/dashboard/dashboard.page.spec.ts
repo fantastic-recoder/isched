@@ -18,13 +18,13 @@ describe('DashboardComponent minimum content', () => {
   beforeEach(async () => {
     gqlMock.query.mockImplementation((query: string) => {
       if (query.includes('health')) {
-        return of({ health: { status: 'UP' }, version: 'test-version' });
+        return of({ isched: { health: { status: 'UP' }, version: 'test-version' } });
       }
       if (query.includes('organizations')) {
-        return of({ organizations: [] });
+        return of({ isched: { organizations: { nodes: [] } } });
       }
       if (query.includes('users')) {
-        return of({ users: [] });
+        return of({ isched: { users: [] } });
       }
       return of({});
     });

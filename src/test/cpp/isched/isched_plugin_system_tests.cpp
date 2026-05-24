@@ -245,13 +245,13 @@ TEST_CASE("Plugin admin GraphQL fields require platform_admin", "[plugin][graphq
     admin.tenant_id = "tenant-a";
     admin.db = db;
 
-    CHECK_FALSE(executor.execute("query { plugins { id } }", "{}", non_admin).is_success());
-    CHECK_FALSE(executor.execute("query { plugin(id: \"gqlplug\") { id } }", "{}", non_admin).is_success());
-    CHECK_FALSE(executor.execute("mutation { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } }", "{}", non_admin).is_success());
-    CHECK_FALSE(executor.execute("mutation { unloadPlugin(pluginId:\"gqlplug\") { success } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("query { isched { plugins { id } } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("query { isched { plugin(id: \"gqlplug\") { id } } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { isched { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { isched { unloadPlugin(id:\"gqlplug\") { success } } }", "{}", non_admin).is_success());
 
-    CHECK(executor.execute("query { plugins { id } }", "{}", admin).is_success());
-    CHECK(executor.execute("query { plugin(id: \"gqlplug\") { id } }", "{}", admin).is_success());
+    CHECK(executor.execute("query { isched { plugins { id } } }", "{}", admin).is_success());
+    CHECK(executor.execute("query { isched { plugin(id: \"gqlplug\") { id } } }", "{}", admin).is_success());
 }
 
 TEST_CASE("OpenAPI export skips invalid fragments for injected plugins", "[plugin][openapi]") {

@@ -76,14 +76,14 @@ public:
     std::string apply_snapshot(const std::string& tenant_id,
                                const std::string& schema_sdl,
                                const std::string& version = "1.0.0") {
-        std::string mut = "mutation { applyConfiguration(input: {"
+        std::string mut = "mutation { isched { applyConfiguration(input: {"
                           "tenantId: \"" + tenant_id + "\" "
                           "schemaSdl: \"" + schema_sdl + "\" "
                           "version: \"" + version + "\""
-                          "}) { success snapshotId errors } }";
+                          "}) { success snapshotId errors } } }";
         auto resp = post_graphql(mut);
-        REQUIRE(resp["data"]["applyConfiguration"]["success"] == true);
-        return resp["data"]["applyConfiguration"]["snapshotId"].get<std::string>();
+        REQUIRE(resp["data"]["isched"]["applyConfiguration"]["success"] == true);
+        return resp["data"]["isched"]["applyConfiguration"]["snapshotId"].get<std::string>();
     }
 };
 
@@ -100,13 +100,13 @@ TEST_CASE_METHOD(SchemaActivationFixture,
     );
 
     // Activate it
-    const std::string activate_mut = "mutation { activateSnapshot(id: \"" + snap_id + "\") {"
-                                     " success snapshotId errors } }";
+    const std::string activate_mut = "mutation { isched { activateSnapshot(id: \"" + snap_id + "\") {"
+                                     " success snapshotId errors } } }";
     auto act_resp = post_graphql(activate_mut);
     REQUIRE(act_resp.contains("data"));
     REQUIRE_FALSE(act_resp.contains("errors"));
-    REQUIRE(act_resp["data"]["activateSnapshot"]["success"] == true);
-    REQUIRE(act_resp["data"]["activateSnapshot"]["snapshotId"] == snap_id);
+    REQUIRE(act_resp["data"]["isched"]["activateSnapshot"]["success"] == true);
+    REQUIRE(act_resp["data"]["isched"]["activateSnapshot"]["snapshotId"] == snap_id);
 
     server->stop();
 }
@@ -125,18 +125,18 @@ TEST_CASE_METHOD(SchemaActivationFixture,
     );
 
     // Activate
-    post_graphql("mutation { activateSnapshot(id: \"" + snap_id + "\") { success } }");
+    post_graphql("mutation { isched { activateSnapshot(id: \"" + snap_id + "\") { success } } }");
 
     // Query active configuration
     auto resp = post_graphql(
-        "{ activeConfiguration(tenantId: \"" + tenant + "\") {"
+        "{ isched { activeConfiguration(tenantId: \"" + tenant + "\") {"
         "  id version isActive createdAt"
-        "} }"
+        "} } }"
     );
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
 
-    const auto& active = resp["data"]["activeConfiguration"];
+    const auto& active = resp["data"]["isched"]["activeConfiguration"];
     REQUIRE_FALSE(active.is_null());
     REQUIRE(active["id"] == snap_id);
     REQUIRE(active["version"] == "3.0.0");
@@ -157,24 +157,24 @@ TEST_CASE_METHOD(SchemaActivationFixture,
     const std::string id_v2 = apply_snapshot(tenant, "type V2 { y: Int }",    "2.0.0");
 
     // Activate v1 first
-    post_graphql("mutation { activateSnapshot(id: \"" + id_v1 + "\") { success } }");
+    post_graphql("mutation { isched { activateSnapshot(id: \"" + id_v1 + "\") { success } } }");
 
     // Then activate v2
-    post_graphql("mutation { activateSnapshot(id: \"" + id_v2 + "\") { success } }");
+    post_graphql("mutation { isched { activateSnapshot(id: \"" + id_v2 + "\") { success } } }");
 
     // Only v2 should be active
     auto resp = post_graphql(
-        "{ activeConfiguration(tenantId: \"" + tenant + "\") { id } }"
+        "{ isched { activeConfiguration(tenantId: \"" + tenant + "\") { id } } }"
     );
-    REQUIRE_FALSE(resp["data"]["activeConfiguration"].is_null());
-    REQUIRE(resp["data"]["activeConfiguration"]["id"] == id_v2);
+    REQUIRE_FALSE(resp["data"]["isched"]["activeConfiguration"].is_null());
+    REQUIRE(resp["data"]["isched"]["activeConfiguration"]["id"] == id_v2);
 
     // History should show v2 active, v1 inactive
     auto hist = post_graphql(
-        "{ configurationHistory(tenantId: \"" + tenant + "\") { id isActive } }"
+        "{ isched { configurationHistory(tenantId: \"" + tenant + "\") { id isActive } } }"
     );
     int active_count = 0;
-    for (const auto& entry : hist["data"]["configurationHistory"]) {
+    for (const auto& entry : hist["data"]["isched"]["configurationHistory"]) {
         if (entry["isActive"] == true) ++active_count;
     }
     REQUIRE(active_count == 1);
@@ -189,12 +189,12 @@ TEST_CASE_METHOD(SchemaActivationFixture,
     REQUIRE(server->start());
 
     auto resp = post_graphql(
-        "mutation { activateSnapshot(id: \"nonexistent-snap\") { success errors } }"
+        "mutation { isched { activateSnapshot(id: \"nonexistent-snap\") { success errors } } }"
     );
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["activateSnapshot"]["success"] == false);
-    REQUIRE_FALSE(resp["data"]["activateSnapshot"]["errors"].empty());
+    REQUIRE(resp["data"]["isched"]["activateSnapshot"]["success"] == false);
+    REQUIRE_FALSE(resp["data"]["isched"]["activateSnapshot"]["errors"].empty());
 
     server->stop();
 }

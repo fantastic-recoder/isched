@@ -130,9 +130,9 @@ TEST_CASE_METHOD(CompatFixture,
     REQUIRE(ack["type"] == "connection_ack");
 
     // Issue an HTTP query concurrently
-    auto result = post_graphql("{ serverInfo { host port status } }");
+    auto result = post_graphql("{ isched { serverInfo { host port status } } }");
     REQUIRE_FALSE(result.contains("errors"));
-    REQUIRE(result["data"]["serverInfo"]["status"] == "RUNNING");
+    REQUIRE(result["data"]["isched"]["serverInfo"]["status"] == "RUNNING");
 
     ws.close();
 }
@@ -156,9 +156,9 @@ TEST_CASE_METHOD(CompatFixture,
 
     // Each client subscribes independently
     c1.send({{"type", "subscribe"}, {"id", "s1"},
-             {"payload", {{"query", "subscription { healthChanged { status } }"}}}});
+             {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}});
     c2.send({{"type", "subscribe"}, {"id", "s2"},
-             {"payload", {{"query", "subscription { healthChanged { status } }"}}}});
+             {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}});
 
     auto n1 = c1.recv();
     auto n2 = c2.recv();
@@ -180,7 +180,7 @@ TEST_CASE_METHOD(CompatFixture,
 
     // Do NOT send connection_init
     c.send({{"type", "subscribe"}, {"id", "bad-1"},
-            {"payload", {{"query", "subscription { healthChanged { status } }"}}}});
+            {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}});
 
     auto err = c.recv();
     REQUIRE(err["type"] == "connection_error");

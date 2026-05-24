@@ -49,9 +49,11 @@ export class SeedComponent {
 
     const { email, password } = this.form.getRawValue();
     this.gql
-      .mutate<{ createPlatformAdmin: { id: string; email: string } }>(
+      .mutate<{ isched: { createPlatformAdmin: { id: string; email: string } } }>(
         `mutation($email: String!, $password: String!) {
-           createPlatformAdmin(email: $email, password: $password) { id email }
+           isched {
+             createPlatformAdmin(email: $email, password: $password) { id email }
+           }
          }`,
         { email, password },
       )

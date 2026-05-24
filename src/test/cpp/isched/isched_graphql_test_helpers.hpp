@@ -200,19 +200,21 @@ public:
         const std::string& display_name = "Test Admin") {
 
         // Prime a server round-trip before issuing the bootstrap mutation.
-        (void)post_query("{ systemState { seedModeActive } }");
+        (void)post_query("{ isched { systemState { seedModeActive } } }");
         const std::string initial_csrf = get_csrf_token();
 
         // Execute bootstrap mutation
         std::string bootstrap_mutation = R"(
             mutation {
-                bootstrapPlatformAdmin(input: {
-                    email: ")" + email + R"("
-                    password: ")" + password + R"("
-                    displayName: ")" + display_name + R"("
-                }) {
-                    token
-                    expiresAt
+                isched {
+                    bootstrapPlatformAdmin(input: {
+                        email: ")" + email + R"("
+                        password: ")" + password + R"("
+                        displayName: ")" + display_name + R"("
+                    }) {
+                        token
+                        expiresAt
+                    }
                 }
             }
         )";
@@ -223,13 +225,15 @@ public:
             throw std::runtime_error("Bootstrap failed: " + response["errors"][0]["message"].get<std::string>());
         }
 
-        if (!response.contains("data") || !response["data"].contains("bootstrapPlatformAdmin")) {
+        if (!response.contains("data") ||
+            !response["data"].contains("isched") ||
+            !response["data"]["isched"].contains("bootstrapPlatformAdmin")) {
             throw std::runtime_error("Bootstrap mutation did not return expected data");
         }
 
         AuthPayload auth;
-        auth.token = response["data"]["bootstrapPlatformAdmin"]["token"];
-        auth.expires_at = response["data"]["bootstrapPlatformAdmin"]["expiresAt"];
+        auth.token = response["data"]["isched"]["bootstrapPlatformAdmin"]["token"];
+        auth.expires_at = response["data"]["isched"]["bootstrapPlatformAdmin"]["expiresAt"];
         auth.csrf_token = initial_csrf; // Updated CSRF token if server sends it in response
 
         return auth;
@@ -245,9 +249,11 @@ public:
 
         std::string login_mutation = R"(
             mutation {
-                login(email: ")" + email + R"(", password: ")" + password + R"(") {
-                    token
-                    expiresAt
+                isched {
+                    login(email: ")" + email + R"(", password: ")" + password + R"(") {
+                        token
+                        expiresAt
+                    }
                 }
             }
         )";
@@ -256,13 +262,15 @@ public:
         if (response.contains("errors") && !response["errors"].empty()) {
             throw std::runtime_error("Login failed: " + response["errors"][0]["message"].get<std::string>());
         }
-        if (!response.contains("data") || !response["data"].contains("login")) {
+        if (!response.contains("data") ||
+            !response["data"].contains("isched") ||
+            !response["data"]["isched"].contains("login")) {
             throw std::runtime_error("Login mutation did not return expected data");
         }
 
         AuthPayload auth;
-        auth.token = response["data"]["login"]["token"];
-        auth.expires_at = response["data"]["login"]["expiresAt"];
+        auth.token = response["data"]["isched"]["login"]["token"];
+        auth.expires_at = response["data"]["isched"]["login"]["expiresAt"];
         auth.csrf_token = csrf;
         return auth;
     }
@@ -291,7 +299,7 @@ public:
      */
     std::string get_csrf_token() {
         // Ensure the server is reachable and GraphQL is functional.
-        (void)post_query("{ hello }");
+        (void)post_query("{ isched { hello } }");
         // Current backend CSRF guard validates presence; tests use a stable non-empty token.
         return "test-csrf-token";
     }

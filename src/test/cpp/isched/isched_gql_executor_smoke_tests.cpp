@@ -417,22 +417,25 @@ type MyType { field: String })", "Description with");
 
     TEST_CASE("Mutation operation: echo built-in mutation dispatches correctly", "[gql][executor][mutation]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
-        const auto reply = proc.execute(R"(mutation { echo(message: "hello") })");
+        const auto reply = proc.execute(R"(mutation { isched { echo(message: "hello") } })");
         REQUIRE(reply.is_success());
-        REQUIRE(reply.data["echo"].is_string());
-        REQUIRE(reply.data["echo"] == "hello");
+        REQUIRE(reply.data["isched"]["echo"].is_string());
+        REQUIRE(reply.data["isched"]["echo"] == "hello");
     }
 
     TEST_CASE("Mutation operation: echo with null arg returns null", "[gql][executor][mutation]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
-        const auto reply = proc.execute(R"(mutation { echo })");
+        const auto reply = proc.execute(R"(mutation { isched { echo } })");
         REQUIRE(reply.is_success());
-        REQUIRE(reply.data["echo"].is_null());
+        REQUIRE(reply.data["isched"]["echo"].is_null());
     }
 
     TEST_CASE("Mutation operation: custom mutation resolver", "[gql][executor][mutation]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
         std::string captured_name;
+        proc.register_resolver({}, "hello", [](const json&, const json&, const ResolverCtx&) -> json {
+            return "ok";
+        });
         proc.register_resolver({}, "createItem", [&](const json&, const json& args, const ResolverCtx&) -> json {
             captured_name = args.value("name", std::string{});
             return json{{"id", "item-1"}, {"name", captured_name}};

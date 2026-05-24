@@ -38,7 +38,7 @@ TEST_CASE("User & DataSource Resolvers", "[gql][resolvers][users]") {
         auto res1 = proc.execute("mutation { createUser(input: { username: \"u1\", password: \"password123456\", email: \"e@example.com\" }) }", "{}", admin_ctx);
         if (!res1.is_success()) WARN("createUser error: " << (!res1.errors.empty() ? res1.errors[0].message : ""));
 
-        auto res2 = proc.execute("{ users { id } }", "{}", admin_ctx);
+        auto res2 = proc.execute("{ isched { users { id } } }", "{}", admin_ctx);
         WARN_IF_ERROR(res2);
     }
 

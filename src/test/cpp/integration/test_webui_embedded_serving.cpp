@@ -252,9 +252,9 @@ TEST_CASE_METHOD(EmbeddedServingFixture,
         return;
     }
 
-    auto bootstrap_status_before = postGraphql("query { systemState { seedModeActive } }");
+    auto bootstrap_status_before = postGraphql("query { isched { systemState { seedModeActive } } }");
     REQUIRE(bootstrap_status_before.contains("data"));
-    REQUIRE(bootstrap_status_before["data"]["systemState"]["seedModeActive"].get<bool>());
+    REQUIRE(bootstrap_status_before["data"]["isched"]["systemState"]["seedModeActive"].get<bool>());
 
     // Route is always served by SPA, while GraphQL status determines whether bootstrap actions are valid.
     auto client = makeClient();
@@ -265,9 +265,9 @@ TEST_CASE_METHOD(EmbeddedServingFixture,
     const auto unique_suffix = std::to_string(
         std::chrono::system_clock::now().time_since_epoch().count());
     const auto bootstrap_mutation = postGraphql(
-        R"(mutation($input: BootstrapPlatformAdminInput!) {
+        R"(mutation($input: BootstrapPlatformAdminInput!) { isched {
                bootstrapPlatformAdmin(input: $input) { token expiresAt }
-           })",
+           } })",
         json{{"input", {
             {"email", "embedded_" + unique_suffix + "@example.com"},
             {"password", "EmbeddedPass!123"},
@@ -276,11 +276,12 @@ TEST_CASE_METHOD(EmbeddedServingFixture,
     );
 
     REQUIRE(bootstrap_mutation.contains("data"));
-    REQUIRE(bootstrap_mutation["data"].contains("bootstrapPlatformAdmin"));
-    REQUIRE_FALSE(bootstrap_mutation["data"]["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
+    REQUIRE(bootstrap_mutation["data"].contains("isched"));
+    REQUIRE(bootstrap_mutation["data"]["isched"].contains("bootstrapPlatformAdmin"));
+    REQUIRE_FALSE(bootstrap_mutation["data"]["isched"]["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
 
-    auto bootstrap_status_after = postGraphql("query { systemState { seedModeActive } }");
-    REQUIRE_FALSE(bootstrap_status_after["data"]["systemState"]["seedModeActive"].get<bool>());
+    auto bootstrap_status_after = postGraphql("query { isched { systemState { seedModeActive } } }");
+    REQUIRE_FALSE(bootstrap_status_after["data"]["isched"]["systemState"]["seedModeActive"].get<bool>());
 
     // The frontend route still falls back to SPA entry, but bootstrap is no longer available via API state.
     auto bootstrap_route_after = client.Get("/isched/bootstrap");

@@ -80,18 +80,18 @@ TEST_CASE_METHOD(SnapshotTestFixture,
 
     const std::string tenant = "alpha-" + g_run_suffix;
     const std::string mutation =
-        "mutation { applyConfiguration(input: {"
+        "mutation { isched { applyConfiguration(input: {"
         "tenantId: \"" + tenant + "\" "
         "schemaSdl: \"type Widget { id: String! name: String }\" "
         "displayName: \"Alpha Config v1\" "
         "version: \"1.0.0\""
-        "}) { success snapshotId errors } }";
+        "}) { success snapshotId errors } } }";
 
     auto resp = post_graphql(mutation);
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
 
-    auto& result = resp["data"]["applyConfiguration"];
+    auto& result = resp["data"]["isched"]["applyConfiguration"];
     REQUIRE(result["success"] == true);
     REQUIRE(result["snapshotId"].is_string());
     REQUIRE_FALSE(result["snapshotId"].get<std::string>().empty());
@@ -108,16 +108,17 @@ TEST_CASE_METHOD(SnapshotTestFixture,
 
     const std::string tenant = "alpha-err-" + g_run_suffix;
     const std::string mutation =
-        "mutation { applyConfiguration(input: {"
+        "mutation { isched { applyConfiguration(input: {"
         "tenantId: \"" + tenant + "\""
-        "}) { success errors } }";
+        "}) { success errors } } }";
 
     // Our resolver validates the missing schemaSdl argument
     auto resp = post_graphql(mutation);
     REQUIRE(resp.contains("data"));
     bool has_error = resp.contains("errors") ||
-        (resp["data"].contains("applyConfiguration") &&
-         resp["data"]["applyConfiguration"]["success"] == false);
+        (resp["data"].contains("isched") &&
+         resp["data"]["isched"].contains("applyConfiguration") &&
+         resp["data"]["isched"]["applyConfiguration"]["success"] == false);
     REQUIRE(has_error);
 
     server->stop();
@@ -131,13 +132,13 @@ TEST_CASE_METHOD(SnapshotTestFixture,
 
     const std::string tenant = "unknown-" + g_run_suffix;
     auto resp = post_graphql(
-        "{ configurationHistory(tenantId: \"" + tenant + "\") {"
+        "{ isched { configurationHistory(tenantId: \"" + tenant + "\") {"
         "  id tenantId version isActive createdAt"
-        "} }");
+        "} } }");
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["configurationHistory"].is_array());
-    REQUIRE(resp["data"]["configurationHistory"].empty());
+    REQUIRE(resp["data"]["isched"]["configurationHistory"].is_array());
+    REQUIRE(resp["data"]["isched"]["configurationHistory"].empty());
 
     server->stop();
 }
@@ -150,28 +151,28 @@ TEST_CASE_METHOD(SnapshotTestFixture,
 
     const std::string tenant = "beta-" + g_run_suffix;
     const std::string mut1 =
-        "mutation { applyConfiguration(input: {"
+        "mutation { isched { applyConfiguration(input: {"
         "tenantId: \"" + tenant + "\" "
         "schemaSdl: \"type Foo { id: String! }\" version: \"1.0.0\""
-        "}) { success snapshotId } }";
+        "}) { success snapshotId } } }";
     const std::string mut2 =
-        "mutation { applyConfiguration(input: {"
+        "mutation { isched { applyConfiguration(input: {"
         "tenantId: \"" + tenant + "\" "
         "schemaSdl: \"type Bar { name: String }\" version: \"2.0.0\""
-        "}) { success snapshotId } }";
+        "}) { success snapshotId } } }";
 
     auto r1 = post_graphql(mut1);
-    REQUIRE(r1["data"]["applyConfiguration"]["success"] == true);
+    REQUIRE(r1["data"]["isched"]["applyConfiguration"]["success"] == true);
     auto r2 = post_graphql(mut2);
-    REQUIRE(r2["data"]["applyConfiguration"]["success"] == true);
+    REQUIRE(r2["data"]["isched"]["applyConfiguration"]["success"] == true);
 
     auto resp = post_graphql(
-        "{ configurationHistory(tenantId: \"" + tenant + "\") {"
+        "{ isched { configurationHistory(tenantId: \"" + tenant + "\") {"
         "  id version isActive createdAt"
-        "} }");
+        "} } }");
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    const auto& history = resp["data"]["configurationHistory"];
+    const auto& history = resp["data"]["isched"]["configurationHistory"];
     REQUIRE(history.is_array());
     REQUIRE(history.size() >= 2);
 
@@ -186,21 +187,21 @@ TEST_CASE_METHOD(SnapshotTestFixture,
 
     const std::string tenant = "gamma-" + g_run_suffix;
     const std::string create_mut =
-        "mutation { applyConfiguration(input: {"
+        "mutation { isched { applyConfiguration(input: {"
         "tenantId: \"" + tenant + "\" "
         "schemaSdl: \"type Thing { id: String! }\" version: \"1.0.0\""
-        "}) { success snapshotId } }";
+        "}) { success snapshotId } } }";
     auto r = post_graphql(create_mut);
-    REQUIRE(r["data"]["applyConfiguration"]["success"] == true);
+    REQUIRE(r["data"]["isched"]["applyConfiguration"]["success"] == true);
 
     // Query for active configuration — should be null (not activated yet)
     auto resp = post_graphql(
-        "{ activeConfiguration(tenantId: \"" + tenant + "\") {"
+        "{ isched { activeConfiguration(tenantId: \"" + tenant + "\") {"
         "  id version isActive"
-        "} }");
+        "} } }");
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["activeConfiguration"].is_null());
+    REQUIRE(resp["data"]["isched"]["activeConfiguration"].is_null());
 
     server->stop();
 }
@@ -214,23 +215,23 @@ TEST_CASE_METHOD(SnapshotTestFixture,
     const std::string tenant = "inv-sdl-" + g_run_suffix;
     // Deliberately broken SDL: unclosed brace
     const std::string mutation =
-        "mutation { applyConfiguration(input: {"
+        "mutation { isched { applyConfiguration(input: {"
         "tenantId: \"" + tenant + "\" "
         "schemaSdl: \"type Broken { id: String!\" "   // missing closing }
         "version: \"1.0.0\""
-        "}) { success snapshotId errors } }";
+        "}) { success snapshotId errors } } }";
 
     auto resp = post_graphql(mutation);
     REQUIRE(resp.contains("data"));
-    auto& result = resp["data"]["applyConfiguration"];
+    auto& result = resp["data"]["isched"]["applyConfiguration"];
     REQUIRE(result["success"] == false);
     REQUIRE_FALSE(result["errors"].empty());
 
     // Verify no snapshot was stored (history must be empty for this tenant)
     auto hist = post_graphql(
-        "{ configurationHistory(tenantId: \"" + tenant + "\") { id } }");
-    REQUIRE(hist["data"]["configurationHistory"].is_array());
-    REQUIRE(hist["data"]["configurationHistory"].empty());
+        "{ isched { configurationHistory(tenantId: \"" + tenant + "\") { id } } }");
+    REQUIRE(hist["data"]["isched"]["configurationHistory"].is_array());
+    REQUIRE(hist["data"]["isched"]["configurationHistory"].empty());
 
     server->stop();
 }

@@ -33,20 +33,21 @@ TEST_CASE("Server Info & Metrics Resolvers", "[gql][resolvers][info]") {
     GqlExecutor proc(db);
 
     SECTION("Basic info queries") {
-        auto res = exec_full(proc, "{ version serverInfo { version name } uptime clientCount systemState health info { version } env configprops }");
+        auto res = exec_full(proc, "{ isched { version serverInfo { version name } uptime clientCount systemState health info { version } env configprops } }");
         WARN_IF_ERROR(res);
         REQUIRE_FALSE(res.data.is_null());
-        REQUIRE(res.data.contains("version"));
+        REQUIRE(res.data.contains("isched"));
+        REQUIRE(res.data["isched"].contains("version"));
     }
     
     SECTION("Metrics queries require auth") {
-        auto res = exec_full(proc, "{ metrics { activeSubscriptions } serverMetrics { cpuUsage } tenantMetrics(tenantId: \"t1\") { cpuUsage } }");
+        auto res = exec_full(proc, "{ isched { metrics { activeSubscriptions } serverMetrics { cpuUsage } tenantMetrics(tenantId: \"t1\") { cpuUsage } } }");
         REQUIRE_FALSE(res.is_success());
         
         ResolverCtx admin_ctx;
         admin_ctx.roles = {"role_platform_admin"};
         admin_ctx.db = db;
-        auto res2 = proc.execute("{ metrics { activeSubscriptions } serverMetrics { cpuUsage } tenantMetrics(tenantId: \"t1\") { cpuUsage } }", "{}", admin_ctx);
+        auto res2 = proc.execute("{ isched { metrics { activeSubscriptions } serverMetrics { cpuUsage } tenantMetrics(tenantId: \"t1\") { cpuUsage } } }", "{}", admin_ctx);
         WARN_IF_ERROR(res2);
     }
 }

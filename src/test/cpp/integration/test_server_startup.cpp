@@ -102,13 +102,13 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "Built-in GraphQL schema availability
         bool started = server->start();
         REQUIRE(started);
 
-        auto graphql_response = server->execute_graphql("{ hello version }");
+        auto graphql_response = server->execute_graphql("{ isched { hello version } }");
         REQUIRE_FALSE(graphql_response.empty());
 
         auto graphql_json = nlohmann::json::parse(graphql_response);
         REQUIRE(graphql_json.contains("data"));
-        REQUIRE(graphql_json["data"]["hello"] == "Hello, GraphQL!");
-        REQUIRE(graphql_json["data"]["version"] == "0.0.1");
+        REQUIRE(graphql_json["data"]["isched"]["hello"] == "Hello, GraphQL!");
+        REQUIRE(graphql_json["data"]["isched"]["version"] == "0.0.1");
         REQUIRE(graphql_json["extensions"]["endpoint"] == "/graphql");
 
         server->stop();
@@ -119,14 +119,14 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "Built-in GraphQL schema availability
         REQUIRE(started);
 
         auto graphql_response = server->execute_graphql(
-            "{ health { status components } serverInfo { version activeTenants transportModes } }");
+            "{ isched { health { status components } serverInfo { version activeTenants transportModes } } }");
         auto graphql_json = nlohmann::json::parse(graphql_response);
 
         REQUIRE(graphql_json.contains("data"));
-        REQUIRE(graphql_json["data"]["health"]["status"] == "UP");
-        REQUIRE(graphql_json["data"]["serverInfo"]["version"] == "0.0.1");
-        REQUIRE(graphql_json["data"]["serverInfo"]["activeTenants"] == 1);
-        REQUIRE(graphql_json["data"]["serverInfo"]["transportModes"].is_array());
+        REQUIRE(graphql_json["data"]["isched"]["health"]["status"] == "UP");
+        REQUIRE(graphql_json["data"]["isched"]["serverInfo"]["version"] == "0.0.1");
+        REQUIRE(graphql_json["data"]["isched"]["serverInfo"]["activeTenants"] == 1);
+        REQUIRE(graphql_json["data"]["isched"]["serverInfo"]["transportModes"].is_array());
         
         server->stop();
     }
@@ -138,7 +138,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "Performance validation", "[integrati
         REQUIRE(started);
 
         auto start_time = std::chrono::high_resolution_clock::now();
-        auto graphql_response = server->execute_graphql("{ health { status } }");
+        auto graphql_response = server->execute_graphql("{ isched { health { status } } }");
         auto end_time = std::chrono::high_resolution_clock::now();
 
         auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
@@ -188,7 +188,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
         client.set_connection_timeout(2);
         client.set_read_timeout(5);
 
-        nlohmann::json body = {{"query", "{ hello version }"}};
+        nlohmann::json body = {{"query", "{ isched { hello version } }"}};
         auto res = client.Post("/graphql", body.dump(), "application/json");
 
         REQUIRE(res != nullptr);
@@ -196,8 +196,8 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
 
         auto json = nlohmann::json::parse(res->body);
         REQUIRE(json.contains("data"));
-        REQUIRE(json["data"]["hello"] == "Hello, GraphQL!");
-        REQUIRE(json["data"]["version"] == "0.0.1");
+        REQUIRE(json["data"]["isched"]["hello"] == "Hello, GraphQL!");
+        REQUIRE(json["data"]["isched"]["version"] == "0.0.1");
         REQUIRE(json["extensions"]["endpoint"] == "/graphql");
         REQUIRE(json["extensions"].contains("requestId"));
 
@@ -236,7 +236,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
 
         httplib::Client client("localhost", 8888);
         client.set_connection_timeout(2);
-        nlohmann::json body = {{"query", "{ hello }"}};
+        nlohmann::json body = {{"query", "{ isched { hello } }"}};
         auto res = client.Post("/graphql", body.dump(), "application/json");
 
         REQUIRE(res != nullptr);

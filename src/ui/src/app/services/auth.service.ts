@@ -18,17 +18,23 @@ export class AuthSignInError extends Error {
 }
 
 interface CurrentSessionResponse {
-  currentUser: { id: string; name?: string | null } | null;
+  isched: {
+    currentUser: { id: string; name?: string | null } | null;
+  };
 }
 
 interface SignInResponse {
-  login: {
-    token?: string;
+  isched: {
+    login: {
+      token?: string;
+    };
   };
 }
 
 interface SignOutResponse {
-  logout: boolean;
+  isched: {
+    logout: boolean;
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -44,16 +50,18 @@ export class AuthService {
     return this.gql
       .mutate<SignInResponse>(
         `mutation($email: String!, $password: String!) {
-          login(email: $email, password: $password) {
-            token
+          isched {
+            login(email: $email, password: $password) {
+              token
+            }
           }
         }`,
         { email, password },
       )
       .pipe(
         map((res) => {
-          if (res.login?.token) {
-            this.accessToken = res.login.token;
+          if (res.isched?.login?.token) {
+            this.accessToken = res.isched.login.token;
             return true;
           }
           this.clearAuthState();
@@ -75,9 +83,9 @@ export class AuthService {
 
   bootstrapSession(): Observable<boolean> {
     return this.gql
-      .query<CurrentSessionResponse>('query { currentUser { id name } }')
+      .query<CurrentSessionResponse>('query { isched { currentUser { id name } } }')
       .pipe(
-        map((res) => res.currentUser),
+        map((res) => res.isched?.currentUser ?? null),
         tap((currentUser) => {
           const isAuthenticated = !!currentUser;
           this.authenticated = isAuthenticated;
@@ -135,9 +143,9 @@ export class AuthService {
 
   signOut(): Observable<boolean> {
     return this.gql
-      .mutate<SignOutResponse>('mutation { logout }')
+      .mutate<SignOutResponse>('mutation { isched { logout } }')
       .pipe(
-        map((res) => res.logout),
+        map((res) => res.isched?.logout ?? false),
         tap({
           next: () => {
             this.clearAuthState();

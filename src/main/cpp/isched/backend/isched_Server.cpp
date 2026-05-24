@@ -1372,10 +1372,11 @@ String Server::get_health() const {
 
 bool Server::is_seed_mode_active() {
     try {
-        const auto resp = execute_graphql("{ systemState { seedModeActive } }");
+        const auto resp = execute_graphql("{ isched { systemState { seedModeActive } } }");
         const auto j = nlohmann::json::parse(resp);
-        return j.value("data", nlohmann::json{})
-                .value("systemState", nlohmann::json{})
+        return j.value("data", nlohmann::json::object())
+                .value("isched", nlohmann::json::object())
+                .value("systemState", nlohmann::json::object())
                 .value("seedModeActive", false);
     } catch (...) {
         return false;

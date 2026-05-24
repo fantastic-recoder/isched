@@ -40,16 +40,16 @@ TEST_CASE("Authentication & Session Resolvers", "[gql][resolvers][auth]") {
 
     SECTION("Login and session queries") {
         auto res1 = exec_full(proc, R"(
-            mutation {
+            mutation { isched {
                 login(input: { username: "a", password: "b" }) { token }
-            }
+            } }
         )");
         REQUIRE_FALSE(res1.is_success());
 
-        auto res2 = proc.execute("{ currentUser { id } }", "{}", admin_ctx);
+        auto res2 = proc.execute("{ isched { currentUser { id } } }", "{}", admin_ctx);
         WARN_IF_ERROR(res2);
 
-        auto res3 = proc.execute("mutation { logout }", "{}", admin_ctx);
+        auto res3 = proc.execute("mutation { isched { logout } }", "{}", admin_ctx);
         WARN_IF_ERROR(res3);
         
         auto res4 = proc.execute("mutation { revokeSession(token: \"abc\") }", "{}", admin_ctx);
@@ -80,11 +80,11 @@ TEST_CASE("Authentication and plugin admin RBAC", "[gql][auth][plugin]") {
     platform_admin.tenant_id = "default_tenant";
     platform_admin.db = db;
 
-    CHECK_FALSE(executor.execute("query { plugins { id } }", "{}", tenant_admin).is_success());
-    CHECK_FALSE(executor.execute("query { plugin(id: \"missing\") { id } }", "{}", tenant_admin).is_success());
-    CHECK_FALSE(executor.execute("mutation { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } }", "{}", tenant_admin).is_success());
-    CHECK_FALSE(executor.execute("mutation { unloadPlugin(pluginId:\"missing\") { success } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("query { isched { plugins { id } } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("query { isched { plugin(id: \"missing\") { id } } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { isched { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { isched { unloadPlugin(id:\"missing\") { success } } }", "{}", tenant_admin).is_success());
 
-    CHECK(executor.execute("query { plugins { id } }", "{}", platform_admin).is_success());
-    CHECK(executor.execute("query { plugin(id: \"missing\") { id } }", "{}", platform_admin).is_success());
+    CHECK(executor.execute("query { isched { plugins { id } } }", "{}", platform_admin).is_success());
+    CHECK(executor.execute("query { isched { plugin(id: \"missing\") { id } } }", "{}", platform_admin).is_success());
 }

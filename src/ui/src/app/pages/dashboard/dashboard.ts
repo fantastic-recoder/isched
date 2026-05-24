@@ -82,13 +82,13 @@ export class DashboardComponent implements OnInit {
 
   private loadServerInfo(): void {
     this.gql
-      .query<{ health: { status: string }; version: string }>(
-        '{ health { status } version }',
+      .query<{ isched: { health: { status: string } | null; version: string | null } }>(
+        '{ isched { health { status } version } }',
       )
       .subscribe({
         next: (res) => {
-          this.health.set(res.health?.status ?? null);
-          this.version.set(res.version ?? null);
+          this.health.set(res.isched?.health?.status ?? null);
+          this.version.set(res.isched?.version ?? null);
         },
         error: () => {},
       });
@@ -97,12 +97,12 @@ export class DashboardComponent implements OnInit {
   private loadOrgs(): void {
     this.loading.set(true);
     this.gql
-      .query<{ organizations: Organization[] }>(
-        '{ organizations { id name subscriptionTier } }',
+      .query<{ isched: { organizations: { nodes: Organization[] } } }>(
+        '{ isched { organizations { nodes { id name subscriptionTier } } } }',
       )
       .subscribe({
         next: (res) => {
-          this.orgs.set(res.organizations ?? []);
+          this.orgs.set(res.isched?.organizations?.nodes ?? []);
           this.loading.set(false);
           // Eagerly load users for the first org if there is one
           for (const org of this.orgs()) this.loadUsers(org.id);
@@ -113,13 +113,13 @@ export class DashboardComponent implements OnInit {
 
   loadUsers(orgId: string): void {
     this.gql
-      .query<{ users: User[] }>(
-        `query($id: ID!) { users(organizationId: $id) { id email roles isActive } }`,
+      .query<{ isched: { users: User[] } }>(
+        `query($id: ID!) { isched { users(organizationId: $id) { id email roles isActive } } }`,
         { id: orgId },
       )
       .subscribe({
         next: (res) => {
-          this.users.update((prev) => ({ ...prev, [orgId]: res.users ?? [] }));
+          this.users.update((prev) => ({ ...prev, [orgId]: res.isched?.users ?? [] }));
         },
         error: () => {
           this.users.update((prev) => ({ ...prev, [orgId]: [] }));
@@ -141,16 +141,20 @@ export class DashboardComponent implements OnInit {
     this.orgError.set(null);
     const { name, domain, subscriptionTier } = this.orgForm.getRawValue();
     this.gql
-      .mutate<{ createOrganization: Organization }>(
+      .mutate<{ isched: { createOrganization: Organization } }>(
         `mutation($name: String!, $domain: String, $tier: String) {
-           createOrganization(input: { name: $name, domain: $domain, subscriptionTier: $tier }) { id name subscriptionTier }
+           isched {
+             createOrganization(input: { name: $name, domain: $domain, subscriptionTier: $tier }) {
+               id name subscriptionTier
+             }
+           }
          }`,
         { name, domain: domain || null, tier: subscriptionTier || null },
       )
       .subscribe({
         next: (res) => {
           this.orgPending.set(false);
-          this.orgs.update((prev) => [...prev, res.createOrganization]);
+          this.orgs.update((prev) => [...prev, res.isched.createOrganization]);
           (document.getElementById('create_org_modal') as HTMLDialogElement)?.close();
           this.orgForm.reset();
         },
@@ -168,9 +172,13 @@ export class DashboardComponent implements OnInit {
     this.userError.set(null);
     const { email, password, displayName } = this.userForm.getRawValue();
     this.gql
-      .mutate<{ createUser: User }>(
+      .mutate<{ isched: { createUser: User } }>(
         `mutation($orgId: ID!, $email: String!, $pw: String!, $dn: String) {
-           createUser(organizationId: $orgId, input: { email: $email, password: $pw, displayName: $dn }) { id email roles isActive }
+           isched {
+             createUser(organizationId: $orgId, input: { email: $email, password: $pw, displayName: $dn }) {
+               id email roles isActive
+             }
+           }
          }`,
         { orgId: this.selectedOrgId, email, pw: password, dn: displayName || null },
       )

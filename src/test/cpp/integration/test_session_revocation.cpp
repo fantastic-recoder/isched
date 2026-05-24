@@ -81,12 +81,12 @@ static std::string create_org(const std::shared_ptr<GqlExecutor>& exec,
                                const std::string& suffix) {
     const std::string name = "RevOrg_" + suffix;
     auto res = exec->execute(
-        R"(mutation($n:String!){createOrganization(input:{name:$n subscriptionTier:"free"
-             userLimit:10 storageLimit:1073741824}){id}})",
+        R"(mutation($n:String!){ isched {createOrganization(input:{name:$n subscriptionTier:"free"
+             userLimit:10 storageLimit:1073741824}){id}} })",
         json{{"n", name}}.dump(),
         platform_admin_ctx());
     require_success(res, "create org");
-    return res.data["createOrganization"]["id"].get<std::string>();
+    return res.data["isched"]["createOrganization"]["id"].get<std::string>();
 }
 
 static std::string create_user(const std::shared_ptr<GqlExecutor>& exec,
@@ -94,13 +94,13 @@ static std::string create_user(const std::shared_ptr<GqlExecutor>& exec,
                                 const std::string& email,
                                 const std::string& password) {
     auto res = exec->execute(
-        R"(mutation($o:ID!,$e:String!,$p:String!){
+        R"(mutation($o:ID!,$e:String!,$p:String!){ isched {
              createUser(organizationId:$o input:{email:$e password:$p displayName:"Test"}){id}
-           })",
+           } })",
         json{{"o", org_id}, {"e", email}, {"p", password}}.dump(),
         tenant_admin_ctx(org_id));
     require_success(res, "create user");
-    return res.data["createUser"]["id"].get<std::string>();
+    return res.data["isched"]["createUser"]["id"].get<std::string>();
 }
 
 /// Returns {token, session_id} from a login call.
@@ -112,13 +112,13 @@ static std::pair<std::string, std::string> do_login(
     const std::string& password)
 {
     auto res = exec->execute(
-        R"(mutation($e:String!,$p:String!,$o:ID){
+        R"(mutation($e:String!,$p:String!,$o:ID){ isched {
              login(email:$e password:$p organizationId:$o){token expiresAt}
-           })",
+           } })",
         json{{"e", email}, {"p", password}, {"o", org_id}}.dump(),
         anonymous_ctx());
     require_success(res, "login");
-    const std::string token = res.data["login"]["token"].get<std::string>();
+    const std::string token = res.data["isched"]["login"]["token"].get<std::string>();
 
     // Extract jti (session_id) via validate_request so we can revoke by ID
     auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
@@ -154,11 +154,11 @@ TEST_CASE("logout: revokes the caller's session so the token is rejected",
 
     // logout
     auto logout_res = exec->execute(
-        "mutation { logout }",
+        "mutation { isched { logout } }",
         "{}",
         auth_ctx);
     require_success(logout_res, "logout");
-    REQUIRE(logout_res.data["logout"] == true);
+    REQUIRE(logout_res.data["isched"]["logout"] == true);
 
     // After logout, validate_token must reject the session
     auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
@@ -172,9 +172,9 @@ TEST_CASE("logout: unauthenticated caller succeeds without side-effects",
     auto [db, exec] = make_executor();
 
     // No session_id in context — should still return true gracefully
-    auto result = exec->execute("mutation { logout }", "{}", anonymous_ctx());
+    auto result = exec->execute("mutation { isched { logout } }", "{}", anonymous_ctx());
     require_success(result, "logout anon");
-    REQUIRE(result.data["logout"] == true);
+    REQUIRE(result.data["isched"]["logout"] == true);
 }
 
 // ============================================================================
@@ -196,11 +196,11 @@ TEST_CASE("revokeSession: tenant_admin can revoke a specific session",
     auto ctx = tenant_admin_ctx(org_id);
     ctx.db   = db;
     auto result = exec->execute(
-        R"(mutation($s:ID!){ revokeSession(sessionId:$s) })",
+        R"(mutation($s:ID!){ isched { revokeSession(sessionId:$s) } })",
         json{{"s", session_id}}.dump(),
         ctx);
     require_success(result, "revokeSession");
-    REQUIRE(result.data["revokeSession"] == true);
+    REQUIRE(result.data["isched"]["revokeSession"] == true);
 
     // Token must now be rejected
     auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
@@ -216,7 +216,7 @@ TEST_CASE("revokeSession: anonymous caller is rejected with FORBIDDEN",
     auto ctx = anonymous_ctx();
     ctx.db   = db;
     auto result = exec->execute(
-        R"(mutation{ revokeSession(sessionId:"fake-id") })",
+        R"(mutation{ isched { revokeSession(sessionId:"fake-id") } })",
         "{}",
         ctx);
 
@@ -247,11 +247,11 @@ TEST_CASE("revokeAllSessions: tenant_admin can revoke all sessions for a user",
     auto ctx = tenant_admin_ctx(org_id);
     ctx.db   = db;
     auto result = exec->execute(
-        R"(mutation($u:ID!){ revokeAllSessions(userId:$u) })",
+        R"(mutation($u:ID!){ isched { revokeAllSessions(userId:$u) } })",
         json{{"u", user_id}}.dump(),
         ctx);
     require_success(result, "revokeAllSessions");
-    REQUIRE(result.data["revokeAllSessions"] == true);
+    REQUIRE(result.data["isched"]["revokeAllSessions"] == true);
 
     // Both tokens must now be rejected
     auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
@@ -268,7 +268,7 @@ TEST_CASE("revokeAllSessions: regular user is rejected with FORBIDDEN",
     ctx.roles = {std::string(Role::USER)};
     ctx.db    = db;
     auto result = exec->execute(
-        R"(mutation{ revokeAllSessions(userId:"any") })",
+        R"(mutation{ isched { revokeAllSessions(userId:"any") } })",
         "{}",
         ctx);
 
@@ -296,11 +296,11 @@ TEST_CASE("terminateAllSessions: platform_admin revokes all tenant sessions",
     auto ctx = platform_admin_ctx(org_id);
     ctx.db   = db;
     auto result = exec->execute(
-        R"(mutation($o:ID!){ terminateAllSessions(organizationId:$o) })",
+        R"(mutation($o:ID!){ isched { terminateAllSessions(organizationId:$o) } })",
         json{{"o", org_id}}.dump(),
         ctx);
     require_success(result, "terminateAllSessions");
-    REQUIRE(result.data["terminateAllSessions"] == true);
+    REQUIRE(result.data["isched"]["terminateAllSessions"] == true);
 
     // The tenant user token must now be rejected
     auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
@@ -315,7 +315,7 @@ TEST_CASE("terminateAllSessions: tenant_admin is rejected with FORBIDDEN",
     auto ctx = tenant_admin_ctx("some_org");
     ctx.db   = db;
     auto result = exec->execute(
-        R"(mutation{ terminateAllSessions(organizationId:"any") })",
+        R"(mutation{ isched { terminateAllSessions(organizationId:"any") } })",
         "{}",
         ctx);
 

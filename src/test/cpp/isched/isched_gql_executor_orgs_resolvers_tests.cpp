@@ -38,7 +38,7 @@ TEST_CASE("Role & Organization Resolvers", "[gql][resolvers][orgs]") {
         auto res1 = proc.execute("mutation { createRole(input: { id: \"r1\", name: \"Role1\", scope: \"platform\" }) }", "{}", admin_ctx);
         if (!res1.is_success()) WARN("createRole error: " << (!res1.errors.empty() ? res1.errors[0].message : ""));
 
-        auto res2 = proc.execute("{ roles { id name } }", "{}", admin_ctx);
+        auto res2 = proc.execute("{ isched { roles { id name } } }", "{}", admin_ctx);
         WARN_IF_ERROR(res2);
 
         auto res3 = proc.execute("mutation { deleteRole(id: \"r1\") }", "{}", admin_ctx);

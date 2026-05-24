@@ -65,6 +65,7 @@
           @if (node.kind === 'field' && node.operationKind === 'query') { ⬡ }
           @else if (node.kind === 'field' && node.operationKind === 'mutation') { ✎ }
           @else if (node.kind === 'field' && node.operationKind === 'subscription') { ⚡ }
+          @else if (node.kind === 'namespace') { 📦 }
           @else if (node.kind === 'schemaDocument') { 📄 }
           @else if (node.kind === 'enumType') { ⊞ }
           @else if (node.kind === 'directive') { &#64; }

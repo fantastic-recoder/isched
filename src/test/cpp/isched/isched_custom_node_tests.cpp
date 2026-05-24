@@ -47,7 +47,7 @@ TEST_CASE("CustomNode is assignable to node_type", "[ast][customnode]") {
 TEST_CASE("NodeSelector: first child has NodeType::GqlQuery for simple query", "[ast][nodeselector]") {
     // parse_tree::parse returns a synthetic virtual root; the actual grammar node
     // is children[0].
-    tao::pegtl::string_input<> si("{ hello }", "test");
+    tao::pegtl::string_input<> si("{ isched { hello } }", "test");
     auto typed_root = tao::pegtl::parse_tree::parse<
         gql::GqlQuery, ast::CustomNode, ast::NodeSelector
     >(si);
@@ -60,7 +60,7 @@ TEST_CASE("NodeSelector: first child has NodeType::GqlQuery for simple query", "
 TEST_CASE("NodeSelector: children inherit correct NodeType", "[ast][nodeselector]") {
     // GqlQuery = opt<"query"> GqlSubQuery (GqlSubQuery : SelectionSet).
     // GqlSubQuery is not retained (not in selector), so Field nodes float up to GqlQuery.
-    tao::pegtl::string_input<> si("{ hello }", "test");
+    tao::pegtl::string_input<> si("{ isched { hello } }", "test");
     auto typed_root = tao::pegtl::parse_tree::parse<
         gql::GqlQuery, ast::CustomNode, ast::NodeSelector
     >(si);
@@ -91,7 +91,7 @@ TEST_CASE("NodeSelector: children inherit correct NodeType", "[ast][nodeselector
 }
 
 TEST_CASE("NodeSelector: no retained node has NodeType::Sentinel", "[ast][nodeselector]") {
-    tao::pegtl::string_input<> si("{ hello world }", "test");
+    tao::pegtl::string_input<> si("{ isched { hello world } }", "test");
     auto typed_root = tao::pegtl::parse_tree::parse<
         gql::GqlQuery, ast::CustomNode, ast::NodeSelector
     >(si);

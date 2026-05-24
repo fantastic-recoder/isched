@@ -28,14 +28,14 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
     SECTION("Mutation without CSRF token is rejected") {
         // T010: CSRF validation for mutations
         const std::string mutation_query = R"(
-            mutation {
+            mutation { isched {
                 completePlatformBootstrap(input: {
                     email: "admin@example.com"
                     password: "SecurePassword123!"
                 }) {
                     success
                 }
-            }
+            } }
         )";
 
         std::unordered_map<std::string, std::string> headers;
@@ -58,14 +58,14 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
 
     SECTION("Mutation with CSRF token but no Origin/Referer is rejected") {
         const std::string mutation_query = R"(
-            mutation {
+            mutation { isched {
                 completePlatformBootstrap(input: {
                     email: "admin@example.com"
                     password: "SecurePassword123!"
                 }) {
                     success
                 }
-            }
+            } }
         )";
 
         std::unordered_map<std::string, std::string> headers;
@@ -83,14 +83,14 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
 
     SECTION("Mutation with mismatched Origin is rejected") {
         const std::string mutation_query = R"(
-            mutation {
+            mutation { isched {
                 completePlatformBootstrap(input: {
                     email: "admin@example.com"
                     password: "SecurePassword123!"
                 }) {
                     success
                 }
-            }
+            } }
         )";
 
         std::unordered_map<std::string, std::string> headers;
@@ -110,11 +110,11 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
     SECTION("Query without CSRF token is allowed") {
         // Queries (non-mutations) should NOT require CSRF token
         const std::string query = R"(
-            query {
+            query { isched {
                 systemState {
                     seedModeActive
                 }
-            }
+            } }
         )";
 
         std::unordered_map<std::string, std::string> headers;
@@ -136,14 +136,14 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
     SECTION("Mutation with CSRF token is processed") {
         // T010: With CSRF token present, mutation should be processed (not rejected for CSRF)
         const std::string mutation_query = R"(
-            mutation {
+            mutation { isched {
                 completePlatformBootstrap(input: {
                     email: "admin@example.com"
                     password: "SecurePassword123!"
                 }) {
                     success
                 }
-            }
+            } }
         )";
 
         std::unordered_map<std::string, std::string> headers;
@@ -209,7 +209,7 @@ TEST_CASE("WebUI Security Foundation - Client IP Tracking", "[webui][security][l
 
     SECTION("Client IP is captured from request") {
         // T010: Verify remote_ip is tracked for rate-limiting and logging
-        const std::string query = "query { hello }";
+        const std::string query = "query { isched { hello } }";
         const std::string remote_ip = "192.168.1.100";
 
         const auto response = server->execute_graphql(query, "{}", "", remote_ip);

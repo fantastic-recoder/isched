@@ -54,15 +54,21 @@ export interface UpdateOrganizationInput {
 }
 
 interface OrganizationsResponse {
-  organizations: OrganizationConnection;
+  isched: {
+    organizations: OrganizationConnection;
+  };
 }
 
 interface CreateOrganizationResponse {
-  createOrganization: Organization;
+  isched: {
+    createOrganization: Organization;
+  };
 }
 
 interface UpdateOrganizationResponse {
-  updateOrganization: Organization;
+  isched: {
+    updateOrganization: Organization;
+  };
 }
 
 const DEFAULT_PAGE: PageInput = { number: 1, size: 10 };
@@ -76,19 +82,21 @@ export class OrganizationService {
     return this.gql
       .query<OrganizationsResponse>(
         `query Organizations($page: PageInput!, $sort: [SortInput!], $filter: [FilterInput!]) {
-          organizations(page: $page, sort: $sort, filter: $filter) {
-            nodes {
-              id
-              name
-              status
-              revision
-              updatedAt
-            }
-            pageInfo {
-              number
-              size
-              totalElements
-              totalPages
+          isched {
+            organizations(page: $page, sort: $sort, filter: $filter) {
+              nodes {
+                id
+                name
+                status
+                revision
+                updatedAt
+              }
+              pageInfo {
+                number
+                size
+                totalElements
+                totalPages
+              }
             }
           }
         }`,
@@ -98,24 +106,26 @@ export class OrganizationService {
           filter: options.filter,
         },
       )
-      .pipe(map(({ organizations }) => organizations));
+      .pipe(map(({ isched }) => isched.organizations));
   }
 
   createOrganization(input: CreateOrganizationInput): Observable<Organization> {
     return this.gql
       .mutate<CreateOrganizationResponse>(
         `mutation CreateOrganization($input: CreateOrganizationInput!) {
-          createOrganization(input: $input) {
-            id
-            name
-            status
-            revision
-            updatedAt
+          isched {
+            createOrganization(input: $input) {
+              id
+              name
+              status
+              revision
+              updatedAt
+            }
           }
         }`,
         { input },
       )
-      .pipe(map(({ createOrganization }) => createOrganization));
+      .pipe(map(({ isched }) => isched.createOrganization));
   }
 
   updateOrganization(
@@ -126,17 +136,19 @@ export class OrganizationService {
     return this.gql
       .mutate<UpdateOrganizationResponse>(
         `mutation UpdateOrganization($id: ID!, $input: UpdateOrganizationInput!, $expectedRevision: Int!) {
-          updateOrganization(id: $id, input: $input, expectedRevision: $expectedRevision) {
-            id
-            name
-            status
-            revision
-            updatedAt
+          isched {
+            updateOrganization(id: $id, input: $input, expectedRevision: $expectedRevision) {
+              id
+              name
+              status
+              revision
+              updatedAt
+            }
           }
         }`,
         { id, input, expectedRevision },
       )
-      .pipe(map(({ updateOrganization }) => updateOrganization));
+      .pipe(map(({ isched }) => isched.updateOrganization));
   }
 }
 

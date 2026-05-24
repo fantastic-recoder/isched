@@ -49,6 +49,9 @@ thread_local nlohmann::json tl_gql_variables = nlohmann::json::object();
 // Per-request resolver context (auth info populated by execute() overload that accepts ctx)
 thread_local isched::v0_0_1::backend::ResolverCtx tl_resolver_ctx;
 
+constexpr std::string_view k_builtin_graphql_namespace = "isched";
+const isched::v0_0_1::backend::ResolverPath k_builtin_namespace_path{std::string(k_builtin_graphql_namespace)};
+
 // ---------------------------------------------------------------------------
 // Phase 5b: GraphQL Introspection helpers (T-INTRO-001 … T-INTRO-031)
 // ---------------------------------------------------------------------------
@@ -530,16 +533,20 @@ namespace isched::v0_0_1::backend {
     }
 
     void GqlExecutor::setup_builtin_resolvers() {
+        register_resolver({}, std::string(k_builtin_graphql_namespace), [](const json &, const json &, const ResolverCtx&) -> json {
+            return json::object();
+        });
+
         // Basic Hello/Version resolvers
-        register_resolver({},"hello", [](const json &, const json &, const ResolverCtx&)->json {
+        register_resolver(k_builtin_namespace_path,"hello", [](const json &, const json &, const ResolverCtx&)->json {
             return basic_json("Hello, GraphQL!");
         });
 
-        register_resolver({},"version", [](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"version", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json("0.0.1");
         });
 
-        register_resolver({},"serverInfo", [this](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"serverInfo", [this](const json &, const json &, const ResolverCtx&) -> json {
             return json{
                 {"version", "0.0.1"},
                 {"host", "localhost"},
@@ -554,14 +561,14 @@ namespace isched::v0_0_1::backend {
         });
 
         // Uptime resolver
-        register_resolver({},"uptime", [this](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"uptime", [this](const json &, const json &, const ResolverCtx&) -> json {
             auto now = std::chrono::system_clock::now();
             auto uptime_seconds = std::chrono::duration_cast<std::chrono::seconds>(now - m_start_time).count();
             return basic_json(uptime_seconds);
         });
 
         // Client count resolver
-        register_resolver({},"clientCount", [](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"clientCount", [](const json &, const json &, const ResolverCtx&) -> json {
             return basic_json(1); // Placeholder - could be enhanced with actual connection tracking
         });
 
@@ -569,7 +576,7 @@ namespace isched::v0_0_1::backend {
         // T-UI-D-002: systemState query — unauthenticated; reports seed mode.
         // Seed mode is active when no active platform-admin accounts exist.
         // ---------------------------------------------------------------
-        register_resolver({}, "systemState",
+        register_resolver(k_builtin_namespace_path, "systemState",
             [this](const json&, const json&, const ResolverCtx&) -> json {
                 bool seed_active = true;
                 if (m_database) {
@@ -585,7 +592,7 @@ namespace isched::v0_0_1::backend {
         // systemState is intentionally NOT gated by require_roles().
 
         // Spring Boot Actuator-style Health endpoint
-        register_resolver({},"health", [this](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"health", [this](const json &, const json &, const ResolverCtx&) -> json {
             // Overall status check
             std::string overall_status = "UP";
             json components;
@@ -641,7 +648,7 @@ namespace isched::v0_0_1::backend {
         });
 
         // Application Info endpoint (Spring Boot actuator style)
-        register_resolver({},"info", [](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"info", [](const json &, const json &, const ResolverCtx&) -> json {
             return json{
                 {
                     "app", {
@@ -675,7 +682,7 @@ namespace isched::v0_0_1::backend {
         });
 
         // Legacy metrics endpoint (no auth required; delegates to MetricsCollector if wired)
-        register_resolver({}, "metrics", [this](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path, "metrics", [this](const json &, const json &, const ResolverCtx&) -> json {
             if (m_metrics) {
                 // Use live data from the MetricsCollector (T051)
                 return m_metrics->get_server_metrics(0, 0, 0);
@@ -694,7 +701,7 @@ namespace isched::v0_0_1::backend {
         });
 
         // Server-wide metrics (platform_admin only) — T051-004
-        register_resolver({}, "serverMetrics", [this](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path, "serverMetrics", [this](const json &, const json &, const ResolverCtx&) -> json {
             if (m_metrics) {
                 // active_connections and active_subscriptions are provided by the
                 // Server layer via the MetricsCollector; tenant_count is approximated
@@ -716,7 +723,7 @@ namespace isched::v0_0_1::backend {
 
         // Per-tenant metrics — T051-005
         // platform_admin can pass any organizationId; tenant_admin sees own org.
-        register_resolver({}, "tenantMetrics", [this](const json &, const json & args, const ResolverCtx& ctx) -> json {
+        register_resolver(k_builtin_namespace_path, "tenantMetrics", [this](const json &, const json & args, const ResolverCtx& ctx) -> json {
             std::string org_id = ctx.tenant_id;
             if (args.contains("organizationId") && !args["organizationId"].is_null()) {
                 const std::string requested = args["organizationId"].get<std::string>();
@@ -757,7 +764,7 @@ namespace isched::v0_0_1::backend {
         // Published by Server's background publisher thread; this resolver handles
         // the initial subscribe request (returns empty data; actual payloads come
         // from broker publishes on topic "__metrics/server").
-        register_resolver({}, "serverMetricsUpdated", [this](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path, "serverMetricsUpdated", [this](const json &, const json &, const ResolverCtx&) -> json {
             if (m_broker) {
                 // Subscribing is managed by the WebSocket layer; return current snapshot
                 if (m_metrics) {
@@ -774,7 +781,7 @@ namespace isched::v0_0_1::backend {
         require_roles("serverMetricsUpdated", {std::string(Role::PLATFORM_ADMIN)});
 
         // Subscription: tenantMetricsUpdated — T051-007
-        register_resolver({}, "tenantMetricsUpdated", [this](const json &, const json & args, const ResolverCtx& ctx) -> json {
+        register_resolver(k_builtin_namespace_path, "tenantMetricsUpdated", [this](const json &, const json & args, const ResolverCtx& ctx) -> json {
             std::string org_id = ctx.tenant_id;
             if (args.contains("organizationId") && !args["organizationId"].is_null()) {
                 org_id = args["organizationId"].get<std::string>();
@@ -792,7 +799,7 @@ namespace isched::v0_0_1::backend {
         require_roles("tenantMetricsUpdated", {std::string(Role::TENANT_ADMIN), std::string(Role::PLATFORM_ADMIN)});
 
         // Environment endpoint (filtered for security)
-        register_resolver({},"env", [](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"env", [](const json &, const json &, const ResolverCtx&) -> json {
             json env;
 
             // System properties
@@ -817,7 +824,7 @@ namespace isched::v0_0_1::backend {
         });
 
         // Configuration properties endpoint
-        register_resolver({},"configprops", [](const json &, const json &, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path,"configprops", [](const json &, const json &, const ResolverCtx&) -> json {
             return json{
                 {
                     "server", {
@@ -840,12 +847,11 @@ namespace isched::v0_0_1::backend {
             };
         });
 
-        // Enhanced schema introspection resolver (T-INTRO-010 … T-INTRO-018)
+        // GraphQL-standard root introspection meta-fields.
         register_resolver({},"__schema", [this](const json &, const json &, const ResolverCtx&) -> json {
             return generate_schema_introspection();
         });
 
-        // __type(name:) root field (T-INTRO-020, T-INTRO-021)
         register_resolver({},"__type", [this](const json &, const json & args, const ResolverCtx&) -> json {
             if (!args.contains("name") || !args["name"].is_string()) return nullptr;
             const std::string name = args["name"].get<std::string>();
@@ -860,15 +866,23 @@ namespace isched::v0_0_1::backend {
             return build_type_json(name, *it->second, m_type_map);
         });
 
+        // Keep namespaced aliases for existing clients migrated to `isched { ... }`.
+        register_resolver(k_builtin_namespace_path,"__schema", [this](const json & parent, const json & args, const ResolverCtx& ctx) -> json {
+            return m_resolvers.get_resolver({}, "__schema")(parent, args, ctx);
+        });
+        register_resolver(k_builtin_namespace_path,"__type", [this](const json & parent, const json & args, const ResolverCtx& ctx) -> json {
+            return m_resolvers.get_resolver({}, "__type")(parent, args, ctx);
+        });
+
         // Built-in mutation resolvers
-        register_resolver({}, "echo", [](const json&, const json& args, const ResolverCtx&) -> json {
+        register_resolver(k_builtin_namespace_path, "echo", [](const json&, const json& args, const ResolverCtx&) -> json {
             if (args.contains("message") && args["message"].is_string()) {
                 return args["message"];
             }
             return nullptr;
         });
 
-        register_resolver({}, "platformBootstrapStatus",
+        register_resolver(k_builtin_namespace_path, "platformBootstrapStatus",
             [this](const json&, const json&, const ResolverCtx&) -> json {
                 if (!m_database) {
                     throw std::runtime_error("platformBootstrapStatus: database not available");
@@ -892,11 +906,11 @@ namespace isched::v0_0_1::backend {
                 };
             });
 
-        register_resolver({}, "completePlatformBootstrap",
+        register_resolver(k_builtin_namespace_path, "completePlatformBootstrap",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 json bootstrap_args = json::object();
                 bootstrap_args["input"] = args.value("input", json::object());
-                const auto bootstrap_result = m_resolvers.get_resolver({}, "bootstrapPlatformAdmin")(json::object(), bootstrap_args, ctx);
+                const auto bootstrap_result = m_resolvers.get_resolver(k_builtin_namespace_path, "bootstrapPlatformAdmin")(json::object(), bootstrap_args, ctx);
 
                 return json{
                     {"success", !bootstrap_result.is_null()},
@@ -908,7 +922,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-000b: bootstrapPlatformAdmin (one-time, unauthenticated)
         // ---------------------------------------------------------------
-        register_resolver({}, "bootstrapPlatformAdmin",
+        register_resolver(k_builtin_namespace_path, "bootstrapPlatformAdmin",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 if (!m_database) {
                     throw std::runtime_error("bootstrapPlatformAdmin: database not available");
@@ -934,7 +948,7 @@ namespace isched::v0_0_1::backend {
 
                 auto admins = m_database->list_platform_admins();
                 if (!admins) {
-                    throw std::runtime_error("bootstrapPlatformAdmin: failed to query platform admins");
+                    throw std::runtime_error("bootstrapPlatformAdmin is no longer available");
                 }
                 if (!admins.value().empty()) {
                     throw std::runtime_error("bootstrapPlatformAdmin is no longer available");
@@ -982,7 +996,7 @@ namespace isched::v0_0_1::backend {
             };
         };
 
-        register_resolver({}, "plugins",
+        register_resolver(k_builtin_namespace_path, "plugins",
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 json result = json::array();
                 if (!m_plugins) {
@@ -1002,7 +1016,7 @@ namespace isched::v0_0_1::backend {
             });
         require_roles("plugins", {std::string(Role::PLATFORM_ADMIN)});
 
-        register_resolver({}, "plugin",
+        register_resolver(k_builtin_namespace_path, "plugin",
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 if (!m_plugins) {
                     return nullptr;
@@ -1016,7 +1030,7 @@ namespace isched::v0_0_1::backend {
             });
         require_roles("plugin", {std::string(Role::PLATFORM_ADMIN)});
 
-        register_resolver({}, "loadPlugin",
+        register_resolver(k_builtin_namespace_path, "loadPlugin",
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"] = false;
@@ -1058,7 +1072,7 @@ namespace isched::v0_0_1::backend {
             });
         require_roles("loadPlugin", {std::string(Role::PLATFORM_ADMIN)});
 
-        register_resolver({}, "unloadPlugin",
+        register_resolver(k_builtin_namespace_path, "unloadPlugin",
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"] = false;
@@ -1120,7 +1134,7 @@ namespace isched::v0_0_1::backend {
         // Phase 4 mutation: applyConfiguration (T030)
         // Creates a new snapshot but does NOT activate it.
         // ---------------------------------------------------------------
-        register_resolver({}, "applyConfiguration",
+        register_resolver(k_builtin_namespace_path, "applyConfiguration",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"]    = false;
@@ -1222,7 +1236,7 @@ namespace isched::v0_0_1::backend {
         // Phase 4 mutation: activateSnapshot (T030, T032, T034)
         // Atomically activates a snapshot; queues schema reload for Server.
         // ---------------------------------------------------------------
-        register_resolver({}, "activateSnapshot",
+        register_resolver(k_builtin_namespace_path, "activateSnapshot",
             [this, fmt_iso8601](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"]    = false;
@@ -1335,7 +1349,7 @@ namespace isched::v0_0_1::backend {
         // Phase 4 mutation: rollbackConfiguration (T028, T032)
         // Rolls back to the previously-activated snapshot for a tenant.
         // ---------------------------------------------------------------
-        register_resolver({}, "rollbackConfiguration",
+        register_resolver(k_builtin_namespace_path, "rollbackConfiguration",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"]    = false;
@@ -1411,7 +1425,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // Phase 4 query: activeConfiguration (T035)
         // ---------------------------------------------------------------
-        register_resolver({}, "activeConfiguration",
+        register_resolver(k_builtin_namespace_path, "activeConfiguration",
             [this, snap_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 if (!m_database) return nullptr;
                 if (!args.contains("tenantId") || !args["tenantId"].is_string())
@@ -1426,7 +1440,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // Phase 4 query: configurationHistory (T035)
         // ---------------------------------------------------------------
-        register_resolver({}, "configurationHistory",
+        register_resolver(k_builtin_namespace_path, "configurationHistory",
             [this, snap_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 if (!m_database) return json::array();
                 if (!args.contains("tenantId") || !args["tenantId"].is_string())
@@ -1448,7 +1462,7 @@ namespace isched::v0_0_1::backend {
         // Returns the current health snapshot on subscribe; ongoing events
         // are published by the Server via SubscriptionBroker.
         // ---------------------------------------------------------------
-        register_resolver({}, "healthChanged",
+        register_resolver(k_builtin_namespace_path, "healthChanged",
             [fmt_iso8601](const json&, const json&, const ResolverCtx&) -> json {
                 json evt;
                 evt["status"]    = "UP";
@@ -1461,7 +1475,7 @@ namespace isched::v0_0_1::backend {
         // Returns the current active snapshot for the tenant (initial value);
         // activation events are published by activateSnapshot and rollback.
         // ---------------------------------------------------------------
-        register_resolver({}, "configurationActivated",
+        register_resolver(k_builtin_namespace_path, "configurationActivated",
             [this, fmt_iso8601](const json&, const json& args, const ResolverCtx&) -> json {
                 if (!m_database) return nullptr;
                 if (!args.contains("tenantId") || !args["tenantId"].is_string())
@@ -1484,7 +1498,7 @@ namespace isched::v0_0_1::backend {
         // Phase 6 stub resolvers (T047-000a)
         // Full implementations added in T047-009, T047-015, T047-016.
         // ---------------------------------------------------------------
-        register_resolver({}, "currentUser", [](const json&, const json&, const ResolverCtx& ctx) -> json {
+        register_resolver(k_builtin_namespace_path, "currentUser", [](const json&, const json&, const ResolverCtx& ctx) -> json {
             if (ctx.current_user_id.empty()) {
                 return nullptr; // unauthenticated request
             }
@@ -1504,7 +1518,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-015: user / users query resolvers
         // ---------------------------------------------------------------
-        register_resolver({}, "user",
+        register_resolver(k_builtin_namespace_path, "user",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const std::string id     = args.value("id", "");
@@ -1532,7 +1546,7 @@ namespace isched::v0_0_1::backend {
         require_roles("user", {std::string(Role::PLATFORM_ADMIN),
                                std::string(Role::TENANT_ADMIN)});
 
-        register_resolver({}, "users",
+        register_resolver(k_builtin_namespace_path, "users",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 auto res = m_database->list_users(org_id);
@@ -1562,7 +1576,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T049-003: logout mutation — revoke the caller's current session
         // ---------------------------------------------------------------
-        register_resolver({}, "logout",
+        register_resolver(k_builtin_namespace_path, "logout",
             [this](const json&, const json&, const ResolverCtx& ctx) -> json
             {
                 if (ctx.session_id.empty())
@@ -1585,7 +1599,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T049-004: revokeSession mutation — tenant_admin only
         // ---------------------------------------------------------------
-        register_resolver({}, "revokeSession",
+        register_resolver(k_builtin_namespace_path, "revokeSession",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string session_id = args.value("sessionId", "");
@@ -1613,7 +1627,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T049-005: revokeAllSessions mutation — tenant_admin only
         // ---------------------------------------------------------------
-        register_resolver({}, "revokeAllSessions",
+        register_resolver(k_builtin_namespace_path, "revokeAllSessions",
             [](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string user_id = args.value("userId", "");
@@ -1636,7 +1650,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T049-006: terminateAllSessions mutation — platform_admin only
         // ---------------------------------------------------------------
-        register_resolver({}, "terminateAllSessions",
+        register_resolver(k_builtin_namespace_path, "terminateAllSessions",
             [](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string org_id = args.value("organizationId", "");
@@ -1657,7 +1671,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-004: roles query + createRole / deleteRole mutations
         // ---------------------------------------------------------------
-        register_resolver({}, "roles",
+        register_resolver(k_builtin_namespace_path, "roles",
             [this](const json&, const json&, const ResolverCtx&) -> json {
                 auto result = m_database->list_platform_roles();
                 if (!result) {
@@ -1677,7 +1691,7 @@ namespace isched::v0_0_1::backend {
         require_roles("roles", {std::string(Role::PLATFORM_ADMIN),
                                 std::string(Role::TENANT_ADMIN)});
 
-        register_resolver({}, "createRole",
+        register_resolver(k_builtin_namespace_path, "createRole",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const auto& input = args.value("input", json::object());
                 const std::string id    = input.value("id",          "");
@@ -1704,7 +1718,7 @@ namespace isched::v0_0_1::backend {
         require_roles("createRole", {std::string(Role::PLATFORM_ADMIN),
                                      std::string(Role::TENANT_ADMIN)});
 
-        register_resolver({}, "deleteRole",
+        register_resolver(k_builtin_namespace_path, "deleteRole",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const std::string id = args.value("id", "");
                 if (id.empty()) {
@@ -1727,7 +1741,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-006: createOrganization mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "createOrganization",
+        register_resolver(k_builtin_namespace_path, "createOrganization",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const auto& input = args.value("input", json::object());
                 const std::string id   = input.value("id",   "");
@@ -1782,7 +1796,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-007: updateOrganization mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "updateOrganization",
+        register_resolver(k_builtin_namespace_path, "updateOrganization",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const std::string id = args.value("id", "");
                 if (id.empty()) {
@@ -1855,7 +1869,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-008: deleteOrganization mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "deleteOrganization",
+        register_resolver(k_builtin_namespace_path, "deleteOrganization",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const std::string id = args.value("id", "");
                 if (id.empty()) {
@@ -1877,7 +1891,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-009: organization / organizations query resolvers
         // ---------------------------------------------------------------
-        register_resolver({}, "organization",
+        register_resolver(k_builtin_namespace_path, "organization",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const std::string id = args.value("id", "");
                 if (id.empty()) {
@@ -1907,7 +1921,7 @@ namespace isched::v0_0_1::backend {
         require_roles("organization", {std::string(Role::PLATFORM_ADMIN),
                                        std::string(Role::TENANT_ADMIN)});
 
-        register_resolver({}, "organizations",
+        register_resolver(k_builtin_namespace_path, "organizations",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 // platform_admin sees all; tenant_admin sees only their own org
                 const bool is_platform_admin =
@@ -1990,7 +2004,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-012: createUser mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "createUser",
+        register_resolver(k_builtin_namespace_path, "createUser",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const auto& input = args.value("input", json::object());
@@ -2051,7 +2065,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-013: updateUser mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "updateUser",
+        register_resolver(k_builtin_namespace_path, "updateUser",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const std::string id     = args.value("id", "");
@@ -2101,7 +2115,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T047-014: deleteUser mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "deleteUser",
+        register_resolver(k_builtin_namespace_path, "deleteUser",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const std::string id     = args.value("id", "");
@@ -2121,7 +2135,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T048-002: createDataSource mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "createDataSource",
+        register_resolver(k_builtin_namespace_path, "createDataSource",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const auto& input        = args.value("input", json::object());
@@ -2177,7 +2191,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T048-003: updateDataSource mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "updateDataSource",
+        register_resolver(k_builtin_namespace_path, "updateDataSource",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const std::string id     = args.value("id", "");
@@ -2234,7 +2248,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T048-003: deleteDataSource mutation
         // ---------------------------------------------------------------
-        register_resolver({}, "deleteDataSource",
+        register_resolver(k_builtin_namespace_path, "deleteDataSource",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 const std::string id     = args.value("id", "");
@@ -2253,7 +2267,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T048-004: dataSources query
         // ---------------------------------------------------------------
-        register_resolver({}, "dataSources",
+        register_resolver(k_builtin_namespace_path, "dataSources",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 const std::string org_id = args.value("organizationId", ctx.tenant_id);
                 auto result = m_database->list_data_sources(org_id);
@@ -2281,7 +2295,7 @@ namespace isched::v0_0_1::backend {
         // T047-016: login mutation
         // Unauthenticated — any caller may attempt; no require_roles() gate.
         // ---------------------------------------------------------------
-        register_resolver({}, "login",
+        register_resolver(k_builtin_namespace_path, "login",
             [this](const json&, const json& args, const ResolverCtx&) -> json
             {
                 const std::string email    = args.value("email", "");
@@ -2384,7 +2398,7 @@ namespace isched::v0_0_1::backend {
         // T-UI-D-003: createPlatformAdmin mutation — unauthenticated (seed only).
         // Rate-limited per source IP; only allowed when in seed mode.
         // ---------------------------------------------------------------
-        register_resolver({}, "createPlatformAdmin",
+        register_resolver(k_builtin_namespace_path, "createPlatformAdmin",
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 // --- Resolve rate limit from env / default -----------------
                 static const int seed_rate_limit = []() -> int {
@@ -2463,7 +2477,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // T050-001 / T051-003: updateTenantConfig mutation (platform_admin only)
         // ---------------------------------------------------------------
-        register_resolver({}, "updateTenantConfig",
+        register_resolver(k_builtin_namespace_path, "updateTenantConfig",
             [this](const json&, const json& args, const ResolverCtx&) -> json {
                 const std::string org_id = args.value("organizationId", "");
                 if (org_id.empty())
@@ -2515,7 +2529,7 @@ namespace isched::v0_0_1::backend {
         // The actual stop is fired on a short-lived detached thread so the
         // HTTP response is flushed before the io_context is torn down.
         // ---------------------------------------------------------------
-        register_resolver({}, "shutdown",
+        register_resolver(k_builtin_namespace_path, "shutdown",
             [this](const json&, const json&, const ResolverCtx& ctx) -> json
             {
                 // Accept a static bearer token from the environment (automation / benchmark use).
@@ -2609,7 +2623,7 @@ namespace isched::v0_0_1::backend {
         // ---------------------------------------------------------------
         // uploadSchemaDocument (tenant_admin only)
         // ---------------------------------------------------------------
-        register_resolver({}, "uploadSchemaDocument",
+        register_resolver(k_builtin_namespace_path, "uploadSchemaDocument",
             [this](
                 const json&, const json& args, const ResolverCtx& ctx) -> json
             {
@@ -2784,7 +2798,7 @@ namespace isched::v0_0_1::backend {
         // =============================================================
         // spec-006: schemaDocuments query (T026-T028, US2)
         // =============================================================
-        register_resolver({}, "schemaDocuments",
+        register_resolver(k_builtin_namespace_path, "schemaDocuments",
             [this](const json&, const json&, const ResolverCtx& ctx) -> json
             {
                 if (ctx.current_user_id.empty()) {
@@ -2817,7 +2831,7 @@ namespace isched::v0_0_1::backend {
         // =============================================================
         // spec-006: schemaDocument(name:) query (T033-T035, US3)
         // =============================================================
-        register_resolver({}, "schemaDocument",
+        register_resolver(k_builtin_namespace_path, "schemaDocument",
             [this](
                 const json&, const json& args, const ResolverCtx& ctx) -> json
             {
@@ -3295,8 +3309,13 @@ namespace isched::v0_0_1::backend {
 
             // T047-003: RBAC gate — check if the caller holds at least one required role.
             // Only enforced at the top level (p_path is empty or contains only root type).
-            const bool is_top_level = p_path.empty() || 
-                (p_path.size() == 1 && (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription"));
+            const bool is_root_operation = p_path.size() == 1 &&
+                (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription");
+            const bool is_builtin_namespace_operation = p_path.size() == 2 &&
+                (p_path[0] == "Query" || p_path[0] == "Mutation" || p_path[0] == "Subscription") &&
+                p_path[1] == k_builtin_graphql_namespace;
+            const bool is_top_level = is_root_operation || is_builtin_namespace_operation;
+
             if (is_top_level) {
                 auto gate_it = m_required_roles.find(myFieldName);
                 if (gate_it != m_required_roles.end() && !gate_it->second.empty()) {

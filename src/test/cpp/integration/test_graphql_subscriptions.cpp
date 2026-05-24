@@ -182,7 +182,7 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     // Subscribe to healthChanged
     c.send({
         {"type", "subscribe"}, {"id", "h-1"},
-        {"payload", {{"query", "subscription { healthChanged { status timestamp } }"}}}
+        {"payload", {{"query", "subscription { isched { healthChanged { status timestamp } } }"}}}
     });
 
     auto next = c.recv();
@@ -193,8 +193,9 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     const auto& payload = next["payload"];
     REQUIRE(payload.contains("data"));
     const auto& data = payload["data"];
-    REQUIRE(data.contains("healthChanged"));
-    const auto& hc = data["healthChanged"];
+    REQUIRE(data.contains("isched"));
+    REQUIRE(data["isched"].contains("healthChanged"));
+    const auto& hc = data["isched"]["healthChanged"];
     REQUIRE(hc["status"].get<std::string>() == "UP");
     REQUIRE(!hc["timestamp"].get<std::string>().empty());
 
@@ -214,22 +215,22 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
 
     const std::string sdl = "type Query { ping: String }";
     auto apply_result = post_graphql(
-        R"(mutation { applyConfiguration(input: { tenantId: ")" + tenant_id +
-        R"(" schemaSdl: "type Query { ping: String }" }) { success } })");
-    REQUIRE(apply_result["data"]["applyConfiguration"]["success"] == true);
+        R"(mutation { isched { applyConfiguration(input: { tenantId: ")" + tenant_id +
+        R"(" schemaSdl: "type Query { ping: String }" }) { success } } })");
+    REQUIRE(apply_result["data"]["isched"]["applyConfiguration"]["success"] == true);
 
     // Get snapshot id
     auto hist = post_graphql(
-        "query($t: String!) { configurationHistory(tenantId: $t) { id } }",
+        "query($t: String!) { isched { configurationHistory(tenantId: $t) { id } } }",
         {{"t", tenant_id}});
-    REQUIRE(hist["data"]["configurationHistory"].size() == 1);
-    const std::string snap_id = hist["data"]["configurationHistory"][0]["id"];
+    REQUIRE(hist["data"]["isched"]["configurationHistory"].size() == 1);
+    const std::string snap_id = hist["data"]["isched"]["configurationHistory"][0]["id"];
 
     // Activate the snapshot
     auto act = post_graphql(
-        "mutation($id: ID!) { activateSnapshot(id: $id) { success } }",
+        "mutation($id: ID!) { isched { activateSnapshot(id: $id) { success } } }",
         {{"id", snap_id}});
-    REQUIRE(act["data"]["activateSnapshot"]["success"] == true);
+    REQUIRE(act["data"]["isched"]["activateSnapshot"]["success"] == true);
 
     // Now subscribe to configurationActivated
     SyncWs2 c;
@@ -242,7 +243,7 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     c.send({
         {"type", "subscribe"}, {"id", "ca-1"},
         {"payload", {
-            {"query", "subscription($t: String!) { configurationActivated(tenantId: $t) { tenantId snapshotId } }"},
+            {"query", "subscription($t: String!) { isched { configurationActivated(tenantId: $t) { tenantId snapshotId } } }"},
             {"variables", {{"t", tenant_id}}}
         }}
     });
@@ -255,7 +256,8 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     const auto& payload = next["payload"];
     REQUIRE(payload.contains("data"));
     const auto& data = payload["data"];
-    REQUIRE(data.contains("configurationActivated"));
+    REQUIRE(data.contains("isched"));
+    REQUIRE(data["isched"].contains("configurationActivated"));
 
     c.send({{"type", "complete"}, {"id", "ca-1"}});
     auto complete = c.recv();

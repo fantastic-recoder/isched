@@ -86,9 +86,9 @@ ExecutionResult login_attempt(
     const std::string& password)
 {
     return exec->execute(
-        R"(mutation($email: String!, $password: String!) {
+        R"(mutation($email: String!, $password: String!) { isched {
              login(email: $email, password: $password) { token expiresAt }
-           })",
+           } })",
         nlohmann::json{{"email", email}, {"password", password}}.dump(),
         isched::test::anonymous_ctx());
 }
@@ -158,8 +158,9 @@ TEST_CASE("lockout auto-unlocks once the lock window elapses", "[integration][au
 
     const auto after_unlock = login_attempt(exec, "unlock@example.com", "CorrectHorseBatteryStaple123");
     REQUIRE(after_unlock.is_success());
-    REQUIRE(after_unlock.data.contains("login"));
-    REQUIRE_FALSE(after_unlock.data["login"]["token"].get<std::string>().empty());
+    REQUIRE(after_unlock.data.contains("isched"));
+    REQUIRE(after_unlock.data["isched"].contains("login"));
+    REQUIRE_FALSE(after_unlock.data["isched"]["login"]["token"].get<std::string>().empty());
 }
 
 TEST_CASE("lockout config chain applies bootstrap/auth override before feature and global defaults",

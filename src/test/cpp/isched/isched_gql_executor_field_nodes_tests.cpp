@@ -134,7 +134,7 @@ namespace isched::v0_0_1::backend {
     TEST_CASE("collect_field_nodes returns empty when called with non-selection-set node",
               "[gql][executor][hotpath][field-nodes]") {
         GqlExecutor exec(std::make_shared<DatabaseManager>());
-        auto parsed = parse_query_root("query { hello }");
+        auto parsed = parse_query_root("query { isched { hello } }");
         const auto* selection_set = find_first_selection_set(parsed.root);
         REQUIRE(selection_set != nullptr);
         REQUIRE_FALSE((*selection_set)->children.empty());
@@ -150,7 +150,7 @@ namespace isched::v0_0_1::backend {
     TEST_CASE("process_field_nodes skips null field handles and still resolves valid ones",
               "[gql][executor][hotpath][field-nodes]") {
         GqlExecutor exec(std::make_shared<DatabaseManager>());
-        auto parsed = parse_query_root("query { hello }");
+        auto parsed = parse_query_root("query { isched { hello } }");
         const auto* selection_set = find_first_selection_set(parsed.root);
         REQUIRE(selection_set != nullptr);
 
@@ -158,7 +158,7 @@ namespace isched::v0_0_1::backend {
         auto fields = exec.collect_field_nodes(*selection_set, GqlExecutor::TFragmentMap{}, errors);
         REQUIRE(errors.empty());
         REQUIRE(fields.size() == 1);
-        REQUIRE((*fields.front())->children[0]->string_view() == "hello");
+        REQUIRE((*fields.front())->children[0]->string_view() == "isched");
 
         GqlExecutor::FieldNodeList with_null;
         with_null.push_back(nullptr);
@@ -169,8 +169,9 @@ namespace isched::v0_0_1::backend {
         exec.process_field_nodes(nlohmann::json::object(), path_context, with_null, GqlExecutor::TFragmentMap{}, result, errors);
 
         REQUIRE(errors.empty());
-        REQUIRE(result.contains("hello"));
-        REQUIRE(result["hello"] == "Hello, GraphQL!");
+        REQUIRE(result.contains("isched"));
+        REQUIRE(result["isched"].contains("hello"));
+        REQUIRE(result["isched"]["hello"] == "Hello, GraphQL!");
     }
 }
 

@@ -130,7 +130,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     client.set_read_timeout(5);
 
     const std::string body_str =
-        nlohmann::json{{"query", "{ hello }"}}.dump();
+        nlohmann::json{{"query", "{ isched { hello } }"}}.dump();
 
     long long count = 0;
     const auto deadline = clock::now() + std::chrono::seconds(5);
@@ -173,7 +173,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
             client.set_connection_timeout(2);
             client.set_read_timeout(5);
             const std::string body_str =
-                nlohmann::json{{"query", "{ version }"}}.dump();
+                nlohmann::json{{"query", "{ isched { version } }"}}.dump();
             for (int i = 0; i < k_per_thread; ++i) {
                 // Retry up to 5 times with brief back-off to handle transient
                 // TCP accept-queue saturation under 100-thread burst load.
@@ -242,7 +242,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
         clients[i]->send({
             {"type",    "subscribe"},
             {"id",      "hc-" + std::to_string(i)},
-            {"payload", {{"query", "subscription { healthChanged { status } }"}}}
+            {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}
         });
     }
 
@@ -252,7 +252,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
         auto next = clients[i]->recv();
         INFO("Client " << i << " received message: " << next.dump());
         REQUIRE(next["type"] == "next");
-        REQUIRE(next["payload"]["data"]["healthChanged"]["status"] == "UP");
+        REQUIRE(next["payload"]["data"]["isched"]["healthChanged"]["status"] == "UP");
     }
     const auto elapsed_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - t0).count();
@@ -347,7 +347,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     client.set_read_timeout(5);
 
     const std::string body_str =
-        nlohmann::json{{"query", "{ version }"}}.dump();
+        nlohmann::json{{"query", "{ isched { version } }"}}.dump();
 
     std::vector<long long> durations;
     durations.reserve(k_requests);

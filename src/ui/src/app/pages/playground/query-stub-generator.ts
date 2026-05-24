@@ -43,13 +43,16 @@ export function generateStub(node: SchemaTreeNode): string {
   const args = buildArgs(node.args ?? []);
   const operationName = capitalize(node.name);
 
-  // Determine selection set: if the return type looks like a scalar, omit nested selection.
-  // For object-like returns use __typename, which is valid on all composite GraphQL object results.
   const typeName = node.typeName?.replace(/[!\[\]]/g, '') ?? '';
   const isScalarLike = isLikelyScalar(typeName);
-  const selectionSet = isScalarLike ? '' : ' {\n    __typename\n  }';
 
-  return `${keyword} ${operationName} {\n  ${node.name}${args}${selectionSet}\n}`;
+  const fieldSelection = isScalarLike
+    ? `${node.name}${args}`
+    : `${node.name}${args} {\n      __typename\n    }`;
+
+  const wrappedSelection = wrapWithNamespaces(fieldSelection, node.namespacePath ?? []);
+
+  return `${keyword} ${operationName} {\n${indentBy(wrappedSelection, 2)}\n}`;
 }
 
 function capitalize(s: string): string {
@@ -62,3 +65,18 @@ function isLikelyScalar(typeName: string): boolean {
   return KNOWN_SCALARS.has(typeName) || typeName === '' || typeName === 'Unknown';
 }
 
+function wrapWithNamespaces(selection: string, namespacePath: string[]): string {
+  let result = selection;
+  for (let i = namespacePath.length - 1; i >= 0; i -= 1) {
+    result = `${namespacePath[i]} {\n${indentBy(result, 2)}\n}`;
+  }
+  return result;
+}
+
+function indentBy(text: string, spaces: number): string {
+  const prefix = ' '.repeat(spaces);
+  return text
+    .split('\n')
+    .map((line) => `${prefix}${line}`)
+    .join('\n');
+}

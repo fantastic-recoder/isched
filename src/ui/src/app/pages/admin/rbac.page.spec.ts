@@ -31,7 +31,7 @@ describe('RbacPage', () => {
     fixture.detectChanges();
 
     httpMock.expectOne('/graphql').flush({
-      data: { roles },
+      data: { isched: { roles } },
     });
 
     fixture.detectChanges();

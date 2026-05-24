@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { map, Observable } from 'rxjs';
 import { GraphQLService } from './graphql.service';
 
 export interface RoleRecord {
@@ -13,7 +13,9 @@ export class RbacService {
   private readonly gql = inject(GraphQLService);
 
   listRoles(): Observable<{ roles: RoleRecord[] }> {
-    return this.gql.query<{ roles: RoleRecord[] }>('query { roles { id name scope } }');
+    return this.gql
+      .query<{ isched: { roles: RoleRecord[] } }>('query { isched { roles { id name scope } } }')
+      .pipe(map(({ isched }) => ({ roles: isched.roles })));
   }
 }
 

@@ -60,7 +60,7 @@ TEST_CASE("VisitorDispatchOutcome enum values are distinct", "[ast][visitor]") {
 // ── NonRecursiveVisitor: basic traversal ─────────────────────────────────────
 
 TEST_CASE("NonRecursiveVisitor: traverse simple query", "[ast][visitor]") {
-    auto vroot = parse_typed("{ hello }");
+    auto vroot = parse_typed("{ isched { hello } }");
     REQUIRE(vroot != nullptr);
     REQUIRE(!vroot->children.empty());
 

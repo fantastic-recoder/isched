@@ -45,15 +45,21 @@ export interface UpdateUserInput {
 }
 
 interface UsersResponse {
-  users: UserConnection;
+  isched: {
+    users: UserConnection;
+  };
 }
 
 interface CreateUserResponse {
-  createUser: UserRecord;
+  isched: {
+    createUser: UserRecord;
+  };
 }
 
 interface UpdateUserResponse {
-  updateUser: UserRecord;
+  isched: {
+    updateUser: UserRecord;
+  };
 }
 
 const DEFAULT_PAGE: PageInput = { number: 1, size: 10 };
@@ -75,25 +81,27 @@ export class UserService {
       return this.gql
         .query<UsersResponse>(
           `query Users($organizationId: ID!, $page: PageInput!, $sort: [SortInput!], $filter: [FilterInput!]) {
-            users(organizationId: $organizationId, page: $page, sort: $sort, filter: $filter) {
-              nodes {
-                id
-                organizationId
-                loginId
-                displayName
-                status
-                revision
-                updatedAt
-                roleAssignments {
-                  roleId
-                  effective
+            isched {
+              users(organizationId: $organizationId, page: $page, sort: $sort, filter: $filter) {
+                nodes {
+                  id
+                  organizationId
+                  loginId
+                  displayName
+                  status
+                  revision
+                  updatedAt
+                  roleAssignments {
+                    roleId
+                    effective
+                  }
                 }
-              }
-              pageInfo {
-                number
-                size
-                totalElements
-                totalPages
+                pageInfo {
+                  number
+                  size
+                  totalElements
+                  totalPages
+                }
               }
             }
           }`,
@@ -105,7 +113,7 @@ export class UserService {
           },
         )
         .pipe(
-          map(({ users }) => users),
+          map(({ isched }) => isched.users),
           tap(() => {
             this.shellStatus.completeOperation(
               'organization-users:list',
@@ -135,23 +143,25 @@ export class UserService {
       return this.gql
         .mutate<CreateUserResponse>(
           `mutation CreateUser($organizationId: ID!, $input: CreateUserInput!) {
-            createUser(organizationId: $organizationId, input: $input) {
-              id
-              organizationId
-              loginId
-              displayName
-              status
-              revision
-              updatedAt
-              roleAssignments {
-                roleId
-                effective
+            isched {
+              createUser(organizationId: $organizationId, input: $input) {
+                id
+                organizationId
+                loginId
+                displayName
+                status
+                revision
+                updatedAt
+                roleAssignments {
+                  roleId
+                  effective
+                }
               }
             }
           }`,
           { organizationId, input },
         )
-        .pipe(map(({ createUser }) => createUser));
+        .pipe(map(({ isched }) => isched.createUser));
     });
   }
 
@@ -170,28 +180,30 @@ export class UserService {
       return this.gql
         .mutate<UpdateUserResponse>(
           `mutation UpdateUser($organizationId: ID!, $id: ID!, $input: UpdateUserInput!, $expectedRevision: Int!) {
-            updateUser(
-              organizationId: $organizationId
-              id: $id
-              input: $input
-              expectedRevision: $expectedRevision
-            ) {
-              id
-              organizationId
-              loginId
-              displayName
-              status
-              revision
-              updatedAt
-              roleAssignments {
-                roleId
-                effective
+            isched {
+              updateUser(
+                organizationId: $organizationId
+                id: $id
+                input: $input
+                expectedRevision: $expectedRevision
+              ) {
+                id
+                organizationId
+                loginId
+                displayName
+                status
+                revision
+                updatedAt
+                roleAssignments {
+                  roleId
+                  effective
+                }
               }
             }
           }`,
           { organizationId, id, input, expectedRevision },
         )
-        .pipe(map(({ updateUser }) => updateUser));
+        .pipe(map(({ isched }) => isched.updateUser));
     });
   }
 

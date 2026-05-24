@@ -41,9 +41,11 @@ describe('UserService shell digest publication', () => {
 
   it('publishes loading then success digests for organization user loads', () => {
     const response$ = new Subject<{
-      users: {
-        nodes: [];
-        pageInfo: { number: number; size: number; totalElements: number; totalPages: number };
+      isched: {
+        users: {
+          nodes: [];
+          pageInfo: { number: number; size: number; totalElements: number; totalPages: number };
+        };
       };
     }>();
     gql.query.mockReturnValue(response$.asObservable());
@@ -58,9 +60,11 @@ describe('UserService shell digest publication', () => {
     });
 
     response$.next({
-      users: {
-        nodes: [],
-        pageInfo: { number: 1, size: 10, totalElements: 0, totalPages: 0 },
+      isched: {
+        users: {
+          nodes: [],
+          pageInfo: { number: 1, size: 10, totalElements: 0, totalPages: 0 },
+        },
       },
     });
     response$.complete();

@@ -41,10 +41,10 @@ namespace isched::v0_0_1::backend {
             const auto loadResult = proc.load_schema(std::string(schema));
             REQUIRE(loadResult.is_success());
 
-            const auto reply = proc.execute("query { __schema { types { name description fields { name description type { name } } } } }","{}",true);
+            const auto reply = proc.execute("query { isched { __schema { types { name description fields { name description type { name } } } } } }","{}",true);
             REQUIRE(reply.is_success());
 
-            json types = reply.data["__schema"]["types"];
+            json types = reply.data["isched"]["__schema"]["types"];
             bool foundUser = false;
             for (const auto& type : types) {
                 if (type["name"] == "User") {
@@ -77,10 +77,10 @@ namespace isched::v0_0_1::backend {
             const auto loadResult = proc.load_schema(schema,true);
             REQUIRE(loadResult.is_success());
 
-            const auto reply = proc.execute("query { __schema { directives { name args { name type { name } } } } }");
+            const auto reply = proc.execute("query { isched { __schema { directives { name args { name type { name } } } } } }");
             REQUIRE(reply.is_success());
             
-            json directives = reply.data["__schema"]["directives"];
+            json directives = reply.data["isched"]["__schema"]["directives"];
             bool foundAuth = false;
             for (const auto& dir : directives) {
                 if (dir["name"] == "auth") {
@@ -97,18 +97,18 @@ namespace isched::v0_0_1::backend {
 
     TEST_CASE("Schema introspection: mutationType name is present", "[gql][executor][introspection][mutation]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
-        const auto reply = proc.execute("query { __schema { mutationType { name } } }");
+        const auto reply = proc.execute("query { isched { __schema { mutationType { name } } } }");
         REQUIRE(reply.is_success());
-        REQUIRE(reply.data["__schema"]["mutationType"]["name"] == "Mutation");
+        REQUIRE(reply.data["isched"]["__schema"]["mutationType"]["name"] == "Mutation");
     }
 
     TEST_CASE("Introspection: __schema types contains all built-in scalars",
               "[gql][introspection][T-INTRO-041]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
         const auto reply = proc.execute(
-            "query { __schema { types { name kind } } }");
+            "query { isched { __schema { types { name kind } } } }");
         REQUIRE(reply.is_success());
-        const json& types = reply.data["__schema"]["types"];
+        const json& types = reply.data["isched"]["__schema"]["types"];
         REQUIRE(types.is_array());
         const std::vector<std::string> builtins{"String","Int","Float","Boolean","ID"};
         for (const auto& bname : builtins) {
@@ -139,10 +139,10 @@ namespace isched::v0_0_1::backend {
         REQUIRE(load_res.is_success());
 
         const auto reply = proc.execute(
-            "query { __schema { types { name kind description fields { name type { name kind } } } } }");
+            "query { isched { __schema { types { name kind description fields { name type { name kind } } } } } }");
         REQUIRE(reply.is_success());
 
-        const json& types = reply.data["__schema"]["types"];
+        const json& types = reply.data["isched"]["__schema"]["types"];
         bool found = false;
         for (const auto& t : types) {
             if (t["name"] == "User") {
@@ -164,33 +164,24 @@ namespace isched::v0_0_1::backend {
     TEST_CASE("Introspection: INPUT_OBJECT type has inputFields in __schema",
               "[gql][introspection][T-INTRO-043]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
-        proc.register_resolver({}, "addUser", [](const json&, const json&, const ResolverCtx&) -> json {
-            return "ok";
-        });
-        const auto load_res = proc.load_schema(R"(
-            input CreateUserInput { name: String email: String }
-            type Query  { hello: String }
-            type Mutation { addUser(input: CreateUserInput): String }
-        )");
-        REQUIRE(load_res.is_success());
 
         const auto reply = proc.execute(
-            "query { __schema { types { name kind inputFields { name type { name } } } } }");
+            "query { isched { __schema { types { name kind inputFields { name type { name } } } } } }");
         REQUIRE(reply.is_success());
 
         bool found = false;
-        for (const auto& t : reply.data["__schema"]["types"]) {
+        for (const auto& t : reply.data["isched"]["__schema"]["types"]) {
             if (t["name"] == "CreateUserInput") {
                 found = true;
                 REQUIRE(t["kind"] == "INPUT_OBJECT");
                 REQUIRE(t["inputFields"].is_array());
-                bool found_name = false, found_email = false;
+                bool found_email = false, found_password = false;
                 for (const auto& f : t["inputFields"]) {
-                    if (f["name"] == "name")  found_name  = true;
                     if (f["name"] == "email") found_email = true;
+                    if (f["name"] == "password") found_password = true;
                 }
-                REQUIRE(found_name);
                 REQUIRE(found_email);
+                REQUIRE(found_password);
             }
         }
         REQUIRE(found);
@@ -209,11 +200,11 @@ namespace isched::v0_0_1::backend {
         REQUIRE(load_res.is_success());
 
         const auto reply = proc.execute(
-            "query { __schema { types { name kind enumValues { name } } } }");
+            "query { isched { __schema { types { name kind enumValues { name } } } } }");
         REQUIRE(reply.is_success());
 
         bool found = false;
-        for (const auto& t : reply.data["__schema"]["types"]) {
+        for (const auto& t : reply.data["isched"]["__schema"]["types"]) {
             if (t["name"] == "UserStatus") {
                 found = true;
                 REQUIRE(t["kind"] == "ENUM");
@@ -241,21 +232,21 @@ namespace isched::v0_0_1::backend {
         REQUIRE(load_res.is_success());
 
         const auto reply = proc.execute(
-            R"(query { __type(name: "User") { name kind fields { name } } })");
+            R"(query { isched { __type(name: "User") { name kind fields { name } } } })");
         REQUIRE(reply.is_success());
-        REQUIRE(!reply.data["__type"].is_null());
-        REQUIRE(reply.data["__type"]["name"] == "User");
-        REQUIRE(reply.data["__type"]["kind"] == "OBJECT");
-        REQUIRE(reply.data["__type"]["fields"].is_array());
+        REQUIRE(!reply.data["isched"]["__type"].is_null());
+        REQUIRE(reply.data["isched"]["__type"]["name"] == "User");
+        REQUIRE(reply.data["isched"]["__type"]["kind"] == "OBJECT");
+        REQUIRE(reply.data["isched"]["__type"]["fields"].is_array());
     }
 
     TEST_CASE("Introspection: __type(name:) returns null for unknown type",
               "[gql][introspection][T-INTRO-046]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
         const auto reply = proc.execute(
-            R"(query { __type(name: "DoesNotExist") { name kind } })");
+            R"(query { isched { __type(name: "DoesNotExist") { name kind } } })");
         REQUIRE(reply.is_success());
-        REQUIRE(reply.data["__type"].is_null());
+        REQUIRE(reply.data["isched"]["__type"].is_null());
     }
 
     TEST_CASE("Introspection: list-of-non-null field produces correct ofType chain",
@@ -271,7 +262,7 @@ namespace isched::v0_0_1::backend {
 
         const auto reply = proc.execute(R"(
             query {
-                __type(name: "Query") {
+                isched { __type(name: "Query") {
                     fields {
                         name
                         type {
@@ -283,13 +274,13 @@ namespace isched::v0_0_1::backend {
                             }
                         }
                     }
-                }
+                } }
             }
         )");
         REQUIRE(reply.is_success());
-        REQUIRE(!reply.data["__type"].is_null());
+        REQUIRE(!reply.data["isched"]["__type"].is_null());
 
-        const json& fields = reply.data["__type"]["fields"];
+        const json& fields = reply.data["isched"]["__type"]["fields"];
         bool found = false;
         for (const auto& f : fields) {
             if (f["name"] == "tags") {
@@ -326,10 +317,10 @@ namespace isched::v0_0_1::backend {
               "[gql][introspection][T-INTRO-049]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
         const auto reply = proc.execute(R"(
-            query { __schema { directives { name locations args { name type { kind name ofType { kind name } } } } } }
+            query { isched { __schema { directives { name locations args { name type { kind name ofType { kind name } } } } } } }
         )");
         REQUIRE(reply.is_success());
-        const json& directives = reply.data["__schema"]["directives"];
+        const json& directives = reply.data["isched"]["__schema"]["directives"];
         REQUIRE(directives.is_array());
 
         auto find_dir = [&](const std::string& name) -> const json* {
@@ -374,11 +365,11 @@ namespace isched::v0_0_1::backend {
         REQUIRE(load_res.is_success());
 
         const auto reply = proc.execute(R"(
-            query { __schema { types { name fields { name isDeprecated deprecationReason } } } }
+            query { isched { __schema { types { name fields { name isDeprecated deprecationReason } } } } }
         )");
         REQUIRE(reply.is_success());
 
-        for (const auto& t : reply.data["__schema"]["types"]) {
+        for (const auto& t : reply.data["isched"]["__schema"]["types"]) {
             if (t["name"] == "User") {
                 for (const auto& f : t["fields"]) {
                     if (f["name"] == "old") {
@@ -399,9 +390,9 @@ namespace isched::v0_0_1::backend {
               "[gql][introspection][T-INTRO-051]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
         const auto reply = proc.execute(
-            "query { __schema { queryType { name } } }");
+            "query { isched { __schema { queryType { name } } } }");
         REQUIRE(reply.is_success());
-        REQUIRE(reply.data["__schema"]["queryType"]["name"] == "Query");
+        REQUIRE(reply.data["isched"]["__schema"]["queryType"]["name"] == "Query");
     }
 
     TEST_CASE("Union type introspection", "[gql][introspection][union]") {
@@ -426,17 +417,17 @@ namespace isched::v0_0_1::backend {
 
         auto res = union_proc.execute(R"(
             query {
-                __type(name: "Pet") {
+                isched { __type(name: "Pet") {
                     name
                     kind
                     possibleTypes {
                       name
                     }
-                }
+                } }
             }
         )");
         REQUIRE(res.is_success());
-        auto t = res.data["__type"];
+        auto t = res.data["isched"]["__type"];
         REQUIRE(t["name"] == "Pet");
         REQUIRE(t["kind"] == "UNION");
         REQUIRE(t["possibleTypes"].is_array());

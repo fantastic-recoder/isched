@@ -152,60 +152,8 @@ type ServerInfo {
 
 """Root query type"""
 type Query {
-  """Simple greeting message"""
-  hello: String
-  """Server version"""
-  version: String
-  """Server uptime in seconds"""
-  uptime: Int
-  """Number of active clients"""
-  clientCount: Int
-  """Server health status"""
-  health: HealthStatus
-  """Runtime server information"""
-  serverInfo: ServerInfo
-  """Application information"""
-  info: AppInfo
-  """Server metrics (legacy – no auth required)"""
-  metrics: ServerMetrics
-  """Server-wide performance metrics (platform_admin only)"""
-  serverMetrics: ServerMetrics
-  """Per-tenant performance metrics (tenant_admin sees own; platform_admin sees any)"""
-  tenantMetrics(organizationId: ID): TenantMetrics
-  """Environment properties"""
-  env: Environment
-  """Configuration properties"""
-  configprops: Configuration
-  """Active configuration snapshot for a tenant"""
-  activeConfiguration(tenantId: String!): SnapshotRecord
-  """Full configuration history for a tenant"""
-  configurationHistory(tenantId: String!): [SnapshotRecord!]!
-  """Currently authenticated user (null if unauthenticated)"""
-  currentUser: User
-  """Look up a user by ID (tenant_admin or platform_admin only)"""
-  user(id: ID!): User
-  """List all users in the caller's organization (tenant_admin or platform_admin only)"""
-  users: [User!]!
-  """Look up an organization by ID"""
-  organization(id: ID!): Organization
-  """List organizations with pagination/sorting/filtering (platform_admin sees all; tenant_admin sees own org)"""
-  organizations(page: PageInput, sort: [SortInput!], filter: [FilterInput!]): OrganizationConnection!
-  """List registered outbound-HTTP data sources for an organization (tenant_admin or platform_admin)"""
-  dataSources(organizationId: ID): [DataSource!]!
-  """Seed-mode status — true when no active platform administrator exists (unauthenticated)"""
-  systemState: SystemState!
-  """List all platform roles (platform_admin or tenant_admin only)"""
-  roles: [Role!]!
-  """List all schema documents for the authenticated tenant (name/timestamps only)"""
-  schemaDocuments: [SchemaDocumentSummary!]!
-  """Fetch a single schema document by exact name for the authenticated tenant"""
-  schemaDocument(name: String!): SchemaDocument
-  """List all registered plugins (platform_admin only)"""
-  plugins: [PluginRecord!]!
-  """Get a single plugin by ID (platform_admin only)"""
-  plugin(id: ID!): PluginRecord
-  """Export the aggregated OpenAPI document from all loaded request plugins (platform_admin only)"""
-  pluginOpenApiDocument: String
+  """Built-in isched namespace"""
+  isched: IschedQueryNamespace!
 }
 
 """A platform or tenant role"""
@@ -222,60 +170,8 @@ type Role {
 
 """Root mutation type"""
 type Mutation {
-  """Echo a message back; useful for connectivity testing"""
-  echo(message: String): String
-  """One-time unauthenticated bootstrap for the first platform admin"""
-  bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!
-  """Create a new configuration snapshot (does not activate it)"""
-  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationResult!
-  """Activate an existing snapshot by its ID"""
-  activateSnapshot(id: String!): ConfigurationResult!
-  """Roll back to the previous active snapshot for a tenant"""
-  rollbackConfiguration(tenantId: String!): ConfigurationResult!
-  """Authenticate and receive a signed JWT"""
-  login(email: String!, password: String!, organizationId: ID): AuthPayload!
-  """Revoke the caller's current session"""
-  logout: Boolean!
-  """Revoke a specific session by its ID (tenant_admin only)"""
-  revokeSession(sessionId: ID!): Boolean!
-  """Revoke all sessions for a user (tenant_admin only)"""
-  revokeAllSessions(userId: ID!): Boolean!
-  """Terminate all non-platform-admin sessions in an organization (platform_admin only)"""
-  terminateAllSessions(organizationId: ID!): Boolean!
-  """Create a new custom role (platform_admin for platform scope; tenant_admin for tenant scope)"""
-  createRole(input: CreateRoleInput!): Boolean!
-  """Delete a custom role by id (built-in roles cannot be deleted)"""
-  deleteRole(id: ID!): Boolean!
-  """Create a new organization and provision its tenant database (platform_admin only)"""
-  createOrganization(input: CreateOrganizationInput!): Organization!
-  """Update an existing organization (tenant_admin of that org or platform_admin)"""
-  updateOrganization(id: ID!, input: UpdateOrganizationInput!, expectedRevision: Int): Organization!
-  """Delete an organization and deprovision its tenant database (tenant_admin self-delete or platform_admin)"""
-  deleteOrganization(id: ID!): Boolean!
-  """Create a new user in the organization's tenant database (tenant_admin or platform_admin)"""
-  createUser(organizationId: ID!, input: CreateUserInput!): User!
-  """Update an existing user (tenant_admin of own org or platform_admin)"""
-  updateUser(organizationId: ID!, id: ID!, input: UpdateUserInput!): User!
-  """Delete a user (tenant_admin or platform_admin)"""
-  deleteUser(organizationId: ID!, id: ID!): Boolean!
-  """Register a new outbound-HTTP data source (tenant_admin or platform_admin)"""
-  createDataSource(organizationId: ID!, input: CreateDataSourceInput!): DataSource!
-  """Update an existing data source (tenant_admin or platform_admin)"""
-  updateDataSource(organizationId: ID!, id: ID!, input: UpdateDataSourceInput!): DataSource!
-  """Delete a data source (tenant_admin or platform_admin)"""
-  deleteDataSource(organizationId: ID!, id: ID!): Boolean!
-  """Update advisory thread-pool and metrics configuration for an organization (platform_admin only)"""
-  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
-  """Gracefully shut down the server process (platform_admin only, or ISCHED_SHUTDOWN_TOKEN bearer)"""
-  shutdown: Boolean!
-  """First-run: create the initial platform administrator (only allowed when seedModeActive is true; unauthenticated)"""
-  createPlatformAdmin(email: String!, password: String!): User!
-  """Upload or replace a GraphQL SDL schema document for the authenticated tenant (tenant_admin only)"""
-  uploadSchemaDocument(input: UploadSchemaDocumentInput!): SchemaUploadResult!
-  """Load a plugin from a shared library path (platform_admin only)"""
-  loadPlugin(input: LoadPluginInput!): PluginOperationResult!
-  """Unload a previously loaded plugin (platform_admin only)"""
-  unloadPlugin(id: ID!): PluginOperationResult!
+  """Built-in isched namespace"""
+  isched: IschedMutationNamespace!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -300,13 +196,77 @@ type HealthChangedEvent {
 
 """Real-time GraphQL subscriptions (graphql-transport-ws protocol)"""
 type Subscription {
-  """Fires whenever a configuration snapshot is activated for a tenant"""
+  """Built-in isched namespace"""
+  isched: IschedSubscriptionNamespace!
+}
+
+"""Built-in isched query namespace"""
+type IschedQueryNamespace {
+  hello: String
+  version: String
+  uptime: Int
+  clientCount: Int
+  health: HealthStatus
+  serverInfo: ServerInfo
+  info: AppInfo
+  metrics: ServerMetrics
+  serverMetrics: ServerMetrics
+  tenantMetrics(organizationId: ID): TenantMetrics
+  env: Environment
+  configprops: Configuration
+  activeConfiguration(tenantId: String!): SnapshotRecord
+  configurationHistory(tenantId: String!): [SnapshotRecord!]!
+  currentUser: User
+  user(id: ID!): User
+  users: [User!]!
+  organization(id: ID!): Organization
+  organizations(page: PageInput, sort: [SortInput!], filter: [FilterInput!]): OrganizationConnection!
+  dataSources(organizationId: ID): [DataSource!]!
+  systemState: SystemState!
+  roles: [Role!]!
+  schemaDocuments: [SchemaDocumentSummary!]!
+  schemaDocument(name: String!): SchemaDocument
+  plugins: [PluginRecord!]!
+  plugin(id: ID!): PluginRecord
+  pluginOpenApiDocument: String
+}
+
+"""Built-in isched mutation namespace"""
+type IschedMutationNamespace {
+  echo(message: String): String
+  bootstrapPlatformAdmin(input: BootstrapPlatformAdminInput!): AuthPayload!
+  applyConfiguration(input: ApplyConfigurationInput!): ConfigurationResult!
+  activateSnapshot(id: String!): ConfigurationResult!
+  rollbackConfiguration(tenantId: String!): ConfigurationResult!
+  login(email: String!, password: String!, organizationId: ID): AuthPayload!
+  logout: Boolean!
+  revokeSession(sessionId: ID!): Boolean!
+  revokeAllSessions(userId: ID!): Boolean!
+  terminateAllSessions(organizationId: ID!): Boolean!
+  createRole(input: CreateRoleInput!): Boolean!
+  deleteRole(id: ID!): Boolean!
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  updateOrganization(id: ID!, input: UpdateOrganizationInput!, expectedRevision: Int): Organization!
+  deleteOrganization(id: ID!): Boolean!
+  createUser(organizationId: ID!, input: CreateUserInput!): User!
+  updateUser(organizationId: ID!, id: ID!, input: UpdateUserInput!): User!
+  deleteUser(organizationId: ID!, id: ID!): Boolean!
+  createDataSource(organizationId: ID!, input: CreateDataSourceInput!): DataSource!
+  updateDataSource(organizationId: ID!, id: ID!, input: UpdateDataSourceInput!): DataSource!
+  deleteDataSource(organizationId: ID!, id: ID!): Boolean!
+  updateTenantConfig(organizationId: ID!, minThreads: Int, maxThreads: Int, metricsInterval: Int): TenantConfig!
+  shutdown: Boolean!
+  createPlatformAdmin(email: String!, password: String!): User!
+  uploadSchemaDocument(input: UploadSchemaDocumentInput!): SchemaUploadResult!
+  loadPlugin(input: LoadPluginInput!): PluginOperationResult!
+  unloadPlugin(id: ID!): PluginOperationResult!
+}
+
+"""Built-in isched subscription namespace"""
+type IschedSubscriptionNamespace {
   configurationActivated(tenantId: String!): ConfigurationActivatedEvent!
-  """Fires when the server health status changes; also delivers an initial snapshot"""
   healthChanged: HealthChangedEvent!
-  """Fires with updated server-wide metrics at each interval boundary (platform_admin only)"""
   serverMetricsUpdated: ServerMetrics
-  """Fires with updated tenant metrics at each interval boundary (tenant_admin or platform_admin)"""
   tenantMetricsUpdated(organizationId: ID!): TenantMetrics
 }
 

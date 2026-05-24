@@ -20,6 +20,36 @@ const MINIMAL_INTROSPECTION = {
         name: 'Query',
         fields: [
           {
+            name: 'isched',
+            type: { kind: 'OBJECT', name: 'IschedQueryNamespace', ofType: null },
+            args: [],
+          },
+        ],
+        inputFields: null,
+        enumValues: null,
+        interfaces: [],
+        possibleTypes: null,
+      },
+      {
+        kind: 'OBJECT',
+        name: 'Mutation',
+        fields: [
+          {
+            name: 'isched',
+            type: { kind: 'OBJECT', name: 'IschedMutationNamespace', ofType: null },
+            args: [],
+          },
+        ],
+        inputFields: null,
+        enumValues: null,
+        interfaces: [],
+        possibleTypes: null,
+      },
+      {
+        kind: 'OBJECT',
+        name: 'IschedQueryNamespace',
+        fields: [
+          {
             name: 'health',
             type: { kind: 'OBJECT', name: 'Health', ofType: null },
             args: [],
@@ -32,7 +62,7 @@ const MINIMAL_INTROSPECTION = {
       },
       {
         kind: 'OBJECT',
-        name: 'Mutation',
+        name: 'IschedMutationNamespace',
         fields: [
           {
             name: 'login',
@@ -91,50 +121,61 @@ describe('PlaygroundIntrospectionService', () => {
     expect(service.error()).toBeNull();
   });
 
-  it('sets loading=true immediately after load() is called', () => {
-    service.load();
-    expect(service.loading()).toBe(true);
-    httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
-    httpMock.expectOne('/graphql').flush({ data: { schemaDocuments: [] } });
-  });
+   it('sets loading=true immediately after load() is called', () => {
+     service.load();
+     expect(service.loading()).toBe(true);
+     httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
+     httpMock.expectOne('/graphql').flush({ data: { isched: { schemaDocuments: [] } } });
+   });
 
-  it('populates treeNodes with operation groups after successful load', () => {
-    service.load();
+    it('populates treeNodes with operation groups after successful load', () => {
+      service.load();
 
-    httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
-    httpMock.expectOne('/graphql').flush({ data: { schemaDocuments: [] } });
+      httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
+      httpMock.expectOne('/graphql').flush({ data: { isched: { schemaDocuments: [] } } });
 
-    const nodes = service.treeNodes();
-    expect(nodes.length).toBeGreaterThan(0);
+      const nodes = service.treeNodes();
+      expect(nodes.length).toBeGreaterThan(0);
 
-    const queryGroup = nodes.find((n) => n.name === 'Queries');
-    expect(queryGroup).toBeDefined();
-    expect(queryGroup!.children.length).toBeGreaterThan(0);
-    expect(queryGroup!.children[0].name).toBe('health');
-    expect(queryGroup!.children[0].isSelectable).toBe(true);
+      const queryGroup = nodes.find((n) => n.name === 'Queries');
+      expect(queryGroup).toBeDefined();
+      expect(queryGroup!.children.length).toBeGreaterThan(0);
 
-    const mutationGroup = nodes.find((n) => n.name === 'Mutations');
-    expect(mutationGroup).toBeDefined();
+      // First child should be the namespace node
+      const ischedNamespace = queryGroup!.children.find((n) => n.name === 'isched');
+      expect(ischedNamespace).toBeDefined();
+      expect(ischedNamespace!.kind).toBe('namespace');
+      expect(ischedNamespace!.children.length).toBeGreaterThan(0);
 
-    expect(service.loading()).toBe(false);
-    expect(service.error()).toBeNull();
-  });
+      // The field is nested under the namespace
+      const healthField = ischedNamespace!.children.find((n) => n.name === 'health');
+      expect(healthField).toBeDefined();
+      expect(healthField!.isSelectable).toBe(true);
 
-  it('merges schema documents into the tree', () => {
-    service.load();
+      const mutationGroup = nodes.find((n) => n.name === 'Mutations');
+      expect(mutationGroup).toBeDefined();
 
-    httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
-    httpMock.expectOne('/graphql').flush({
-      data: {
-        schemaDocuments: [{ id: 'doc-1', name: 'SchedulerSchema', content: 'type Foo { id: ID }' }],
-      },
+      expect(service.loading()).toBe(false);
+      expect(service.error()).toBeNull();
     });
 
-    const nodes = service.treeNodes();
-    const docGroup = nodes.find((n) => n.name === 'Schema Documents');
-    expect(docGroup).toBeDefined();
-    expect(docGroup!.children[0].name).toBe('SchedulerSchema');
-  });
+   it('merges schema documents into the tree', () => {
+     service.load();
+
+     httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
+     httpMock.expectOne('/graphql').flush({
+       data: {
+         isched: {
+           schemaDocuments: [{ id: 'doc-1', name: 'SchedulerSchema', content: 'type Foo { id: ID }' }],
+         },
+       },
+     });
+
+     const nodes = service.treeNodes();
+     const docGroup = nodes.find((n) => n.name === 'Schema Documents');
+     expect(docGroup).toBeDefined();
+     expect(docGroup!.children[0].name).toBe('SchedulerSchema');
+   });
 
   it('sets error signal and clears loading when introspection fails', () => {
     service.load();
@@ -148,29 +189,110 @@ describe('PlaygroundIntrospectionService', () => {
     expect(service.error()).toBeTruthy();
   });
 
-  it('continues without schema documents when schemaDocuments request fails', () => {
-    service.load();
+   it('continues without schema documents when schemaDocuments request fails', () => {
+     service.load();
 
-    httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
-    httpMock.expectOne('/graphql').error(new ProgressEvent('network error'));
+     httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
+     httpMock.expectOne('/graphql').error(new ProgressEvent('network error'));
 
-    const nodes = service.treeNodes();
-    expect(nodes.length).toBeGreaterThan(0);
-    expect(service.loading()).toBe(false);
+     const nodes = service.treeNodes();
+     expect(nodes.length).toBeGreaterThan(0);
+     expect(service.loading()).toBe(false);
 
-    // No Schema Documents group when request fails
-    const docGroup = nodes.find((n) => n.name === 'Schema Documents');
-    expect(docGroup).toBeUndefined();
-  });
+     // No Schema Documents group when request fails
+     const docGroup = nodes.find((n) => n.name === 'Schema Documents');
+     expect(docGroup).toBeUndefined();
+   });
 
-  it('does not include subscription group when subscriptionType is null', () => {
-    service.load();
-    httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
-    httpMock.expectOne('/graphql').flush({ data: { schemaDocuments: [] } });
+    it('does not include subscription group when subscriptionType is null', () => {
+      service.load();
+      httpMock.expectOne('/graphql').flush({ data: MINIMAL_INTROSPECTION });
+      httpMock.expectOne('/graphql').flush({ data: { isched: { schemaDocuments: [] } } });
 
-    const nodes = service.treeNodes();
-    const subGroup = nodes.find((n) => n.name === 'Subscriptions');
-    expect(subGroup).toBeUndefined();
-  });
+      const nodes = service.treeNodes();
+      const subGroup = nodes.find((n) => n.name === 'Subscriptions');
+      expect(subGroup).toBeUndefined();
+    });
+
+    it('supports nested namespaces (namespace within namespace)', () => {
+      const nestedIntrospection = {
+        __schema: {
+          queryType: { name: 'Query' },
+          mutationType: null,
+          subscriptionType: null,
+          types: [
+            {
+              kind: 'OBJECT',
+              name: 'Query',
+              fields: [
+                {
+                  name: 'admin',
+                  type: { kind: 'OBJECT', name: 'AdminQueryNamespace', ofType: null },
+                  args: [],
+                },
+              ],
+              inputFields: null,
+              enumValues: null,
+              interfaces: [],
+              possibleTypes: null,
+            },
+            {
+              kind: 'OBJECT',
+              name: 'AdminQueryNamespace',
+              fields: [
+                {
+                  name: 'reports',
+                  type: { kind: 'OBJECT', name: 'ReportsNamespace', ofType: null },
+                  args: [],
+                },
+              ],
+              inputFields: null,
+              enumValues: null,
+              interfaces: [],
+              possibleTypes: null,
+            },
+            {
+              kind: 'OBJECT',
+              name: 'ReportsNamespace',
+              fields: [
+                {
+                  name: 'systemMetrics',
+                  type: { kind: 'SCALAR', name: 'String', ofType: null },
+                  args: [],
+                },
+              ],
+              inputFields: null,
+              enumValues: null,
+              interfaces: [],
+              possibleTypes: null,
+            },
+          ],
+          directives: [],
+        },
+      };
+
+      service.load();
+      httpMock.expectOne('/graphql').flush({ data: nestedIntrospection });
+      httpMock.expectOne('/graphql').flush({ data: { isched: { schemaDocuments: [] } } });
+
+      const nodes = service.treeNodes();
+      const queryGroup = nodes.find((n) => n.name === 'Queries');
+      expect(queryGroup).toBeDefined();
+
+      // First level: admin namespace
+      const adminNamespace = queryGroup!.children.find((n) => n.name === 'admin');
+      expect(adminNamespace).toBeDefined();
+      expect(adminNamespace!.kind).toBe('namespace');
+
+      // Second level: reports nested namespace
+      const reportsNamespace = adminNamespace!.children.find((n) => n.name === 'reports');
+      expect(reportsNamespace).toBeDefined();
+      expect(reportsNamespace!.kind).toBe('namespace');
+
+      // Third level: systemMetrics field
+      const metricsField = reportsNamespace!.children.find((n) => n.name === 'systemMetrics');
+      expect(metricsField).toBeDefined();
+      expect(metricsField!.kind).toBe('field');
+      expect(metricsField!.isSelectable).toBe(true);
+    });
 });
-

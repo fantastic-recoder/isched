@@ -141,7 +141,7 @@ TEST_CASE_METHOD(WsLifecycleFixture,
     nlohmann::json sub = {
         {"type", "subscribe"},
         {"id",   "op-1"},
-        {"payload", {{"query", "subscription { healthChanged { status timestamp } }"}}}
+        {"payload", {{"query", "subscription { isched { healthChanged { status timestamp } } }"}}}
     };
     c.send(sub);
 
@@ -165,7 +165,7 @@ TEST_CASE_METHOD(WsLifecycleFixture,
 
     // subscribe
     c.send({{"type", "subscribe"}, {"id", "op-2"},
-            {"payload", {{"query", "subscription { healthChanged { status } }"}}}});
+            {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}});
     auto next = c.recv();
     REQUIRE(next["type"] == "next");
 

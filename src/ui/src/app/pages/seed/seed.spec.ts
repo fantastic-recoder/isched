@@ -83,7 +83,7 @@ describe('SeedComponent', () => {
 
     // 1) createPlatformAdmin mutation
     httpMock.expectOne('/graphql').flush({
-      data: { createPlatformAdmin: { id: '1', email: 'admin@x.com' } },
+      data: { isched: { createPlatformAdmin: { id: '1', email: 'admin@x.com' } } },
     });
     await flushMicrotasks();
 

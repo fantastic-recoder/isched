@@ -169,11 +169,11 @@ TEST_CASE("serverMetrics: requires platform_admin role", "[t051][rbac][graphql]"
     GqlFixture f;
 
     // Anonymous — expect UNAUTHORIZED / access denied
-    auto resp = f.execute("{ serverMetrics { requestsInInterval totalRequestsSinceStartup } }");
+    auto resp = f.execute("{ isched { serverMetrics { requestsInInterval totalRequestsSinceStartup } } }");
     REQUIRE(resp.contains("errors"));
 
     // tenant_admin — also denied
-    resp = f.execute("{ serverMetrics { requestsInInterval } }", {"role_tenant_admin"});
+    resp = f.execute("{ isched { serverMetrics { requestsInInterval } } }", {"role_tenant_admin"});
     REQUIRE(resp.contains("errors"));
 }
 
@@ -182,19 +182,18 @@ TEST_CASE("serverMetrics: platform_admin can query", "[t051][rbac][graphql]") {
     f.mc.record_request("org-test", 15.0, false);
 
     auto resp = f.execute(
-        "{ serverMetrics { requestsInInterval errorsInInterval totalRequestsSinceStartup "
-        "totalErrorsSinceStartup activeConnections activeSubscriptions avgResponseTimeMs tenantCount } }",
+        "{ isched { serverMetrics { requestsInInterval errorsInInterval totalRequestsSinceStartup totalErrorsSinceStartup activeConnections activeSubscriptions avgResponseTimeMs tenantCount } } }",
         {"role_platform_admin"});
 
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["serverMetrics"]["totalRequestsSinceStartup"].get<int64_t>() >= 1);
+    REQUIRE(resp["data"]["isched"]["serverMetrics"]["totalRequestsSinceStartup"].get<int64_t>() >= 1);
 }
 
 TEST_CASE("tenantMetrics: requires tenant_admin or platform_admin", "[t051][rbac][graphql]") {
     GqlFixture f;
 
     // Anonymous — denied
-    auto resp = f.execute(R"({ tenantMetrics(organizationId: "org1") { requestsInInterval } })");
+    auto resp = f.execute(R"({ isched { tenantMetrics(organizationId: "org1") { requestsInInterval } } })");
     REQUIRE(resp.contains("errors"));
 }
 
@@ -203,14 +202,14 @@ TEST_CASE("tenantMetrics: tenant_admin can query own org", "[t051][rbac][graphql
     f.mc.record_request("org-tenant", 8.0, false);
 
     auto resp = f.execute(
-        R"({ tenantMetrics(organizationId: "org-tenant") { organizationId requestsInInterval totalRequestsSinceStartup avgResponseTimeMs } })",
+        R"({ isched { tenantMetrics(organizationId: "org-tenant") { organizationId requestsInInterval totalRequestsSinceStartup avgResponseTimeMs } } })",
         {"role_tenant_admin"}, "org-tenant");
 
     // Tenant metrics resolver may return inline errors for org mismatch but
     // the tenant_admin is querying their own org — should succeed.
     if (!resp.contains("errors")) {
-        REQUIRE(resp["data"]["tenantMetrics"]["organizationId"].get<std::string>() == "org-tenant");
-        REQUIRE(resp["data"]["tenantMetrics"]["totalRequestsSinceStartup"].get<int64_t>() >= 1);
+        REQUIRE(resp["data"]["isched"]["tenantMetrics"]["organizationId"].get<std::string>() == "org-tenant");
+        REQUIRE(resp["data"]["isched"]["tenantMetrics"]["totalRequestsSinceStartup"].get<int64_t>() >= 1);
     }
     // At minimum the query must not fail with schema errors
     if (resp.contains("errors")) {
@@ -226,12 +225,12 @@ TEST_CASE("tenantMetrics: platform_admin can query any org", "[t051][rbac][graph
     f.mc.record_request("other-org", 7.0, true);
 
     auto resp = f.execute(
-        R"({ tenantMetrics(organizationId: "other-org") { organizationId totalErrorsSinceStartup } })",
+        R"({ isched { tenantMetrics(organizationId: "other-org") { organizationId totalErrorsSinceStartup } } })",
         {"role_platform_admin"}, "admin-tenant");
 
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["tenantMetrics"]["organizationId"].get<std::string>() == "other-org");
-    REQUIRE(resp["data"]["tenantMetrics"]["totalErrorsSinceStartup"].get<int64_t>() >= 1);
+    REQUIRE(resp["data"]["isched"]["tenantMetrics"]["organizationId"].get<std::string>() == "other-org");
+    REQUIRE(resp["data"]["isched"]["tenantMetrics"]["totalErrorsSinceStartup"].get<int64_t>() >= 1);
 }
 
 // ============================================================================
@@ -243,8 +242,10 @@ TEST_CASE("Schema: serverMetrics and tenantMetrics fields parse correctly", "[t0
 
     // Test that all new fields mentioned in the schema are introspectable
     const std::string introspection = R"({
-      __type(name: "ServerMetrics") {
-        fields { name }
+      isched {
+        __type(name: "ServerMetrics") {
+          fields { name }
+        }
       }
     })";
 
@@ -252,7 +253,7 @@ TEST_CASE("Schema: serverMetrics and tenantMetrics fields parse correctly", "[t0
     REQUIRE_FALSE(resp.contains("errors"));
 
     // Check the new T051 fields exist in the schema
-    const auto& fields = resp["data"]["__type"]["fields"];
+    const auto& fields = resp["data"]["isched"]["__type"]["fields"];
     REQUIRE(fields.is_array());
     auto has_field = [&](const std::string& name) {
         for (const auto& f : fields) {
@@ -274,15 +275,17 @@ TEST_CASE("Schema: TenantMetrics type has expected fields", "[t051][schema]") {
     GqlFixture f;
 
     const std::string introspection = R"({
-      __type(name: "TenantMetrics") {
-        fields { name }
+      isched {
+        __type(name: "TenantMetrics") {
+          fields { name }
+        }
       }
     })";
 
     auto resp = f.execute(introspection, {"role_platform_admin"});
     REQUIRE_FALSE(resp.contains("errors"));
 
-    const auto& fields = resp["data"]["__type"]["fields"];
+    const auto& fields = resp["data"]["isched"]["__type"]["fields"];
     REQUIRE(fields.is_array());
     auto has_field = [&](const std::string& name) {
         for (const auto& field : fields) {
@@ -300,15 +303,17 @@ TEST_CASE("Schema: TenantConfig metricsIntervalMinutes field exists", "[t051][sc
     GqlFixture f;
 
     const std::string introspection = R"({
-      __type(name: "TenantConfig") {
-        fields { name }
+      isched {
+        __type(name: "TenantConfig") {
+          fields { name }
+        }
       }
     })";
 
     auto resp = f.execute(introspection, {"role_platform_admin"});
     REQUIRE_FALSE(resp.contains("errors"));
 
-    const auto& fields = resp["data"]["__type"]["fields"];
+    const auto& fields = resp["data"]["isched"]["__type"]["fields"];
     REQUIRE(fields.is_array());
     bool found = false;
     for (const auto& field : fields) {

@@ -1252,13 +1252,13 @@ type Query {
 
 TEST_CASE("Parse Example 9 from spec", "[grammar][spec-examples][positive]") {
     static const char* example9 = R"Qry(
-    {
+    { isched {
       user(id: 4) {
         id
         name
         profilePic(size: 100)
       }
-    }
+    } }
     )Qry";
 
     using isched::v0_0_1::gql::Document;
@@ -1295,11 +1295,11 @@ TEST_CASE("GraphQL Directive Grammar", "[gql][grammar][directive]") {
 
 TEST_CASE("Parse Example 1 from spec", "[grammar][spec-examples][positive]") {
     static const char* example1 = R"Qry(
-    {
+    { isched {
       user(id: 4) {
         name
       }
-    }
+    } }
     )Qry";
 
     using isched::v0_0_1::gql::Document;
@@ -1325,13 +1325,13 @@ TEST_CASE("Parse Example 5 from spec", "[grammar][spec-examples][positive]") {
 
 TEST_CASE("Parse Example 10 from spec", "[grammar][spec-examples][positive]") {
     static const char* example10 = R"Qry(
-    {
+    { isched {
       user(id: 4) {
         id
         name
         profilePic(width: 100, height: 50)
       }
-    }
+    } }
     )Qry";
 
     using isched::v0_0_1::gql::Document;
@@ -1343,7 +1343,7 @@ TEST_CASE("Parse Example 10 from spec", "[grammar][spec-examples][positive]") {
 
 TEST_CASE("Parse Example 17 from spec", "[grammar][spec-examples][positive]") {
     static const char* example17 = R"Qry(
-    query noFragments {
+    query noFragments { isched {
       user(id: 4) {
         friends(first: 10) {
           id
@@ -1356,7 +1356,7 @@ TEST_CASE("Parse Example 17 from spec", "[grammar][spec-examples][positive]") {
           profilePic(size: 50)
         }
       }
-    }
+    } }
     )Qry";
 
     using isched::v0_0_1::gql::Document;

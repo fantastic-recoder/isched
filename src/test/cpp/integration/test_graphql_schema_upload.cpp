@@ -129,13 +129,13 @@ TEST_CASE("SC-001: uploadSchemaDocument requires tenant_admin role",
     REQUIRE(db->initialize_tenant("org_a"));
 
     const std::string query = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) {
                 success
                 schema { name createdAt updatedAt updatedBy }
                 error { code message conflictingName }
             }
-        }
+        } }
     )";
     const json vars = {
         {"input", {
@@ -148,8 +148,8 @@ TEST_CASE("SC-001: uploadSchemaDocument requires tenant_admin role",
     SECTION("tenant_admin succeeds") {
         const auto result = exec->execute(query, vars.dump(), make_admin_ctx("org_a"));
         REQUIRE(result.is_success());
-        REQUIRE(result.data["uploadSchemaDocument"]["success"] == true);
-        REQUIRE(result.data["uploadSchemaDocument"]["schema"]["name"] == "billing-v1");
+        REQUIRE(result.data["isched"]["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(result.data["isched"]["uploadSchemaDocument"]["schema"]["name"] == "billing-v1");
     }
 
     SECTION("unauthenticated caller is rejected") {
@@ -178,13 +178,13 @@ TEST_CASE("SC-002: conflict detection and overwrite semantics",
     const auto ctx = make_admin_ctx("org_a");
 
     const std::string query = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) {
                 success
                 schema { name createdAt updatedAt updatedBy }
                 error { code message conflictingName }
             }
-        }
+        } }
     )";
 
     // First upload: succeeds
@@ -192,14 +192,14 @@ TEST_CASE("SC-002: conflict detection and overwrite semantics",
         const json vars = {{"input", {{"name","svc"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(query, vars.dump(), ctx);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     SECTION("duplicate without overwrite returns CONFLICT") {
         const json vars = {{"input", {{"name","svc"}, {"content", k_valid_sdl}, {"overwrite", false}}}};
         const auto r = exec->execute(query, vars.dump(), ctx);
         REQUIRE(r.is_success()); // resolver itself succeeded (returned structured error)
-        const auto& res = r.data["uploadSchemaDocument"];
+        const auto& res = r.data["isched"]["uploadSchemaDocument"];
         REQUIRE(res["success"] == false);
         REQUIRE(res["error"]["code"] == "CONFLICT");
         REQUIRE(res["error"]["conflictingName"] == "svc");
@@ -210,15 +210,15 @@ TEST_CASE("SC-002: conflict detection and overwrite semantics",
         const json vars = {{"input", {{"name","svc"}, {"content", new_content}, {"overwrite", true}}}};
         const auto r = exec->execute(query, vars.dump(), ctx);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
-        REQUIRE(r.data["uploadSchemaDocument"]["schema"]["name"] == "svc");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["schema"]["name"] == "svc");
     }
 
     SECTION("case-sensitive: 'SVC' and 'svc' are distinct names") {
         const json vars = {{"input", {{"name","SVC"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(query, vars.dump(), ctx);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 }
 
@@ -234,12 +234,12 @@ TEST_CASE("SC-003: upload validation (name, SDL, size)",
     const auto ctx = make_admin_ctx("org_a");
 
     const std::string mutation = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) {
                 success
                 error { code message conflictingName }
             }
-        }
+        } }
     )";
 
     auto upload = [&](const std::string& name, const std::string& content) {
@@ -250,50 +250,50 @@ TEST_CASE("SC-003: upload validation (name, SDL, size)",
     SECTION("empty name is rejected") {
         const auto r = upload("", k_valid_sdl);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-        REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
     }
 
     SECTION("name > 128 chars is rejected") {
         const auto r = upload(std::string(129, 'a'), k_valid_sdl);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-        REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
     }
 
     SECTION("name with invalid chars (space) is rejected") {
         const auto r = upload("bad name", k_valid_sdl);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-        REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
     }
 
     SECTION("name with slash is rejected") {
         const auto r = upload("path/name", k_valid_sdl);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-        REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
     }
 
     SECTION("valid name with dots/dashes/underscores is accepted") {
         const auto r = upload("billing.v1-schema_2026", k_valid_sdl);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     SECTION("invalid SDL is rejected") {
         const auto r = upload("bad-sdl", "this is not valid graphql {{{");
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-        REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
     }
 
     SECTION("empty content is rejected") {
         const json vars = {{"input", {{"name", "empty"}, {"content", ""}}}};
         const auto r = exec->execute(mutation, vars.dump(), ctx);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-        REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
     }
 }
 
@@ -309,12 +309,12 @@ TEST_CASE("SC-008: content exceeding 1 MB is rejected",
     const auto ctx = make_admin_ctx("org_a");
 
     const std::string mutation = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) {
                 success
                 error { code message conflictingName }
             }
-        }
+        } }
     )";
 
     // Exactly 1 MB of content (non-valid SDL but we test size check first)
@@ -322,8 +322,8 @@ TEST_CASE("SC-008: content exceeding 1 MB is rejected",
     const json vars = {{"input", {{"name","oversized"}, {"content", oversized_content}}}};
     const auto r = exec->execute(mutation, vars.dump(), ctx);
     REQUIRE(r.is_success());
-    REQUIRE(r.data["uploadSchemaDocument"]["success"] == false);
-    REQUIRE(r.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+    REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == false);
+    REQUIRE(r.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
 }
 
 // ---------------------------------------------------------------------------
@@ -340,37 +340,37 @@ TEST_CASE("SC-004: cross-tenant isolation",
     // Upload "billing" to org_a only
     {
         const std::string mutation = R"(
-            mutation($input: UploadSchemaDocumentInput!) {
+            mutation($input: UploadSchemaDocumentInput!) { isched {
                 uploadSchemaDocument(input: $input) { success }
-            }
+            } }
         )";
         const json vars = {{"input", {{"name","billing"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(mutation, vars.dump(), make_admin_ctx("org_a"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     SECTION("list from org_b returns empty") {
         const auto r = exec->execute(
-            "query { schemaDocuments { name } }", "{}", make_user_ctx("org_b"));
+            "query { isched { schemaDocuments { name } } }", "{}", make_user_ctx("org_b"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["schemaDocuments"].is_array());
-        REQUIRE(r.data["schemaDocuments"].empty());
+        REQUIRE(r.data["isched"]["schemaDocuments"].is_array());
+        REQUIRE(r.data["isched"]["schemaDocuments"].empty());
     }
 
     SECTION("fetch billing from org_b returns null") {
         const auto r = exec->execute(
-            R"(query { schemaDocument(name: "billing") { name } })", "{}", make_user_ctx("org_b"));
+            R"(query { isched { schemaDocument(name: "billing") { name } } })", "{}", make_user_ctx("org_b"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["schemaDocument"].is_null());
+        REQUIRE(r.data["isched"]["schemaDocument"].is_null());
     }
 
     SECTION("list from org_a sees billing") {
         const auto r = exec->execute(
-            "query { schemaDocuments { name } }", "{}", make_user_ctx("org_a"));
+            "query { isched { schemaDocuments { name } } }", "{}", make_user_ctx("org_a"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["schemaDocuments"].size() == 1);
-        REQUIRE(r.data["schemaDocuments"][0]["name"] == "billing");
+        REQUIRE(r.data["isched"]["schemaDocuments"].size() == 1);
+        REQUIRE(r.data["isched"]["schemaDocuments"][0]["name"] == "billing");
     }
 }
 
@@ -387,23 +387,23 @@ TEST_CASE("SC-005/SC-010: list returns exact metadata fields without sizeBytes",
     // Upload a schema
     {
         const std::string mutation = R"(
-            mutation($input: UploadSchemaDocumentInput!) {
+            mutation($input: UploadSchemaDocumentInput!) { isched {
                 uploadSchemaDocument(input: $input) { success }
-            }
+            } }
         )";
         const json vars = {{"input", {{"name","api-v1"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(mutation, vars.dump(), make_admin_ctx("org_a"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     const auto r = exec->execute(
-        R"(query { schemaDocuments { name createdAt updatedAt updatedBy } })",
+        R"(query { isched { schemaDocuments { name createdAt updatedAt updatedBy } } })",
         "{}", make_user_ctx("org_a"));
     REQUIRE(r.is_success());
-    REQUIRE(r.data["schemaDocuments"].size() == 1);
+    REQUIRE(r.data["isched"]["schemaDocuments"].size() == 1);
 
-    const auto& doc = r.data["schemaDocuments"][0];
+    const auto& doc = r.data["isched"]["schemaDocuments"][0];
     REQUIRE(doc.contains("name"));
     REQUIRE(doc.contains("createdAt"));
     REQUIRE(doc.contains("updatedAt"));
@@ -426,42 +426,42 @@ TEST_CASE("SC-006: schemaDocument fetch success, null-on-miss, isolation",
     // Upload doc
     {
         const std::string mutation = R"(
-            mutation($input: UploadSchemaDocumentInput!) {
+            mutation($input: UploadSchemaDocumentInput!) { isched {
                 uploadSchemaDocument(input: $input) { success }
-            }
+            } }
         )";
         const json vars = {{"input", {{"name","my-doc"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(mutation, vars.dump(), make_admin_ctx("org_a"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     SECTION("fetch existing document returns full content and metadata") {
         const auto r = exec->execute(
-            R"(query { schemaDocument(name: "my-doc") { name content createdAt updatedAt updatedBy } })",
+            R"(query { isched { schemaDocument(name: "my-doc") { name content createdAt updatedAt updatedBy } } })",
             "{}", make_user_ctx("org_a"));
         REQUIRE(r.is_success());
-        REQUIRE_FALSE(r.data["schemaDocument"].is_null());
-        REQUIRE(r.data["schemaDocument"]["name"] == "my-doc");
-        REQUIRE(r.data["schemaDocument"]["content"] == k_valid_sdl);
-        REQUIRE(!r.data["schemaDocument"]["createdAt"].get<std::string>().empty());
+        REQUIRE_FALSE(r.data["isched"]["schemaDocument"].is_null());
+        REQUIRE(r.data["isched"]["schemaDocument"]["name"] == "my-doc");
+        REQUIRE(r.data["isched"]["schemaDocument"]["content"] == k_valid_sdl);
+        REQUIRE(!r.data["isched"]["schemaDocument"]["createdAt"].get<std::string>().empty());
     }
 
     SECTION("fetch missing document returns null without error") {
         const auto r = exec->execute(
-            R"(query { schemaDocument(name: "nonexistent") { name content } })",
+            R"(query { isched { schemaDocument(name: "nonexistent") { name content } } })",
             "{}", make_user_ctx("org_a"));
         // Canonical null-on-miss: no errors, schemaDocument is null
         REQUIRE(r.is_success());
-        REQUIRE(r.data["schemaDocument"].is_null());
+        REQUIRE(r.data["isched"]["schemaDocument"].is_null());
     }
 
     SECTION("case-sensitive: 'MY-DOC' does not resolve 'my-doc'") {
         const auto r = exec->execute(
-            R"(query { schemaDocument(name: "MY-DOC") { name } })",
+            R"(query { isched { schemaDocument(name: "MY-DOC") { name } } })",
             "{}", make_user_ctx("org_a"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["schemaDocument"].is_null());
+        REQUIRE(r.data["isched"]["schemaDocument"].is_null());
     }
 }
 
@@ -489,14 +489,14 @@ TEST_CASE("T031: uploaded schema persists after controlled restart (recreated ex
         auto exec = std::make_shared<GqlExecutor>(db);
 
         const std::string mutation = R"(
-            mutation($input: UploadSchemaDocumentInput!) {
+            mutation($input: UploadSchemaDocumentInput!) { isched {
                 uploadSchemaDocument(input: $input) { success }
-            }
+            } }
         )";
         const json vars = {{"input", {{"name","durable-doc"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(mutation, vars.dump(), make_admin_ctx("org_restart"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
         // db and exec go out of scope → all connections closed
     }
 
@@ -508,12 +508,12 @@ TEST_CASE("T031: uploaded schema persists after controlled restart (recreated ex
         auto exec2 = std::make_shared<GqlExecutor>(db2);
 
         const auto r = exec2->execute(
-            R"(query { schemaDocument(name: "durable-doc") { name content } })",
+            R"(query { isched { schemaDocument(name: "durable-doc") { name content } } })",
             "{}", make_user_ctx("org_restart"));
         REQUIRE(r.is_success());
-        REQUIRE_FALSE(r.data["schemaDocument"].is_null());
-        REQUIRE(r.data["schemaDocument"]["name"] == "durable-doc");
-        REQUIRE(r.data["schemaDocument"]["content"] == k_valid_sdl);
+        REQUIRE_FALSE(r.data["isched"]["schemaDocument"].is_null());
+        REQUIRE(r.data["isched"]["schemaDocument"]["name"] == "durable-doc");
+        REQUIRE(r.data["isched"]["schemaDocument"]["content"] == k_valid_sdl);
     }
 }
 
@@ -531,9 +531,9 @@ TEST_CASE("SC-007: upload backend latency P95 < 2000ms over 100 requests",
     constexpr int N = 100;
 
     const std::string mutation = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) { success }
-        }
+        } }
     )";
 
     std::vector<double> latencies_ms;
@@ -550,7 +550,7 @@ TEST_CASE("SC-007: upload backend latency P95 < 2000ms over 100 requests",
         double ms = measure_ms([&] {
             const auto r = exec->execute(mutation, vars.dump(), ctx);
             REQUIRE(r.is_success());
-            REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+            REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
         });
         latencies_ms.push_back(ms);
     }
@@ -574,9 +574,9 @@ TEST_CASE("SC-010: list performance P95 < 500ms over 100 queries with 200 schema
 
     // Seed 200 schema documents
     const std::string mutation = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) { success }
-        }
+        } }
     )";
     for (int i = 0; i < 200; ++i) {
         const json vars = {{"input", {
@@ -585,7 +585,7 @@ TEST_CASE("SC-010: list performance P95 < 500ms over 100 queries with 200 schema
         }}};
         const auto r = exec->execute(mutation, vars.dump(), admin_ctx);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     constexpr int N = 100;
@@ -595,9 +595,9 @@ TEST_CASE("SC-010: list performance P95 < 500ms over 100 queries with 200 schema
     for (int i = 0; i < N; ++i) {
         double ms = measure_ms([&] {
             const auto r = exec->execute(
-                "query { schemaDocuments { name updatedAt } }", "{}", user_ctx);
+                "query { isched { schemaDocuments { name updatedAt } } }", "{}", user_ctx);
             REQUIRE(r.is_success());
-            REQUIRE(r.data["schemaDocuments"].size() == 200);
+            REQUIRE(r.data["isched"]["schemaDocuments"].size() == 200);
         });
         latencies_ms.push_back(ms);
     }
@@ -621,9 +621,9 @@ TEST_CASE("SC-006: fetch performance P95 < 300ms over 100 queries with 200 schem
 
     // Seed 200 schema documents
     const std::string mutation = R"(
-        mutation($input: UploadSchemaDocumentInput!) {
+        mutation($input: UploadSchemaDocumentInput!) { isched {
             uploadSchemaDocument(input: $input) { success }
-        }
+        } }
     )";
     for (int i = 0; i < 200; ++i) {
         const json vars = {{"input", {
@@ -632,7 +632,7 @@ TEST_CASE("SC-006: fetch performance P95 < 300ms over 100 queries with 200 schem
         }}};
         const auto r = exec->execute(mutation, vars.dump(), admin_ctx);
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     constexpr int N = 100;
@@ -642,10 +642,10 @@ TEST_CASE("SC-006: fetch performance P95 < 300ms over 100 queries with 200 schem
     for (int i = 0; i < N; ++i) {
         double ms = measure_ms([&] {
             const auto r = exec->execute(
-                R"(query { schemaDocument(name: "fetch-doc-50") { name content } })",
+                R"(query { isched { schemaDocument(name: "fetch-doc-50") { name content } } })",
                 "{}", user_ctx);
             REQUIRE(r.is_success());
-            REQUIRE(r.data["schemaDocument"]["name"] == "fetch-doc-50");
+            REQUIRE(r.data["isched"]["schemaDocument"]["name"] == "fetch-doc-50");
         });
         latencies_ms.push_back(ms);
     }
@@ -668,14 +668,14 @@ TEST_CASE("SC-009: concurrent overwrite resolves to last successful commit",
     // Upload initial document
     {
         const std::string mutation = R"(
-            mutation($input: UploadSchemaDocumentInput!) {
+            mutation($input: UploadSchemaDocumentInput!) { isched {
                 uploadSchemaDocument(input: $input) { success }
-            }
+            } }
         )";
         const json vars = {{"input", {{"name","shared"}, {"content", k_valid_sdl}}}};
         const auto r = exec->execute(mutation, vars.dump(), make_admin_ctx("org_con"));
         REQUIRE(r.is_success());
-        REQUIRE(r.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(r.data["isched"]["uploadSchemaDocument"]["success"] == true);
     }
 
     // Launch concurrent overwrites; each should either succeed or fail cleanly
@@ -687,9 +687,9 @@ TEST_CASE("SC-009: concurrent overwrite resolves to last successful commit",
         threads.emplace_back([i, &exec, &succeeded] {
             const std::string content = "type Query { v" + std::to_string(i) + ": String }";
             const std::string mutation = R"(
-                mutation($input: UploadSchemaDocumentInput!) {
+                mutation($input: UploadSchemaDocumentInput!) { isched {
                     uploadSchemaDocument(input: $input) { success }
-                }
+                } }
             )";
             const json vars = {{"input", {
                 {"name",    "shared"},
@@ -699,7 +699,7 @@ TEST_CASE("SC-009: concurrent overwrite resolves to last successful commit",
             try {
                 const auto r = exec->execute(mutation, vars.dump(), make_admin_ctx("org_con"));
                 succeeded[static_cast<std::size_t>(i)] =
-                    r.is_success() && r.data["uploadSchemaDocument"]["success"] == true;
+                    r.is_success() && r.data["isched"]["uploadSchemaDocument"]["success"] == true;
             } catch (...) {
                 succeeded[static_cast<std::size_t>(i)] = false;
             }
@@ -712,13 +712,13 @@ TEST_CASE("SC-009: concurrent overwrite resolves to last successful commit",
 
     // Final document must be readable and have some valid content
     const auto r = exec->execute(
-        R"(query { schemaDocument(name: "shared") { name content } })",
+        R"(query { isched { schemaDocument(name: "shared") { name content } } })",
         "{}", make_user_ctx("org_con"));
     REQUIRE(r.is_success());
-    REQUIRE_FALSE(r.data["schemaDocument"].is_null());
-    REQUIRE(r.data["schemaDocument"]["name"] == "shared");
+    REQUIRE_FALSE(r.data["isched"]["schemaDocument"].is_null());
+    REQUIRE(r.data["isched"]["schemaDocument"]["name"] == "shared");
     // Content is one of the writes (whatever committed last)
-    REQUIRE(!r.data["schemaDocument"]["content"].get<std::string>().empty());
+    REQUIRE(!r.data["isched"]["schemaDocument"]["content"].get<std::string>().empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -732,9 +732,9 @@ TEST_CASE("T023: schemaDocuments returns empty list for tenant with no documents
     REQUIRE(db->initialize_tenant("org_empty"));
 
     const auto r = exec->execute(
-        "query { schemaDocuments { name } }", "{}", make_user_ctx("org_empty"));
+        "query { isched { schemaDocuments { name } } }", "{}", make_user_ctx("org_empty"));
     REQUIRE(r.is_success());
-    REQUIRE(r.data["schemaDocuments"].is_array());
-    REQUIRE(r.data["schemaDocuments"].empty());
+    REQUIRE(r.data["isched"]["schemaDocuments"].is_array());
+    REQUIRE(r.data["isched"]["schemaDocuments"].empty());
 }
 

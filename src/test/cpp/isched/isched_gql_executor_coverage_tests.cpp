@@ -122,13 +122,13 @@ namespace isched::v0_0_1::backend {
         [[nodiscard]] auto schema_upload_upload_mutation() -> std::string
         {
             return R"(
-                mutation($input: UploadSchemaDocumentInput!) {
+                mutation($input: UploadSchemaDocumentInput!) { isched {
                     uploadSchemaDocument(input: $input) {
                         success
                         schema { name createdAt updatedAt updatedBy }
                         error { code message conflictingName }
                     }
-                }
+                } }
             )";
         }
 
@@ -153,7 +153,7 @@ namespace isched::v0_0_1::backend {
         cfg.max_depth       = 5;
         cfg.max_complexity  = 20;
         GqlExecutor proc(std::make_shared<DatabaseManager>(), cfg);
-        const auto reply = proc.execute("{ hello }");
+        const auto reply = proc.execute("{ isched { hello } }");
         REQUIRE(reply.is_success());
     }
 
@@ -181,7 +181,7 @@ namespace isched::v0_0_1::backend {
         cfg.max_complexity = 2;
         GqlExecutor proc(std::make_shared<DatabaseManager>(), cfg);
 
-        const auto reply = proc.execute("{ hello version uptime }");
+        const auto reply = proc.execute("{ isched { hello version uptime } }");
         REQUIRE_FALSE(reply.is_success());
         bool found = false;
         for (const auto& e : reply.errors)
@@ -191,7 +191,7 @@ namespace isched::v0_0_1::backend {
 
     TEST_CASE("T041: unlimited (0) depth/complexity imposes no restriction", "[gql][executor][T041][complexity]") {
         GqlExecutor proc(std::make_shared<DatabaseManager>());
-        const auto reply = proc.execute("{ hello version uptime }");
+        const auto reply = proc.execute("{ isched { hello version uptime } }");
         REQUIRE(reply.is_success());
     }
 
@@ -208,8 +208,8 @@ namespace isched::v0_0_1::backend {
             schema_upload_upload_variables("billing-v1", std::string(k_schema_upload_test_sdl)),
             schema_upload_admin_ctx("org_auth"));
         REQUIRE(create_result.is_success());
-        REQUIRE(create_result.data["uploadSchemaDocument"]["success"] == true);
-        REQUIRE(create_result.data["uploadSchemaDocument"]["schema"]["name"] == "billing-v1");
+        REQUIRE(create_result.data["isched"]["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(create_result.data["isched"]["uploadSchemaDocument"]["schema"]["name"] == "billing-v1");
 
         SECTION("regular tenant user is rejected before resolver execution") {
             const auto result = exec->execute(
@@ -218,7 +218,7 @@ namespace isched::v0_0_1::backend {
                 schema_upload_user_ctx("org_auth"));
             REQUIRE_FALSE(result.is_success());
             REQUIRE(schema_upload_has_error_code(result, EErrorCodes::FORBIDDEN));
-            REQUIRE(result.data["uploadSchemaDocument"].is_null());
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"].is_null());
         }
 
         SECTION("duplicate without overwrite returns structured conflict payload") {
@@ -227,9 +227,9 @@ namespace isched::v0_0_1::backend {
                 schema_upload_upload_variables("billing-v1", std::string(k_schema_upload_test_sdl)),
                 schema_upload_admin_ctx("org_auth"));
             REQUIRE(result.is_success());
-            REQUIRE(result.data["uploadSchemaDocument"]["success"] == false);
-            REQUIRE(result.data["uploadSchemaDocument"]["error"]["code"] == "CONFLICT");
-            REQUIRE(result.data["uploadSchemaDocument"]["error"]["conflictingName"] == "billing-v1");
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "CONFLICT");
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["error"]["conflictingName"] == "billing-v1");
         }
     }
 
@@ -249,8 +249,8 @@ namespace isched::v0_0_1::backend {
                 schema_upload_upload_variables("bad name", std::string(k_schema_upload_test_sdl)),
                 ctx);
             REQUIRE(result.is_success());
-            REQUIRE(result.data["uploadSchemaDocument"]["success"] == false);
-            REQUIRE(result.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
         }
 
         SECTION("default 1 MB limit rejects oversized SDL before parse") {
@@ -261,9 +261,9 @@ namespace isched::v0_0_1::backend {
                 schema_upload_upload_variables("oversized-default", oversized),
                 ctx);
             REQUIRE(result.is_success());
-            REQUIRE(result.data["uploadSchemaDocument"]["success"] == false);
-            REQUIRE(result.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
-            REQUIRE(result.data["uploadSchemaDocument"]["error"]["message"]
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+            REQUIRE(result.data["isched"]["uploadSchemaDocument"]["error"]["message"]
                     .get<std::string>()
                     .find("1048576") != std::string::npos);
         }
@@ -275,7 +275,7 @@ namespace isched::v0_0_1::backend {
                 schema_upload_upload_variables("small-doc", std::string(k_schema_upload_test_sdl)),
                 ctx);
             REQUIRE(accepted.is_success());
-            REQUIRE(accepted.data["uploadSchemaDocument"]["success"] == true);
+            REQUIRE(accepted.data["isched"]["uploadSchemaDocument"]["success"] == true);
 
             const auto oversized = std::string(k_schema_upload_test_sdl) + "      ";
             REQUIRE(oversized.size() > 32U);
@@ -284,9 +284,9 @@ namespace isched::v0_0_1::backend {
                 schema_upload_upload_variables("too-large", oversized),
                 ctx);
             REQUIRE(rejected.is_success());
-            REQUIRE(rejected.data["uploadSchemaDocument"]["success"] == false);
-            REQUIRE(rejected.data["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
-            REQUIRE(rejected.data["uploadSchemaDocument"]["error"]["message"]
+            REQUIRE(rejected.data["isched"]["uploadSchemaDocument"]["success"] == false);
+            REQUIRE(rejected.data["isched"]["uploadSchemaDocument"]["error"]["code"] == "VALIDATION_FAILED");
+            REQUIRE(rejected.data["isched"]["uploadSchemaDocument"]["error"]["message"]
                     .get<std::string>()
                     .find("32") != std::string::npos);
         }
@@ -306,49 +306,49 @@ namespace isched::v0_0_1::backend {
             schema_upload_upload_variables("Billing", std::string(k_schema_upload_test_sdl)),
             schema_upload_admin_ctx("org_a"));
         REQUIRE(upload.is_success());
-        REQUIRE(upload.data["uploadSchemaDocument"]["success"] == true);
+        REQUIRE(upload.data["isched"]["uploadSchemaDocument"]["success"] == true);
 
         SECTION("schemaDocuments returns only tenant-local summaries") {
             const auto list_a = exec->execute(
-                "query { schemaDocuments { name createdAt updatedAt updatedBy } }",
+                "query { isched { schemaDocuments { name createdAt updatedAt updatedBy } } }",
                 "{}",
                 schema_upload_user_ctx("org_a"));
             REQUIRE(list_a.is_success());
-            REQUIRE(list_a.data["schemaDocuments"].is_array());
-            REQUIRE(list_a.data["schemaDocuments"].size() == 1);
-            REQUIRE(list_a.data["schemaDocuments"][0]["name"] == "Billing");
-            REQUIRE_FALSE(list_a.data["schemaDocuments"][0].contains("sizeBytes"));
+            REQUIRE(list_a.data["isched"]["schemaDocuments"].is_array());
+            REQUIRE(list_a.data["isched"]["schemaDocuments"].size() == 1);
+            REQUIRE(list_a.data["isched"]["schemaDocuments"][0]["name"] == "Billing");
+            REQUIRE_FALSE(list_a.data["isched"]["schemaDocuments"][0].contains("sizeBytes"));
 
             const auto list_b = exec->execute(
-                "query { schemaDocuments { name } }",
+                "query { isched { schemaDocuments { name } } }",
                 "{}",
                 schema_upload_user_ctx("org_b"));
             REQUIRE(list_b.is_success());
-            REQUIRE(list_b.data["schemaDocuments"].empty());
+            REQUIRE(list_b.data["isched"]["schemaDocuments"].empty());
         }
 
         SECTION("schemaDocument fetch is exact-name, tenant-scoped, and null on miss") {
             const auto fetch_hit = exec->execute(
-                R"(query { schemaDocument(name: "Billing") { name content updatedBy } })",
+                R"(query { isched { schemaDocument(name: "Billing") { name content updatedBy } } })",
                 "{}",
                 schema_upload_user_ctx("org_a"));
             REQUIRE(fetch_hit.is_success());
-            REQUIRE(fetch_hit.data["schemaDocument"]["name"] == "Billing");
-            REQUIRE(fetch_hit.data["schemaDocument"]["content"] == k_schema_upload_test_sdl);
+            REQUIRE(fetch_hit.data["isched"]["schemaDocument"]["name"] == "Billing");
+            REQUIRE(fetch_hit.data["isched"]["schemaDocument"]["content"] == k_schema_upload_test_sdl);
 
             const auto fetch_miss_case = exec->execute(
-                R"(query { schemaDocument(name: "billing") { name } })",
+                R"(query { isched { schemaDocument(name: "billing") { name } } })",
                 "{}",
                 schema_upload_user_ctx("org_a"));
             REQUIRE(fetch_miss_case.is_success());
-            REQUIRE(fetch_miss_case.data["schemaDocument"].is_null());
+            REQUIRE(fetch_miss_case.data["isched"]["schemaDocument"].is_null());
 
             const auto fetch_miss_tenant = exec->execute(
-                R"(query { schemaDocument(name: "Billing") { name } })",
+                R"(query { isched { schemaDocument(name: "Billing") { name } } })",
                 "{}",
                 schema_upload_user_ctx("org_b"));
             REQUIRE(fetch_miss_tenant.is_success());
-            REQUIRE(fetch_miss_tenant.data["schemaDocument"].is_null());
+            REQUIRE(fetch_miss_tenant.data["isched"]["schemaDocument"].is_null());
         }
     }
 
@@ -373,7 +373,7 @@ namespace isched::v0_0_1::backend {
             env_tz.set("UTC");
 
             auto res = exec->execute(R"(
-                query {
+                query { isched {
                     env {
                         systemProperties {
                             os_name
@@ -390,10 +390,10 @@ namespace isched::v0_0_1::backend {
                             TZ
                         }
                     }
-                }
+                } }
             )", "{}", admin_ctx);
             REQUIRE(res.is_success());
-            auto env_res = res.data["env"];
+            auto env_res = res.data["isched"]["env"];
             REQUIRE(env_res.is_object());
             REQUIRE(env_res["systemProperties"]["os_name"] == "Linux");
             REQUIRE(env_res["systemProperties"]["user_name"] == "test_user");
@@ -404,7 +404,7 @@ namespace isched::v0_0_1::backend {
 
         SECTION("configprops query verification") {
             auto res = exec->execute(R"(
-                query {
+                query { isched {
                     configprops {
                         server {
                             port
@@ -421,10 +421,10 @@ namespace isched::v0_0_1::backend {
                         version
                         environment
                     }
-                }
+                } }
             )", "{}", admin_ctx);
             REQUIRE(res.is_success());
-            auto config = res.data["configprops"];
+            auto config = res.data["isched"]["configprops"];
             REQUIRE(config["server"]["port"] == 8080);
             REQUIRE(config["server"]["host"] == "0.0.0.0");
             REQUIRE(config["database"]["type"] == "SQLite");
@@ -434,23 +434,23 @@ namespace isched::v0_0_1::backend {
 
         SECTION("Subscription initial state verification") {
             SECTION("healthChanged initial state") {
-                auto res = exec->execute("subscription { healthChanged { status timestamp } }");
+                auto res = exec->execute("subscription { isched { healthChanged { status timestamp } } }");
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["healthChanged"]["status"] == "UP");
+                REQUIRE(res.data["isched"]["healthChanged"]["status"] == "UP");
             }
 
             SECTION("serverMetricsUpdated platform-admin authorized") {
                 ResolverCtx actx;
                 actx.roles = {"role_platform_admin"};
-                auto res = exec->execute("subscription { serverMetricsUpdated { requestsInInterval } }", "{}", actx);
+                auto res = exec->execute("subscription { isched { serverMetricsUpdated { requestsInInterval } } }", "{}", actx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["serverMetricsUpdated"].is_object());
+                REQUIRE(res.data["isched"]["serverMetricsUpdated"].is_object());
             }
 
             SECTION("serverMetricsUpdated unauthorized") {
                 ResolverCtx uctx;
                 uctx.roles = {"role_tenant_admin"};
-                auto res = exec->execute("subscription { serverMetricsUpdated { requestsInInterval } }", "{}", uctx);
+                auto res = exec->execute("subscription { isched { serverMetricsUpdated { requestsInInterval } } }", "{}", uctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].code == gql::EErrorCodes::FORBIDDEN);
             }
@@ -459,81 +459,81 @@ namespace isched::v0_0_1::backend {
                 ResolverCtx actx;
                 actx.tenant_id = "tenant_test";
                 actx.roles = {"role_tenant_admin"};
-                auto res = exec->execute(R"(subscription { tenantMetricsUpdated(organizationId: "tenant_test") { requestsInInterval } })", "{}", actx);
+                auto res = exec->execute(R"(subscription { isched { tenantMetricsUpdated(organizationId: "tenant_test") { requestsInInterval } } })", "{}", actx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["tenantMetricsUpdated"].is_object());
+                REQUIRE(res.data["isched"]["tenantMetricsUpdated"].is_object());
             }
 
             SECTION("tenantMetricsUpdated platform-admin authorized") {
                 ResolverCtx actx;
                 actx.tenant_id = "tenant_test";
                 actx.roles = {"role_platform_admin"};
-                auto res = exec->execute(R"(subscription { tenantMetricsUpdated(organizationId: "tenant_test") { requestsInInterval } })", "{}", actx);
+                auto res = exec->execute(R"(subscription { isched { tenantMetricsUpdated(organizationId: "tenant_test") { requestsInInterval } } })", "{}", actx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["tenantMetricsUpdated"].is_object());
+                REQUIRE(res.data["isched"]["tenantMetricsUpdated"].is_object());
             }
 
             SECTION("tenantMetricsUpdated unauthorized") {
                 ResolverCtx uctx;
                 uctx.roles = {"role_user"};
-                auto res = exec->execute(R"(subscription { tenantMetricsUpdated(organizationId: "tenant_test") { requestsInInterval } })", "{}", uctx);
+                auto res = exec->execute(R"(subscription { isched { tenantMetricsUpdated(organizationId: "tenant_test") { requestsInInterval } } })", "{}", uctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].code == gql::EErrorCodes::FORBIDDEN);
             }
 
             SECTION("configurationActivated initial state") {
-                auto res = exec->execute(R"(subscription { configurationActivated(tenantId: "tenant_test") { tenantId snapshotId } })");
+                auto res = exec->execute(R"(subscription { isched { configurationActivated(tenantId: "tenant_test") { tenantId snapshotId } } })");
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["configurationActivated"].is_null());
+                REQUIRE(res.data["isched"]["configurationActivated"].is_null());
             }
         }
 
         SECTION("Error handling and validation paths") {
             SECTION("activateSnapshot database not available") {
                 GqlExecutor proc_no_db(nullptr);
-                auto res = proc_no_db.execute(R"(mutation { activateSnapshot(id: "some_id") { success errors } })", "{}", admin_ctx);
+                auto res = proc_no_db.execute(R"(mutation { isched { activateSnapshot(id: "some_id") { success errors } } })", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["activateSnapshot"]["success"] == false);
-                REQUIRE(res.data["activateSnapshot"]["errors"][0] == "Database not available");
+                REQUIRE(res.data["isched"]["activateSnapshot"]["success"] == false);
+                REQUIRE(res.data["isched"]["activateSnapshot"]["errors"][0] == "Database not available");
             }
 
             SECTION("activateSnapshot missing parameter id") {
-                auto res = exec->execute(R"(mutation { activateSnapshot(id: 123) { success errors } })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { activateSnapshot(id: 123) { success errors } } })", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["activateSnapshot"]["success"] == false);
-                REQUIRE(res.data["activateSnapshot"]["errors"][0].get<std::string>().find("id") != std::string::npos);
+                REQUIRE(res.data["isched"]["activateSnapshot"]["success"] == false);
+                REQUIRE(res.data["isched"]["activateSnapshot"]["errors"][0].get<std::string>().find("id") != std::string::npos);
             }
 
             SECTION("activateSnapshot snapshot not found") {
-                auto res = exec->execute(R"(mutation { activateSnapshot(id: "nonexistent_snap") { success errors } })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { activateSnapshot(id: "nonexistent_snap") { success errors } } })", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["activateSnapshot"]["success"] == false);
-                REQUIRE(res.data["activateSnapshot"]["errors"][0] == "Snapshot not found: nonexistent_snap");
+                REQUIRE(res.data["isched"]["activateSnapshot"]["success"] == false);
+                REQUIRE(res.data["isched"]["activateSnapshot"]["errors"][0] == "Snapshot not found: nonexistent_snap");
             }
 
             SECTION("rollbackConfiguration database not available") {
                 GqlExecutor proc_no_db(nullptr);
-                auto res = proc_no_db.execute(R"(mutation { rollbackConfiguration(tenantId: "some_tenant") { success errors } })", "{}", admin_ctx);
+                auto res = proc_no_db.execute(R"(mutation { isched { rollbackConfiguration(tenantId: "some_tenant") { success errors } } })", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["rollbackConfiguration"]["success"] == false);
-                REQUIRE(res.data["rollbackConfiguration"]["errors"][0] == "Database not available");
+                REQUIRE(res.data["isched"]["rollbackConfiguration"]["success"] == false);
+                REQUIRE(res.data["isched"]["rollbackConfiguration"]["errors"][0] == "Database not available");
             }
 
             SECTION("rollbackConfiguration missing parameter tenantId") {
-                auto res = exec->execute(R"(mutation { rollbackConfiguration(tenantId: 123) { success errors } })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { rollbackConfiguration(tenantId: 123) { success errors } } })", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["rollbackConfiguration"]["success"] == false);
-                REQUIRE(res.data["rollbackConfiguration"]["errors"][0].get<std::string>().find("tenantId") != std::string::npos);
+                REQUIRE(res.data["isched"]["rollbackConfiguration"]["success"] == false);
+                REQUIRE(res.data["isched"]["rollbackConfiguration"]["errors"][0].get<std::string>().find("tenantId") != std::string::npos);
             }
 
             SECTION("deleteDataSource missing parameter id") {
-                auto res = exec->execute(R"(mutation { deleteDataSource(organizationId: "org_a", id: "") })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { deleteDataSource(organizationId: "org_a", id: "") } })", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("deleteDataSource: id is required") != std::string::npos);
             }
 
             SECTION("updateTenantConfig missing parameter organizationId") {
-                auto res = exec->execute(R"(mutation { updateTenantConfig(minThreads: 5) { minThreads } })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { updateTenantConfig(minThreads: 5) { minThreads } } })", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("updateTenantConfig: organizationId is required") != std::string::npos);
             }
@@ -541,17 +541,17 @@ namespace isched::v0_0_1::backend {
             SECTION("updateTenantConfig valid arguments update") {
                 REQUIRE(db->initialize_tenant("org_a"));
                 auto res = exec->execute(R"(
-                    mutation {
+                    mutation { isched {
                         updateTenantConfig(organizationId: "org_a", minThreads: 5, maxThreads: 10, metricsInterval: 12) {
                             organizationId
                             minThreads
                             maxThreads
                             metricsIntervalMinutes
                         }
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                auto config = res.data["updateTenantConfig"];
+                auto config = res.data["isched"]["updateTenantConfig"];
                 REQUIRE(config["organizationId"] == "org_a");
                 REQUIRE(config["minThreads"] == 5);
                 REQUIRE(config["maxThreads"] == 10);
@@ -562,15 +562,15 @@ namespace isched::v0_0_1::backend {
                 SECTION("shutdown rejected - unauthorized") {
                     ResolverCtx uctx;
                     uctx.roles = {"role_user"};
-                    auto res = exec->execute("mutation { shutdown }", "{}", uctx);
+                    auto res = exec->execute("mutation { isched { shutdown } }", "{}", uctx);
                     REQUIRE_FALSE(res.is_success());
                     REQUIRE(res.errors[0].message.find("shutdown: requires platform_admin role") != std::string::npos);
                 }
 
                 SECTION("shutdown accepted - platform_admin role") {
-                    auto res = exec->execute("mutation { shutdown }", "{}", admin_ctx);
+                    auto res = exec->execute("mutation { isched { shutdown } }", "{}", admin_ctx);
                     REQUIRE(res.is_success());
-                    REQUIRE(res.data["shutdown"] == true);
+                    REQUIRE(res.data["isched"]["shutdown"] == true);
                 }
 
                 SECTION("shutdown accepted - token") {
@@ -578,9 +578,9 @@ namespace isched::v0_0_1::backend {
                     env_token.set("my_secret_token");
                     ResolverCtx tctx;
                     tctx.bearer_token = "my_secret_token";
-                    auto res = exec->execute("mutation { shutdown }", "{}", tctx);
+                    auto res = exec->execute("mutation { isched { shutdown } }", "{}", tctx);
                     REQUIRE(res.is_success());
-                    REQUIRE(res.data["shutdown"] == true);
+                    REQUIRE(res.data["isched"]["shutdown"] == true);
                 }
             }
         }
@@ -588,7 +588,7 @@ namespace isched::v0_0_1::backend {
         SECTION("Organization and role mutations") {
             SECTION("createOrganization") {
                 auto res = exec->execute(R"(
-                    mutation {
+                    mutation { isched {
                         createOrganization(input: {
                             id: "org_testing_id",
                             name: "Org Testing",
@@ -606,10 +606,10 @@ namespace isched::v0_0_1::backend {
                             status
                             revision
                         }
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                auto org = res.data["createOrganization"];
+                auto org = res.data["isched"]["createOrganization"];
                 REQUIRE(org["id"] == "org_testing_id");
                 REQUIRE(org["name"] == "Org Testing");
                 REQUIRE(org["domain"] == "testing.org");
@@ -621,14 +621,14 @@ namespace isched::v0_0_1::backend {
 
                 SECTION("createOrganization duplicate error") {
                     auto res2 = exec->execute(R"(
-                        mutation {
+                        mutation { isched {
                             createOrganization(input: {
                                 id: "org_testing_id",
                                 name: "Org Testing Duplicate"
                             }) {
                                 id
                             }
-                        }
+                        } }
                     )", "{}", admin_ctx);
                     REQUIRE_FALSE(res2.is_success());
                     REQUIRE(res2.errors[0].message.find("already exists") != std::string::npos);
@@ -636,7 +636,7 @@ namespace isched::v0_0_1::backend {
 
                 SECTION("updateOrganization success") {
                     auto res2 = exec->execute(R"(
-                        mutation {
+                        mutation { isched {
                             updateOrganization(
                                 id: "org_testing_id",
                                 input: {
@@ -649,25 +649,25 @@ namespace isched::v0_0_1::backend {
                                 status
                                 revision
                             }
-                        }
+                        } }
                     )", "{}", admin_ctx);
                     REQUIRE(res2.is_success());
-                    auto org2 = res2.data["updateOrganization"];
+                    auto org2 = res2.data["isched"]["updateOrganization"];
                     REQUIRE(org2["name"] == "Org Updated");
                     REQUIRE(org2["status"] == "SUSPENDED");
                     REQUIRE(org2["revision"] == 1);
                 }
 
                 SECTION("deleteOrganization success") {
-                    auto res2 = exec->execute(R"(mutation { deleteOrganization(id: "org_testing_id") })", "{}", admin_ctx);
+                    auto res2 = exec->execute(R"(mutation { isched { deleteOrganization(id: "org_testing_id") } })", "{}", admin_ctx);
                     REQUIRE(res2.is_success());
-                    REQUIRE(res2.data["deleteOrganization"] == true);
+                    REQUIRE(res2.data["isched"]["deleteOrganization"] == true);
                 }
             }
 
             SECTION("updateOrganization not found") {
                 auto res = exec->execute(R"(
-                    mutation {
+                    mutation { isched {
                         updateOrganization(
                             id: "nonexistent_org",
                             input: {
@@ -676,81 +676,81 @@ namespace isched::v0_0_1::backend {
                         ) {
                             id
                         }
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("not found") != std::string::npos);
             }
 
             SECTION("deleteOrganization not found") {
-                auto res = exec->execute(R"(mutation { deleteOrganization(id: "nonexistent_org") })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { deleteOrganization(id: "nonexistent_org") } })", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("not found") != std::string::npos);
             }
 
             SECTION("createRole scope platform") {
                 auto res = exec->execute(R"(
-                    mutation {
+                    mutation { isched {
                         createRole(input: {
                             id: "role_custom",
                             name: "Custom Role",
                             description: "My custom role",
                             scope: "platform"
                         })
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                REQUIRE(res.data["createRole"] == true);
+                REQUIRE(res.data["isched"]["createRole"] == true);
 
                 SECTION("createRole duplicate error") {
                     auto res2 = exec->execute(R"(
-                        mutation {
+                        mutation { isched {
                             createRole(input: {
                                 id: "role_custom",
                                 name: "Custom Role Duplicate",
                                 scope: "platform"
                             })
-                        }
+                        } }
                     )", "{}", admin_ctx);
                     REQUIRE_FALSE(res2.is_success());
                     REQUIRE(res2.errors[0].message.find("already exists") != std::string::npos);
                 }
 
                 SECTION("deleteRole success") {
-                    auto res2 = exec->execute(R"(mutation { deleteRole(id: "role_custom") })", "{}", admin_ctx);
+                    auto res2 = exec->execute(R"(mutation { isched { deleteRole(id: "role_custom") } })", "{}", admin_ctx);
                     REQUIRE(res2.is_success());
-                    REQUIRE(res2.data["deleteRole"] == true);
+                    REQUIRE(res2.data["isched"]["deleteRole"] == true);
                 }
             }
 
             SECTION("createRole validation errors") {
                 auto res = exec->execute(R"(
-                    mutation {
+                    mutation { isched {
                         createRole(input: {
                             id: "",
                             name: "Invalid",
                             scope: ""
                         })
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("id, name, and scope are required") != std::string::npos);
             }
 
             SECTION("deleteRole validation errors") {
-                auto res = exec->execute(R"(mutation { deleteRole(id: "") })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { deleteRole(id: "") } })", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("id is required") != std::string::npos);
             }
 
             SECTION("deleteRole built-in role deletion error") {
-                auto res = exec->execute(R"(mutation { deleteRole(id: "role_platform_admin") })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { deleteRole(id: "role_platform_admin") } })", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("Built-in roles cannot be deleted") != std::string::npos);
             }
 
             SECTION("deleteRole role not found error") {
-                auto res = exec->execute(R"(mutation { deleteRole(id: "nonexistent_role") })", "{}", admin_ctx);
+                auto res = exec->execute(R"(mutation { isched { deleteRole(id: "nonexistent_role") } })", "{}", admin_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE(res.errors[0].message.find("not found") != std::string::npos);
             }
@@ -758,9 +758,9 @@ namespace isched::v0_0_1::backend {
 
         SECTION("Health check database DOWN / database null") {
             GqlExecutor proc_no_db(nullptr);
-            auto res = proc_no_db.execute("query { health { status components { database { status details { error } } } } }");
+            auto res = proc_no_db.execute("query { isched { health { status components { database { status details { error } } } } } }");
             REQUIRE(res.is_success());
-            auto h = res.data["health"];
+            auto h = res.data["isched"]["health"];
             REQUIRE(h["status"] == "DOWN");
             REQUIRE(h["components"]["database"]["status"] == "DOWN");
         }
@@ -770,7 +770,7 @@ namespace isched::v0_0_1::backend {
                 ResolverCtx tenant_ctx;
                 tenant_ctx.tenant_id = "org_a";
                 tenant_ctx.roles = {"role_tenant_admin"};
-                auto res = exec->execute(R"(query { tenantMetrics(organizationId: "org_b") { requestsInInterval } })", "{}", tenant_ctx);
+                auto res = exec->execute(R"(query { isched { tenantMetrics(organizationId: "org_b") { requestsInInterval } } })", "{}", tenant_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE_FALSE(res.errors.empty());
                 REQUIRE(res.errors[0].code == gql::EErrorCodes::FORBIDDEN);
@@ -780,7 +780,7 @@ namespace isched::v0_0_1::backend {
             SECTION("tenantMetrics organizationId required for empty tenant context") {
                 ResolverCtx empty_ctx;
                 empty_ctx.roles = {"role_tenant_admin"};
-                auto res = exec->execute(R"(query { tenantMetrics { requestsInInterval } })", "{}", empty_ctx);
+                auto res = exec->execute(R"(query { isched { tenantMetrics { requestsInInterval } } })", "{}", empty_ctx);
                 REQUIRE_FALSE(res.is_success());
                 REQUIRE_FALSE(res.errors.empty());
                 REQUIRE(res.errors[0].code == gql::EErrorCodes::VALIDATION_FAILED);
@@ -791,7 +791,7 @@ namespace isched::v0_0_1::backend {
         SECTION("serverMetrics and tenantMetrics query fallback when metrics manager is null") {
             SECTION("serverMetrics query") {
                 auto res = exec->execute(R"(
-                    query {
+                    query { isched {
                         serverMetrics {
                             requestsInInterval
                             errorsInInterval
@@ -802,17 +802,17 @@ namespace isched::v0_0_1::backend {
                             avgResponseTimeMs
                             tenantCount
                         }
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                auto metrics = res.data["serverMetrics"];
+                auto metrics = res.data["isched"]["serverMetrics"];
                 REQUIRE(metrics["requestsInInterval"] == 0);
                 REQUIRE(metrics["tenantCount"] == 0);
             }
 
             SECTION("tenantMetrics query") {
                 auto res = exec->execute(R"(
-                    query {
+                    query { isched {
                         tenantMetrics(organizationId: "complete_coverage") {
                             organizationId
                             requestsInInterval
@@ -821,10 +821,10 @@ namespace isched::v0_0_1::backend {
                             totalErrorsSinceStartup
                             avgResponseTimeMs
                         }
-                    }
+                    } }
                 )", "{}", admin_ctx);
                 REQUIRE(res.is_success());
-                auto metrics = res.data["tenantMetrics"];
+                auto metrics = res.data["isched"]["tenantMetrics"];
                 REQUIRE(metrics["organizationId"] == "complete_coverage");
                 REQUIRE(metrics["requestsInInterval"] == 0);
             }

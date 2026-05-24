@@ -28,86 +28,95 @@ TEST_CASE("GraphQL Executor Basic Functionality", "[graphql][executor]") {
     GqlExecutor executor(database);
     
     SECTION("Execute hello resolver") {
-        auto result = executor.execute("query {hello}");
+        auto result = executor.execute("query { isched {hello} }");
         REQUIRE(result.is_success());
         std::cout<< result.data.dump(4)<< std::flush;
-        REQUIRE(result.data.contains("hello"));
-        REQUIRE(result.data["hello"] == "Hello, GraphQL!");
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("hello"));
+        REQUIRE(result.data["isched"]["hello"] == "Hello, GraphQL!");
         REQUIRE(result.errors.empty());
     }
 
     SECTION("Execute hello resolver with single query") {
-        auto result = executor.execute("{hello}","{}",true);
+        auto result = executor.execute("{ isched {hello} }","{}",true);
         REQUIRE(result.is_success());
         std::cout<< result.data.dump(4)<< std::flush;
-        REQUIRE(result.data.contains("hello"));
-        REQUIRE(result.data["hello"] == "Hello, GraphQL!");
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("hello"));
+        REQUIRE(result.data["isched"]["hello"] == "Hello, GraphQL!");
         REQUIRE(result.errors.empty());
     }
 
     SECTION("Execute version resolver") {
-        std::string query = "{ version }";
+        std::string query = "{ isched { version } }";
         auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("version"));
-        REQUIRE(result.data["version"] == "0.0.1");
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("version"));
+        REQUIRE(result.data["isched"]["version"] == "0.0.1");
         REQUIRE(result.errors.empty());
     }
 
     SECTION("Execute uptime resolver") {
-        std::string query = "{ uptime }";
+        std::string query = "{ isched { uptime } }";
         auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("uptime"));
-        REQUIRE(result.data["uptime"].is_number());
-        REQUIRE(result.data["uptime"].get<double>() >= 0);
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("uptime"));
+        REQUIRE(result.data["isched"]["uptime"].is_number());
+        REQUIRE(result.data["isched"]["uptime"].get<double>() >= 0);
         REQUIRE(result.errors.empty());
     }
     
     SECTION("Execute clientCount resolver") {
-        std::string query = "{ clientCount }";
+        std::string query = "{ isched { clientCount } }";
         auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("clientCount"));
-        REQUIRE(result.data["clientCount"].is_number());
-        REQUIRE(result.data["clientCount"].get<double>() >= 0);
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("clientCount"));
+        REQUIRE(result.data["isched"]["clientCount"].is_number());
+        REQUIRE(result.data["isched"]["clientCount"].get<double>() >= 0);
         REQUIRE(result.errors.empty());
     }
     
     SECTION("Execute multiple fields - currently limited to single field queries") {
-        std::string query = "{ hello }";
+        std::string query = "{ isched { hello } }";
         auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("hello"));
-        REQUIRE(result.data["hello"] == "Hello, GraphQL!");
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("hello"));
+        REQUIRE(result.data["isched"]["hello"] == "Hello, GraphQL!");
         REQUIRE(result.errors.empty());
         
         // Test each field individually
-        query = "{ version }";
+        query = "{ isched { version } }";
         result = executor.execute(query);
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("version"));
-        REQUIRE(result.data["version"] == "0.0.1");
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("version"));
+        REQUIRE(result.data["isched"]["version"] == "0.0.1");
         
-        query = "{ uptime }";
+        query = "{ isched { uptime } }";
         result = executor.execute(query);
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("uptime"));
-        REQUIRE(result.data["uptime"].is_number());
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("uptime"));
+        REQUIRE(result.data["isched"]["uptime"].is_number());
     }
     
     SECTION("Handle field alias - not yet implemented") {
         // Note: Current implementation doesn't support field aliases
-        std::string query = "{ hello }";
+        std::string query = "{ isched { hello } }";
         auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
-        REQUIRE(result.data.contains("hello"));
-        REQUIRE(result.data["hello"] == "Hello, GraphQL!");
+        REQUIRE(result.data.contains("isched"));
+        REQUIRE(result.data["isched"].contains("hello"));
+        REQUIRE(result.data["isched"]["hello"] == "Hello, GraphQL!");
         REQUIRE(result.errors.empty());
     }
     
@@ -139,14 +148,14 @@ TEST_CASE("GraphQL Introspection", "[graphql][introspection]") {
     auto database = std::make_shared<DatabaseManager>(config);
     GqlExecutor executor(database);
     
-    SECTION("Execute schema introspection - basic implementation") {
+    SECTION("Execute schema introspection - GraphQL standard root meta-field") {
         std::string query = "{ __schema }";
         auto result = executor.execute(query);
         
         REQUIRE(result.is_success());
         REQUIRE(result.data.contains("__schema"));
         REQUIRE(result.data["__schema"].is_object());
-        
+
         auto schema = result.data["__schema"];
         REQUIRE(schema.contains("types"));
         REQUIRE(schema["types"].is_array());
@@ -208,13 +217,13 @@ TEST_CASE("GraphQL Performance", "[graphql][performance]") {
     GqlExecutor executor(database);
     
     SECTION("Multiple query executions") {
-        std::string query = "{ hello }";
+        std::string query = "{ isched { hello } }";
         const int iterations = 10;
         
         for (int i = 0; i < iterations; ++i) {
             auto result = executor.execute(query);
             REQUIRE(result.is_success());
-            REQUIRE(result.data["hello"] == "Hello, GraphQL!");
+            REQUIRE(result.data["isched"]["hello"] == "Hello, GraphQL!");
         }
     }
 }

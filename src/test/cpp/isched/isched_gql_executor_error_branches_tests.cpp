@@ -52,7 +52,7 @@ TEST_CASE("Error Branches Coverage", "[gql][resolvers][errors]") {
             "mutation { terminateAllSessions(organizationId: \"\") }",
             "mutation { bootstrapPlatformAdmin(input: { username: \"\", password: \"\", email: \"\" }) }",
             "mutation { bootstrapPlatformAdmin(input: { username: \"x\", password: \"short\", email: \"\" }) }",
-            "mutation { completePlatformBootstrap }",
+            "mutation { isched { completePlatformBootstrap } }",
             "mutation { login(input: { username: \"\", password: \"\" }) { token } }",
             "mutation { login(input: { username: \"bad\", password: \"bad\" }) { token } }"
         };

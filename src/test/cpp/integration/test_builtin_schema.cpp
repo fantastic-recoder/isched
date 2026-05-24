@@ -66,10 +66,10 @@ public:
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: hello", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ hello }");
+    auto resp = post_graphql("{ isched { hello } }");
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["hello"] == "Hello, GraphQL!");
+    REQUIRE(resp["data"]["isched"]["hello"] == "Hello, GraphQL!");
 
     server->stop();
 }
@@ -77,8 +77,8 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: hello", "[integratio
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: version", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ version }");
-    REQUIRE(resp["data"]["version"] == "0.0.1");
+    auto resp = post_graphql("{ isched { version } }");
+    REQUIRE(resp["data"]["isched"]["version"] == "0.0.1");
 
     server->stop();
 }
@@ -86,11 +86,11 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: version", "[integrat
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: uptime", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ uptime }");
+    auto resp = post_graphql("{ isched { uptime } }");
     REQUIRE(resp.contains("data"));
     // uptime is an integer >= 0
-    REQUIRE(resp["data"]["uptime"].is_number_integer());
-    REQUIRE(resp["data"]["uptime"].get<long long>() >= 0);
+    REQUIRE(resp["data"]["isched"]["uptime"].is_number_integer());
+    REQUIRE(resp["data"]["isched"]["uptime"].get<long long>() >= 0);
 
     server->stop();
 }
@@ -98,9 +98,9 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: uptime", "[integrati
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in mutation: echo", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_mutation(R"(mutation { echo(message: "hello world") })");
+    auto resp = post_mutation(R"(mutation { isched { echo(message: "hello world") } })");
     REQUIRE(resp.contains("data"));
-    REQUIRE(resp["data"]["echo"] == "hello world");
+    REQUIRE(resp["data"]["isched"]["echo"] == "hello world");
 
     server->stop();
 }
@@ -108,10 +108,10 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in mutation: echo", "[integrat
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: combined hello and version", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ hello version uptime }");
-    REQUIRE(resp["data"]["hello"] == "Hello, GraphQL!");
-    REQUIRE(resp["data"]["version"] == "0.0.1");
-    REQUIRE(resp["data"]["uptime"].is_number_integer());
+    auto resp = post_graphql("{ isched { hello version uptime } }");
+    REQUIRE(resp["data"]["isched"]["hello"] == "Hello, GraphQL!");
+    REQUIRE(resp["data"]["isched"]["version"] == "0.0.1");
+    REQUIRE(resp["data"]["isched"]["uptime"].is_number_integer());
 
     server->stop();
 }
@@ -119,7 +119,7 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Built-in query: combined hello and v
 TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Response extensions are populated", "[integration][builtin][us1]") {
     REQUIRE(server->start());
 
-    auto resp = post_graphql("{ hello }");
+    auto resp = post_graphql("{ isched { hello } }");
     REQUIRE(resp.contains("extensions"));
     REQUIRE(resp["extensions"].contains("requestId"));
     REQUIRE(resp["extensions"].contains("endpoint"));

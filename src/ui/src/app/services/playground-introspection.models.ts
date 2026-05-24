@@ -6,6 +6,7 @@
 
 export type NodeKind =
   | 'operationGroup'
+  | 'namespace'
   | 'field'
   | 'objectType'
   | 'inputType'
@@ -33,6 +34,8 @@ export interface SchemaTreeNode {
   sdl?: string;
   /** Which root operation type this field belongs to (for stub generation) */
   operationKind?: OperationKind;
+  /** Namespace segments that wrap this operation field (e.g. ['isched']) */
+  namespacePath?: string[];
 }
 
 export interface IntrospectionArg {
@@ -105,4 +108,3 @@ export function typeRefToString(typeRef: RawTypeRef | null): string {
   if (typeRef.kind === 'LIST') return `[${typeRefToString(typeRef.ofType)}]`;
   return typeRef.name ?? 'Unknown';
 }
-

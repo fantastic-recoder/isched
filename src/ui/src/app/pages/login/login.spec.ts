@@ -47,9 +47,9 @@ describe('LoginComponent', () => {
     comp.onSubmit();
 
     httpMock.expectOne('/graphql').flush({
-      data: { login: { token: 'tok_xyz', expiresAt: '2099-01-01T00:00:00Z' } },
+      data: { isched: { login: { token: 'tok_xyz', expiresAt: '2099-01-01T00:00:00Z' } } },
     });
-    httpMock.expectOne('/graphql').flush({ data: { currentUser: { id: 'u1' } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1' } } } });
 
     Promise.resolve().then(() => {
       expect(navSpy).toHaveBeenCalledWith(['/dashboard']);

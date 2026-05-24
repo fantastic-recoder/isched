@@ -72,29 +72,29 @@ public:
                                const std::string& schema_sdl,
                                const std::string& version = "1.0.0") {
         auto resp = post_graphql(
-            "mutation { applyConfiguration(input: {"
+            "mutation { isched { applyConfiguration(input: {"
             "tenantId: \"" + tenant_id + "\" "
             "schemaSdl: \"" + schema_sdl + "\" "
             "version: \"" + version + "\""
-            "}) { success snapshotId } }"
+            "}) { success snapshotId } } }"
         );
-        REQUIRE(resp["data"]["applyConfiguration"]["success"] == true);
-        return resp["data"]["applyConfiguration"]["snapshotId"].get<std::string>();
+        REQUIRE(resp["data"]["isched"]["applyConfiguration"]["success"] == true);
+        return resp["data"]["isched"]["applyConfiguration"]["snapshotId"].get<std::string>();
     }
 
     void activate(const std::string& snap_id) {
         auto r = post_graphql(
-            "mutation { activateSnapshot(id: \"" + snap_id + "\") { success } }"
+            "mutation { isched { activateSnapshot(id: \"" + snap_id + "\") { success } } }"
         );
-        REQUIRE(r["data"]["activateSnapshot"]["success"] == true);
+        REQUIRE(r["data"]["isched"]["activateSnapshot"]["success"] == true);
     }
 
     std::string active_id(const std::string& tenant_id) {
         auto resp = post_graphql(
-            "{ activeConfiguration(tenantId: \"" + tenant_id + "\") { id } }"
+            "{ isched { activeConfiguration(tenantId: \"" + tenant_id + "\") { id } } }"
         );
-        if (resp["data"]["activeConfiguration"].is_null()) return "";
-        return resp["data"]["activeConfiguration"]["id"].get<std::string>();
+        if (resp["data"]["isched"]["activeConfiguration"].is_null()) return "";
+        return resp["data"]["isched"]["activeConfiguration"]["id"].get<std::string>();
     }
 };
 
@@ -110,13 +110,13 @@ TEST_CASE_METHOD(RollbackTestFixture,
 
     // Try to roll back — only one snapshot, no prior available
     auto resp = post_graphql(
-        "mutation { rollbackConfiguration(tenantId: \"" + tenant + "\") {"
-        " success snapshotId errors } }"
+        "mutation { isched { rollbackConfiguration(tenantId: \"" + tenant + "\") {"
+        " success snapshotId errors } } }"
     );
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["rollbackConfiguration"]["success"] == false);
-    REQUIRE_FALSE(resp["data"]["rollbackConfiguration"]["errors"].empty());
+    REQUIRE(resp["data"]["isched"]["rollbackConfiguration"]["success"] == false);
+    REQUIRE_FALSE(resp["data"]["isched"]["rollbackConfiguration"]["errors"].empty());
 
     server->stop();
 }
@@ -139,12 +139,12 @@ TEST_CASE_METHOD(RollbackTestFixture,
 
     // Roll back — should return to v1
     auto resp = post_graphql(
-        "mutation { rollbackConfiguration(tenantId: \"" + tenant + "\") {"
-        " success snapshotId errors } }"
+        "mutation { isched { rollbackConfiguration(tenantId: \"" + tenant + "\") {"
+        " success snapshotId errors } } }"
     );
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["rollbackConfiguration"]["success"] == true);
+    REQUIRE(resp["data"]["isched"]["rollbackConfiguration"]["success"] == true);
 
     // v1 should be active again
     REQUIRE(active_id(tenant) == id_v1);
@@ -160,12 +160,12 @@ TEST_CASE_METHOD(RollbackTestFixture,
 
     const std::string tenant = "no-such-tenant-" + g_run_suffix;
     auto resp = post_graphql(
-        "mutation { rollbackConfiguration(tenantId: \"" + tenant + "\") {"
-        " success errors } }"
+        "mutation { isched { rollbackConfiguration(tenantId: \"" + tenant + "\") {"
+        " success errors } } }"
     );
     REQUIRE(resp.contains("data"));
     REQUIRE_FALSE(resp.contains("errors"));
-    REQUIRE(resp["data"]["rollbackConfiguration"]["success"] == false);
+    REQUIRE(resp["data"]["isched"]["rollbackConfiguration"]["success"] == false);
 
     server->stop();
 }
@@ -188,9 +188,9 @@ TEST_CASE_METHOD(RollbackTestFixture,
 
     // Roll back — must land on something other than v3
     auto r = post_graphql(
-        "mutation { rollbackConfiguration(tenantId: \"" + tenant + "\") { success snapshotId } }"
+        "mutation { isched { rollbackConfiguration(tenantId: \"" + tenant + "\") { success snapshotId } } }"
     );
-    REQUIRE(r["data"]["rollbackConfiguration"]["success"] == true);
+    REQUIRE(r["data"]["isched"]["rollbackConfiguration"]["success"] == true);
     REQUIRE(active_id(tenant) != id_v3);
 
     server->stop();

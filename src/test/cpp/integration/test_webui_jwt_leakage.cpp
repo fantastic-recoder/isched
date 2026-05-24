@@ -37,14 +37,14 @@ TEST_CASE("GraphQL responses never echo Authorization token content", "[webui][s
 
     SECTION("CSRF failures do not contain bearer value") {
         const std::string mutation_query = R"(
-            mutation {
+            mutation { isched {
                 completePlatformBootstrap(input: {
                     email: "admin@example.com"
                     password: "SecurePassword123!"
                 }) {
                     success
                 }
-            }
+            } }
         )";
 
         std::unordered_map<std::string, std::string> headers;

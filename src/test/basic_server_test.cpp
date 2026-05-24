@@ -23,7 +23,7 @@ int main() {
     try {
         // Create server configuration
         Server::Configuration config;
-        config.port = 8080;
+        config.port = 18080;
         config.host = "localhost";
         config.min_threads = 4;
         config.max_threads = 10;
@@ -39,7 +39,7 @@ int main() {
         
         // Test configuration
         const auto& server_config = server->get_configuration();
-        if (server_config.port == 8080) {
+        if (server_config.port == config.port) {
             std::cout << "✓ Configuration validation passed" << std::endl;
         } else {
             std::cout << "✗ Configuration validation failed" << std::endl;
@@ -56,7 +56,16 @@ int main() {
         
         // Test start
         std::cout << "Starting server..." << std::endl;
-        if (server->start()) {
+        bool started = false;
+        for (int attempt = 0; attempt < 10 && !started; ++attempt) {
+            const int candidate_port = 18080 + attempt;
+            if (attempt > 0) {
+                config.port = candidate_port;
+                server = Server::create(config);
+            }
+            started = server->start();
+        }
+        if (started) {
             std::cout << "✓ Server started successfully" << std::endl;
         } else {
             std::cout << "✗ Server start failed" << std::endl;

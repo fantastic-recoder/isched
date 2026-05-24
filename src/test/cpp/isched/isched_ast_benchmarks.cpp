@@ -29,7 +29,7 @@ namespace {
     // A moderately complex anonymous shorthand query used as benchmark input.
     // GqlQuery = opt<"query"> SelectionSet — use anonymous form (no name, no variables).
     constexpr std::string_view k_bench_query = R"(
-        {
+        { isched {
             user {
                 id
                 name
@@ -48,7 +48,7 @@ namespace {
                     name
                 }
             }
-        }
+        } }
     )";
 
     /// Count nodes in a typed tree using raw string comparison (legacy approach simulation).
