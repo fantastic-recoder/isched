@@ -19,6 +19,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - File-based evidence in `specs/009-raise-pass-improvement-ratio/artifacts/` (JSON/Markdown/text gate outputs) (009-raise-pass-improvement-ratio)
 - TypeScript with Angular 21 on the frontend; existing C++23 backend preserved + Angular standalone APIs, RxJS for request streams, CodeMirror 6 GraphQL editor packages, existing `GraphQLService` transport, Tailwind CSS 3.x + DaisyUI 4.x (011-graphql-playground)
 - Browser-persistent layout preferences only; no new server-side storage (011-graphql-playground)
+- C++23 (required by constitution) + Boost.DLL 1.84.0 (header-only + `Boost::filesystem` + `${CMAKE_DL_LIBS}`), nlohmann/json (already in use), spdlog (already in use), Catch2 (testing) (012-plugin-system-boost-dll)
+- SQLite via `DatabaseManager` (`isched_system.db`, `plugin_registry` table — already implemented) (012-plugin-system-boost-dll)
 
 - (004-add-isched-webui)
 
@@ -38,9 +40,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 012-plugin-system-boost-dll: Added C++23 (required by constitution) + Boost.DLL 1.84.0 (header-only + `Boost::filesystem` + `${CMAKE_DL_LIBS}`), nlohmann/json (already in use), spdlog (already in use), Catch2 (testing)
 - 011-graphql-playground: Added TypeScript with Angular 21 on the frontend; existing C++23 backend preserved + Angular standalone APIs, RxJS for request streams, CodeMirror 6 GraphQL editor packages, existing `GraphQLService` transport, Tailwind CSS 3.x + DaisyUI 4.x
 - 009-raise-pass-improvement-ratio: Added C++23 for product/test code; Python 3 for artifact-validation helpers and workflow scripts + Catch2 3.x, CMake + Ninja, Conan 2.x, existing `tools/refactor_pass/*` shell/Python tooling, JSON Schema Draft 2020-12 contracts
-- 008-dod-mech-refactor: Added C++23 + Catch2 3.x, Boost 1.84, cpp-httplib, nlohmann_json, spdlog, jwt-cpp, sqlite3, taocpp-pegtl
 
 
 <!-- MANUAL ADDITIONS START -->
