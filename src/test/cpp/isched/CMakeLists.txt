@@ -95,6 +95,11 @@ add_executable(isched_config_tests isched_config_tests.cpp isched_pattern_match_
 target_link_libraries(isched_config_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog)
 add_test(NAME isched_config_tests COMMAND isched_config_tests)
 
+# Plugin system unit tests (SP-012)
+add_executable(isched_plugin_system_tests isched_plugin_system_tests.cpp)
+target_link_libraries(isched_plugin_system_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl Boost::filesystem sago::platform_folders)
+add_test(NAME isched_plugin_system_tests COMMAND isched_plugin_system_tests)
+
 # Integration tests for User Story 1 - Frontend Developer Setup
 add_executable(test_server_startup ../integration/test_server_startup.cpp)
 target_link_libraries(test_server_startup PRIVATE isched Catch2::Catch2WithMain Boost::url spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 Boost::url httplib::httplib openssl::openssl)
@@ -334,6 +339,7 @@ set(_isched_fast_unit_tests
     isched_custom_node_tests
     isched_visitor_tests
     isched_ast_benchmarks
+    isched_plugin_system_tests
 )
 
 set(_isched_integration_tests

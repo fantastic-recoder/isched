@@ -57,6 +57,7 @@ namespace isched::v0_0_1::backend {
     class AuthenticationMiddleware;        ///< Forward declaration for login resolver
     class SubscriptionBroker;              ///< Forward declaration for event publishing
     class MetricsCollector;               ///< Forward declaration for metrics (T051)
+    class PluginManager;                   ///< Forward declaration for plugin loading/unloading
     using DocumentPtr = std::shared_ptr<gql::Document>;
 
     using namespace std::chrono_literals; // enable 10ms, 5s, etc. literals in this header
@@ -106,6 +107,22 @@ namespace isched::v0_0_1::backend {
          */
         void register_resolver(const ResolverPath& p_scope, const std::string& p_field_name, ResolverFunction &&p_resolver) {
             m_resolvers_map[p_scope][p_field_name]= p_resolver;
+        }
+
+        /**
+         * @brief Remove a previously registered field resolver.
+         * @return true if a resolver was removed.
+         */
+        [[nodiscard]] bool unregister_resolver(const ResolverPath& p_scope, const std::string& p_field_name) {
+            multi_dim_map<std::string, ResolverFunction>* current = &m_resolvers_map;
+            for (const auto& key : p_scope) {
+                auto it = current->find(key);
+                if (it == current->end()) {
+                    return false;
+                }
+                current = &(it->second);
+            }
+            return current->erase(p_field_name) > 0;
         }
 
         [[nodiscard]] bool has_resolver_exact(const ResolverPath& p_path, std::string_view field_name) const noexcept {
@@ -364,6 +381,16 @@ namespace isched::v0_0_1::backend {
         }
 
         /**
+         * @brief Unregister a previously registered resolver
+         * @param path Resolver path/scope
+         * @param field_name Field name
+         * @return true if a resolver was removed
+         */
+        [[nodiscard]] bool unregister_resolver(const ResolverPath& path, const std::string& field_name) {
+            return m_resolvers.unregister_resolver(path, field_name);
+        }
+
+        /**
          * @brief Declare which roles are required to call a top-level field.
          *
          * The check is OR-based: the caller must hold **at least one** of the
@@ -454,6 +481,13 @@ namespace isched::v0_0_1::backend {
         }
 
         /**
+         * @brief Wire the plugin manager used by plugin-related GraphQL mutations.
+         */
+        void set_plugin_manager(std::shared_ptr<PluginManager> plugins) {
+            m_plugins = std::move(plugins);
+        }
+
+        /**
          * @brief Register a callback invoked by the `shutdown` mutation after the
          *        response has been flushed (runs on a short-lived detached thread).
          *
@@ -515,6 +549,9 @@ namespace isched::v0_0_1::backend {
 
         // Authentication middleware for the login resolver (T047-016); shared ownership.
         std::shared_ptr<AuthenticationMiddleware> m_auth;
+
+        // Plugin manager for dynamic request/resolver plugin loading.
+        std::shared_ptr<PluginManager> m_plugins;
 
         // Server-level master secret for DataSource API key encryption (T048-001a).
         std::string m_master_secret;

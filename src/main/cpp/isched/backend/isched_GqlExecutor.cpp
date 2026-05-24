@@ -38,6 +38,7 @@
 #include "isched_DatabaseManager.hpp"
 #include "isched_RestDataSource.hpp"
 #include "isched_SubscriptionBroker.hpp"
+#include "isched_PluginSystem.hpp"
 #include "isched_MetricsCollector.hpp"
 
 namespace {
@@ -966,9 +967,112 @@ namespace isched::v0_0_1::backend {
                 return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
             });
 
+        auto plugin_to_json = [](const PluginRecord& plugin) -> json {
+            return json{
+                {"id", plugin.id},
+                {"kind", plugin.kind},
+                {"name", plugin.name},
+                {"version", plugin.version},
+                {"description", plugin.description},
+                {"libraryPath", plugin.libraryPath},
+                {"manifestJson", plugin.manifestJson},
+                {"isLoaded", plugin.isLoaded},
+                {"loadedAt", plugin.loadedAt.empty() ? json(nullptr) : json(plugin.loadedAt)},
+                {"unloadedAt", plugin.unloadedAt.empty() ? json(nullptr) : json(plugin.unloadedAt)}
+            };
+        };
+
+        register_resolver({}, "plugins",
+            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+                json result = json::array();
+                if (!m_plugins) {
+                    return result;
+                }
+                const auto list = m_plugins->list_plugins();
+                const auto kind_filter = args.contains("kind") && args["kind"].is_string()
+                    ? pluginKindFromString(args["kind"].get<std::string>())
+                    : std::optional<PluginKind>{};
+                for (const auto& plugin : list) {
+                    if (kind_filter && plugin.kind != toString(*kind_filter)) {
+                        continue;
+                    }
+                    result.push_back(plugin_to_json(plugin));
+                }
+                return result;
+            });
+
+        register_resolver({}, "loadPlugin",
+            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+                json result;
+                result["success"] = false;
+                result["plugin"] = nullptr;
+                result["errors"] = json::array();
+                if (!m_plugins) {
+                    result["errors"].push_back("Plugin manager not available");
+                    return result;
+                }
+                if (!args.contains("input") || !args["input"].is_object()) {
+                    result["errors"].push_back("Missing required argument: input");
+                    return result;
+                }
+                const auto& input = args["input"];
+                const std::string library_path = input.value("libraryPath", "");
+                const std::string kind_raw = input.value("kind", "");
+                if (library_path.empty()) {
+                    result["errors"].push_back("input.libraryPath is required");
+                    return result;
+                }
+                const auto kind = pluginKindFromString(kind_raw);
+                if (!kind) {
+                    result["errors"].push_back("input.kind must be 'request' or 'resolver'");
+                    return result;
+                }
+                const std::optional<std::string> plugin_id = input.contains("pluginId") && input["pluginId"].is_string()
+                    ? std::optional<std::string>{input["pluginId"].get<std::string>()}
+                    : std::nullopt;
+                const auto load_result = m_plugins->load_plugin(library_path, *kind, plugin_id);
+                if (!load_result.success) {
+                    result["errors"] = load_result.errors;
+                    return result;
+                }
+                const auto record = m_plugins->get_plugin(load_result.pluginId);
+                result["success"] = true;
+                result["pluginId"] = load_result.pluginId;
+                result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
+                return result;
+            });
+
+        register_resolver({}, "unloadPlugin",
+            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+                json result;
+                result["success"] = false;
+                result["plugin"] = nullptr;
+                result["errors"] = json::array();
+                if (!m_plugins) {
+                    result["errors"].push_back("Plugin manager not available");
+                    return result;
+                }
+                const std::string plugin_id = args.value("pluginId", args.value("id", ""));
+                if (plugin_id.empty()) {
+                    result["errors"].push_back("pluginId is required");
+                    return result;
+                }
+                const auto unload_result = m_plugins->unload_plugin(plugin_id);
+                if (!unload_result.success) {
+                    result["errors"] = unload_result.errors;
+                    return result;
+                }
+                result["success"] = true;
+                result["pluginId"] = plugin_id;
+                const auto record = m_plugins->get_plugin(plugin_id);
+                result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
+                return result;
+            });
+
         // Initialise the config store (idempotent — safe to call on every startup)
         if (m_database) {
             std::ignore = m_database->initialize_config_store();
+            std::ignore = m_database->initialize_plugin_store();
         }
 
         // Helper: format a system_clock time_point as ISO-8601

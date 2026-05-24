@@ -10,6 +10,7 @@
  */
 
 #include "isched_DatabaseManager.hpp"
+#include "isched_PluginSystem.hpp"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <array>
@@ -1029,6 +1030,157 @@ DatabaseManager::get_config_snapshot(const std::string& snapshot_id) const
     return DatabaseResult<std::optional<ConfigurationSnapshot>>{DatabaseError::QueryFailed};
 }
 
+namespace {
+PluginRecord row_to_plugin_record(sqlite3_stmt* stmt) {
+    PluginRecord record;
+    auto col_str = [&](int col) -> std::string {
+        const char* raw = reinterpret_cast<const char*>(sqlite3_column_text(stmt, col));
+        return raw ? raw : "";
+    };
+    record.id = col_str(0);
+    record.kind = col_str(1);
+    record.name = col_str(2);
+    record.version = col_str(3);
+    record.description = col_str(4);
+    record.libraryPath = col_str(5);
+    record.manifestJson = col_str(6);
+    record.isLoaded = sqlite3_column_int(stmt, 7) != 0;
+    record.loadedAt = col_str(8);
+    record.unloadedAt = col_str(9);
+    return record;
+}
+} // namespace
+
+DatabaseResult<void> DatabaseManager::initialize_plugin_store() {
+    std::lock_guard<std::mutex> lock(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* ddl = R"sql(
+        CREATE TABLE IF NOT EXISTS plugin_registry (
+            id            TEXT PRIMARY KEY,
+            kind          TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            version       TEXT NOT NULL,
+            description   TEXT NOT NULL DEFAULT '',
+            library_path  TEXT NOT NULL,
+            manifest_json TEXT NOT NULL,
+            is_loaded     INTEGER NOT NULL DEFAULT 0,
+            loaded_at     TEXT,
+            unloaded_at   TEXT
+        );
+    )sql";
+    if (sqlite3_exec(system_db_.get(), ddl, nullptr, nullptr, nullptr) != SQLITE_OK) {
+        spdlog::error("initialize_plugin_store: DDL failed: {}", sqlite3_errmsg(system_db_.get()));
+        return DatabaseError::SchemaValidationFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<void> DatabaseManager::upsert_plugin_record(const PluginRecord& record) {
+    std::lock_guard<std::mutex> lock(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+
+    const char* sql = R"sql(
+        INSERT INTO plugin_registry
+            (id, kind, name, version, description, library_path, manifest_json, is_loaded, loaded_at, unloaded_at)
+        VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            kind=excluded.kind,
+            name=excluded.name,
+            version=excluded.version,
+            description=excluded.description,
+            library_path=excluded.library_path,
+            manifest_json=excluded.manifest_json,
+            is_loaded=excluded.is_loaded,
+            loaded_at=excluded.loaded_at,
+            unloaded_at=excluded.unloaded_at;
+    )sql";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    sqlite3_bind_text(stmt, 1, record.id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, record.kind.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, record.name.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, record.version.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, record.description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, record.libraryPath.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 7, record.manifestJson.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 8, record.isLoaded ? 1 : 0);
+    if (record.loadedAt.empty()) sqlite3_bind_null(stmt, 9); else sqlite3_bind_text(stmt, 9, record.loadedAt.c_str(), -1, SQLITE_TRANSIENT);
+    if (record.unloadedAt.empty()) sqlite3_bind_null(stmt, 10); else sqlite3_bind_text(stmt, 10, record.unloadedAt.c_str(), -1, SQLITE_TRANSIENT);
+
+    const int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    if (rc != SQLITE_DONE) {
+        return DatabaseError::QueryFailed;
+    }
+    return DatabaseResult<void>{};
+}
+
+DatabaseResult<std::optional<PluginRecord>>
+DatabaseManager::get_plugin_record(const std::string& plugin_id) const
+{
+    std::lock_guard<std::mutex> lock(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+    sqlite3* db = system_db_.get();
+
+    const char* sql = R"sql(
+        SELECT id,kind,name,version,description,library_path,manifest_json,is_loaded,loaded_at,unloaded_at
+        FROM plugin_registry WHERE id=? LIMIT 1;
+    )sql";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+    sqlite3_bind_text(stmt, 1, plugin_id.c_str(), -1, SQLITE_TRANSIENT);
+    const int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_ROW) {
+        auto record = row_to_plugin_record(stmt);
+        sqlite3_finalize(stmt);
+        return DatabaseResult<std::optional<PluginRecord>>{std::optional<PluginRecord>{record}};
+    }
+    sqlite3_finalize(stmt);
+    if (rc == SQLITE_DONE) {
+        return DatabaseResult<std::optional<PluginRecord>>{std::optional<PluginRecord>{}};
+    }
+    return DatabaseError::QueryFailed;
+}
+
+DatabaseResult<std::vector<PluginRecord>>
+DatabaseManager::list_plugin_records() const
+{
+    std::lock_guard<std::mutex> lock(system_db_mutex_);
+    if (!system_db_initialized_ || !system_db_) {
+        return DatabaseError::ConnectionFailed;
+    }
+    sqlite3* db = system_db_.get();
+
+    const char* sql = R"sql(
+        SELECT id,kind,name,version,description,library_path,manifest_json,is_loaded,loaded_at,unloaded_at
+        FROM plugin_registry ORDER BY id ASC;
+    )sql";
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return DatabaseError::QueryFailed;
+    }
+
+    std::vector<PluginRecord> records;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        records.push_back(row_to_plugin_record(stmt));
+    }
+    sqlite3_finalize(stmt);
+    return DatabaseResult<std::vector<PluginRecord>>{std::move(records)};
+}
+
 // ============================================================================
 // System database (T047-000)
 // ============================================================================
@@ -1119,6 +1271,19 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
             value   TEXT NOT NULL,
             PRIMARY KEY (org_id, key)
         );
+
+        CREATE TABLE IF NOT EXISTS plugin_registry (
+            id            TEXT PRIMARY KEY,
+            kind          TEXT NOT NULL,
+            name          TEXT NOT NULL,
+            version       TEXT NOT NULL,
+            description   TEXT NOT NULL DEFAULT '',
+            library_path  TEXT NOT NULL,
+            manifest_json TEXT NOT NULL,
+            is_loaded     INTEGER NOT NULL DEFAULT 0,
+            loaded_at     TEXT,
+            unloaded_at   TEXT
+        );
     )sql";
 
     rc = sqlite3_exec(system_db_.get(), ddl, nullptr, nullptr, nullptr);
@@ -1138,6 +1303,10 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
         "ALTER TABLE organizations ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;",
         "ALTER TABLE organizations ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';",
         "ALTER TABLE platform_roles ADD COLUMN scope TEXT NOT NULL DEFAULT 'platform';",
+        "ALTER TABLE plugin_registry ADD COLUMN manifest_json TEXT NOT NULL DEFAULT '{}';",
+        "ALTER TABLE plugin_registry ADD COLUMN is_loaded INTEGER NOT NULL DEFAULT 0;",
+        "ALTER TABLE plugin_registry ADD COLUMN loaded_at TEXT;",
+        "ALTER TABLE plugin_registry ADD COLUMN unloaded_at TEXT;",
         nullptr
     };
     for (int mi = 0; migrations[mi] != nullptr; ++mi) {

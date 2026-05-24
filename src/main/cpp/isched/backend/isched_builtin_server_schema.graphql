@@ -200,6 +200,12 @@ type Query {
   schemaDocuments: [SchemaDocumentSummary!]!
   """Fetch a single schema document by exact name for the authenticated tenant"""
   schemaDocument(name: String!): SchemaDocument
+  """List all registered plugins (platform_admin only)"""
+  plugins: [PluginRecord!]!
+  """Get a single plugin by ID (platform_admin only)"""
+  plugin(id: ID!): PluginRecord
+  """Export the aggregated OpenAPI document from all loaded request plugins (platform_admin only)"""
+  pluginOpenApiDocument: String
 }
 
 """A platform or tenant role"""
@@ -266,6 +272,10 @@ type Mutation {
   createPlatformAdmin(email: String!, password: String!): User!
   """Upload or replace a GraphQL SDL schema document for the authenticated tenant (tenant_admin only)"""
   uploadSchemaDocument(input: UploadSchemaDocumentInput!): SchemaUploadResult!
+  """Load a plugin from a shared library path (platform_admin only)"""
+  loadPlugin(input: LoadPluginInput!): PluginOperationResult!
+  """Unload a previously loaded plugin (platform_admin only)"""
+  unloadPlugin(id: ID!): PluginOperationResult!
 }
 
 """Event payload when a configuration snapshot is activated"""
@@ -659,3 +669,46 @@ type SchemaUploadResult {
   error: SchemaUploadError
 }
 
+# ── Plugin system (SP-012) ───────────────────────────────────────────────────
+
+"""Persisted record for a registered plugin"""
+type PluginRecord {
+  """Stable plugin ID (UUID)"""
+  id: ID!
+  """Plugin kind: REQUEST or RESOLVER"""
+  kind: String!
+  """Human-readable plugin name"""
+  name: String!
+  """Plugin version string"""
+  version: String!
+  """Optional description"""
+  description: String!
+  """Absolute path to the shared library"""
+  libraryPath: String!
+  """Whether the plugin is currently loaded"""
+  isLoaded: Boolean!
+  """ISO-8601 timestamp when last loaded (empty if never)"""
+  loadedAt: String!
+  """ISO-8601 timestamp when last unloaded (empty if still loaded)"""
+  unloadedAt: String!
+}
+
+"""Result envelope for load/unload mutations"""
+type PluginOperationResult {
+  """True when the operation succeeded"""
+  success: Boolean!
+  """ID of the plugin that was loaded or unloaded"""
+  pluginId: String!
+  """Non-empty on failure: list of error messages"""
+  errors: [String!]!
+}
+
+"""Input for loadPlugin mutation"""
+input LoadPluginInput {
+  """Absolute or relative path to the shared library (.so/.dll/.dylib)"""
+  libraryPath: String!
+  """Plugin kind: REQUEST or RESOLVER"""
+  kind: String!
+  """Optional stable ID to assign; auto-generated if omitted"""
+  pluginId: String
+}

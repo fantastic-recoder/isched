@@ -51,6 +51,8 @@
 
 namespace isched::v0_0_1::backend {
 
+struct PluginRecord;
+
 /**
  * @brief Error types for database operations
  */
@@ -704,6 +706,32 @@ public:
      */
     [[nodiscard]] DatabaseResult<std::optional<ConfigurationSnapshot>>
     get_config_snapshot(const std::string& snapshot_id) const;
+
+    // -------------------------------------------------------------------------
+    // Plugin persistence (SP-012)
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief Initialise the plugin registry table.
+     */
+    [[nodiscard]] DatabaseResult<void> initialize_plugin_store();
+
+    /**
+     * @brief Insert or update a plugin record.
+     */
+    [[nodiscard]] DatabaseResult<void> upsert_plugin_record(const PluginRecord& record);
+
+    /**
+     * @brief Return a persisted plugin record by id, or nullopt.
+     */
+    [[nodiscard]] DatabaseResult<std::optional<PluginRecord>>
+    get_plugin_record(const std::string& plugin_id) const;
+
+    /**
+     * @brief Return all persisted plugin records.
+     */
+    [[nodiscard]] DatabaseResult<std::vector<PluginRecord>>
+    list_plugin_records() const;
 
     // -------------------------------------------------------------------------
     // System database (T047-000)

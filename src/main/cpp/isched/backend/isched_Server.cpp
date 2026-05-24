@@ -21,6 +21,7 @@
 #include "isched_SubscriptionBroker.hpp"
 #include "isched_MetricsCollector.hpp"
 #include "isched_UiAssetRegistry.hpp"
+#include "isched_PluginSystem.hpp"
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
@@ -527,13 +528,16 @@ public:
                                                 const std::string&, /*remote_ip*/
                                                 const std::unordered_map<std::string, std::string>&)>; /*headers*/
     using MetricFn   = std::function<void(double /*ms*/)>;
+    using PluginDispatchFn = std::function<std::optional<PluginHttpResponse>(const PluginHttpRequest&)>;
 
     HttpSession(tcp::socket socket, net::io_context& ioc,
-                ExecuteFn execute_fn, MetricFn metric_fn)
+                ExecuteFn execute_fn, MetricFn metric_fn,
+                PluginDispatchFn plugin_dispatch_fn = nullptr)
         : strand_(net::make_strand(ioc))
         , stream_(std::move(socket))
         , execute_fn_(std::move(execute_fn))
         , metric_fn_(std::move(metric_fn))
+        , plugin_dispatch_fn_(std::move(plugin_dispatch_fn))
     {}
 
     void run() {
@@ -720,6 +724,30 @@ private:
                     res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip, req_headers);
                 }
             }
+        } else if (target_path.rfind("/plugin/", 0) == 0 && plugin_dispatch_fn_) {
+            // ── Plugin request dispatch (SP-012) ───────────────────────────────
+            // Build the plugin request and forward to the plugin manager.
+            StringMap hdrs_map;
+            for (auto const& field : req_)
+                hdrs_map[std::string(field.name_string())] = std::string(field.value());
+            PluginHttpRequest preq;
+            preq.method   = std::string(req_.method_string());
+            preq.target   = target_path;
+            preq.body     = req_.body();
+            preq.remoteIp = remote_ip;
+            preq.headers  = hdrs_map;
+            const auto presp = plugin_dispatch_fn_(preq);
+            if (presp) {
+                res.result(static_cast<beast::http::status>(presp->status));
+                res.set(beast::http::field::content_type, presp->contentType);
+                for (auto const& [k, v] : presp->headers)
+                    res.set(k, v);
+                res.body() = presp->body;
+            } else {
+                res.result(beast::http::status::not_found);
+                res.set(beast::http::field::content_type, "application/json");
+                res.body() = R"({"errors":[{"message":"No plugin handles this route"}]})";
+            }
         } else {
             res.result(beast::http::status::not_found);
             res.body() = R"({"errors":[{"message":"Not found. Use GET /isched[/...] for UI or POST /graphql for GraphQL"}]})";
@@ -762,6 +790,7 @@ private:
     beast::http::request<beast::http::string_body>     req_;
     ExecuteFn                                          execute_fn_;
     MetricFn                                           metric_fn_;
+    PluginDispatchFn                                   plugin_dispatch_fn_;
 };
 
 // ---------------------------------------------------------------------------
@@ -771,11 +800,13 @@ class HttpListener : public std::enable_shared_from_this<HttpListener> {
 public:
     HttpListener(net::io_context& ioc, tcp::endpoint endpoint,
                  HttpSession::ExecuteFn execute_fn,
-                 HttpSession::MetricFn  metric_fn)
+                 HttpSession::MetricFn  metric_fn,
+                 HttpSession::PluginDispatchFn plugin_dispatch_fn = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , execute_fn_(std::move(execute_fn))
         , metric_fn_(std::move(metric_fn))
+        , plugin_dispatch_fn_(std::move(plugin_dispatch_fn))
     {
         beast::error_code ec;
         acceptor_.open(endpoint.protocol(), ec);
@@ -802,7 +833,7 @@ private:
     void on_accept(beast::error_code ec, tcp::socket socket) {
         if (!ec) {
             auto session = std::make_shared<HttpSession>(
-                std::move(socket), ioc_, execute_fn_, metric_fn_);
+                std::move(socket), ioc_, execute_fn_, metric_fn_, plugin_dispatch_fn_);
             session->run();
         } else if (!stopped_) {
             spdlog::warn("HttpListener accept error: {}", ec.message());
@@ -810,11 +841,12 @@ private:
         if (!stopped_) do_accept();
     }
 
-    net::io_context&          ioc_;
-    tcp::acceptor             acceptor_;
-    bool                      stopped_{false};
-    HttpSession::ExecuteFn    execute_fn_;
-    HttpSession::MetricFn     metric_fn_;
+    net::io_context&              ioc_;
+    tcp::acceptor                 acceptor_;
+    bool                          stopped_{false};
+    HttpSession::ExecuteFn        execute_fn_;
+    HttpSession::MetricFn         metric_fn_;
+    HttpSession::PluginDispatchFn plugin_dispatch_fn_;
 };
 
 /**
@@ -866,6 +898,12 @@ public:
         auth->configure_jwt_secret(secret);
         gql_executor->set_auth_middleware(auth);
         gql_executor->set_master_secret(secret);
+
+        // Wire plugin manager (SP-012)
+        plugin_manager = std::make_shared<PluginManager>(database);
+        plugin_manager->set_executor(gql_executor.get());
+        gql_executor->set_plugin_manager(plugin_manager);
+        plugin_manager->restore_persisted_plugins();
     }
 
     ~Impl() {
@@ -893,6 +931,7 @@ public:
     std::shared_ptr<DatabaseManager> database;
     std::shared_ptr<AuthenticationMiddleware> auth;  ///< Shared with GqlExecutor (T049)
     std::unique_ptr<GqlExecutor> gql_executor;
+    std::shared_ptr<PluginManager> plugin_manager;   ///< Runtime plugin loader (SP-012)
     std::atomic<uint64_t> total_requests{0};
     std::atomic<uint64_t> successful_requests{0};
     std::atomic<uint64_t> active_connections{0};
@@ -1044,7 +1083,11 @@ bool Server::start() {
                        const std::unordered_map<std::string, std::string>& hdrs) {
                     return execute_graphql(q, v, a, ip, hdrs);
                 },
-                [this](double ms) { update_response_time_metric(ms); });
+                [this](double ms) { update_response_time_metric(ms); },
+                [this](const PluginHttpRequest& req) -> std::optional<PluginHttpResponse> {
+                    if (!m_impl->plugin_manager) return std::nullopt;
+                    return m_impl->plugin_manager->dispatch_request(req);
+                });
             m_impl->http_listener->run();
             spdlog::info("Server data directory: {}", m_config.work_directory);
             spdlog::info(
