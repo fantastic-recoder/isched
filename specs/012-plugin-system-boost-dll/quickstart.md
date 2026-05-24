@@ -179,7 +179,8 @@ require_roles("unloadPlugin", {std::string(Role::PLATFORM_ADMIN)});
 
 ```bash
 cd build/release
-ctest --output-on-failure -L plugin   # run plugin-tagged tests only
+ctest -R isched_plugin_system_tests --output-on-failure
+ctest -R isched_gql_executor_auth_resolvers_tests --output-on-failure
 ctest --output-on-failure             # full suite — target: 53+ passing
 ```
 

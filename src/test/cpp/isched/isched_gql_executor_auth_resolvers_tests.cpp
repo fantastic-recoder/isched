@@ -62,3 +62,29 @@ TEST_CASE("Authentication & Session Resolvers", "[gql][resolvers][auth]") {
         WARN_IF_ERROR(res6);
     }
 }
+
+TEST_CASE("Authentication and plugin admin RBAC", "[gql][auth][plugin]") {
+    auto db = std::make_shared<DatabaseManager>();
+    REQUIRE(db->ensure_system_db().has_value());
+    REQUIRE(db->initialize_tenant("default_tenant").has_value());
+
+    GqlExecutor executor{db};
+
+    ResolverCtx tenant_admin;
+    tenant_admin.roles = {"role_tenant_admin"};
+    tenant_admin.tenant_id = "default_tenant";
+    tenant_admin.db = db;
+
+    ResolverCtx platform_admin;
+    platform_admin.roles = {"role_platform_admin"};
+    platform_admin.tenant_id = "default_tenant";
+    platform_admin.db = db;
+
+    CHECK_FALSE(executor.execute("query { plugins { id } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("query { plugin(id: \"missing\") { id } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { unloadPlugin(pluginId:\"missing\") { success } }", "{}", tenant_admin).is_success());
+
+    CHECK(executor.execute("query { plugins { id } }", "{}", platform_admin).is_success());
+    CHECK(executor.execute("query { plugin(id: \"missing\") { id } }", "{}", platform_admin).is_success());
+}

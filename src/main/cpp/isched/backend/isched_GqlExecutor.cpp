@@ -1000,6 +1000,21 @@ namespace isched::v0_0_1::backend {
                 }
                 return result;
             });
+        require_roles("plugins", {std::string(Role::PLATFORM_ADMIN)});
+
+        register_resolver({}, "plugin",
+            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+                if (!m_plugins) {
+                    return nullptr;
+                }
+                const std::string plugin_id = args.value("id", "");
+                if (plugin_id.empty()) {
+                    return nullptr;
+                }
+                const auto record = m_plugins->get_plugin(plugin_id);
+                return record ? plugin_to_json(*record) : json(nullptr);
+            });
+        require_roles("plugin", {std::string(Role::PLATFORM_ADMIN)});
 
         register_resolver({}, "loadPlugin",
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
@@ -1041,6 +1056,7 @@ namespace isched::v0_0_1::backend {
                 result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
                 return result;
             });
+        require_roles("loadPlugin", {std::string(Role::PLATFORM_ADMIN)});
 
         register_resolver({}, "unloadPlugin",
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
@@ -1068,6 +1084,7 @@ namespace isched::v0_0_1::backend {
                 result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
                 return result;
             });
+        require_roles("unloadPlugin", {std::string(Role::PLATFORM_ADMIN)});
 
         // Initialise the config store (idempotent — safe to call on every startup)
         if (m_database) {

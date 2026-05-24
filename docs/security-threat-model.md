@@ -64,6 +64,19 @@ This document summarizes the security posture and recurring mitigations for Isch
   - Authenticated users can inspect schema metadata and query responses by design
   - Browser storage may retain harmless layout preferences across sessions
 
+## Feature SP-012 Security Closeout Snapshot (2026-06-03)
+
+- **Scope**: Plugin loading and runtime execution (`loadPlugin`, `unloadPlugin`, `plugins`, `plugin`) for Boost.DLL request/resolver plugins
+- **Validated mitigations**:
+  - Plugin GraphQL administration fields are restricted to `platform_admin`
+  - Plugin manifests now carry `abi_version`; load rejects semver-major mismatches
+  - Request-plugin `openApiFragmentJson` is validated as strict JSON at load time
+  - Request route matching supports templates while blocking overlap collisions
+  - Request and resolver plugin exceptions are contained and trigger automatic unload
+- **Residual risk**:
+  - A privileged operator can still intentionally load malicious native code
+  - Crash containment does not sandbox arbitrary plugin side effects outside resolver/request callback boundaries
+
 ## Common Security Themes
 
 - **Secure bootstrap**: any unauthenticated bootstrap path must be narrow, explicitly documented, and automatically disabled after first-use conditions are satisfied.

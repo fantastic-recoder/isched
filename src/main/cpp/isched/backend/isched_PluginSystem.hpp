@@ -12,6 +12,7 @@
 #include <boost/dll/shared_library.hpp>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <unordered_map>
@@ -20,6 +21,10 @@
 namespace isched::v0_0_1::backend {
     class DatabaseManager;
     class GqlExecutor;
+    struct ResolverCtx;
+
+    inline constexpr std::string_view PLUGIN_ABI_VERSION = "1.0.0";
+    inline constexpr int PLUGIN_ABI_MAJOR = 1;
 
     /**
      * @brief Plugin kind supported by the runtime.
@@ -66,9 +71,24 @@ namespace isched::v0_0_1::backend {
         String version;
         String description;
         String libraryPath;
+        String abi_version{String(PLUGIN_ABI_VERSION)};
         String openApiFragmentJson;
         std::vector<PluginRoute> requestRoutes;
         std::vector<PluginResolverBinding> resolverBindings;
+    };
+
+    class IResolverRegistrar {
+    public:
+        virtual ~IResolverRegistrar() = default;
+        using ResolverPath = std::vector<std::string>;
+        using ResolverFunction = std::function<nlohmann::json(
+            const nlohmann::json&, const nlohmann::json&, const ResolverCtx&)>;
+
+        virtual void register_resolver(const ResolverPath& scope,
+                                       const std::string& field_name,
+                                       ResolverFunction resolver) = 0;
+        virtual void unregister_resolver(const ResolverPath& scope,
+                                         const std::string& field_name) = 0;
     };
 
     /**
@@ -130,8 +150,8 @@ namespace isched::v0_0_1::backend {
      */
     class ResolverPlugin : public Plugin {
     public:
-        virtual void registerResolvers(GqlExecutor& executor) = 0;
-        virtual void unregisterResolvers(GqlExecutor& executor) = 0;
+        virtual void registerResolvers(IResolverRegistrar& registrar) = 0;
+        virtual void unregisterResolvers(IResolverRegistrar& registrar) = 0;
     };
 
     /**
@@ -163,7 +183,7 @@ namespace isched::v0_0_1::backend {
 
         [[nodiscard]] std::optional<PluginRecord> get_plugin(const String& plugin_id) const;
 
-        [[nodiscard]] std::optional<PluginHttpResponse> dispatch_request(const PluginHttpRequest& request) const;
+        [[nodiscard]] std::optional<PluginHttpResponse> dispatch_request(const PluginHttpRequest& request);
 
         [[nodiscard]] nlohmann::json export_openapi_document() const;
 
@@ -216,6 +236,9 @@ namespace isched::v0_0_1::backend {
         [[nodiscard]] bool route_conflicts_with_loaded(const PluginManifest& manifest) const;
         [[nodiscard]] bool resolver_conflicts_with_loaded(const PluginManifest& manifest) const;
         [[nodiscard]] std::optional<LoadedPlugin> find_loaded_plugin(const String& plugin_id) const;
+        [[nodiscard]] PluginHttpResponse crash_unload_request_plugin(const String& plugin_id,
+                                                                     const std::exception& ex) noexcept;
+        void crash_unload_resolver_plugin(const String& plugin_id, const std::exception& ex) noexcept;
 
         std::shared_ptr<DatabaseManager> m_database;
         GqlExecutor* m_executor{nullptr};

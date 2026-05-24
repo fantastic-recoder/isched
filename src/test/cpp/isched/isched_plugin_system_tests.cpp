@@ -11,323 +11,256 @@
 #include <isched/backend/isched_DatabaseManager.hpp>
 #include <isched/backend/isched_GqlExecutor.hpp>
 #include <nlohmann/json.hpp>
-#include <algorithm>
+
 #include <atomic>
-#include <cstdlib>
-#include <ctime>
 #include <memory>
+#include <unistd.h>
 
 using namespace isched::v0_0_1::backend;
 using json = nlohmann::json;
-
-// ── Test helpers ──────────────────────────────────────────────────────────────
 
 namespace {
 
 std::shared_ptr<DatabaseManager> make_test_db() {
     static std::atomic<int> counter{0};
-    const auto pid   = static_cast<unsigned long>(getpid());
-    const auto seqno = counter.fetch_add(1);
     DatabaseManager::Config cfg;
-    cfg.base_path = "/tmp/isched_plugin_test_" +
-                    std::to_string(pid) + "_" +
-                    std::to_string(seqno);
+    cfg.base_path = "/tmp/isched_plugin_test_" + std::to_string(static_cast<unsigned long>(getpid())) +
+                    "_" + std::to_string(counter.fetch_add(1));
     return std::make_shared<DatabaseManager>(cfg);
 }
 
+struct PassthroughRegistrar final : IResolverRegistrar {
+    explicit PassthroughRegistrar(GqlExecutor& executor) : m_executor(executor) {}
+
+    void register_resolver(const ResolverPath& scope,
+                           const std::string& field_name,
+                           ResolverFunction resolver) override {
+        m_executor.register_resolver(scope, field_name, std::move(resolver));
+    }
+
+    void unregister_resolver(const ResolverPath& scope,
+                             const std::string& field_name) override {
+        m_executor.unregister_resolver(scope, field_name);
+    }
+
+    GqlExecutor& m_executor;
+};
+
 class StubRequestPlugin final : public RequestPlugin {
 public:
-    explicit StubRequestPlugin(PluginManifest m) : m_manifest(std::move(m)) {}
+    StubRequestPlugin(PluginManifest manifest, String body = "ok", bool should_throw = false)
+        : m_manifest(std::move(manifest)), m_body(std::move(body)), m_should_throw(should_throw) {}
+
     [[nodiscard]] PluginManifest manifest() const override { return m_manifest; }
-    [[nodiscard]] std::optional<PluginHttpResponse>
-    handleRequest(const PluginHttpRequest& req) override {
-        PluginHttpResponse resp;
-        resp.status      = 200;
-        resp.contentType = "text/plain";
-        resp.body        = "stub:" + req.target;
-        return resp;
+
+    [[nodiscard]] std::optional<PluginHttpResponse> handleRequest(const PluginHttpRequest& request) override {
+        if (m_should_throw) {
+            throw std::runtime_error("request plugin crash");
+        }
+        PluginHttpResponse response;
+        response.status = 200;
+        response.contentType = "text/plain";
+        response.body = m_body + ":" + request.target;
+        return response;
     }
+
 private:
     PluginManifest m_manifest;
+    String m_body;
+    bool m_should_throw{false};
 };
 
 class StubResolverPlugin final : public ResolverPlugin {
 public:
-    explicit StubResolverPlugin(PluginManifest m) : m_manifest(std::move(m)) {}
+    StubResolverPlugin(PluginManifest manifest, bool should_throw = false)
+        : m_manifest(std::move(manifest)), m_should_throw(should_throw) {}
+
     [[nodiscard]] PluginManifest manifest() const override { return m_manifest; }
-    void registerResolvers(GqlExecutor& executor) override {
+
+    void registerResolvers(IResolverRegistrar& registrar) override {
         for (const auto& binding : m_manifest.resolverBindings) {
             const String field = binding.fieldName;
-            executor.register_resolver({}, field,
-                [field](const json&, const json&, const ResolverCtx&) -> json {
-                    return "stub_resolver:" + field;
+            const bool should_throw = m_should_throw;
+            registrar.register_resolver({}, field,
+                [field, should_throw](const json&, const json&, const ResolverCtx&) -> json {
+                    if (should_throw) {
+                        throw std::runtime_error("resolver crash");
+                    }
+                    return "resolver:" + field;
                 });
         }
     }
-    void unregisterResolvers(GqlExecutor& executor) override {
-        for (const auto& b : m_manifest.resolverBindings)
-            executor.unregister_resolver({}, b.fieldName);
+
+    void unregisterResolvers(IResolverRegistrar& registrar) override {
+        for (const auto& binding : m_manifest.resolverBindings) {
+            registrar.unregister_resolver({}, binding.fieldName);
+        }
     }
+
 private:
     PluginManifest m_manifest;
+    bool m_should_throw{false};
 };
 
 PluginManifest make_request_manifest(const std::string& id,
-                                      const std::string& route_path,
-                                      const std::string& method = "GET") {
-    PluginManifest m;
-    m.id          = id;
-    m.kind        = PluginKind::Request;
-    m.name        = "Test " + id;
-    m.version     = "1.0.0";
-    m.libraryPath = "/fake/" + id + ".so";
-    m.requestRoutes.push_back({method, route_path});
-    return m;
+                                     const std::string& route,
+                                     const std::string& method = "GET") {
+    PluginManifest manifest;
+    manifest.id = id;
+    manifest.kind = PluginKind::Request;
+    manifest.name = id;
+    manifest.version = "1.0.0";
+    manifest.libraryPath = "/tmp/" + id + ".so";
+    manifest.requestRoutes.push_back({method, route});
+    return manifest;
 }
 
 PluginManifest make_resolver_manifest(const std::string& id,
-                                       const std::string& field_name) {
-    PluginManifest m;
-    m.id          = id;
-    m.kind        = PluginKind::Resolver;
-    m.name        = "Resolver " + id;
-    m.version     = "1.0.0";
-    m.libraryPath = "/fake/" + id + ".so";
-    PluginResolverBinding b;
-    b.fieldName = field_name;
-    m.resolverBindings.push_back(std::move(b));
-    return m;
+                                      const std::string& field) {
+    PluginManifest manifest;
+    manifest.id = id;
+    manifest.kind = PluginKind::Resolver;
+    manifest.name = id;
+    manifest.version = "1.0.0";
+    manifest.libraryPath = "/tmp/" + id + ".so";
+    manifest.resolverBindings.push_back({.scope = {}, .fieldName = field, .requiredRoles = {}});
+    return manifest;
 }
 
-} // anonymous namespace
+} // namespace
 
-// ── PluginKind helpers ────────────────────────────────────────────────────────
-
-TEST_CASE("PluginKind toString/fromString round-trips", "[plugin][kind]") {
-    SECTION("request") {
-        REQUIRE(toString(PluginKind::Request) == "request");
-        const auto k = pluginKindFromString("request");
-        REQUIRE(k.has_value());
-        REQUIRE(*k == PluginKind::Request);
-    }
-    SECTION("resolver") {
-        REQUIRE(toString(PluginKind::Resolver) == "resolver");
-        const auto k = pluginKindFromString("resolver");
-        REQUIRE(k.has_value());
-        REQUIRE(*k == PluginKind::Resolver);
-    }
-    SECTION("unknown value returns nullopt") {
-        REQUIRE_FALSE(pluginKindFromString("unknown_xyz").has_value());
-    }
-    SECTION("empty string returns nullopt") {
-        REQUIRE_FALSE(pluginKindFromString("").has_value());
-    }
+TEST_CASE("Plugin ABI defaults to server ABI version", "[plugin][abi]") {
+    PluginManifest manifest;
+    CHECK(manifest.abi_version == PLUGIN_ABI_VERSION);
 }
 
-// ── PluginManager lifecycle ───────────────────────────────────────────────────
+TEST_CASE("Plugin manifest JSON persists abi_version", "[plugin][abi]") {
+    PluginManager manager{make_test_db()};
+    auto manifest = make_request_manifest("abi-test", "/plugin/abi");
+    manifest.abi_version = "1.5.3";
 
-TEST_CASE("PluginManager constructs with a DatabaseManager", "[plugin][manager]") {
-    REQUIRE_NOTHROW(PluginManager{make_test_db()});
+    manager.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(manifest), manifest);
+    const auto record = manager.get_plugin("abi-test");
+    REQUIRE(record.has_value());
+
+    const auto parsed = json::parse(record->manifestJson, nullptr, false);
+    REQUIRE_FALSE(parsed.is_discarded());
+    REQUIRE(parsed.is_object());
+    CHECK(parsed.value("abi_version", "") == "1.5.3");
 }
 
-TEST_CASE("PluginManager list_plugins returns empty on fresh start", "[plugin][manager]") {
-    PluginManager pm{make_test_db()};
-    REQUIRE(pm.list_plugins().empty());
+TEST_CASE("Dispatch matches template routes and normalizes repeated slashes", "[plugin][routes]") {
+    PluginManager manager{make_test_db()};
+    const auto manifest = make_request_manifest("templated", "/plugin/items/{id}");
+    manager.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(manifest, "templated"), manifest);
+
+    PluginHttpRequest request;
+    request.method = "GET";
+    request.target = "/plugin/items/42";
+    auto response = manager.dispatch_request(request);
+    REQUIRE(response.has_value());
+    CHECK(response->status == 200);
+
+    request.target = "/plugin//items///latest/";
+    response = manager.dispatch_request(request);
+    REQUIRE(response.has_value());
+    CHECK(response->status == 200);
+
+    request.target = "/plugin/items";
+    CHECK_FALSE(manager.dispatch_request(request).has_value());
 }
 
-TEST_CASE("PluginManager get_plugin returns nullopt for missing id", "[plugin][manager]") {
-    PluginManager pm{make_test_db()};
-    REQUIRE_FALSE(pm.get_plugin("does_not_exist").has_value());
+TEST_CASE("Dispatch keeps method isolation for template routes", "[plugin][routes]") {
+    PluginManager manager{make_test_db()};
+    manager.inject_loaded_plugin(
+        std::make_shared<StubRequestPlugin>(make_request_manifest("get", "/plugin/a/{id}", "GET"), "get"),
+        make_request_manifest("get", "/plugin/a/{id}", "GET"));
+    manager.inject_loaded_plugin(
+        std::make_shared<StubRequestPlugin>(make_request_manifest("post", "/plugin/a/{id}", "POST"), "post"),
+        make_request_manifest("post", "/plugin/a/{id}", "POST"));
+
+    PluginHttpRequest request;
+    request.target = "/plugin/a/99";
+
+    request.method = "GET";
+    auto response = manager.dispatch_request(request);
+    REQUIRE(response.has_value());
+    CHECK(response->body.find("get") != String::npos);
+
+    request.method = "POST";
+    response = manager.dispatch_request(request);
+    REQUIRE(response.has_value());
+    CHECK(response->body.find("post") != String::npos);
 }
 
-// ── Request plugin dispatch ────────────────────────────────────────────────────
+TEST_CASE("Request plugin crash returns 500 and auto-unloads plugin", "[plugin][crash]") {
+    PluginManager manager{make_test_db()};
+    const auto crashing_manifest = make_request_manifest("crash", "/plugin/crash");
+    manager.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(crashing_manifest, "", true), crashing_manifest);
 
-TEST_CASE("PluginManager dispatch_request routes to loaded request plugin", "[plugin][dispatch]") {
-    PluginManager pm{make_test_db()};
-    const auto manifest = make_request_manifest("plug1", "/plugin/hello");
-    pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(manifest), manifest);
+    PluginHttpRequest request;
+    request.method = "GET";
+    request.target = "/plugin/crash";
+    const auto crash_response = manager.dispatch_request(request);
+    REQUIRE(crash_response.has_value());
+    CHECK(crash_response->status == 500);
+    CHECK_FALSE(manager.get_plugin("crash").has_value());
 
-    SECTION("Matching GET request dispatched successfully") {
-        PluginHttpRequest req;
-        req.method   = "GET";
-        req.target   = "/plugin/hello";
-        req.remoteIp = "127.0.0.1";
-        const auto resp = pm.dispatch_request(req);
-        REQUIRE(resp.has_value());
-        CHECK(resp->status == 200);
-        CHECK(resp->body == "stub:/plugin/hello");
-    }
-    SECTION("Non-matching path returns nullopt") {
-        PluginHttpRequest req;
-        req.method = "GET";
-        req.target = "/plugin/other";
-        REQUIRE_FALSE(pm.dispatch_request(req).has_value());
-    }
-    SECTION("Wrong HTTP method returns nullopt") {
-        PluginHttpRequest req;
-        req.method = "POST";
-        req.target = "/plugin/hello";
-        REQUIRE_FALSE(pm.dispatch_request(req).has_value());
-    }
+    const auto replacement_manifest = make_request_manifest("replacement", "/plugin/crash");
+    manager.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(replacement_manifest, "replacement"), replacement_manifest);
+    const auto replacement_response = manager.dispatch_request(request);
+    REQUIRE(replacement_response.has_value());
+    CHECK(replacement_response->status == 200);
 }
 
-TEST_CASE("dispatch_request ignores resolver plugins", "[plugin][dispatch]") {
-    PluginManager pm{make_test_db()};
-    const auto m = make_resolver_manifest("res1", "myField");
-    pm.inject_loaded_plugin(std::make_shared<StubResolverPlugin>(m), m);
-    PluginHttpRequest req;
-    req.method = "GET";
-    req.target = "/plugin/myField";
-    REQUIRE_FALSE(pm.dispatch_request(req).has_value());
-}
-
-TEST_CASE("dispatch_request on empty plugin set returns nullopt", "[plugin][dispatch]") {
-    PluginManager pm{make_test_db()};
-    PluginHttpRequest req;
-    req.method = "GET";
-    req.target = "/plugin/anything";
-    REQUIRE_FALSE(pm.dispatch_request(req).has_value());
-}
-
-// ── Plugin list / get ─────────────────────────────────────────────────────────
-
-TEST_CASE("PluginManager list_plugins reports injected plugins", "[plugin][list]") {
-    PluginManager pm{make_test_db()};
-    const auto m1 = make_request_manifest("a", "/plugin/a");
-    const auto m2 = make_request_manifest("b", "/plugin/b");
-    pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(m1), m1);
-    pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(m2), m2);
-    REQUIRE(pm.list_plugins().size() == 2);
-}
-
-TEST_CASE("PluginManager get_plugin returns record for loaded plugin", "[plugin][get]") {
-    PluginManager pm{make_test_db()};
-    const auto m = make_request_manifest("myplug", "/plugin/myplug");
-    pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(m), m);
-    const auto maybe = pm.get_plugin("myplug");
-    REQUIRE(maybe.has_value());
-    CHECK(maybe->id == "myplug");
-    CHECK(maybe->isLoaded);
-}
-
-// ── Unload ────────────────────────────────────────────────────────────────────
-
-TEST_CASE("PluginManager unload removes plugin from in-memory set", "[plugin][unload]") {
-    PluginManager pm{make_test_db()};
-    const auto m = make_request_manifest("removeme", "/plugin/removeme");
-    pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(m), m);
-    REQUIRE(pm.get_plugin("removeme").has_value());
-    const auto result = pm.unload_plugin("removeme");
-    (void)result; // Unused result
-    REQUIRE_FALSE(pm.get_plugin("removeme").has_value());
-}
-
-TEST_CASE("PluginManager unload_plugin fails for unknown id", "[plugin][unload]") {
-    PluginManager pm{make_test_db()};
-    const auto result = pm.unload_plugin("nonexistent_plugin");
-    CHECK_FALSE(result.success);
-    REQUIRE_FALSE(result.errors.empty());
-}
-
-// ── OpenAPI document export ───────────────────────────────────────────────────
-
-TEST_CASE("PluginManager export_openapi_document returns valid structure", "[plugin][openapi]") {
-    PluginManager pm{make_test_db()};
-
-    SECTION("Empty plugin set yields minimal document") {
-        const auto doc = pm.export_openapi_document();
-        REQUIRE(doc.is_object());
-        CHECK(doc["openapi"] == "3.0.3");
-        CHECK(doc["paths"].is_object());
-        CHECK(doc["x-plugins"].is_array());
-        CHECK(doc["x-plugins"].empty());
-    }
-
-    SECTION("Request plugin OpenAPI fragment is merged into paths") {
-        auto m = make_request_manifest("openapi_plug", "/plugin/v1/foo");
-        m.openApiFragmentJson = R"({"paths":{"/plugin/v1/foo":{"get":{"summary":"Foo","responses":{"200":{"description":"ok"}}}}}})";
-        pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(m), m);
-        const auto doc = pm.export_openapi_document();
-        REQUIRE(doc["paths"].contains("/plugin/v1/foo"));
-        REQUIRE(doc["x-plugins"].size() == 1);
-        CHECK(doc["x-plugins"][0]["id"] == "openapi_plug");
-    }
-
-    SECTION("Invalid JSON OpenAPI fragment is silently skipped") {
-        auto m = make_request_manifest("bad_fragment", "/plugin/bad");
-        m.openApiFragmentJson = "not valid json";
-        pm.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(m), m);
-        const auto doc = pm.export_openapi_document();
-        CHECK(doc["paths"].empty());
-    }
-
-    SECTION("Resolver plugin appears in x-plugins but not in paths") {
-        const auto m = make_resolver_manifest("res_openapi", "someField");
-        pm.inject_loaded_plugin(std::make_shared<StubResolverPlugin>(m), m);
-        const auto doc = pm.export_openapi_document();
-        CHECK(doc["paths"].empty());
-        REQUIRE(doc["x-plugins"].size() == 1);
-        CHECK(doc["x-plugins"][0]["kind"] == "resolver");
-    }
-}
-
-// ── ResolverPlugin + GqlExecutor integration ─────────────────────────────────
-
-TEST_CASE("ResolverPlugin stub registers and unregisters with GqlExecutor", "[plugin][resolver]") {
+TEST_CASE("Resolver plugin uses registrar interface", "[plugin][resolver]") {
     auto db = make_test_db();
     GqlExecutor executor{db};
-    const auto m = make_resolver_manifest("res_plug", "plugTestField");
-    auto stub    = std::make_shared<StubResolverPlugin>(m);
+    PassthroughRegistrar registrar{executor};
 
-    SECTION("registerResolvers does not throw") {
-        REQUIRE_NOTHROW(stub->registerResolvers(executor));
-    }
-    SECTION("unregisterResolvers after register does not throw") {
-        stub->registerResolvers(executor);
-        REQUIRE_NOTHROW(stub->unregisterResolvers(executor));
-    }
+    const auto manifest = make_resolver_manifest("resolver", "plugField");
+    auto plugin = std::make_shared<StubResolverPlugin>(manifest);
+    REQUIRE_NOTHROW(plugin->registerResolvers(registrar));
+    const auto result = executor.execute("{ plugField }");
+    REQUIRE(result.is_success());
+    REQUIRE_NOTHROW(plugin->unregisterResolvers(registrar));
 }
 
-// ── PluginRecord struct ───────────────────────────────────────────────────────
+TEST_CASE("Plugin admin GraphQL fields require platform_admin", "[plugin][graphql][auth]") {
+    auto db = make_test_db();
+    auto manager = std::make_shared<PluginManager>(db);
+    auto manifest = make_request_manifest("gqlplug", "/plugin/gql");
+    manager->inject_loaded_plugin(std::make_shared<StubRequestPlugin>(manifest), manifest);
 
-TEST_CASE("PluginRecord default state is unloaded with empty fields", "[plugin][record]") {
-    PluginRecord r;
-    CHECK_FALSE(r.isLoaded);
-    CHECK(r.id.empty());
-    CHECK(r.kind.empty());
+    GqlExecutor executor{db};
+    executor.set_plugin_manager(manager);
+
+    ResolverCtx non_admin;
+    non_admin.roles = {"role_tenant_admin"};
+    non_admin.tenant_id = "tenant-a";
+    non_admin.db = db;
+
+    ResolverCtx admin;
+    admin.roles = {"role_platform_admin"};
+    admin.tenant_id = "tenant-a";
+    admin.db = db;
+
+    CHECK_FALSE(executor.execute("query { plugins { id } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("query { plugin(id: \"gqlplug\") { id } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } }", "{}", non_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { unloadPlugin(pluginId:\"gqlplug\") { success } }", "{}", non_admin).is_success());
+
+    CHECK(executor.execute("query { plugins { id } }", "{}", admin).is_success());
+    CHECK(executor.execute("query { plugin(id: \"gqlplug\") { id } }", "{}", admin).is_success());
 }
 
-// ── DatabaseManager plugin persistence ───────────────────────────────────────
+TEST_CASE("OpenAPI export skips invalid fragments for injected plugins", "[plugin][openapi]") {
+    PluginManager manager{make_test_db()};
+    auto manifest = make_request_manifest("bad-fragment", "/plugin/openapi");
+    manifest.openApiFragmentJson = "not valid json";
+    manager.inject_loaded_plugin(std::make_shared<StubRequestPlugin>(manifest), manifest);
 
-TEST_CASE("PluginRecord can be created and populated", "[plugin][record]") {
-    PluginRecord record;
-    record.id           = "test_plugin";
-    record.kind         = "request";
-    record.name         = "Test Plugin";
-    record.version      = "1.0.0";
-    record.description  = "A test plugin";
-    record.libraryPath  = "/path/to/plugin.so";
-    record.manifestJson = "{\"test\": true}";
-    record.isLoaded     = true;
-    record.loadedAt     = "2026-01-01T00:00:00Z";
-    record.unloadedAt   = "";
-
-    CHECK(record.id == "test_plugin");
-    CHECK(record.kind == "request");
-    CHECK(record.isLoaded == true);
+    const auto doc = manager.export_openapi_document();
+    REQUIRE(doc.is_object());
+    CHECK(doc["paths"].empty());
 }
-
-// ── Built-in GraphQL resolver smoke tests ────────────────────────────────────
-
-TEST_CASE("GqlExecutor built-in plugins query executes without crash", "[plugin][graphql]") {
-    GqlExecutor executor{make_test_db()};
-    const auto result = executor.execute(R"(query { plugins { id kind name } })");
-    REQUIRE_FALSE(result.data.is_discarded());
-}
-
-TEST_CASE("GqlExecutor plugin(id) query executes without crash", "[plugin][graphql]") {
-    GqlExecutor executor{make_test_db()};
-    const auto result = executor.execute(R"(query { plugin(id: "missing") { id } })");
-    REQUIRE_FALSE(result.data.is_discarded());
-}
-

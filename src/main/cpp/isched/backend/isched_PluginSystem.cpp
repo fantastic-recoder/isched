@@ -15,9 +15,12 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <charconv>
 #include <chrono>
+#include <cctype>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <utility>
 
 #include <spdlog/spdlog.h>
@@ -31,6 +34,119 @@ namespace {
             return static_cast<char>(std::toupper(ch));
         });
         return value;
+    }
+
+    [[nodiscard]] bool is_template_segment(std::string_view segment) {
+        return segment.size() >= 3 && segment.front() == '{' && segment.back() == '}';
+    }
+
+    [[nodiscard]] std::vector<std::string_view> split_path_segments(std::string_view path) {
+        std::vector<std::string_view> segments;
+        std::size_t start = 0;
+        while (start < path.size()) {
+            while (start < path.size() && path[start] == '/') {
+                ++start;
+            }
+            if (start >= path.size()) {
+                break;
+            }
+            auto end = path.find('/', start);
+            if (end == std::string_view::npos) {
+                end = path.size();
+            }
+            if (end > start) {
+                segments.emplace_back(path.substr(start, end - start));
+            }
+            start = end;
+        }
+        return segments;
+    }
+
+    [[nodiscard]] bool routes_overlap(const PluginRoute& a, const PluginRoute& b) {
+        if (routeKeyUpper(a.method) != routeKeyUpper(b.method)) {
+            return false;
+        }
+        const auto lhs = split_path_segments(a.path);
+        const auto rhs = split_path_segments(b.path);
+        if (lhs.size() != rhs.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i < lhs.size(); ++i) {
+            const auto left = lhs[i];
+            const auto right = rhs[i];
+            if (left == right) {
+                continue;
+            }
+            if (!is_template_segment(left) && !is_template_segment(right)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool route_matches_request(const PluginRoute& route,
+                                             std::string_view method,
+                                             std::string_view target) {
+        if (routeKeyUpper(route.method) != routeKeyUpper(String(method))) {
+            return false;
+        }
+        const auto route_segments = split_path_segments(route.path);
+        const auto target_segments = split_path_segments(target);
+        if (route_segments.size() != target_segments.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i < route_segments.size(); ++i) {
+            if (is_template_segment(route_segments[i])) {
+                continue;
+            }
+            if (route_segments[i] != target_segments[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] std::optional<int> extract_semver_major(std::string_view value) {
+        if (value.empty()) {
+            return std::nullopt;
+        }
+        const auto dot = value.find('.');
+        const auto major_text = dot == std::string_view::npos ? value : value.substr(0, dot);
+        if (major_text.empty()) {
+            return std::nullopt;
+        }
+        int major = 0;
+        const auto* begin = major_text.data();
+        const auto* end = begin + major_text.size();
+        auto [ptr, ec] = std::from_chars(begin, end, major);
+        if (ec != std::errc{} || ptr != end || major < 0) {
+            return std::nullopt;
+        }
+        return major;
+    }
+
+    [[nodiscard]] std::optional<String> validate_abi_version(const PluginManifest& manifest) {
+        const auto plugin_major = extract_semver_major(manifest.abi_version);
+        if (!plugin_major) {
+            return std::format("Plugin abi_version '{}' is not a valid semantic version", manifest.abi_version);
+        }
+        if (*plugin_major != PLUGIN_ABI_MAJOR) {
+            return std::format("ABI version mismatch: plugin declares '{}', server requires major '{}'",
+                               manifest.abi_version,
+                               PLUGIN_ABI_MAJOR);
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<String> validate_openapi_fragment(const String& fragment_json) {
+        if (fragment_json.empty()) {
+            return std::nullopt;
+        }
+        const auto fragment = json::parse(fragment_json, nullptr, false);
+        if (fragment.is_discarded()) {
+            return "Plugin openApiFragmentJson is not valid JSON";
+        }
+        return std::nullopt;
     }
 }
 
@@ -78,6 +194,7 @@ String PluginManager::manifest_to_json(const PluginManifest& manifest) {
     root["version"] = manifest.version;
     root["description"] = manifest.description;
     root["libraryPath"] = manifest.libraryPath;
+    root["abi_version"] = manifest.abi_version;
     root["openApiFragmentJson"] = manifest.openApiFragmentJson;
     root["requestRoutes"] = json::array();
     for (const auto& route : manifest.requestRoutes) {
@@ -112,6 +229,7 @@ std::optional<PluginManifest> PluginManager::manifest_from_json(const String& js
     manifest.version = parsed.value("version", "");
     manifest.description = parsed.value("description", "");
     manifest.libraryPath = parsed.value("libraryPath", "");
+    manifest.abi_version = parsed.value("abi_version", String(PLUGIN_ABI_VERSION));
     manifest.openApiFragmentJson = parsed.value("openApiFragmentJson", "");
     if (parsed.contains("requestRoutes") && parsed["requestRoutes"].is_array()) {
         for (const auto& route : parsed["requestRoutes"]) {
@@ -204,9 +322,8 @@ bool PluginManager::route_conflicts_with_loaded(const PluginManifest& manifest) 
             continue;
         }
         for (const auto& route : manifest.requestRoutes) {
-            const auto candidate = normalize_route_key(route);
             for (const auto& existing : loaded.manifest.requestRoutes) {
-                if (candidate == normalize_route_key(existing)) {
+                if (routes_overlap(route, existing)) {
                     return true;
                 }
             }
@@ -284,6 +401,14 @@ PluginOperationResult PluginManager::load_request_plugin(
             result.errors.push_back("Request plugin must declare at least one request route");
             return result;
         }
+        if (const auto abi_error = validate_abi_version(manifest); abi_error) {
+            result.errors.push_back(*abi_error);
+            return result;
+        }
+        if (const auto openapi_error = validate_openapi_fragment(manifest.openApiFragmentJson); openapi_error) {
+            result.errors.push_back(*openapi_error);
+            return result;
+        }
         if (route_conflicts_with_loaded(manifest)) {
             result.errors.push_back("Request plugin route conflicts with an already loaded plugin");
             return result;
@@ -341,6 +466,10 @@ PluginOperationResult PluginManager::load_resolver_plugin(
             result.errors.push_back("Resolver plugin must declare at least one resolver binding");
             return result;
         }
+        if (const auto abi_error = validate_abi_version(manifest); abi_error) {
+            result.errors.push_back(*abi_error);
+            return result;
+        }
         if (resolver_conflicts_with_loaded(manifest)) {
             result.errors.push_back("Resolver plugin binding conflicts with an already loaded plugin");
             return result;
@@ -354,8 +483,48 @@ PluginOperationResult PluginManager::load_resolver_plugin(
             }
         }
 
+        class CrashSafeRegistrar final : public IResolverRegistrar {
+        public:
+            CrashSafeRegistrar(GqlExecutor& executor,
+                               PluginManager& manager,
+                               String plugin_id)
+                : m_executor(executor)
+                , m_manager(manager)
+                , m_plugin_id(std::move(plugin_id))
+            {
+            }
+
+            void register_resolver(const ResolverPath& scope,
+                                   const std::string& field_name,
+                                   ResolverFunction resolver) override {
+                String plugin_id = m_plugin_id;
+                m_executor.register_resolver(scope, field_name,
+                    [resolver = std::move(resolver), plugin_id, this](const json& parent,
+                                                                      const json& args,
+                                                                      const ResolverCtx& ctx) -> json {
+                        try {
+                            return resolver(parent, args, ctx);
+                        } catch (const std::exception& ex) {
+                            m_manager.crash_unload_resolver_plugin(plugin_id, ex);
+                            return json{{"errors", json::array({json{{"message", "Plugin resolver crashed"}}})}};
+                        }
+                    });
+            }
+
+            void unregister_resolver(const ResolverPath& scope,
+                                     const std::string& field_name) override {
+                m_executor.unregister_resolver(scope, field_name);
+            }
+
+        private:
+            GqlExecutor& m_executor;
+            PluginManager& m_manager;
+            String m_plugin_id;
+        };
+
         if (m_executor != nullptr) {
-            plugin->registerResolvers(*m_executor);
+            CrashSafeRegistrar registrar{*m_executor, *this, manifest.id};
+            plugin->registerResolvers(registrar);
         }
 
         PluginRecord record = record_from_manifest(manifest, true, iso_now(), {});
@@ -368,7 +537,22 @@ PluginOperationResult PluginManager::load_resolver_plugin(
             if (m_executor != nullptr) {
                 if (const auto loaded = find_loaded_plugin(manifest.id); loaded) {
                     if (auto resolver = std::dynamic_pointer_cast<ResolverPlugin>(loaded->plugin)) {
-                        resolver->unregisterResolvers(*m_executor);
+                        class DirectRegistrar final : public IResolverRegistrar {
+                        public:
+                            explicit DirectRegistrar(GqlExecutor& executor) : m_executor(executor) {}
+                            void register_resolver(const ResolverPath& scope,
+                                                   const std::string& field_name,
+                                                   ResolverFunction resolver) override {
+                                m_executor.register_resolver(scope, field_name, std::move(resolver));
+                            }
+                            void unregister_resolver(const ResolverPath& scope,
+                                                     const std::string& field_name) override {
+                                m_executor.unregister_resolver(scope, field_name);
+                            }
+                        private:
+                            GqlExecutor& m_executor;
+                        } registrar{*m_executor};
+                        resolver->unregisterResolvers(registrar);
                     }
                 }
             }
@@ -401,7 +585,22 @@ PluginOperationResult PluginManager::unload_plugin(const String& plugin_id) {
 
     if (runtime && runtime->manifest.kind == PluginKind::Resolver && m_executor != nullptr) {
         if (auto resolver = std::dynamic_pointer_cast<ResolverPlugin>(runtime->plugin)) {
-            resolver->unregisterResolvers(*m_executor);
+            class DirectRegistrar final : public IResolverRegistrar {
+            public:
+                explicit DirectRegistrar(GqlExecutor& executor) : m_executor(executor) {}
+                void register_resolver(const ResolverPath& scope,
+                                       const std::string& field_name,
+                                       ResolverFunction resolver) override {
+                    m_executor.register_resolver(scope, field_name, std::move(resolver));
+                }
+                void unregister_resolver(const ResolverPath& scope,
+                                         const std::string& field_name) override {
+                    m_executor.unregister_resolver(scope, field_name);
+                }
+            private:
+                GqlExecutor& m_executor;
+            } registrar{*m_executor};
+            resolver->unregisterResolvers(registrar);
         }
     }
 
@@ -448,24 +647,63 @@ std::optional<PluginRecord> PluginManager::get_plugin(const String& plugin_id) c
     return it->second.record;
 }
 
-std::optional<PluginHttpResponse> PluginManager::dispatch_request(const PluginHttpRequest& request) const {
-    const std::lock_guard<std::mutex> lock(m_mutex);
-    for (const auto& [_, loaded] : m_loaded_plugins) {
+std::optional<PluginHttpResponse> PluginManager::dispatch_request(const PluginHttpRequest& request) {
+    std::vector<LoadedPlugin> request_plugins;
+    {
+        const std::lock_guard<std::mutex> lock(m_mutex);
+        request_plugins.reserve(m_loaded_plugins.size());
+        for (const auto& [_, loaded] : m_loaded_plugins) {
+            if (loaded.manifest.kind == PluginKind::Request) {
+                request_plugins.push_back(loaded);
+            }
+        }
+    }
+
+    for (const auto& loaded : request_plugins) {
         if (loaded.manifest.kind != PluginKind::Request) {
             continue;
         }
         for (const auto& route : loaded.manifest.requestRoutes) {
-            if (normalize_route_key(route.method, route.path) != normalize_route_key(request.method, request.target)) {
+            if (!route_matches_request(route, request.method, request.target)) {
                 continue;
             }
             if (const auto request_plugin = std::dynamic_pointer_cast<RequestPlugin>(loaded.plugin)) {
-                if (auto response = request_plugin->handleRequest(request)) {
-                    return response;
+                try {
+                    if (auto response = request_plugin->handleRequest(request)) {
+                        return response;
+                    }
+                } catch (const std::exception& ex) {
+                    return crash_unload_request_plugin(loaded.manifest.id, ex);
                 }
             }
         }
     }
     return std::nullopt;
+}
+
+PluginHttpResponse PluginManager::crash_unload_request_plugin(const String& plugin_id,
+                                                              const std::exception& ex) noexcept {
+    spdlog::error("Request plugin '{}' crashed: {}", plugin_id, ex.what());
+    try {
+        std::ignore = unload_plugin(plugin_id);
+    } catch (const std::exception& cleanup_ex) {
+        spdlog::error("Request plugin '{}' crash cleanup failed: {}", plugin_id, cleanup_ex.what());
+    }
+    PluginHttpResponse response;
+    response.status = 500;
+    response.contentType = "application/json";
+    response.body = R"({"errors":[{"message":"Plugin error"}]})";
+    return response;
+}
+
+void PluginManager::crash_unload_resolver_plugin(const String& plugin_id,
+                                                 const std::exception& ex) noexcept {
+    spdlog::error("Resolver plugin '{}' crashed: {}", plugin_id, ex.what());
+    try {
+        std::ignore = unload_plugin(plugin_id);
+    } catch (const std::exception& cleanup_ex) {
+        spdlog::error("Resolver plugin '{}' crash cleanup failed: {}", plugin_id, cleanup_ex.what());
+    }
 }
 
 nlohmann::json PluginManager::export_openapi_document() const {
