@@ -23,6 +23,69 @@
 #include "isched_UiAssetRegistry.hpp"
 #include "isched_PluginSystem.hpp"
 
+#include <atomic>
+#include <cstdlib>
+#include <spdlog/spdlog.h>
+#include <string>
+
+// -----------------------------------------------------------------------------
+// Server lifecycle debug logging
+// -----------------------------------------------------------------------------
+//
+// The server's lifecycle (startup, shutdown, io thread join, broker dispatch)
+// is complex and historically subject to subtle deadlocks. To make tracing
+// such problems easier, this file uses a dedicated trace macro
+// `ISCHED_SRV_TRACE(...)` that is gated by a runtime switch.
+//
+// Switch ON via either:
+//   * environment variable: ISCHED_DEBUG_LIFECYCLE=1 (any non-empty value
+//     other than "0"/"false"), or
+//   * programmatically:    isched::v0_0_1::backend::set_lifecycle_trace(true)
+//
+// When enabled, messages are emitted via spdlog at INFO level prefixed with
+// "[srv-trace] " so they remain visible even when spdlog's level is INFO.
+// They are otherwise no-ops with near-zero cost (single atomic load).
+
+namespace isched::v0_0_1::backend {
+
+namespace {
+std::atomic<bool> g_lifecycle_trace_enabled{false};
+std::atomic<bool> g_lifecycle_trace_initialised{false};
+
+bool lifecycle_trace_from_env() noexcept {
+    const char* v = std::getenv("ISCHED_DEBUG_LIFECYCLE");
+    if (!v || !*v) return false;
+    const std::string s{v};
+    return !(s == "0" || s == "false" || s == "FALSE" || s == "off" || s == "OFF");
+}
+
+bool lifecycle_trace_enabled() noexcept {
+    if (!g_lifecycle_trace_initialised.load(std::memory_order_acquire)) {
+        g_lifecycle_trace_enabled.store(lifecycle_trace_from_env(), std::memory_order_relaxed);
+        g_lifecycle_trace_initialised.store(true, std::memory_order_release);
+    }
+    return g_lifecycle_trace_enabled.load(std::memory_order_relaxed);
+}
+} // namespace
+
+void set_lifecycle_trace(bool enabled) noexcept {
+    g_lifecycle_trace_enabled.store(enabled, std::memory_order_relaxed);
+    g_lifecycle_trace_initialised.store(true, std::memory_order_release);
+}
+
+bool is_lifecycle_trace_enabled() noexcept {
+    return lifecycle_trace_enabled();
+}
+
+} // namespace isched::v0_0_1::backend
+
+#define ISCHED_SRV_TRACE(...)                                                  \
+    do {                                                                       \
+        if (::isched::v0_0_1::backend::is_lifecycle_trace_enabled()) {         \
+            ::spdlog::info("[srv-trace] " __VA_ARGS__);                        \
+        }                                                                      \
+    } while (0)
+
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/websocket.hpp>
@@ -907,23 +970,53 @@ public:
     }
 
     ~Impl() {
+        ISCHED_SRV_TRACE("Impl dtor: stopping metrics publisher");
         // Stop metrics publisher first (before broker is destroyed)
         metrics_publisher_stop.store(true, std::memory_order_relaxed);
         if (metrics_publisher_thread.joinable()) metrics_publisher_thread.join();
 
         // Stop acceptors so no new connections are initiated
+        ISCHED_SRV_TRACE("Impl dtor: stopping acceptors");
         if (http_listener) http_listener->stop();
         if (ws_listener)   ws_listener->stop();
 
         // Release the work guard and force-stop the io_context so threads exit
+        ISCHED_SRV_TRACE("Impl dtor: releasing work_guard and stopping ioc");
         work_guard.reset();
         if (ioc) ioc->stop();
 
-        std::lock_guard<std::mutex> lk(io_threads_mutex);
-        for (auto& t : io_threads) {
+        // IMPORTANT: do NOT hold io_threads_mutex while joining — an io thread
+        // may itself try to acquire it via adapt_pool() invoked from a websocket
+        // teardown callback (SubscriptionBroker::disconnect_session()). Holding
+        // the mutex during join() would dead-lock with that callback.
+        std::vector<std::thread> threads_to_join;
+        {
+            std::lock_guard<std::mutex> lk(io_threads_mutex);
+            threads_to_join = std::move(io_threads);
+            io_threads.clear();
+        }
+        ISCHED_SRV_TRACE("Impl dtor: joining {} io threads (mutex released)",
+                         threads_to_join.size());
+        for (auto& t : threads_to_join) {
             if (t.joinable()) t.join();
         }
-        io_threads.clear();
+
+        // CRITICAL ORDERING: destroy the io_context BEFORE the subscription
+        // broker (and other resources WsSession references). Member destruction
+        // order would otherwise destroy `subscription_broker` first, but
+        // `ioc.~io_context()` later runs pending completion handlers whose
+        // dtors drop the last shared_ptr<WsSession>. The WsSession dtor calls
+        // broker_->unregister_auth_session() / disconnect_session() — which
+        // would crash if the broker is already gone.
+        //
+        // To guarantee correct teardown we explicitly reset listeners (which
+        // hold strands/sockets), then the io_context, while the broker is
+        // still alive.
+        ISCHED_SRV_TRACE("Impl dtor: resetting listeners and ioc (broker still alive)");
+        ws_listener.reset();
+        http_listener.reset();
+        ioc.reset();
+        ISCHED_SRV_TRACE("Impl dtor: complete");
     }
 
     Configuration config;
@@ -1188,26 +1281,44 @@ bool Server::stop(Duration timeout_ms) {
 
     m_status.store(Status::STOPPING);
     spdlog::info("Stopping server (timeout: {}ms)...", timeout_ms.count());
+    ISCHED_SRV_TRACE("Server::stop entered");
 
     try {
+        // Signal the metrics publisher to stop (joined later in ~Impl). We do
+        // not join here to keep stop() fast even when the publisher is mid-
+        // sleep; cycle is short enough that the thread will exit within ~1s
+        // and ~Impl will join it cleanly.
+        m_impl->metrics_publisher_stop.store(true, std::memory_order_relaxed);
+
         // Stop acceptors so no new connections are accepted
+        ISCHED_SRV_TRACE("Server::stop stopping acceptors");
         if (m_impl->http_listener) m_impl->http_listener->stop();
         if (m_impl->ws_listener)   m_impl->ws_listener->stop();
 
         // Release the work guard, then stop the io_context to drain all threads
+        ISCHED_SRV_TRACE("Server::stop releasing work_guard and stopping ioc");
         m_impl->work_guard.reset();
         if (m_impl->ioc) m_impl->ioc->stop();
 
+        // IMPORTANT: do NOT hold io_threads_mutex while joining. Final
+        // websocket teardown callbacks dispatched on io threads may call
+        // SubscriptionBroker::disconnect_session() → adapt_pool() which itself
+        // locks io_threads_mutex. Holding the mutex here would dead-lock.
+        std::vector<std::thread> threads_to_join;
         {
             std::lock_guard<std::mutex> lk(m_impl->io_threads_mutex);
-            for (auto& t : m_impl->io_threads) {
-                if (t.joinable()) t.join();
-            }
+            threads_to_join = std::move(m_impl->io_threads);
             m_impl->io_threads.clear();
+        }
+        ISCHED_SRV_TRACE("Server::stop joining {} io threads (mutex released)",
+                         threads_to_join.size());
+        for (auto& t : threads_to_join) {
+            if (t.joinable()) t.join();
         }
 
         m_status.store(Status::STOPPED);
         spdlog::info("Server stopped");
+        ISCHED_SRV_TRACE("Server::stop complete");
         return true;
 
     } catch (const std::exception& e) {

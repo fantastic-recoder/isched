@@ -42,6 +42,19 @@ namespace spdlog {
 namespace isched::v0_0_1::backend {
 
 /**
+ * @brief Enable or disable verbose lifecycle trace logging for Server / io_pool
+ *        / shutdown.  When enabled, messages prefixed with "[srv-trace] " are
+ *        emitted at INFO level via spdlog.  Disabled by default.
+ *
+ * Can also be controlled at process start via the environment variable
+ * `ISCHED_DEBUG_LIFECYCLE=1` (any non-empty value other than "0"/"false"/"off").
+ */
+void set_lifecycle_trace(bool enabled) noexcept;
+
+/// @brief Query the current state of the lifecycle trace switch.
+[[nodiscard]] bool is_lifecycle_trace_enabled() noexcept;
+
+/**
  * @class Server
  * @brief Main server class for Universal Application Server Backend
  * 
