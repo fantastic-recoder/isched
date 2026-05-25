@@ -98,6 +98,20 @@ cd /home/groby/dev/isched/src/ui
 pnpm run test:shell
 ```
 
+Run the full frontend unit suite from the repository root with the small Python wrapper:
+
+```bash
+cd /home/groby/dev/isched
+python3 tools/run_frontend_tests.py
+```
+
+To run a different UI test script, pass `--script`:
+
+```bash
+cd /home/groby/dev/isched
+python3 tools/run_frontend_tests.py --script test:shell
+```
+
 ## Running Playwright integration tests
 
 Playwright tests start the real backend server (`isched_srv`) with a temporary `--data-dir` so the system starts in seed mode and the bootstrap UI can be validated end-to-end.
