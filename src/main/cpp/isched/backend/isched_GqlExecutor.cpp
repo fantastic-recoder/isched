@@ -1069,6 +1069,17 @@ namespace isched::v0_0_1::backend {
                 result["success"] = true;
                 result["pluginId"] = load_result.pluginId;
                 result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
+                // Publish subscription event so UIs can refresh their schema tree.
+                if (m_broker) {
+                    const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    json evt;
+                    evt["action"]    = "loaded";
+                    evt["pluginId"]  = load_result.pluginId;
+                    evt["timestamp"] = std::to_string(now_ms);
+                    m_broker->publish("__plugin_registry", "pluginRegistryChanged",
+                                      json{{"pluginRegistryChanged", evt}});
+                }
                 return result;
             });
         require_roles("loadPlugin", {std::string(Role::PLATFORM_ADMIN)});
@@ -1098,6 +1109,17 @@ namespace isched::v0_0_1::backend {
                 result["pluginId"] = plugin_id;
                 const auto record = m_plugins->get_plugin(plugin_id);
                 result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
+                // Publish subscription event so UIs can refresh their schema tree.
+                if (m_broker) {
+                    const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    json evt;
+                    evt["action"]    = "unloaded";
+                    evt["pluginId"]  = plugin_id;
+                    evt["timestamp"] = std::to_string(now_ms);
+                    m_broker->publish("__plugin_registry", "pluginRegistryChanged",
+                                      json{{"pluginRegistryChanged", evt}});
+                }
                 return result;
             });
         require_roles("unloadPlugin", {std::string(Role::PLATFORM_ADMIN)});
@@ -1468,6 +1490,21 @@ namespace isched::v0_0_1::backend {
             [fmt_iso8601](const json&, const json&, const ResolverCtx&) -> json {
                 json evt;
                 evt["status"]    = "UP";
+                evt["timestamp"] = fmt_iso8601(std::chrono::system_clock::now());
+                return evt;
+            });
+
+        // ---------------------------------------------------------------
+        // Subscription: pluginRegistryChanged
+        // Returns an initial snapshot event on subscribe; ongoing events
+        // are published by loadPlugin / unloadPlugin via SubscriptionBroker
+        // on topic "__plugin_registry".
+        // ---------------------------------------------------------------
+        register_resolver(k_builtin_namespace_path, "pluginRegistryChanged",
+            [fmt_iso8601](const json&, const json&, const ResolverCtx&) -> json {
+                json evt;
+                evt["action"]    = "initial";
+                evt["pluginId"]  = "";
                 evt["timestamp"] = fmt_iso8601(std::chrono::system_clock::now());
                 return evt;
             });

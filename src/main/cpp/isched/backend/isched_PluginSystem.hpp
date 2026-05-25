@@ -205,8 +205,11 @@ namespace isched::v0_0_1::backend {
             PluginRecord record;
         };
 
-        using RequestFactory = std::shared_ptr<RequestPlugin> (*)();
-        using ResolverFactory = std::shared_ptr<ResolverPlugin> (*)();
+        // Function signatures (not function-pointer object types) so
+        // boost::dll::shared_library::get<T>() resolves exported factory
+        // functions correctly across shared-library boundaries.
+        using RequestFactory = std::shared_ptr<RequestPlugin>();
+        using ResolverFactory = std::shared_ptr<ResolverPlugin>();
 
         [[nodiscard]] PluginOperationResult load_request_plugin(
             const String& library_path,

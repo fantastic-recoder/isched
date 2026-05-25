@@ -28,6 +28,26 @@
 
 namespace isched::v0_0_1::backend {
 
+namespace {
+[[nodiscard]] const char* to_database_error_name(const DatabaseError error) {
+    switch (error) {
+        case DatabaseError::ConnectionFailed: return "ConnectionFailed";
+        case DatabaseError::QueryFailed: return "QueryFailed";
+        case DatabaseError::TransactionFailed: return "TransactionFailed";
+        case DatabaseError::SchemaValidationFailed: return "SchemaValidationFailed";
+        case DatabaseError::TenantNotFound: return "TenantNotFound";
+        case DatabaseError::MigrationFailed: return "MigrationFailed";
+        case DatabaseError::BackupFailed: return "BackupFailed";
+        case DatabaseError::PoolExhausted: return "PoolExhausted";
+        case DatabaseError::NotFound: return "NotFound";
+        case DatabaseError::DuplicateKey: return "DuplicateKey";
+        case DatabaseError::AccessDenied: return "AccessDenied";
+        case DatabaseError::VersionConflict: return "VersionConflict";
+    }
+    return "Unknown";
+}
+} // namespace
+
 /**
  * @brief Implementation of AuthenticationMiddleware
  */
@@ -261,6 +281,15 @@ public:
         nlohmann::json roles_json = roles;
         const std::string roles_str = roles_json.dump();
 
+        // Self-heal for callers that did not explicitly initialize the tenant.
+        if (const auto ensure_res = db.ensure_sessions_table(tenant_id); !ensure_res) {
+            spdlog::warn(
+                "create_session: ensure_sessions_table failed for tenant '{}': {} ({})",
+                tenant_id,
+                to_database_error_name(ensure_res.error()),
+                static_cast<int>(ensure_res.error()));
+        }
+
         // Persist to the tenant sessions table.
         const auto persist_res = db.create_session(
             tenant_id, session_id, user_id, session_id /*access_token_id = jti*/,
@@ -269,8 +298,9 @@ public:
         if (!persist_res) {
             // Non-fatal: we still return the token; login resolver can choose to
             // surface this as an error.  Log a warning.
-            spdlog::warn("create_session: failed to persist session '{}' for tenant '{}': {}",
+            spdlog::warn("create_session: failed to persist session '{}' for tenant '{}': {} ({})",
                 session_id, tenant_id,
+                to_database_error_name(persist_res.error()),
                 static_cast<int>(persist_res.error()));
         }
 

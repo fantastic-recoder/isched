@@ -14,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <chrono>
+#include <filesystem>
 
 #include "isched/backend/isched_AuthenticationMiddleware.hpp"
 #include "isched/backend/isched_DatabaseManager.hpp"
@@ -108,6 +109,41 @@ TEST_CASE("Session invalidation removes session", "[auth][session]") {
     auth->invalidate_session(session.session_id);
     auto retrieved = auth->get_session(session.session_id);
     REQUIRE_FALSE(retrieved.has_value());
+}
+
+TEST_CASE("DB-backed create_session ensures tenant sessions table and persists row", "[auth][session][db]") {
+    namespace fs = std::filesystem;
+
+    const auto unique = "isched_auth_session_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const auto work_dir = fs::temp_directory_path() / unique;
+    REQUIRE(fs::create_directories(work_dir));
+
+    DatabaseManager::Config cfg;
+    cfg.base_path = (work_dir / "tenants").string();
+    cfg.system_db_path = (work_dir / "isched_system.db").string();
+    DatabaseManager db(cfg);
+
+    auto auth = AuthenticationMiddleware::create();
+    auth->configure_jwt_secret("test-secret-key-at-least-32-bytes!");
+
+    const auto session = auth->create_session(
+        db,
+        "db_user_1",
+        "DB User",
+        "platform",
+        {std::string(Role::PLATFORM_ADMIN)});
+
+    REQUIRE_FALSE(session.token.empty());
+    REQUIRE_FALSE(session.session_id.empty());
+
+    const auto persisted = db.get_session("platform", session.session_id);
+    REQUIRE(persisted);
+    CHECK(persisted.value().user_id == "db_user_1");
+    CHECK(persisted.value().access_token_id == session.session_id);
+    CHECK(persisted.value().transport_scope == "any");
+
+    std::error_code ec;
+    fs::remove_all(work_dir, ec);
 }
 
 // =============================================================================

@@ -13,6 +13,7 @@
 #include <nlohmann/json.hpp>
 
 #include <atomic>
+#include <filesystem>
 #include <memory>
 #include <unistd.h>
 
@@ -228,6 +229,8 @@ TEST_CASE("Resolver plugin uses registrar interface", "[plugin][resolver]") {
 
 TEST_CASE("Plugin admin GraphQL fields require platform_admin", "[plugin][graphql][auth]") {
     auto db = make_test_db();
+    REQUIRE(db->ensure_system_db());
+    REQUIRE(db->initialize_plugin_store());
     auto manager = std::make_shared<PluginManager>(db);
     auto manifest = make_request_manifest("gqlplug", "/plugin/gql");
     manager->inject_loaded_plugin(std::make_shared<StubRequestPlugin>(manifest), manifest);
@@ -293,4 +296,43 @@ TEST_CASE("OpenAPI export skips invalid fragments for injected plugins", "[plugi
     const auto doc = manager.export_openapi_document();
     REQUIRE(doc.is_object());
     CHECK(doc["paths"].empty());
+}
+
+TEST_CASE("GraphQL loadPlugin loads resolver shared library without crashing", "[plugin][graphql][dll]") {
+#ifndef ISCHED_HELLO_PLUGIN_PATH
+    SKIP("hello_plugin path is not configured for this test target");
+#else
+    const std::string plugin_path = ISCHED_HELLO_PLUGIN_PATH;
+    REQUIRE(std::filesystem::exists(plugin_path));
+
+    auto db = make_test_db();
+    REQUIRE(db->ensure_system_db());
+    REQUIRE(db->initialize_plugin_store());
+
+    auto manager = std::make_shared<PluginManager>(db);
+    GqlExecutor executor{db};
+    executor.set_plugin_manager(manager);
+    manager->set_executor(&executor);
+
+    ResolverCtx admin;
+    admin.roles = {"role_platform_admin"};
+    admin.tenant_id = "tenant-a";
+    admin.db = db;
+
+    const auto load_result = executor.execute(
+        "mutation { isched { loadPlugin(input:{libraryPath:\"" + plugin_path + "\", kind:\"resolver\"}) { success pluginId errors } } }",
+        "{}",
+        admin);
+
+    REQUIRE(load_result.is_success());
+    const auto payload = load_result.data["isched"]["loadPlugin"];
+    REQUIRE(payload.contains("success"));
+    REQUIRE(payload.contains("pluginId"));
+    REQUIRE(payload.contains("errors"));
+    CHECK(payload["success"].is_boolean());
+    CHECK(payload["errors"].is_array());
+    REQUIRE(payload["success"].get<bool>());
+
+
+#endif
 }

@@ -103,6 +103,9 @@ add_test(NAME isched_config_tests COMMAND isched_config_tests)
 # Plugin system unit tests (SP-012)
 add_executable(isched_plugin_system_tests isched_plugin_system_tests.cpp)
 target_link_libraries(isched_plugin_system_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl Boost::filesystem sago::platform_folders)
+add_dependencies(isched_plugin_system_tests hello_plugin)
+target_compile_definitions(isched_plugin_system_tests PRIVATE
+        ISCHED_HELLO_PLUGIN_PATH="$<TARGET_FILE:hello_plugin>")
 add_test(NAME isched_plugin_system_tests COMMAND isched_plugin_system_tests)
 
 # Integration tests for User Story 1 - Frontend Developer Setup

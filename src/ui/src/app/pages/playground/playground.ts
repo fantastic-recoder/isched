@@ -59,6 +59,7 @@ export class PlaygroundPage implements OnInit {
 
   ngOnInit(): void {
     this.introspection.load();
+    this.introspection.watchPluginRegistry().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
 
   onEditorContentChange(content: string): void {

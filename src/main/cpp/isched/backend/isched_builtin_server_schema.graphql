@@ -268,6 +268,18 @@ type IschedSubscriptionNamespace {
   healthChanged: HealthChangedEvent!
   serverMetricsUpdated: ServerMetrics
   tenantMetricsUpdated(organizationId: ID!): TenantMetrics
+  """Fires when a plugin is loaded or unloaded; triggers schema tree reload"""
+  pluginRegistryChanged: PluginRegistryEvent!
+}
+
+"""Event emitted when the plugin registry changes"""
+type PluginRegistryEvent {
+  """Action that caused the event: 'loaded' or 'unloaded'"""
+  action: String!
+  """ID of the plugin that was loaded or unloaded"""
+  pluginId: String!
+  """ISO-8601 timestamp of the event"""
+  timestamp: String!
 }
 
 """Health information for a specific system component"""

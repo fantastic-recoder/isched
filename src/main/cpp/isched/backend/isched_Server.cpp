@@ -402,6 +402,7 @@ private:
                                     const nlohmann::json& payload) {
         if (query.find("healthChanged") != std::string::npos) return "health";
         if (query.find("serverMetricsUpdated") != std::string::npos) return "__metrics/server";
+        if (query.find("pluginRegistryChanged") != std::string::npos) return "__plugin_registry";
         if (query.find("tenantMetricsUpdated") != std::string::npos) {
             // Extract organizationId from variables or inline literal
             if (payload.contains("variables") &&

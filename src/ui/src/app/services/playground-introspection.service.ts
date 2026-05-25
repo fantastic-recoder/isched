@@ -3,10 +3,12 @@
  * @file playground-introspection.service.ts
  * @brief Loads and normalizes GraphQL introspection + uploaded schema documents
  *        into a single SchemaTreeNode[] for the playground schema tree (SP-011).
+ *        Automatically reloads when a plugin is loaded/unloaded (SP-012).
  */
 
 import { Injectable, inject, signal } from '@angular/core';
 import { GraphQLService } from './graphql.service';
+import { GraphQLSubscriptionService } from './graphql-subscription.service';
 import {
   IntrospectionArg,
   NodeKind,
@@ -67,9 +69,22 @@ const SCHEMA_DOCUMENTS_QUERY = `
   }
 `;
 
+const PLUGIN_REGISTRY_CHANGED_SUBSCRIPTION = `
+  subscription PluginRegistryChanged {
+    isched {
+      pluginRegistryChanged {
+        action
+        pluginId
+        timestamp
+      }
+    }
+  }
+`;
+
 @Injectable({ providedIn: 'root' })
 export class PlaygroundIntrospectionService {
   private readonly gql = inject(GraphQLService);
+  private readonly gqlSubscription = inject(GraphQLSubscriptionService);
 
   readonly treeNodes = signal<SchemaTreeNode[]>([]);
   readonly loading = signal(false);
@@ -95,6 +110,37 @@ export class PlaygroundIntrospectionService {
         this.error.set(errorMessage(err, 'Failed to load schema introspection'));
       },
     });
+  }
+
+  /**
+   * Begin watching for plugin registry changes over WebSocket.
+   * Each `pluginRegistryChanged` event triggers a full schema tree reload.
+   * The caller is responsible for unsubscribing (pass the returned subscription
+   * to `takeUntilDestroyed` or unsubscribe manually).
+   */
+  watchPluginRegistry(): ReturnType<GraphQLSubscriptionService['subscribe']> {
+    const obs = this.gqlSubscription.subscribe<{
+      isched?: { pluginRegistryChanged?: { action: string; pluginId: string; timestamp: string } };
+    }>(PLUGIN_REGISTRY_CHANGED_SUBSCRIPTION);
+
+    obs.subscribe({
+      next: (data) => {
+        const event = (data as { isched?: { pluginRegistryChanged?: unknown } })?.isched?.pluginRegistryChanged;
+        if (event) {
+          // Skip the synthetic "initial" event emitted on subscribe
+          const action = (event as { action: string }).action;
+          if (action !== 'initial') {
+            this.load();
+          }
+        }
+      },
+      error: () => {
+        // Subscription errors are transient (network); reconnect is handled by
+        // GraphQLSubscriptionService — silently ignore here.
+      },
+    });
+
+    return obs;
   }
 
   private loadSchemaDocuments(introspection: RawIntrospectionResult): void {

@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <format>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 
 #include <spdlog/spdlog.h>
@@ -381,8 +382,8 @@ PluginOperationResult PluginManager::load_request_plugin(
     PluginOperationResult result;
     try {
         auto library = std::make_shared<boost::dll::shared_library>(library_path);
-        auto factory = library->get<RequestFactory>("isched_create_request_plugin");
-        auto plugin = (*factory)();
+        auto& factory = library->get<RequestFactory>("isched_create_request_plugin");
+        auto plugin = factory();
         if (!plugin) {
             result.errors.push_back("Request plugin factory returned null");
             return result;
@@ -436,6 +437,9 @@ PluginOperationResult PluginManager::load_request_plugin(
     } catch (const std::exception& ex) {
         result.errors.push_back(ex.what());
         return result;
+    } catch (...) {
+        result.errors.push_back("Request plugin load failed with unknown exception");
+        return result;
     }
 }
 
@@ -446,8 +450,8 @@ PluginOperationResult PluginManager::load_resolver_plugin(
     PluginOperationResult result;
     try {
         auto library = std::make_shared<boost::dll::shared_library>(library_path);
-        auto factory = library->get<ResolverFactory>("isched_create_resolver_plugin");
-        auto plugin = (*factory)();
+        auto& factory = library->get<ResolverFactory>("isched_create_resolver_plugin");
+        auto plugin = factory();
         if (!plugin) {
             result.errors.push_back("Resolver plugin factory returned null");
             return result;
@@ -498,14 +502,19 @@ PluginOperationResult PluginManager::load_resolver_plugin(
                                    const std::string& field_name,
                                    ResolverFunction resolver) override {
                 String plugin_id = m_plugin_id;
+                auto* manager = &m_manager;
                 m_executor.register_resolver(scope, field_name,
-                    [resolver = std::move(resolver), plugin_id, this](const json& parent,
-                                                                      const json& args,
-                                                                      const ResolverCtx& ctx) -> json {
+                    [resolver = std::move(resolver), plugin_id, manager](const json& parent,
+                                                                          const json& args,
+                                                                          const ResolverCtx& ctx) -> json {
                         try {
                             return resolver(parent, args, ctx);
                         } catch (const std::exception& ex) {
-                            m_manager.crash_unload_resolver_plugin(plugin_id, ex);
+                            manager->crash_unload_resolver_plugin(plugin_id, ex);
+                            return json{{"errors", json::array({json{{"message", "Plugin resolver crashed"}}})}};
+                        } catch (...) {
+                            const std::runtime_error unknown_ex{"Plugin resolver threw non-std exception"};
+                            manager->crash_unload_resolver_plugin(plugin_id, unknown_ex);
                             return json{{"errors", json::array({json{{"message", "Plugin resolver crashed"}}})}};
                         }
                     });
@@ -566,6 +575,9 @@ PluginOperationResult PluginManager::load_resolver_plugin(
         return result;
     } catch (const std::exception& ex) {
         result.errors.push_back(ex.what());
+        return result;
+    } catch (...) {
+        result.errors.push_back("Resolver plugin load failed with unknown exception");
         return result;
     }
 }
@@ -674,6 +686,9 @@ std::optional<PluginHttpResponse> PluginManager::dispatch_request(const PluginHt
                     }
                 } catch (const std::exception& ex) {
                     return crash_unload_request_plugin(loaded.manifest.id, ex);
+                } catch (...) {
+                    const std::runtime_error unknown_ex{"Request plugin threw non-std exception"};
+                    return crash_unload_request_plugin(loaded.manifest.id, unknown_ex);
                 }
             }
         }
@@ -777,4 +792,3 @@ void PluginManager::restore_persisted_plugins() {
 }
 
 } // namespace isched::v0_0_1::backend
-

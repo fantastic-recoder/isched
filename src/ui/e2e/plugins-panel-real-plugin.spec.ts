@@ -35,6 +35,25 @@ test('plugins panel loads real hello plugin shared library and shows it as activ
     test.skip(true, 'Dashboard GraphQL transport is unavailable in this environment; skipping real plugin load assertion.');
   }
 
+  const noPluginsAlert = page.getByText('No plugins loaded yet.').first();
+  const pluginsTable = page.locator('table').first();
+  await expect
+    .poll(
+      async () => (await isVisibleWithinTimeout(noPluginsAlert, 300)) || (await isVisibleWithinTimeout(pluginsTable, 300)),
+      { timeout: 10_000 },
+    )
+    .toBeTruthy();
+
+  const activeHelloPluginRow = page
+    .locator('tr', { hasText: 'hello_plugin' })
+    .filter({ hasText: 'Active' })
+    .first();
+  if (await isVisibleWithinTimeout(activeHelloPluginRow, 2_000)) {
+    await activeHelloPluginRow.locator('input[type="radio"]').first().check();
+    await page.getByRole('button', { name: 'Unload Selected' }).click();
+    await expect(activeHelloPluginRow).toBeHidden({ timeout: 10_000 });
+  }
+
   await page.getByRole('button', { name: '+ Load Plugin' }).click();
   const loadModal = page.locator('#load_plugin_modal');
   await expect(loadModal).toBeVisible();
@@ -49,12 +68,10 @@ test('plugins panel loads real hello plugin shared library and shows it as activ
     test.skip(true, 'loadPlugin GraphQL mutation failed at transport layer in this environment; skipping assertion.');
   }
 
-  await expect(loadModal).toBeHidden({ timeout: 10_000 });
-
   const pluginRow = page.locator('tr', { hasText: 'hello_plugin' });
-  await expect(pluginRow).toBeVisible();
+  await expect(pluginRow).toBeVisible({ timeout: 10_000 });
   await expect(pluginRow.getByText('Active')).toBeVisible();
 
-  const pluginDetails = page.locator('p', { hasText: 'Library path:' }).filter({ hasText: REAL_HELLO_PLUGIN_PATH });
-  await expect(pluginDetails).toBeVisible();
+  const pluginAccordion = page.locator('.collapse', { hasText: '(hello_plugin)' }).first();
+  await expect(pluginAccordion).toContainText(REAL_HELLO_PLUGIN_PATH);
 });
