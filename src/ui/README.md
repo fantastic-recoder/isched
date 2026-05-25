@@ -98,6 +98,13 @@ cd /home/groby/dev/isched/src/ui
 pnpm run test:shell
 ```
 
+Run the package-level alias for the full frontend unit suite:
+
+```bash
+cd /home/groby/dev/isched/src/ui
+pnpm run test:frontend
+```
+
 Run the full frontend unit suite from the repository root with the small Python wrapper:
 
 ```bash
