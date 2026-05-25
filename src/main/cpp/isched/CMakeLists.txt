@@ -54,6 +54,8 @@ add_library(isched
         backend/isched_RateLimiter.hpp
         backend/isched_PluginSystem.hpp
         backend/isched_PluginSystem.cpp
+        backend/isched_srv_cli.hpp
+        backend/isched_srv_cli.cpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
         jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url Boost::system Boost::thread sago::platform_folders Boost::filesystem ${CMAKE_DL_LIBS})

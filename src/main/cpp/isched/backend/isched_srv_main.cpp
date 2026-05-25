@@ -17,9 +17,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <optional>
 #include <string>
-#include <string_view>
 #include <thread>
 #include <utility>
 
@@ -28,14 +26,10 @@
 
 
 #include "isched_Server.hpp"
+#include "isched_srv_cli.hpp"
 
 namespace {
 std::atomic<bool> keep_running{true};
-
-struct CliOptions {
-    std::optional<std::string> data_dir;
-    bool help_requested{false};
-};
 
 void handle_signal(int) {
     keep_running.store(false);
@@ -43,49 +37,14 @@ void handle_signal(int) {
 
 void print_usage(const char* program) {
     std::cerr
-        << "Usage: " << program << " [--data-dir <path>] [--help]\n"
+        << "Usage: " << program << " [--data-dir <path>] [--seed <admin_name>:<password>] [--help]\n"
         << "\n"
         << "Options:\n"
         << "  --data-dir <path>   Override server work directory (tenant data under <path>/tenants)\n"
         << "  --data-dir=<path>   Same as above\n"
+        << "  --seed <a>:<p>      Confirmed platform DB reset + bootstrap admin credential seeding\n"
+        << "  --seed=<a>:<p>      Same as above\n"
         << "  --help              Show this help text\n";
-}
-
-std::optional<CliOptions> parse_cli_args(int argc, char** argv) {
-    CliOptions opts;
-
-    for (int i = 1; i < argc; ++i) {
-        const std::string_view arg{argv[i]};
-
-        if (arg == "--help" || arg == "-h") {
-            opts.help_requested = true;
-            continue;
-        }
-
-        if (arg == "--data-dir") {
-            if (i + 1 >= argc) {
-                spdlog::error("--data-dir requires a value");
-                return std::nullopt;
-            }
-            opts.data_dir = argv[++i];
-            continue;
-        }
-
-        if (arg.starts_with("--data-dir=")) {
-            const std::string value{arg.substr(std::string_view{"--data-dir="}.size())};
-            if (value.empty()) {
-                spdlog::error("--data-dir requires a non-empty value");
-                return std::nullopt;
-            }
-            opts.data_dir = value;
-            continue;
-        }
-
-        spdlog::error("Unknown option: {}", arg);
-        return std::nullopt;
-    }
-
-    return opts;
 }
 
 bool validate_data_dir(const std::string& path, std::string& error) {
@@ -147,12 +106,15 @@ void apply_env_config(isched::v0_0_1::backend::Server::Configuration& cfg) {
 
 int main(int argc, char** argv) {
     using isched::v0_0_1::backend::Server;
+    using namespace isched::v0_0_1::backend::srvcli;
     using namespace std::chrono_literals;
 
     spdlog::cfg::load_env_levels();
 
-    const auto cli_opts = parse_cli_args(argc, argv);
+    std::string cli_error;
+    const auto cli_opts = parse_cli_args(argc, argv, cli_error);
     if (!cli_opts) {
+        spdlog::error("{}", cli_error);
         print_usage(argv[0]);
         return EXIT_FAILURE;
     }
@@ -175,6 +137,26 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         config.work_directory = *cli_opts->data_dir;
+    }
+
+    if (cli_opts->seed_credentials) {
+        if (!prompt_seed_confirmation(std::cin, std::cout)) {
+            spdlog::warn("Seed reset aborted: expected exact confirmation 'yes'");
+            return EXIT_FAILURE;
+        }
+
+        std::string seed_error;
+        const auto seed_result = reset_and_seed_platform_db(
+            config.work_directory, *cli_opts->seed_credentials, seed_error);
+        if (!seed_result) {
+            spdlog::error("Seed reset failed: {}", seed_error);
+            return EXIT_FAILURE;
+        }
+
+        if (seed_result->backup_path) {
+            spdlog::info("Platform DB backup: {}", seed_result->backup_path->string());
+        }
+        spdlog::info("Platform DB reset complete and bootstrap admin credentials seeded");
     }
 
     auto server = Server::create(config);

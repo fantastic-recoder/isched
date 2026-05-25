@@ -63,6 +63,11 @@ target_link_libraries(isched_srv_test PRIVATE isched Boost::url Catch2::Catch2Wi
         httplib::httplib openssl::openssl nlohmann_json::nlohmann_json)
 add_test(NAME isched_srv_test COMMAND isched_srv_test)
 
+add_executable(isched_srv_cli_tests isched_srv_cli_tests.cpp)
+target_link_libraries(isched_srv_cli_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog
+        nlohmann_json::nlohmann_json SQLite::SQLite3)
+add_test(NAME isched_srv_cli_tests COMMAND isched_srv_cli_tests)
+
 add_executable(basic_server_test ../../basic_server_test.cpp)
 target_link_libraries(basic_server_test PRIVATE isched spdlog::spdlog  Boost::url)
 add_test(NAME basic_server_test COMMAND basic_server_test)
@@ -321,6 +326,7 @@ set(_isched_fast_unit_tests
     isched_gql_executor_auth_resolvers_tests
     isched_gql_executor_error_branches_tests
     isched_srv_test
+    isched_srv_cli_tests
     basic_server_test
     tenant_manager_test
     isched_resolver_tests
