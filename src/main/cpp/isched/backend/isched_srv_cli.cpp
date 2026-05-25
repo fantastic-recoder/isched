@@ -2,10 +2,14 @@
 
 #include "isched_srv_cli.hpp"
 
+#include <boost/program_options.hpp>
+
 #include <chrono>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <functional>
+#include <sstream>
 #include <memory>
 
 #include <spdlog/spdlog.h>
@@ -14,6 +18,8 @@
 #include "isched_DatabaseManager.hpp"
 
 namespace isched::v0_0_1::backend::srvcli {
+
+namespace po = boost::program_options;
 
 namespace {
 
@@ -73,6 +79,50 @@ bool remove_if_present(const std::filesystem::path& path, std::string& error) {
 
 } // namespace
 
+std::string build_usage_text(std::string_view program) {
+    std::ostringstream out;
+    out << "Usage: " << program << " [--data-dir <path>] [--seed <admin_name>:<password>] [--help]\n"
+        << "\n"
+        << "Options:\n"
+        << "  --data-dir <path>   Override server work directory (tenant data under <path>/tenants)\n"
+        << "  --data-dir=<path>   Same as above\n"
+        << "  --seed <a>:<p>      Confirmed platform DB reset + bootstrap admin credential seeding\n"
+        << "  --seed=<a>:<p>      Same as above\n"
+        << "  --help              Show this help text\n";
+    return out.str();
+}
+
+bool validate_data_dir(const std::string& path, std::string& error) {
+    if (path.empty()) {
+        error = "data directory must not be empty";
+        return false;
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    if (ec) {
+        error = "failed to create data directory '" + path + "': " + ec.message();
+        return false;
+    }
+
+    if (!std::filesystem::is_directory(path, ec) || ec) {
+        error = "data directory is not a directory: '" + path + "'";
+        return false;
+    }
+
+    const auto probe = std::filesystem::path(path) / ".isched_write_probe";
+    {
+        std::ofstream out(probe.string(), std::ios::app);
+        if (!out) {
+            error = "data directory is not writable: '" + path + "'";
+            return false;
+        }
+    }
+    std::filesystem::remove(probe, ec);
+
+    return true;
+}
+
 std::optional<SeedCredentials> parse_seed_credentials(std::string_view value,
                                                       std::string& error) {
     if (value.empty()) {
@@ -104,63 +154,69 @@ std::optional<SeedCredentials> parse_seed_credentials(std::string_view value,
 
 std::optional<CliOptions> parse_cli_args(int argc, char** argv,
                                          std::string& error) {
-    CliOptions opts;
-
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg{argv[i]};
-
-        if (arg == "--help" || arg == "-h") {
-            opts.help_requested = true;
-            continue;
+        if (arg == "--data-dir=") {
+            error = "--data-dir requires a non-empty value";
+            return std::nullopt;
         }
-
-        if (arg == "--data-dir") {
-            if (i + 1 >= argc) {
-                error = "--data-dir requires a value";
-                return std::nullopt;
-            }
-            opts.data_dir = argv[++i];
-            continue;
+        if (arg == "--seed=") {
+            error = "--seed requires a non-empty value in format <admin_name>:<password>";
+            return std::nullopt;
         }
+    }
 
-        if (arg.starts_with("--data-dir=")) {
-            const std::string value{arg.substr(std::string_view{"--data-dir="}.size())};
-            if (value.empty()) {
+    try {
+        po::options_description desc("isched_srv options");
+        desc.add_options()
+            ("help,h", "show help")
+            ("data-dir", po::value<std::string>(), "work directory")
+            ("seed", po::value<std::string>(), "seed credentials");
+
+        po::variables_map vm;
+        po::store(po::command_line_parser(argc, argv)
+                      .options(desc)
+                      .style(po::command_line_style::default_style |
+                             po::command_line_style::allow_long_disguise)
+                      .run(),
+                  vm);
+        po::notify(vm);
+
+        CliOptions opts;
+        opts.help_requested = vm.contains("help");
+
+        if (vm.contains("data-dir")) {
+            const auto data_dir = vm["data-dir"].as<std::string>();
+            if (data_dir.empty()) {
                 error = "--data-dir requires a non-empty value";
                 return std::nullopt;
             }
-            opts.data_dir = value;
-            continue;
+            opts.data_dir = data_dir;
         }
 
-        if (arg == "--seed") {
-            if (i + 1 >= argc) {
-                error = "--seed requires a value in format <admin_name>:<password>";
-                return std::nullopt;
-            }
-            const auto parsed = parse_seed_credentials(argv[++i], error);
+        if (vm.contains("seed")) {
+            const auto parsed = parse_seed_credentials(vm["seed"].as<std::string>(), error);
             if (!parsed) {
                 return std::nullopt;
             }
             opts.seed_credentials = *parsed;
-            continue;
         }
 
-        if (arg.starts_with("--seed=")) {
-            const auto parsed = parse_seed_credentials(
-                arg.substr(std::string_view{"--seed="}.size()), error);
-            if (!parsed) {
-                return std::nullopt;
-            }
-            opts.seed_credentials = *parsed;
-            continue;
+        return opts;
+    } catch (const po::invalid_command_line_syntax& ex) {
+        const std::string_view what = ex.what();
+        if (what.find("--data-dir") != std::string_view::npos) {
+            error = "--data-dir requires a value";
+        } else if (what.find("--seed") != std::string_view::npos) {
+            error = "--seed requires a value in format <admin_name>:<password>";
+        } else {
+            error = ex.what();
         }
-
-        error = "Unknown option: " + std::string(arg);
+        return std::nullopt;
+    } catch (const po::error& ex) {
+        error = ex.what();
         return std::nullopt;
     }
-
-    return opts;
 }
 
 bool prompt_seed_confirmation(std::istream& in, std::ostream& out) {

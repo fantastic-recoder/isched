@@ -28,6 +28,8 @@ struct SeedResult {
                                                                     std::string& error);
 [[nodiscard]] std::optional<CliOptions> parse_cli_args(int argc, char** argv,
                                                        std::string& error);
+[[nodiscard]] std::string build_usage_text(std::string_view program);
+[[nodiscard]] bool validate_data_dir(const std::string& path, std::string& error);
 
 bool prompt_seed_confirmation(std::istream& in, std::ostream& out);
 

@@ -28,6 +28,21 @@ TEST_CASE("srv CLI parser accepts valid --seed option", "[srv][cli][seed]") {
     CHECK(*parsed->data_dir == "/tmp/isched");
 }
 
+TEST_CASE("srv CLI parser accepts equals-form options", "[srv][cli][seed]") {
+    const char* argv[] = {"isched_srv", "--seed=admin:supersecret", "--data-dir=/tmp/isched", "--help"};
+    std::string error;
+
+    const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
+
+    REQUIRE(parsed);
+    REQUIRE(parsed->seed_credentials);
+    CHECK(parsed->seed_credentials->admin_name == "admin");
+    CHECK(parsed->seed_credentials->password == "supersecret");
+    REQUIRE(parsed->data_dir);
+    CHECK(*parsed->data_dir == "/tmp/isched");
+    CHECK(parsed->help_requested);
+}
+
 TEST_CASE("srv CLI parser rejects malformed --seed option", "[srv][cli][seed]") {
     SECTION("missing colon") {
         const char* argv[] = {"isched_srv", "--seed", "adminonly"};
@@ -59,6 +74,40 @@ TEST_CASE("srv CLI parser rejects malformed --seed option", "[srv][cli][seed]") 
         const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
         REQUIRE_FALSE(parsed);
         CHECK(error.find("requires a value") != std::string::npos);
+    }
+
+    SECTION("missing option value in equals form") {
+        const char* argv[] = {"isched_srv", "--seed="};
+        std::string error;
+        const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
+        REQUIRE_FALSE(parsed);
+        CHECK(error.find("non-empty value") != std::string::npos);
+    }
+}
+
+TEST_CASE("srv CLI parser rejects malformed --data-dir option", "[srv][cli][data-dir]") {
+    SECTION("missing value") {
+        const char* argv[] = {"isched_srv", "--data-dir"};
+        std::string error;
+        const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
+        REQUIRE_FALSE(parsed);
+        CHECK(error.find("--data-dir requires a value") != std::string::npos);
+    }
+
+    SECTION("empty equals value") {
+        const char* argv[] = {"isched_srv", "--data-dir="};
+        std::string error;
+        const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
+        REQUIRE_FALSE(parsed);
+        CHECK(error.find("non-empty value") != std::string::npos);
+    }
+
+    SECTION("unknown option") {
+        const char* argv[] = {"isched_srv", "--wat"};
+        std::string error;
+        const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
+        REQUIRE_FALSE(parsed);
+        CHECK(error.find("--wat") != std::string::npos);
     }
 }
 

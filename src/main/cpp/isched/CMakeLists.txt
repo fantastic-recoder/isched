@@ -58,7 +58,7 @@ add_library(isched
         backend/isched_srv_cli.cpp
 )
 target_link_libraries(isched PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
-        jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url Boost::system Boost::thread sago::platform_folders Boost::filesystem ${CMAKE_DL_LIBS})
+        jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url Boost::system Boost::thread Boost::program_options sago::platform_folders Boost::filesystem ${CMAKE_DL_LIBS})
 target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable(isched_srv backend/isched_srv_main.cpp)

@@ -13,9 +13,6 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
-#include <cstring>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -33,49 +30,6 @@ std::atomic<bool> keep_running{true};
 
 void handle_signal(int) {
     keep_running.store(false);
-}
-
-void print_usage(const char* program) {
-    std::cerr
-        << "Usage: " << program << " [--data-dir <path>] [--seed <admin_name>:<password>] [--help]\n"
-        << "\n"
-        << "Options:\n"
-        << "  --data-dir <path>   Override server work directory (tenant data under <path>/tenants)\n"
-        << "  --data-dir=<path>   Same as above\n"
-        << "  --seed <a>:<p>      Confirmed platform DB reset + bootstrap admin credential seeding\n"
-        << "  --seed=<a>:<p>      Same as above\n"
-        << "  --help              Show this help text\n";
-}
-
-bool validate_data_dir(const std::string& path, std::string& error) {
-    if (path.empty()) {
-        error = "data directory must not be empty";
-        return false;
-    }
-
-    std::error_code ec;
-    std::filesystem::create_directories(path, ec);
-    if (ec) {
-        error = "failed to create data directory '" + path + "': " + ec.message();
-        return false;
-    }
-
-    if (!std::filesystem::is_directory(path, ec) || ec) {
-        error = "data directory is not a directory: '" + path + "'";
-        return false;
-    }
-
-    const auto probe = std::filesystem::path(path) / ".isched_write_probe";
-    {
-        std::ofstream out(probe.string(), std::ios::app);
-        if (!out) {
-            error = "data directory is not writable: '" + path + "'";
-            return false;
-        }
-    }
-    std::filesystem::remove(probe, ec);
-
-    return true;
 }
 
 /// Apply ISCHED_ environment variables to a server Configuration.
@@ -115,11 +69,11 @@ int main(int argc, char** argv) {
     const auto cli_opts = parse_cli_args(argc, argv, cli_error);
     if (!cli_opts) {
         spdlog::error("{}", cli_error);
-        print_usage(argv[0]);
+        std::cerr << build_usage_text(argv[0]);
         return EXIT_FAILURE;
     }
     if (cli_opts->help_requested) {
-        print_usage(argv[0]);
+        std::cout << build_usage_text(argv[0]);
         return EXIT_SUCCESS;
     }
 
