@@ -21,121 +21,249 @@
   </header>
 
   <section class="grid gap-4 md:grid-cols-2">
-      <article class="card bg-base-100 shadow" data-testid="dashboard-health-card">
-        <div class="card-body">
-          <h2 class="card-title">System Health</h2>
-          <p class="text-sm text-base-content/70">Current backend status from the GraphQL health probe.</p>
-          <div>
-            <span
-              class="badge badge-md"
-              [class]="'badge badge-md ' + healthBadgeClass()"
-              data-testid="dashboard-health-badge"
-            >
-              {{ healthBadgeLabel() }}
-            </span>
+    <div class="collapse collapse-arrow bg-base-100 shadow" [class.collapse-open]="isPanelExpanded('overviewHealth')">
+      <input
+        type="checkbox"
+        data-testid="dashboard-panel-health-toggle"
+        [checked]="isPanelExpanded('overviewHealth')"
+        (change)="onPanelAccordionChange('overviewHealth', $event)"
+      />
+      <div class="collapse-title text-lg font-semibold">System Health</div>
+      <div class="collapse-content">
+        <article class="card bg-base-100" data-testid="dashboard-health-card">
+          <div class="card-body px-0 pt-0">
+            <p class="text-sm text-base-content/70">Current backend status from the GraphQL health probe.</p>
+            <div>
+              <span
+                class="badge badge-md"
+                [class]="'badge badge-md ' + healthBadgeClass()"
+                data-testid="dashboard-health-badge"
+              >
+                {{ healthBadgeLabel() }}
+              </span>
+            </div>
           </div>
-        </div>
-      </article>
+        </article>
+      </div>
+    </div>
 
-      <article class="card bg-base-100 shadow" data-testid="dashboard-quicklinks-card">
-        <div class="card-body">
-          <h2 class="card-title">Administration</h2>
-          <p class="text-sm text-base-content/70">Quick links to core management surfaces.</p>
-          <div class="flex flex-wrap gap-2">
-            <a class="btn btn-outline btn-sm" routerLink="/admin/organizations" data-testid="quicklink-organizations">
-              Organizations
-            </a>
-            <a class="btn btn-outline btn-sm" routerLink="/admin/users" data-testid="quicklink-users">Users</a>
-            <a class="btn btn-outline btn-sm" routerLink="/admin/rbac" data-testid="quicklink-rbac">RBAC</a>
+    <div class="collapse collapse-arrow bg-base-100 shadow" [class.collapse-open]="isPanelExpanded('overviewAdmin')">
+      <input
+        type="checkbox"
+        data-testid="dashboard-panel-admin-toggle"
+        [checked]="isPanelExpanded('overviewAdmin')"
+        (change)="onPanelAccordionChange('overviewAdmin', $event)"
+      />
+      <div class="collapse-title text-lg font-semibold">Administration</div>
+      <div class="collapse-content">
+        <article class="card bg-base-100" data-testid="dashboard-quicklinks-card">
+          <div class="card-body px-0 pt-0">
+            <p class="text-sm text-base-content/70">Quick links to core management surfaces.</p>
+            <div class="flex flex-wrap gap-2">
+              <a class="btn btn-outline btn-sm" routerLink="/admin/organizations" data-testid="quicklink-organizations">
+                Organizations
+              </a>
+              <a class="btn btn-outline btn-sm" routerLink="/admin/users" data-testid="quicklink-users">Users</a>
+              <a class="btn btn-outline btn-sm" routerLink="/admin/rbac" data-testid="quicklink-rbac">RBAC</a>
+            </div>
           </div>
-        </div>
-      </article>
+        </article>
+      </div>
+    </div>
   </section>
 
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h2 class="text-2xl font-bold">Organizations</h2>
-      <p class="text-sm text-base-content/70">Create organizations and inspect their user memberships.</p>
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="create_org_modal.showModal()">
-      + Create Organization
-    </button>
-  </div>
+  <section class="collapse collapse-arrow bg-base-100 shadow" [class.collapse-open]="isPanelExpanded('organizations')">
+    <input
+      type="checkbox"
+      data-testid="dashboard-panel-organizations-toggle"
+      [checked]="isPanelExpanded('organizations')"
+      (change)="onPanelAccordionChange('organizations', $event)"
+    />
+    <div class="collapse-title text-xl font-semibold">Organizations</div>
+    <div class="collapse-content space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-base-content/70">Create organizations and inspect their user memberships.</p>
+        <button class="btn btn-primary btn-sm" onclick="create_org_modal.showModal()">
+          + Create Organization
+        </button>
+      </div>
 
-  @if (loading()) {
-    <div class="flex justify-center py-12">
-      <span class="loading loading-spinner loading-lg"></span>
-    </div>
-  } @else if (orgs().length === 0) {
-    <div class="alert">No organizations yet. Create one to get started.</div>
-  } @else {
-    <div class="overflow-x-auto rounded-box bg-base-100 shadow">
-      <table class="table table-zebra w-full">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Tier</th>
-            <th>Users</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (org of orgs(); track org.id) {
-            <tr>
-              <td>{{ org.name }}</td>
-              <td><span class="badge badge-ghost badge-sm">{{ org.subscriptionTier || '—' }}</span></td>
-              <td>
-                <div class="collapse collapse-arrow bg-base-200 rounded-box">
-                  <input type="checkbox" class="peer" />
-                  <div class="collapse-title text-sm font-medium">
-                    Show users
-                  </div>
-                  <div class="collapse-content">
-                    @if (users()[org.id] === undefined) {
-                      <span class="loading loading-spinner loading-xs"></span>
-                    } @else if (users()[org.id].length === 0) {
-                      <p class="text-sm text-base-content/50">No users.</p>
-                    } @else {
-                      <table class="table table-xs mt-1 w-full">
-                        <thead><tr><th>Email</th><th>Roles</th><th>Active</th></tr></thead>
-                        <tbody>
-                          @for (u of users()[org.id]; track u.id) {
-                            <tr>
-                              <td>{{ u.email }}</td>
-                              <td>{{ u.roles.join(', ') || '—' }}</td>
-                              <td>
-                                @if (u.isActive) {
-                                  <span class="badge badge-success badge-xs">Yes</span>
-                                } @else {
-                                  <span class="badge badge-ghost badge-xs">No</span>
-                                }
-                              </td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    }
-                    <button class="btn btn-xs btn-outline mt-2" (click)="loadUsers(org.id)">
-                      Refresh
+      @if (loading()) {
+        <div class="flex justify-center py-12">
+          <span class="loading loading-spinner loading-lg"></span>
+        </div>
+      } @else if (orgs().length === 0) {
+        <div class="alert">No organizations yet. Create one to get started.</div>
+      } @else {
+        <div class="overflow-x-auto rounded-box bg-base-100">
+          <table class="table table-zebra w-full">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Tier</th>
+                <th>Users</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (org of orgs(); track org.id) {
+                <tr>
+                  <td>{{ org.name }}</td>
+                  <td><span class="badge badge-ghost badge-sm">{{ org.subscriptionTier || '—' }}</span></td>
+                  <td>
+                    <div class="collapse collapse-arrow bg-base-200 rounded-box">
+                      <input type="checkbox" class="peer" />
+                      <div class="collapse-title text-sm font-medium">Show users</div>
+                      <div class="collapse-content">
+                        @if (users()[org.id] === undefined) {
+                          <span class="loading loading-spinner loading-xs"></span>
+                        } @else if (users()[org.id].length === 0) {
+                          <p class="text-sm text-base-content/50">No users.</p>
+                        } @else {
+                          <table class="table table-xs mt-1 w-full">
+                            <thead><tr><th>Email</th><th>Roles</th><th>Active</th></tr></thead>
+                            <tbody>
+                              @for (u of users()[org.id]; track u.id) {
+                                <tr>
+                                  <td>{{ u.email }}</td>
+                                  <td>{{ u.roles.join(', ') || '—' }}</td>
+                                  <td>
+                                    @if (u.isActive) {
+                                      <span class="badge badge-success badge-xs">Yes</span>
+                                    } @else {
+                                      <span class="badge badge-ghost badge-xs">No</span>
+                                    }
+                                  </td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        }
+                        <button class="btn btn-xs btn-outline mt-2" (click)="loadUsers(org.id)">Refresh</button>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <button
+                      class="btn btn-xs btn-secondary"
+                      (click)="openCreateUser(org.id)"
+                      onclick="create_user_modal.showModal()"
+                    >
+                      + User
                     </button>
-                  </div>
-                </div>
-              </td>
-              <td>
-                <button
-                  class="btn btn-xs btn-secondary"
-                  (click)="openCreateUser(org.id)"
-                  onclick="create_user_modal.showModal()"
-                >
-                  + User
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
-  }
+  </section>
+
+  <section class="collapse collapse-arrow bg-base-100 shadow" [class.collapse-open]="isPanelExpanded('plugins')">
+    <input
+      type="checkbox"
+      data-testid="dashboard-panel-plugins-toggle"
+      [checked]="isPanelExpanded('plugins')"
+      (change)="onPanelAccordionChange('plugins', $event)"
+    />
+    <div class="collapse-title text-xl font-semibold">Plugins</div>
+    <div class="collapse-content space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-base-content/70">
+          Manage runtime plugins, inspect metadata, and control plugin lifecycle from the dashboard.
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button class="btn btn-primary btn-sm" (click)="openLoadPluginModal()">+ Load Plugin</button>
+          <button
+            class="btn btn-outline btn-sm"
+            [disabled]="!selectedPluginId() || pluginMutationPending()"
+            (click)="unloadSelectedPlugin()"
+          >
+            Unload Selected
+          </button>
+        </div>
+      </div>
+
+      @if (pluginMutationError()) {
+        <div class="alert alert-error text-sm">{{ pluginMutationError() }}</div>
+      }
+
+      @if (pluginsLoading()) {
+        <div class="flex justify-center py-8">
+          <span class="loading loading-spinner loading-md"></span>
+        </div>
+      } @else if (plugins().length === 0) {
+        <div class="alert">No plugins loaded yet.</div>
+      } @else {
+        <div class="space-y-4">
+          <div class="overflow-x-auto rounded-box bg-base-200/40 p-2">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Name</th>
+                  <th>Kind</th>
+                  <th>Status</th>
+                  <th>Version</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (plugin of plugins(); track plugin.id) {
+                  <tr>
+                    <td>
+                      <input
+                        type="radio"
+                        name="selected-plugin"
+                        class="radio radio-xs"
+                        [checked]="selectedPluginId() === plugin.id"
+                        (change)="selectedPluginId.set(plugin.id)"
+                      />
+                    </td>
+                    <td class="font-medium">{{ plugin.name || plugin.id }}</td>
+                    <td>{{ plugin.kind }}</td>
+                    <td>
+                      @if (plugin.isLoaded) {
+                        <span class="badge badge-success badge-xs">Active</span>
+                      } @else {
+                        <span class="badge badge-ghost badge-xs">Inactive</span>
+                      }
+                    </td>
+                    <td>{{ plugin.version || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="space-y-2">
+            @for (plugin of plugins(); track plugin.id) {
+              <div class="collapse collapse-arrow bg-base-200 rounded-box" [class.collapse-open]="isPluginExpanded(plugin.id)">
+                <input
+                  type="checkbox"
+                  [checked]="isPluginExpanded(plugin.id)"
+                  (change)="onPluginAccordionChange(plugin.id, $event)"
+                />
+                <div class="collapse-title text-sm font-semibold">
+                  {{ plugin.name || plugin.id }}
+                  <span class="ml-2 text-xs font-normal text-base-content/70">({{ plugin.id }})</span>
+                </div>
+                <div class="collapse-content text-sm space-y-2">
+                  <p><span class="font-semibold">Description:</span> {{ plugin.description || '—' }}</p>
+                  <p><span class="font-semibold">Kind:</span> {{ plugin.kind }}</p>
+                  <p><span class="font-semibold">Library path:</span> {{ plugin.libraryPath }}</p>
+                  <p><span class="font-semibold">Version:</span> {{ plugin.version || '—' }}</p>
+                  <p><span class="font-semibold">Loaded at:</span> {{ plugin.loadedAt || '—' }}</p>
+                  <p><span class="font-semibold">Unloaded at:</span> {{ plugin.unloadedAt || '—' }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </section>
 </section>
 
 <!-- Create Organization Modal -->
@@ -171,6 +299,51 @@
         <button type="submit" class="btn btn-primary btn-sm" [disabled]="orgPending()">
           @if (orgPending()) { <span class="loading loading-spinner loading-xs"></span> }
           @else { Create }
+        </button>
+      </div>
+    </form>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Load Plugin Modal -->
+<dialog id="load_plugin_modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-4">Load Plugin</h3>
+    @if (pluginMutationError()) {
+      <div class="alert alert-error mb-3 text-sm">{{ pluginMutationError() }}</div>
+    }
+    <form [formGroup]="pluginForm" (ngSubmit)="loadPlugin()" novalidate>
+      <div class="form-control mb-2">
+        <label class="label"><span class="label-text">Library path *</span></label>
+        <input
+          type="text"
+          formControlName="libraryPath"
+          class="input input-bordered input-sm"
+          placeholder="/opt/isched/plugins/example_plugin.so"
+        />
+      </div>
+      <div class="form-control mb-2">
+        <label class="label"><span class="label-text">Kind *</span></label>
+        <select formControlName="kind" class="select select-bordered select-sm">
+          <option value="REQUEST">REQUEST</option>
+          <option value="RESOLVER">RESOLVER</option>
+        </select>
+      </div>
+      <div class="form-control mb-4">
+        <label class="label"><span class="label-text">Plugin ID (optional)</span></label>
+        <input
+          type="text"
+          formControlName="pluginId"
+          class="input input-bordered input-sm"
+          placeholder="my-plugin-id"
+        />
+      </div>
+      <div class="modal-action">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="load_plugin_modal.close()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm" [disabled]="pluginMutationPending()">
+          @if (pluginMutationPending()) { <span class="loading loading-spinner loading-xs"></span> }
+          @else { Load Plugin }
         </button>
       </div>
     </form>

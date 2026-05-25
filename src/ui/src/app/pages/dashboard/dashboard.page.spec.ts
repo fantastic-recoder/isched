@@ -16,12 +16,33 @@ describe('DashboardComponent minimum content', () => {
   };
 
   beforeEach(async () => {
+    localStorage.clear();
+
     gqlMock.query.mockImplementation((query: string) => {
       if (query.includes('health')) {
         return of({ isched: { health: { status: 'UP' }, version: 'test-version' } });
       }
       if (query.includes('organizations')) {
         return of({ isched: { organizations: { nodes: [] } } });
+      }
+      if (query.includes('plugins')) {
+        return of({
+          isched: {
+            plugins: [
+              {
+                id: 'plugin-1',
+                kind: 'REQUEST',
+                name: 'AuditPlugin',
+                version: '1.0.0',
+                description: 'Captures request metadata',
+                libraryPath: '/tmp/libaudit_plugin.so',
+                isLoaded: true,
+                loadedAt: '2026-01-01T00:00:00Z',
+                unloadedAt: '',
+              },
+            ],
+          },
+        });
       }
       if (query.includes('users')) {
         return of({ isched: { users: [] } });
@@ -46,6 +67,7 @@ describe('DashboardComponent minimum content', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
   });
 
   it('renders FR-020 minimum dashboard content with a health summary badge', () => {
@@ -77,6 +99,37 @@ describe('DashboardComponent minimum content', () => {
     expect(organizationsLink?.getAttribute('href')).toContain('/admin/organizations');
     expect(usersLink?.getAttribute('href')).toContain('/admin/users');
     expect(rbacLink?.getAttribute('href')).toContain('/admin/rbac');
+  });
+
+  it('renders the plugins administration panel with active plugin information', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.textContent).toContain('Plugins');
+    expect(host.textContent).toContain('AuditPlugin');
+    expect(host.textContent).toContain('Unload Selected');
+  });
+
+  it('restores persisted dashboard accordion state from localStorage', () => {
+    localStorage.setItem(
+      'isched.dashboard.panelState',
+      JSON.stringify({ overviewHealth: false, overviewAdmin: true, organizations: false, plugins: true }),
+    );
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const healthToggle = host.querySelector<HTMLInputElement>('[data-testid="dashboard-panel-health-toggle"]');
+    const adminToggle = host.querySelector<HTMLInputElement>('[data-testid="dashboard-panel-admin-toggle"]');
+    const orgToggle = host.querySelector<HTMLInputElement>('[data-testid="dashboard-panel-organizations-toggle"]');
+    const pluginsToggle = host.querySelector<HTMLInputElement>('[data-testid="dashboard-panel-plugins-toggle"]');
+
+    expect(healthToggle?.checked).toBe(false);
+    expect(adminToggle?.checked).toBe(true);
+    expect(orgToggle?.checked).toBe(false);
+    expect(pluginsToggle?.checked).toBe(true);
   });
 });
 
