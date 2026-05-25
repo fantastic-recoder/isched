@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { ensureAuthenticatedDashboard } from './authenticated-session.helpers';
 
@@ -14,6 +14,79 @@ async function isVisibleWithinTimeout(locator: Locator, timeoutMs: number): Prom
   } catch {
     return false;
   }
+}
+
+async function armPluginRegistryProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    type PluginRegistryEvent = { action: string; pluginId: string; timestamp: string };
+    type GqlMsg = { type: string; id?: string; payload?: unknown };
+    const w = window as Window & {
+      __wsSubscribed?: boolean;
+      __pluginRegistryEvent?: PluginRegistryEvent | null;
+    };
+    w.__wsSubscribed = false;
+    w.__pluginRegistryEvent = null;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = `${protocol}//${window.location.host}/graphql`;
+    const ws = new WebSocket(url, ['graphql-transport-ws']);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'connection_init', payload: {} }));
+    };
+    ws.onmessage = (evt: MessageEvent<string>) => {
+      let msg: GqlMsg;
+      try {
+        msg = JSON.parse(evt.data) as GqlMsg;
+      } catch {
+        return;
+      }
+      if (msg.type === 'connection_ack') {
+        ws.send(
+          JSON.stringify({
+            id: 'sub-e2e',
+            type: 'subscribe',
+            payload: {
+              query: `subscription { isched { pluginRegistryChanged { action pluginId timestamp } } }`,
+            },
+          }),
+        );
+        w.__wsSubscribed = true;
+      } else if (msg.type === 'next' && msg.id === 'sub-e2e') {
+        const data = (
+          msg.payload as {
+            data?: {
+              isched?: { pluginRegistryChanged?: PluginRegistryEvent };
+              pluginRegistryChanged?: PluginRegistryEvent;
+            };
+          }
+        )?.data;
+        const event = data?.isched?.pluginRegistryChanged ?? data?.pluginRegistryChanged;
+        if (event && event.action !== 'initial') {
+          w.__pluginRegistryEvent = event;
+          ws.close();
+        }
+      }
+    };
+  });
+
+  await page.waitForFunction(
+    () => !!(window as Window & { __wsSubscribed?: boolean }).__wsSubscribed,
+    { timeout: 8_000 },
+  );
+}
+
+async function readPluginRegistryProbeEvent(
+  page: Page,
+): Promise<{ action: string; pluginId: string; timestamp: string } | null> {
+  await page.waitForFunction(
+    () => !!(window as Window & { __pluginRegistryEvent?: unknown }).__pluginRegistryEvent,
+    { timeout: 15_000 },
+  );
+  return page.evaluate(
+    () =>
+      (
+        window as Window & { __pluginRegistryEvent?: { action: string; pluginId: string; timestamp: string } }
+      ).__pluginRegistryEvent ?? null,
+  );
 }
 
 test('plugins panel loads real hello plugin shared library and shows it as active', async ({ page }) => {
@@ -65,75 +138,9 @@ test('plugins panel loads real hello plugin shared library and shows it as activ
   await loadModal.locator('select[formControlName="kind"]').selectOption({ label: 'RESOLVER' });
   await loadModal.locator('input[formControlName="pluginId"]').fill('hello_plugin');
 
-  // ── Subscription wiring ────────────────────────────────────────────────────
-  // Before submitting the mutation, inject a raw graphql-transport-ws subscriber
-  // into the browser page.  Once connection_ack is received we immediately send
-  // a subscribe frame for pluginRegistryChanged.  The first resulting `next`
-  // frame is stored on window.__pluginRegistryEvent so Playwright can read it.
-  await page.evaluate(() => {
-    type PluginRegistryEvent = { action: string; pluginId: string; timestamp: string };
-    type GqlMsg = { type: string; id?: string; payload?: unknown };
-    const w = window as Window & {
-      __wsSubscribed?: boolean;
-      __pluginRegistryEvent?: PluginRegistryEvent | null;
-    };
-    w.__wsSubscribed = false;
-    w.__pluginRegistryEvent = null;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/graphql`;
-    const ws = new WebSocket(url, ['graphql-transport-ws']);
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'connection_init', payload: {} }));
-    };
-    ws.onmessage = (evt: MessageEvent<string>) => {
-      let msg: GqlMsg;
-      try {
-        msg = JSON.parse(evt.data) as GqlMsg;
-      } catch {
-        return;
-      }
-      if (msg.type === 'connection_ack') {
-        ws.send(
-          JSON.stringify({
-            id: 'sub-e2e',
-            type: 'subscribe',
-            payload: {
-              query: `subscription { isched { pluginRegistryChanged { action pluginId timestamp } } }`,
-            },
-          }),
-        );
-        w.__wsSubscribed = true;
-      } else if (msg.type === 'next' && msg.id === 'sub-e2e') {
-        const data = (
-          msg.payload as {
-            data?: {
-              isched?: { pluginRegistryChanged?: PluginRegistryEvent };
-              pluginRegistryChanged?: PluginRegistryEvent;
-            };
-          }
-        )?.data;
-        // Initial value comes from GraphQL execution shape:
-        //   data.isched.pluginRegistryChanged
-        // Ongoing broker pushes are currently published as:
-        //   data.pluginRegistryChanged
-        const event = data?.isched?.pluginRegistryChanged ?? data?.pluginRegistryChanged;
-        // Skip the synthetic initial snapshot (action='initial') sent on subscribe;
-        // only capture real load/unload events.
-        if (event && event.action !== 'initial') {
-          w.__pluginRegistryEvent = event;
-          ws.close();
-        }
-      }
-    };
-  });
-
-  // Wait until the subscription has been acknowledged by the server and the
-  // subscribe frame has been sent (i.e., the server is now registered as a
-  // listener on the __plugin_registry topic).
-  await page.waitForFunction(
-    () => !!(window as Window & { __wsSubscribed?: boolean }).__wsSubscribed,
-    { timeout: 8_000 },
-  );
+  // Arm a one-shot probe before firing loadPlugin so we can assert the broker
+  // push from that exact mutation.
+  await armPluginRegistryProbe(page);
 
   // ── Trigger the mutation ───────────────────────────────────────────────────
   await loadModal.locator('button[type="submit"]').click();
@@ -154,18 +161,22 @@ test('plugins panel loads real hello plugin shared library and shows it as activ
   // The loadPlugin mutation must have published an event to the
   // __plugin_registry topic; the raw WS subscriber above should have received
   // a `next` frame carrying a PluginRegistryEvent with action='loaded'.
-  await page.waitForFunction(
-    () => !!(window as Window & { __pluginRegistryEvent?: unknown }).__pluginRegistryEvent,
-    { timeout: 15_000 },
-  );
-  const pluginEvent = await page.evaluate(
-    () =>
-      (
-        window as Window & { __pluginRegistryEvent?: { action: string; pluginId: string; timestamp: string } }
-      ).__pluginRegistryEvent,
-  );
+  const pluginEvent = await readPluginRegistryProbeEvent(page);
   expect(pluginEvent).not.toBeNull();
   expect(pluginEvent?.action).toBe('loaded');
   expect(pluginEvent?.pluginId).toBe('hello_plugin');
   expect(pluginEvent?.timestamp).toBeTruthy();
+
+  // Re-arm the probe for the unload action and verify the corresponding
+  // pluginRegistryChanged broker event.
+  await armPluginRegistryProbe(page);
+  await pluginRow.locator('input[type="radio"]').first().check();
+  await page.getByRole('button', { name: 'Unload Selected' }).click();
+  await expect(pluginRow).toBeHidden({ timeout: 10_000 });
+
+  const unloadEvent = await readPluginRegistryProbeEvent(page);
+  expect(unloadEvent).not.toBeNull();
+  expect(unloadEvent?.action).toBe('unloaded');
+  expect(unloadEvent?.pluginId).toBe('hello_plugin');
+  expect(unloadEvent?.timestamp).toBeTruthy();
 });
