@@ -154,6 +154,7 @@ else()
 endif()
 
 add_subdirectory("src/main/cpp/isched")
+add_subdirectory("src/example/cpp")
 add_subdirectory("src/test/cpp/isched")
 
 # Intentional load-bearing dependency: the isched library must not be compiled
