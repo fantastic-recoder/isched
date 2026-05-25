@@ -57,22 +57,26 @@ function ensureData<T>(result: GraphQlResponse<T>, label: string): T {
 async function ensurePlatformAdminToken(
   request: import('@playwright/test').APIRequestContext,
 ): Promise<string> {
-  const loginResult = await gql<{ login: { token: string } }>(
+  const loginResult = await gql<{ isched: { login: { token: string } } }>(
     request,
     `mutation($email: String!, $password: String!) {
-      login(email: $email, password: $password) { token }
+      isched {
+        login(email: $email, password: $password) { token }
+      }
     }`,
     { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
   );
 
-  if (loginResult.data?.login?.token) {
-    return loginResult.data.login.token;
+  if (loginResult.data?.isched?.login?.token) {
+    return loginResult.data.isched.login.token;
   }
 
-  const bootstrapResult = await gql<{ bootstrapPlatformAdmin: { token: string } }>(
+  const bootstrapResult = await gql<{ isched: { bootstrapPlatformAdmin: { token: string } } }>(
     request,
     `mutation($input: BootstrapPlatformAdminInput!) {
-      bootstrapPlatformAdmin(input: $input) { token }
+      isched {
+        bootstrapPlatformAdmin(input: $input) { token }
+      }
     }`,
     {
       input: {
@@ -83,8 +87,8 @@ async function ensurePlatformAdminToken(
     },
   );
 
-  if (bootstrapResult.data?.bootstrapPlatformAdmin?.token) {
-    return bootstrapResult.data.bootstrapPlatformAdmin.token;
+  if (bootstrapResult.data?.isched?.bootstrapPlatformAdmin?.token) {
+    return bootstrapResult.data.isched.bootstrapPlatformAdmin.token;
   }
 
   const bootstrapErr = bootstrapResult.errors?.[0]?.message;
@@ -99,16 +103,18 @@ async function loginToken(
   organizationId?: string,
 ): Promise<string> {
   const data = ensureData(
-    await gql<{ login: { token: string } }>(
+    await gql<{ isched: { login: { token: string } } }>(
       request,
       `mutation($email: String!, $password: String!, $organizationId: ID) {
-        login(email: $email, password: $password, organizationId: $organizationId) { token }
+        isched {
+          login(email: $email, password: $password, organizationId: $organizationId) { token }
+        }
       }`,
       { email, password, organizationId: organizationId ?? null },
     ),
     `login(${email})`,
   );
-  return data.login.token;
+  return data.isched.login.token;
 }
 
 test.describe('Schema upload GraphQL flow', () => {
@@ -118,11 +124,13 @@ test.describe('Schema upload GraphQL flow', () => {
     const adminCsrf = `csrf-admin-${unique}`;
 
     const createOrgMutation = `mutation($input: CreateOrganizationInput!) {
-      createOrganization(input: $input) { id name }
+      isched {
+        createOrganization(input: $input) { id name }
+      }
     }`;
 
     const orgAData = ensureData(
-      await gql<{ createOrganization: { id: string; name: string } }>(
+      await gql<{ isched: { createOrganization: { id: string; name: string } } }>(
         request,
         createOrgMutation,
         { input: { name: `Org A ${unique}` } },
@@ -132,7 +140,7 @@ test.describe('Schema upload GraphQL flow', () => {
     );
 
     const orgBData = ensureData(
-      await gql<{ createOrganization: { id: string; name: string } }>(
+      await gql<{ isched: { createOrganization: { id: string; name: string } } }>(
         request,
         createOrgMutation,
         { input: { name: `Org B ${unique}` } },
@@ -142,7 +150,9 @@ test.describe('Schema upload GraphQL flow', () => {
     );
 
     const createUserMutation = `mutation($organizationId: ID!, $input: CreateUserInput!) {
-      createUser(organizationId: $organizationId, input: $input) { id email }
+      isched {
+        createUser(organizationId: $organizationId, input: $input) { id email }
+      }
     }`;
 
     const tenantAEmail = `tenant-a-${unique}@e2e.test`;
@@ -150,11 +160,11 @@ test.describe('Schema upload GraphQL flow', () => {
     const tenantPassword = 'TenantAdmin!Pass2026';
 
     ensureData(
-      await gql<{ createUser: { id: string } }>(
+      await gql<{ isched: { createUser: { id: string } } }>(
         request,
         createUserMutation,
         {
-          organizationId: orgAData.createOrganization.id,
+          organizationId: orgAData.isched.createOrganization.id,
           input: {
             email: tenantAEmail,
             password: tenantPassword,
@@ -168,11 +178,11 @@ test.describe('Schema upload GraphQL flow', () => {
     );
 
     ensureData(
-      await gql<{ createUser: { id: string } }>(
+      await gql<{ isched: { createUser: { id: string } } }>(
         request,
         createUserMutation,
         {
-          organizationId: orgBData.createOrganization.id,
+          organizationId: orgBData.isched.createOrganization.id,
           input: {
             email: tenantBEmail,
             password: tenantPassword,
@@ -189,21 +199,23 @@ test.describe('Schema upload GraphQL flow', () => {
       request,
       tenantAEmail,
       tenantPassword,
-      orgAData.createOrganization.id,
+      orgAData.isched.createOrganization.id,
     );
 
     const tenantBToken = await loginToken(
       request,
       tenantBEmail,
       tenantPassword,
-      orgBData.createOrganization.id,
+      orgBData.isched.createOrganization.id,
     );
 
     const uploadMutation = `mutation($input: UploadSchemaDocumentInput!) {
-      uploadSchemaDocument(input: $input) {
-        success
-        schema { name updatedBy }
-        error { code message }
+      isched {
+        uploadSchemaDocument(input: $input) {
+          success
+          schema { name updatedBy }
+          error { code message }
+        }
       }
     }`;
 
@@ -213,7 +225,7 @@ test.describe('Schema upload GraphQL flow', () => {
     const schemaBContent = 'type Query { tenantBField: String }';
 
     const uploadA = ensureData(
-      await gql<{ uploadSchemaDocument: { success: boolean; schema: { name: string } | null } }>(
+      await gql<{ isched: { uploadSchemaDocument: { success: boolean; schema: { name: string } | null } } }>(
         request,
         uploadMutation,
         { input: { name: schemaAName, content: schemaAContent, overwrite: false } },
@@ -221,11 +233,11 @@ test.describe('Schema upload GraphQL flow', () => {
       ),
       'uploadSchemaDocument(tenant A)',
     );
-    expect(uploadA.uploadSchemaDocument.success).toBe(true);
-    expect(uploadA.uploadSchemaDocument.schema?.name).toBe(schemaAName);
+    expect(uploadA.isched.uploadSchemaDocument.success).toBe(true);
+    expect(uploadA.isched.uploadSchemaDocument.schema?.name).toBe(schemaAName);
 
     const uploadB = ensureData(
-      await gql<{ uploadSchemaDocument: { success: boolean; schema: { name: string } | null } }>(
+      await gql<{ isched: { uploadSchemaDocument: { success: boolean; schema: { name: string } | null } } }>(
         request,
         uploadMutation,
         { input: { name: schemaBName, content: schemaBContent, overwrite: false } },
@@ -233,20 +245,22 @@ test.describe('Schema upload GraphQL flow', () => {
       ),
       'uploadSchemaDocument(tenant B)',
     );
-    expect(uploadB.uploadSchemaDocument.success).toBe(true);
-    expect(uploadB.uploadSchemaDocument.schema?.name).toBe(schemaBName);
+    expect(uploadB.isched.uploadSchemaDocument.success).toBe(true);
+    expect(uploadB.isched.uploadSchemaDocument.schema?.name).toBe(schemaBName);
 
     const listQuery = `query {
-      schemaDocuments {
-        name
-        createdAt
-        updatedAt
-        updatedBy
+      isched {
+        schemaDocuments {
+          name
+          createdAt
+          updatedAt
+          updatedBy
+        }
       }
     }`;
 
     const listA = ensureData(
-      await gql<{ schemaDocuments: Array<{ name: string }> }>(
+      await gql<{ isched: { schemaDocuments: Array<{ name: string }> } }>(
         request,
         listQuery,
         {},
@@ -254,11 +268,11 @@ test.describe('Schema upload GraphQL flow', () => {
       ),
       'schemaDocuments(tenant A)',
     );
-    expect(listA.schemaDocuments.map((item) => item.name)).toContain(schemaAName);
-    expect(listA.schemaDocuments.map((item) => item.name)).not.toContain(schemaBName);
+    expect(listA.isched.schemaDocuments.map((item) => item.name)).toContain(schemaAName);
+    expect(listA.isched.schemaDocuments.map((item) => item.name)).not.toContain(schemaBName);
 
     const listB = ensureData(
-      await gql<{ schemaDocuments: Array<{ name: string }> }>(
+      await gql<{ isched: { schemaDocuments: Array<{ name: string }> } }>(
         request,
         listQuery,
         {},
@@ -266,8 +280,8 @@ test.describe('Schema upload GraphQL flow', () => {
       ),
       'schemaDocuments(tenant B)',
     );
-    expect(listB.schemaDocuments.map((item) => item.name)).toContain(schemaBName);
-    expect(listB.schemaDocuments.map((item) => item.name)).not.toContain(schemaAName);
+    expect(listB.isched.schemaDocuments.map((item) => item.name)).toContain(schemaBName);
+    expect(listB.isched.schemaDocuments.map((item) => item.name)).not.toContain(schemaAName);
   });
 });
 

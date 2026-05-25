@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const DEV_SERVER_URL = 'http://127.0.0.1:4200';
+const BACKEND_PORT = Number(process.env['ISCHED_SERVER_PORT'] ?? '8080');
 
 test.describe.configure({ timeout: 120_000 });
 
@@ -24,8 +28,18 @@ async function waitForDevServerReady(url: string, timeoutMs = 90_000): Promise<v
   throw new Error(`Angular dev server did not become ready at ${url} within ${timeoutMs}ms`);
 }
 
-function startAngularDevServer(): ChildProcess {
-  const child = spawn('pnpm', ['exec', 'ng', 'serve', '--host', '127.0.0.1', '--port', '4200'], {
+function startAngularDevServer(proxyConfigPath: string): ChildProcess {
+  const child = spawn('pnpm', [
+    'exec',
+    'ng',
+    'serve',
+    '--host',
+    '127.0.0.1',
+    '--port',
+    '4200',
+    '--proxy-config',
+    proxyConfigPath,
+  ], {
     cwd: __dirname + '/..',
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
@@ -53,10 +67,31 @@ function startAngularDevServer(): ChildProcess {
 
 test.describe('Angular dev-server proxy', () => {
   let devServer: ChildProcess | null = null;
+  let proxyConfigDir: string | null = null;
 
   test.beforeAll(async () => {
     test.setTimeout(120_000);
-    devServer = startAngularDevServer();
+    proxyConfigDir = mkdtempSync(join(tmpdir(), 'isched-dev-proxy-'));
+    const proxyConfigPath = join(proxyConfigDir, 'proxy.conf.json');
+    writeFileSync(
+      proxyConfigPath,
+      JSON.stringify(
+        {
+          '/graphql': {
+            target: `http://127.0.0.1:${BACKEND_PORT}`,
+            secure: false,
+            changeOrigin: true,
+            xfwd: true,
+            ws: true,
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+
+    devServer = startAngularDevServer(proxyConfigPath);
     await waitForDevServerReady(`${DEV_SERVER_URL}/dev/proxy`);
   });
 
@@ -67,6 +102,11 @@ test.describe('Angular dev-server proxy', () => {
 
     devServer.kill('SIGTERM');
     await new Promise((resolveDone) => setTimeout(resolveDone, 1000));
+
+    if (proxyConfigDir) {
+      rmSync(proxyConfigDir, { recursive: true, force: true });
+      proxyConfigDir = null;
+    }
   });
 
   test('proxies /graphql requests to backend when running via Angular dev server', async ({ page }) => {
@@ -81,7 +121,7 @@ test.describe('Angular dev-server proxy', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          query: 'query BootstrapStatus { systemState { seedModeActive } }',
+          query: 'query BootstrapStatus { isched { systemState { seedModeActive } } }',
         }),
       });
 

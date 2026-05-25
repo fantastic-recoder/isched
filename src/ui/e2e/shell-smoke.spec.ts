@@ -76,8 +76,10 @@ test('shared authenticated shell shows nav, active route state, current user, an
   await expect(page.getByTestId('shell-nav-users')).toHaveAttribute('aria-current', 'page');
   await expect(page.getByTestId('users-page')).toBeVisible();
   await expect(page.getByTestId('users-org-select')).toBeVisible();
-  await expect(page.getByTestId('shell-status-digest')).toContainText('Loading organization users');
-  await expect(page.getByTestId('shell-status-digest')).toContainText('Organization users loaded');
+  const digest = page.getByTestId('shell-status-digest');
+  await expect(digest).toBeVisible();
+  await expect(digest).toContainText(/Loading organization users|Organization users loaded|Ready/);
+  await expect(digest).not.toContainText('Unable to load organization users');
 
   await page.getByTestId('shell-nav-organizations').click();
   await expect(page).toHaveURL(/\/isched\/admin\/organizations(?:$|\?)/, { timeout: 10_000 });

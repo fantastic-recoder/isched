@@ -64,7 +64,21 @@ test.describe('GraphQL Playground', () => {
       }
     }
 
-    const healthNode = page.getByRole('option', { name: /^⬡ health / }).first();
+    const ischedNamespace = queryContainer.locator('.node-name', { hasText: /^isched$/ }).first();
+    await expect(ischedNamespace).toBeVisible({ timeout: 10_000 });
+
+    const ischedContainer = ischedNamespace.locator('xpath=ancestor::div[contains(@class,"tree-node")][1]');
+    const namespaceToggle = ischedContainer.locator(
+      'button[aria-label^="Expand"], button[aria-label^="Collapse"]',
+    );
+    if (await namespaceToggle.count()) {
+      const namespaceLabel = (await namespaceToggle.first().getAttribute('aria-label')) ?? '';
+      if (namespaceLabel.startsWith('Expand')) {
+        await namespaceToggle.first().click();
+      }
+    }
+
+    const healthNode = ischedContainer.getByRole('option', { name: /^⬡ health / }).first();
     await expect(healthNode).toBeVisible({ timeout: 10_000 });
     await healthNode.click();
 
