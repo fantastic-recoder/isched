@@ -95,6 +95,61 @@ Equivalent inline form:
 
 WebUI is served at `GET /isched`; `GET /` and `GET /graphql` redirect to `/isched`.
 
+## Bootstrap Admin via `--seed`
+
+The `--seed` option enables safe, non-interactive reset of the platform database and seeding of a bootstrap admin account. This is useful for automation, testing, and initial cluster setup.
+
+**Usage:**
+
+```bash
+./cmake-build-debug/src/main/cpp/isched/isched_srv --seed admin:password123
+
+# Or with explicit data directory
+./cmake-build-debug/src/main/cpp/isched/isched_srv --data-dir=/tmp/isched-data --seed=admin:password123
+```
+
+**Confirmation requirement:**
+When `--seed` is provided, the server displays an interactive confirmation prompt:
+
+```
+really wipe out platform DB and reset admin password?
+```
+
+The server will only proceed if you type exactly **`yes`** (case-sensitive). Any other input aborts the reset immediately.
+
+**What happens on confirmation:**
+
+1. **Backup:** If `isched_system.db` already exists, it is backed up as `isched_system.db.bak.<timestamp>`.
+2. **Reset:** Old platform database files (`.db`, `-wal`, `-shm`) are removed.
+3. **Initialize:** A fresh system database is created.
+4. **Seed admin:** A platform administrator is created with the provided `<admin_name>` and `<password>`.
+5. **Startup:** The server then starts normally.
+
+**Safe automation example:**
+
+```bash
+TMP_DATA_DIR="$(mktemp -d)"
+echo "yes" | ./cmake-build-debug/src/main/cpp/isched/isched_srv \
+  --data-dir="$TMP_DATA_DIR" \
+  --seed="bootstrap_admin:initial_password_123"
+```
+
+This pattern:
+- Creates a sanitized temporary data directory
+- Pipes `yes` to the confirmation prompt
+- Provides explicit credentials
+- Ensures no existing state is modified (each run gets a fresh temp directory)
+
+**Production caution:**
+
+Use `--seed` only during:
+- Initial system provisioning
+- Non-destructive testing environments (confirmed via `--data-dir` isolation)
+- Disaster recovery with deliberate backup/restore procedures
+
+Never use `--seed` in production without explicit operator confirmation and verified backups.
+
+
 ## GraphQL Namespace Contract
 
 Built-in GraphQL fields are exposed under the `isched` namespace. Client queries and mutations should target namespaced operations, not root-level fields.
