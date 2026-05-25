@@ -15,28 +15,28 @@ using namespace isched::v0_0_1::backend;
 using namespace isched::v0_0_1::backend::srvcli;
 
 TEST_CASE("srv CLI parser accepts valid --seed option", "[srv][cli][seed]") {
-    const char* argv[] = {"isched_srv", "--seed", "admin:supersecret", "--data-dir", "/tmp/isched"};
+    const char* argv[] = {"isched_srv", "--seed", "admin@example.com:supersecret", "--data-dir", "/tmp/isched"};
     std::string error;
 
     const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
 
     REQUIRE(parsed);
     REQUIRE(parsed->seed_credentials);
-    CHECK(parsed->seed_credentials->admin_name == "admin");
+    CHECK(parsed->seed_credentials->admin_name == "admin@example.com");
     CHECK(parsed->seed_credentials->password == "supersecret");
     REQUIRE(parsed->data_dir);
     CHECK(*parsed->data_dir == "/tmp/isched");
 }
 
 TEST_CASE("srv CLI parser accepts equals-form options", "[srv][cli][seed]") {
-    const char* argv[] = {"isched_srv", "--seed=admin:supersecret", "--data-dir=/tmp/isched", "--help"};
+    const char* argv[] = {"isched_srv", "--seed=admin@example.com:supersecret", "--data-dir=/tmp/isched", "--help"};
     std::string error;
 
     const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
 
     REQUIRE(parsed);
     REQUIRE(parsed->seed_credentials);
-    CHECK(parsed->seed_credentials->admin_name == "admin");
+    CHECK(parsed->seed_credentials->admin_name == "admin@example.com");
     CHECK(parsed->seed_credentials->password == "supersecret");
     REQUIRE(parsed->data_dir);
     CHECK(*parsed->data_dir == "/tmp/isched");
@@ -61,11 +61,19 @@ TEST_CASE("srv CLI parser rejects malformed --seed option", "[srv][cli][seed]") 
     }
 
     SECTION("empty password") {
-        const char* argv[] = {"isched_srv", "--seed", "admin:"};
+        const char* argv[] = {"isched_srv", "--seed", "admin@example.com:"};
         std::string error;
         const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
         REQUIRE_FALSE(parsed);
         CHECK(error.find("password") != std::string::npos);
+    }
+
+    SECTION("invalid email admin name") {
+        const char* argv[] = {"isched_srv", "--seed", "not-an-email:password"};
+        std::string error;
+        const auto parsed = parse_cli_args(static_cast<int>(std::size(argv)), const_cast<char**>(argv), error);
+        REQUIRE_FALSE(parsed);
+        CHECK(error.find("valid email") != std::string::npos);
     }
 
     SECTION("missing option value") {

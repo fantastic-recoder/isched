@@ -11,6 +11,7 @@
 #include <functional>
 #include <sstream>
 #include <memory>
+#include <cctype>
 
 #include <spdlog/spdlog.h>
 
@@ -22,6 +23,69 @@ namespace isched::v0_0_1::backend::srvcli {
 namespace po = boost::program_options;
 
 namespace {
+
+bool is_valid_email_address(std::string_view email) {
+    if (email.empty() || email.find(' ') != std::string_view::npos) {
+        return false;
+    }
+
+    const auto at = email.find('@');
+    if (at == std::string_view::npos || at == 0 || at == email.size() - 1) {
+        return false;
+    }
+    if (email.find('@', at + 1) != std::string_view::npos) {
+        return false;
+    }
+
+    const auto local = email.substr(0, at);
+    const auto domain = email.substr(at + 1);
+    if (local.empty() || domain.empty()) {
+        return false;
+    }
+
+    if (local.front() == '.' || local.back() == '.') {
+        return false;
+    }
+
+    for (const char c : local) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        if (!std::isalnum(uc) && c != '.' && c != '_' && c != '%' && c != '+' && c != '-') {
+            return false;
+        }
+    }
+
+    if (domain.find('.') == std::string_view::npos || domain.front() == '.' || domain.back() == '.') {
+        return false;
+    }
+
+    std::size_t label_start = 0;
+    while (label_start < domain.size()) {
+        const auto dot = domain.find('.', label_start);
+        const auto label_end = dot == std::string_view::npos ? domain.size() : dot;
+        const auto label_len = label_end - label_start;
+        if (label_len == 0) {
+            return false;
+        }
+
+        if (domain[label_start] == '-' || domain[label_end - 1] == '-') {
+            return false;
+        }
+
+        for (std::size_t i = label_start; i < label_end; ++i) {
+            const unsigned char uc = static_cast<unsigned char>(domain[i]);
+            if (!std::isalnum(uc) && domain[i] != '-') {
+                return false;
+            }
+        }
+
+        if (dot == std::string_view::npos) {
+            break;
+        }
+        label_start = dot + 1;
+    }
+
+    return true;
+}
 
 std::string make_backup_suffix() {
     const auto now = std::chrono::system_clock::now();
@@ -141,6 +205,11 @@ std::optional<SeedCredentials> parse_seed_credentials(std::string_view value,
 
     if (admin_name.empty()) {
         error = "--seed admin name must not be empty";
+        return std::nullopt;
+    }
+
+    if (!is_valid_email_address(admin_name)) {
+        error = "--seed admin name must be a valid email address";
         return std::nullopt;
     }
 
