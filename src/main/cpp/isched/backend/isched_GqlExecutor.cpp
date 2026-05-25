@@ -1034,6 +1034,7 @@ namespace isched::v0_0_1::backend {
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"] = false;
+                result["pluginId"] = nullptr;
                 result["plugin"] = nullptr;
                 result["errors"] = json::array();
                 if (!m_plugins) {
@@ -1076,6 +1077,7 @@ namespace isched::v0_0_1::backend {
             [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"] = false;
+                result["pluginId"] = nullptr;
                 result["plugin"] = nullptr;
                 result["errors"] = json::array();
                 if (!m_plugins) {

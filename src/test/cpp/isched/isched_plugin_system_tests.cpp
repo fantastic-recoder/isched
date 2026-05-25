@@ -254,6 +254,36 @@ TEST_CASE("Plugin admin GraphQL fields require platform_admin", "[plugin][graphq
     CHECK(executor.execute("query { isched { plugin(id: \"gqlplug\") { id } } }", "{}", admin).is_success());
 }
 
+TEST_CASE("loadPlugin returns nullable pluginId on failure", "[plugin][graphql]") {
+    auto db = make_test_db();
+    auto manager = std::make_shared<PluginManager>(db);
+
+    GqlExecutor executor{db};
+    executor.set_plugin_manager(manager);
+
+    ResolverCtx admin;
+    admin.roles = {"role_platform_admin"};
+    admin.tenant_id = "tenant-a";
+    admin.db = db;
+
+    const auto result = executor.execute(
+        "mutation { isched { loadPlugin(input:{libraryPath:\"/tmp/missing.so\", kind:\"request\"}) { success pluginId errors } } }",
+        "{}",
+        admin);
+
+    REQUIRE(result.is_success());
+    REQUIRE(result.data.contains("isched"));
+    REQUIRE(result.data["isched"].contains("loadPlugin"));
+    const auto& payload = result.data["isched"]["loadPlugin"];
+    REQUIRE(payload.is_object());
+    CHECK_FALSE(payload.value("success", true));
+    CHECK(payload.contains("pluginId"));
+    CHECK(payload["pluginId"].is_null());
+    CHECK(payload.contains("errors"));
+    CHECK(payload["errors"].is_array());
+    CHECK_FALSE(payload["errors"].empty());
+}
+
 TEST_CASE("OpenAPI export skips invalid fragments for injected plugins", "[plugin][openapi]") {
     PluginManager manager{make_test_db()};
     auto manifest = make_request_manifest("bad-fragment", "/plugin/openapi");
