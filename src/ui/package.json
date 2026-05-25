@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
     "test:ci": "ng test --watch=false",
+    "test:frontend": "python3 ../../tools/run_frontend_tests.py",
     "test:shell": "jest --config jest.focused.config.ts --runTestsByPath src/app/app.spec.ts src/app/components/authenticated-shell/authenticated-shell.component.spec.ts src/app/services/auth.service.spec.ts src/app/services/shell-status.service.spec.ts src/app/services/user.service.spec.ts src/app/pages/admin/users.page.spec.ts",
     "test:login-lockout": "jest --config jest.focused.config.ts --runTestsByPath src/app/services/auth.service.spec.ts src/app/services/graphql.service.spec.ts src/app/pages/login/login.spec.ts",
     "test:startup-routing": "jest --config jest.focused.config.ts --runTestsByPath src/app/app.spec.ts src/app/guards/auth.guard.spec.ts",
