@@ -593,15 +593,21 @@ public:
                                                 const std::unordered_map<std::string, std::string>&)>; /*headers*/
     using MetricFn   = std::function<void(double /*ms*/)>;
     using PluginDispatchFn = std::function<std::optional<PluginHttpResponse>(const PluginHttpRequest&)>;
+    /// Called when the HTTP session detects a WebSocket upgrade for /graphql.
+    /// The raw TCP socket and the upgrade request are transferred to the callee.
+    using UpgradeFn  = std::function<void(tcp::socket,
+                                          beast::http::request<beast::http::string_body>)>;
 
     HttpSession(tcp::socket socket, net::io_context& ioc,
                 ExecuteFn execute_fn, MetricFn metric_fn,
-                PluginDispatchFn plugin_dispatch_fn = nullptr)
+                PluginDispatchFn plugin_dispatch_fn = nullptr,
+                UpgradeFn upgrade_fn = nullptr)
         : strand_(net::make_strand(ioc))
         , stream_(std::move(socket))
         , execute_fn_(std::move(execute_fn))
         , metric_fn_(std::move(metric_fn))
         , plugin_dispatch_fn_(std::move(plugin_dispatch_fn))
+        , upgrade_fn_(std::move(upgrade_fn))
     {}
 
     void run() {
@@ -651,6 +657,14 @@ private:
         const std::string target_path = query_pos == std::string::npos
             ? target
             : target.substr(0, query_pos);
+
+        // ── WebSocket upgrade: hand /graphql upgrades off to a WsSession ─────
+        // This allows WS clients to use the same port as HTTP (no port+1 needed).
+        if (websocket::is_upgrade(req_) && target_path == "/graphql" && upgrade_fn_) {
+            auto raw_socket = stream_.release_socket();
+            upgrade_fn_(std::move(raw_socket), std::move(req_));
+            return; // WsSession takes ownership; never write HTTP response
+        }
 
         if (req_.method() == beast::http::verb::options) {
             // CORS preflight
@@ -855,6 +869,7 @@ private:
     ExecuteFn                                          execute_fn_;
     MetricFn                                           metric_fn_;
     PluginDispatchFn                                   plugin_dispatch_fn_;
+    UpgradeFn                                          upgrade_fn_;
 };
 
 // ---------------------------------------------------------------------------
@@ -865,12 +880,14 @@ public:
     HttpListener(net::io_context& ioc, tcp::endpoint endpoint,
                  HttpSession::ExecuteFn execute_fn,
                  HttpSession::MetricFn  metric_fn,
-                 HttpSession::PluginDispatchFn plugin_dispatch_fn = nullptr)
+                 HttpSession::PluginDispatchFn plugin_dispatch_fn = nullptr,
+                 HttpSession::UpgradeFn upgrade_fn = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , execute_fn_(std::move(execute_fn))
         , metric_fn_(std::move(metric_fn))
         , plugin_dispatch_fn_(std::move(plugin_dispatch_fn))
+        , upgrade_fn_(std::move(upgrade_fn))
     {
         beast::error_code ec;
         acceptor_.open(endpoint.protocol(), ec);
@@ -897,7 +914,7 @@ private:
     void on_accept(beast::error_code ec, tcp::socket socket) {
         if (!ec) {
             auto session = std::make_shared<HttpSession>(
-                std::move(socket), ioc_, execute_fn_, metric_fn_, plugin_dispatch_fn_);
+                std::move(socket), ioc_, execute_fn_, metric_fn_, plugin_dispatch_fn_, upgrade_fn_);
             session->run();
         } else if (!stopped_) {
             spdlog::warn("HttpListener accept error: {}", ec.message());
@@ -911,6 +928,7 @@ private:
     HttpSession::ExecuteFn        execute_fn_;
     HttpSession::MetricFn         metric_fn_;
     HttpSession::PluginDispatchFn plugin_dispatch_fn_;
+    HttpSession::UpgradeFn        upgrade_fn_;
 };
 
 /**
@@ -1181,6 +1199,16 @@ bool Server::start() {
                 [this](const PluginHttpRequest& req) -> std::optional<PluginHttpResponse> {
                     if (!m_impl->plugin_manager) return std::nullopt;
                     return m_impl->plugin_manager->dispatch_request(req);
+                },
+                [this](tcp::socket socket,
+                       beast::http::request<beast::http::string_body> req) {
+                    auto ws = std::make_shared<WsSession>(
+                        std::move(socket),
+                        *m_impl->ioc,
+                        m_impl->gql_executor.get(),
+                        m_impl->subscription_broker.get(),
+                        m_impl->auth.get());
+                    ws->run(std::move(req));
                 });
             m_impl->http_listener->run();
             spdlog::info("Server data directory: {}", m_config.work_directory);
