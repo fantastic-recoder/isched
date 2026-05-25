@@ -50,6 +50,16 @@ describe('DashboardComponent minimum content', () => {
       return of({});
     });
 
+    gqlMock.mutate.mockImplementation((mutation: string) => {
+      if (mutation.includes('loadPlugin')) {
+        return of({ isched: { loadPlugin: { success: true, pluginId: 'resolver-plugin', errors: [] } } });
+      }
+      if (mutation.includes('unloadPlugin')) {
+        return of({ isched: { unloadPlugin: { success: true, pluginId: 'resolver-plugin', errors: [] } } });
+      }
+      return of({});
+    });
+
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
       providers: [
@@ -130,6 +140,24 @@ describe('DashboardComponent minimum content', () => {
     expect(adminToggle?.checked).toBe(true);
     expect(orgToggle?.checked).toBe(false);
     expect(pluginsToggle?.checked).toBe(true);
+  });
+
+  it('submits loadPlugin kind using backend-compatible lowercase values', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const component = fixture.componentInstance;
+    component.pluginForm.setValue({
+      libraryPath: '/opt/isched/plugins/libresolver_plugin.so',
+      kind: 'RESOLVER',
+      pluginId: 'resolver-plugin',
+    });
+
+    component.loadPlugin();
+
+    expect(gqlMock.mutate).toHaveBeenCalled();
+    const [, variables] = gqlMock.mutate.mock.calls.at(-1) as [string, { input: { kind: string } }];
+    expect(variables.input.kind).toBe('resolver');
   });
 });
 

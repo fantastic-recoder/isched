@@ -57,7 +57,7 @@ test('plugins panel supports mocked load + select + unload lifecycle', async ({ 
       const input = (payload?.variables?.['input'] as Record<string, unknown> | undefined) ?? {};
       lastLoadInput = input;
       const pluginId = String(input['pluginId'] ?? 'resolver-plugin');
-      const kind = String(input['kind'] ?? 'RESOLVER');
+      const kind = String(input['kind'] ?? 'resolver');
       const libraryPath = String(input['libraryPath'] ?? '/opt/isched/plugins/libresolver_plugin.so');
 
       plugins.push({
@@ -145,7 +145,7 @@ test('plugins panel supports mocked load + select + unload lifecycle', async ({ 
   await page.locator('#load_plugin_modal input[formControlName="libraryPath"]').fill(
     '/opt/isched/plugins/libresolver_plugin.so',
   );
-  await page.locator('#load_plugin_modal select[formControlName="kind"]').selectOption('RESOLVER');
+  await page.locator('#load_plugin_modal select[formControlName="kind"]').selectOption({ label: 'RESOLVER' });
   await page.locator('#load_plugin_modal input[formControlName="pluginId"]').fill('resolver-plugin');
   await page.locator('#load_plugin_modal button[type="submit"]').click();
 
@@ -169,8 +169,76 @@ test('plugins panel supports mocked load + select + unload lifecycle', async ({ 
   expect(unloadMutationCount).toBe(1);
   expect(lastLoadInput).toEqual({
     libraryPath: '/opt/isched/plugins/libresolver_plugin.so',
-    kind: 'RESOLVER',
+    kind: 'resolver',
     pluginId: 'resolver-plugin',
   });
   expect(lastUnloadId).toBe('resolver-plugin');
 });
+
+test('loadPlugin failure response includes nullable pluginId field', async ({ page }) => {
+  let loadFailurePayload: Record<string, unknown> | null = null;
+
+  await page.route('**/graphql', async (route) => {
+    const payload = route.request().postDataJSON() as { query?: string } | null;
+    const query = payload?.query ?? '';
+
+    if (query.includes('plugins {')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            isched: {
+              plugins: [],
+            },
+          },
+        }),
+      });
+      return;
+    }
+
+    if (/\bloadPlugin\s*\(/.test(query)) {
+      loadFailurePayload = {
+        success: false,
+        pluginId: null,
+        errors: ["input.kind must be 'request' or 'resolver'"],
+      };
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            isched: {
+              loadPlugin: loadFailurePayload,
+            },
+          },
+        }),
+      });
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await ensureAuthenticatedDashboard(page);
+
+  const pluginsToggle = page.getByTestId('dashboard-panel-plugins-toggle');
+  if (!(await pluginsToggle.isChecked())) {
+    await pluginsToggle.click();
+  }
+
+  await page.getByRole('button', { name: '+ Load Plugin' }).click();
+  await page.locator('#load_plugin_modal input[formControlName="libraryPath"]').fill(
+    '/opt/isched/plugins/libbadkind_plugin.so',
+  );
+  await page.locator('#load_plugin_modal select[formControlName="kind"]').selectOption({ label: 'REQUEST' });
+  await page.locator('#load_plugin_modal button[type="submit"]').click();
+
+  await expect(page.locator('#load_plugin_modal').getByText("input.kind must be 'request' or 'resolver'"))
+    .toBeVisible();
+
+  expect(loadFailurePayload).not.toBeNull();
+  expect(loadFailurePayload).toHaveProperty('pluginId', null);
+});
+

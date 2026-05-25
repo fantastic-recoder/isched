@@ -31,7 +31,7 @@ interface PluginRecord {
 
 interface PluginOperationResult {
   success: boolean;
-  pluginId: string;
+  pluginId: string | null;
   errors: string[];
 }
 
@@ -115,7 +115,7 @@ export class DashboardComponent implements OnInit {
   readonly pluginMutationError = signal<string | null>(null);
   readonly pluginForm = this.fb.group({
     libraryPath: ['', Validators.required],
-    kind: ['REQUEST', Validators.required],
+    kind: ['request', Validators.required],
     pluginId: [''],
   });
 
@@ -147,7 +147,7 @@ export class DashboardComponent implements OnInit {
   }
 
   openLoadPluginModal(): void {
-    this.pluginForm.reset({ libraryPath: '', kind: 'REQUEST', pluginId: '' });
+    this.pluginForm.reset({ libraryPath: '', kind: 'request', pluginId: '' });
     this.pluginMutationError.set(null);
     this.openDialog('load_plugin_modal');
   }
@@ -162,6 +162,7 @@ export class DashboardComponent implements OnInit {
     this.pluginMutationError.set(null);
 
     const { libraryPath, kind, pluginId } = this.pluginForm.getRawValue();
+    const backendKind = this.toBackendPluginKind(kind);
 
     this.gql
       .mutate<{ isched: { loadPlugin: PluginOperationResult } }>(
@@ -177,7 +178,7 @@ export class DashboardComponent implements OnInit {
         {
           input: {
             libraryPath,
-            kind,
+            kind: backendKind,
             pluginId: pluginId?.trim() ? pluginId.trim() : null,
           },
         },
@@ -193,8 +194,8 @@ export class DashboardComponent implements OnInit {
 
           this.pluginMutationPending.set(false);
           this.closeDialog('load_plugin_modal');
-          this.pluginForm.reset({ libraryPath: '', kind: 'REQUEST', pluginId: '' });
-          this.loadPlugins(result.pluginId);
+          this.pluginForm.reset({ libraryPath: '', kind: 'request', pluginId: '' });
+          this.loadPlugins(result.pluginId ?? undefined);
         },
         error: (err: Error) => {
           this.pluginMutationPending.set(false);
@@ -400,6 +401,10 @@ export class DashboardComponent implements OnInit {
 
   private closeDialog(dialogId: string): void {
     (document.getElementById(dialogId) as HTMLDialogElement | null)?.close();
+  }
+
+  private toBackendPluginKind(kind: string | null | undefined): 'request' | 'resolver' {
+    return String(kind ?? '').toLowerCase() === 'resolver' ? 'resolver' : 'request';
   }
 
   loadUsers(orgId: string): void {
