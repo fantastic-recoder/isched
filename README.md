@@ -95,6 +95,9 @@ Equivalent inline form:
 
 WebUI is served at `GET /isched`; `GET /` and `GET /graphql` redirect to `/isched`.
 
+For startup, administration, plugin dialogs, and live GraphQL editing checks, use
+the [manual WebUI testing checklist](docs/validation/manual-webui-checklist.md).
+
 ## Bootstrap Admin via `--seed`
 
 The `--seed` option enables safe, non-interactive reset of the platform database and seeding of a bootstrap admin account. This is useful for automation, testing, and initial cluster setup.
