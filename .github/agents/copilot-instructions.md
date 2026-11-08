@@ -26,6 +26,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), GraphQL executor/schema parser integration, spdlog (012-plugin-system-boost-dll)
 - `isched_system.db` (`plugin_registry`) (012-plugin-system-boost-dll)
 - C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), `GqlExecutor::load_schema` with project PEGTL grammar (`isched_gql_grammar.hpp`) for SDL validation, spdlog (012-plugin-system-boost-dll)
+- C++23 backend, TypeScript (Angular 21) frontend + GraphQL endpoint `/graphql`, Angular standalone APIs, Angular signals, typed reactive forms, RxJS (only where stream semantics required), WebSocket transport for subscriptions, Conan-managed C++ dependencies, CMake/Ninja build toolchain (013-lsp-graphql-angular)
+- Backend existing ACID data store (no storage model changes required for this feature); browser-side auth context in-memory only (013-lsp-graphql-angular)
 
 - (004-add-isched-webui)
 
@@ -45,9 +47,9 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 013-lsp-graphql-angular: Added C++23 backend, TypeScript (Angular 21) frontend + GraphQL endpoint `/graphql`, Angular standalone APIs, Angular signals, typed reactive forms, RxJS (only where stream semantics required), WebSocket transport for subscriptions, Conan-managed C++ dependencies, CMake/Ninja build toolchain
 - 012-plugin-system-boost-dll: Added C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), `GqlExecutor::load_schema` with project PEGTL grammar (`isched_gql_grammar.hpp`) for SDL validation, spdlog
 - 012-plugin-system-boost-dll: Added C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), GraphQL executor/schema parser integration, spdlog
-- 012-plugin-system-boost-dll: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 
 
 <!-- MANUAL ADDITIONS START -->
