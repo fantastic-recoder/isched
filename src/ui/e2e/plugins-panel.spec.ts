@@ -140,14 +140,21 @@ test('plugins panel supports mocked load + select + unload lifecycle', async ({ 
   await expect(unloadSelectedButton).toBeEnabled();
 
   await page.getByRole('button', { name: '+ Load Plugin' }).click();
-  await expect(page.locator('#load_plugin_modal')).toBeVisible();
+  const loadPluginDialog = page.locator('#load_plugin_modal');
+  await expect(loadPluginDialog).toHaveJSProperty('open', true);
+  await loadPluginDialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(loadPluginDialog).toHaveJSProperty('open', false);
+  expect(loadMutationCount).toBe(0);
 
-  await page.locator('#load_plugin_modal input[formControlName="libraryPath"]').fill(
+  await page.getByRole('button', { name: '+ Load Plugin' }).click();
+  await expect(loadPluginDialog).toHaveJSProperty('open', true);
+
+  await loadPluginDialog.locator('input[formControlName="libraryPath"]').fill(
     '/opt/isched/plugins/libresolver_plugin.so',
   );
-  await page.locator('#load_plugin_modal select[formControlName="kind"]').selectOption({ label: 'RESOLVER' });
-  await page.locator('#load_plugin_modal input[formControlName="pluginId"]').fill('resolver-plugin');
-  await page.locator('#load_plugin_modal button[type="submit"]').click();
+  await loadPluginDialog.locator('select[formControlName="kind"]').selectOption({ label: 'RESOLVER' });
+  await loadPluginDialog.locator('input[formControlName="pluginId"]').fill('resolver-plugin');
+  await loadPluginDialog.locator('button[type="submit"]').click();
 
   await expect.poll(() => loadMutationCount).toBe(1);
   const resolverRow = page.locator('tr', { hasText: 'Resolver Plugin' });
@@ -241,4 +248,3 @@ test('loadPlugin failure response includes nullable pluginId field', async ({ pa
   expect(loadFailurePayload).not.toBeNull();
   expect(loadFailurePayload).toHaveProperty('pluginId', null);
 });
-

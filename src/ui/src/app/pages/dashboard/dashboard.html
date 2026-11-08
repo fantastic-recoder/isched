@@ -340,7 +340,7 @@
         />
       </div>
       <div class="modal-action">
-        <button type="button" class="btn btn-ghost btn-sm" onclick="load_plugin_modal.close()">Cancel</button>
+        <button type="button" class="btn btn-ghost btn-sm" (click)="cancelLoadPlugin()">Cancel</button>
         <button type="submit" class="btn btn-primary btn-sm" [disabled]="pluginMutationPending()">
           @if (pluginMutationPending()) { <span class="loading loading-spinner loading-xs"></span> }
           @else { Load Plugin }
@@ -399,4 +399,3 @@
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
-

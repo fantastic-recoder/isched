@@ -152,6 +152,10 @@ export class DashboardComponent implements OnInit {
     this.openDialog('load_plugin_modal');
   }
 
+  cancelLoadPlugin(): void {
+    this.closeDialog('load_plugin_modal');
+  }
+
   loadPlugin(): void {
     this.pluginForm.markAllAsTouched();
     if (this.pluginForm.invalid || this.pluginMutationPending()) {
@@ -492,4 +496,3 @@ export class DashboardComponent implements OnInit {
       });
   }
 }
-
