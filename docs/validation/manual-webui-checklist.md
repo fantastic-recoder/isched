@@ -10,15 +10,35 @@ passwords, cookies, and tokens.
 
 ## 1. Build and start an isolated server
 
-Run commands from the repository root. Use only disposable local test data and
-credentials. Never reset a production or shared database.
+Set the checkout and build directory once in the terminal used for testing:
 
 ```bash
+export ISCHED_PROJECT_DIR="$(git rev-parse --show-toplevel)"
+export ISCHED_BUILD_DIR="$ISCHED_PROJECT_DIR/cmake-build-debug"
+```
+
+Run this from inside the checkout. If using a different build directory, set
+`ISCHED_BUILD_DIR` to that directory's absolute path instead.
+`configure.py` creates the default `cmake-build-debug` build; for a custom build
+directory, configure it separately before running the build commands below.
+
+| Resource | Path |
+| --- | --- |
+| Repository | `$ISCHED_PROJECT_DIR` |
+| Build directory | `$ISCHED_BUILD_DIR` |
+| Server executable | `$ISCHED_BUILD_DIR/src/main/cpp/isched/isched_srv` |
+| Example resolver plugin | `$ISCHED_BUILD_DIR/src/example/cpp/libhello_plugin.so` |
+
+Use only disposable local test data and credentials. Never reset a production or
+shared database.
+
+```bash
+cd "$ISCHED_PROJECT_DIR"
 python3 configure.py
-cmake --build cmake-build-debug --target isched_ui_embed hello_plugin
+cmake --build "$ISCHED_BUILD_DIR" --target isched_ui_embed hello_plugin
 TEST_DATA_DIR="$(mktemp -d -t isched-manual-XXXXXX)"
 printf 'Test data directory: %s\n' "$TEST_DATA_DIR"
-ISCHED_SERVER_PORT=18080 ./cmake-build-debug/src/main/cpp/isched/isched_srv \
+ISCHED_SERVER_PORT=18080 "$ISCHED_BUILD_DIR/src/main/cpp/isched/isched_srv" \
   --data-dir "$TEST_DATA_DIR" \
   --seed 'manual-admin@example.test:ManualTest-Only-2026'
 ```
@@ -40,7 +60,7 @@ seeded directory for this scenario.
 
 ```bash
 BOOTSTRAP_DATA_DIR="$(mktemp -d -t isched-bootstrap-manual-XXXXXX)"
-ISCHED_SERVER_PORT=18080 ./cmake-build-debug/src/main/cpp/isched/isched_srv \
+ISCHED_SERVER_PORT=18080 "$ISCHED_BUILD_DIR/src/main/cpp/isched/isched_srv" \
   --data-dir "$BOOTSTRAP_DATA_DIR"
 ```
 
@@ -89,9 +109,16 @@ dialog separately so that a working page does not mask a broken dialog.
 
 ## 5. Plugins and dialog cancellation
 
-Get the absolute library path with
-`realpath cmake-build-debug/src/example/cpp/libhello_plugin.so`.
-This must be a path on the server machine, not a browser upload.
+Print the concrete absolute plugin path using the configured build directory:
+
+```bash
+realpath "$ISCHED_BUILD_DIR/src/example/cpp/libhello_plugin.so"
+```
+
+Paste the command's output into the Load Plugin dialog's **Library path** field.
+The browser does not expand environment variables: do not paste
+`$ISCHED_BUILD_DIR` literally. This must be a path on the server machine, not a
+browser upload.
 
 - [ ] PLUGIN-01: Expand Dashboard > Plugins; + Load Plugin opens the dialog.
 - [ ] PLUGIN-02: Immediately press Cancel with an empty form; the dialog closes, focus returns to a usable dashboard control, and no `loadPlugin` mutation is sent.
@@ -132,6 +159,19 @@ query ManualHealth {
 - [ ] GQL-13: Restore connectivity (restart with the same data directory **without `--seed`** if needed); retry or rerun succeeds without losing the draft.
 
 ## 7. Usability, persistence, and cleanup
+
+For restart checks, stop the server with Ctrl+C and run this in the original
+terminal, where `TEST_DATA_DIR` still refers to the directory printed at startup:
+
+```bash
+ISCHED_SERVER_PORT=18080 "$ISCHED_BUILD_DIR/src/main/cpp/isched/isched_srv" \
+  --data-dir "$TEST_DATA_DIR"
+```
+
+If testing the UI-bootstrap alternative, use `"$BOOTSTRAP_DATA_DIR"` instead.
+In a new terminal, substitute the exact previously recorded data directory.
+Also set `ISCHED_PROJECT_DIR` and `ISCHED_BUILD_DIR` as in section 1.
+Do not add `--seed` when checking persistence or recovering connectivity.
 
 - [ ] UX-01: At desktop and narrow/mobile widths, forms, navigation, dialogs, and Playground controls remain reachable and readable.
 - [ ] UX-02: Use only Tab, Shift+Tab, Enter, and Escape for sign-in and plugin cancellation; focus is visible and modal focus does not escape into the page.
