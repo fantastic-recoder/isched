@@ -8,8 +8,8 @@ system.
 
 - Plugin id: `hello_plugin`
 - Plugin kind: `resolver`
-- GraphQL scope: `isched_examples`
-- Example field: `echo(message: String!): String!`
+- GraphQL scope: `isched`
+- Example field: `pluginEcho(message: String): String!`
 
 The resolver simply returns the supplied `message` argument unchanged. If no
 message is provided, it returns a friendly default string.
@@ -49,8 +49,8 @@ Once loaded, the example query is:
 
 ```graphql
 query {
-  isched_examples {
-    echo(message: "hello world")
+  isched {
+    pluginEcho(message: "hello world")
   }
 }
 ```

@@ -10,6 +10,7 @@
 
 #include "isched_DatabaseManager.hpp"
 #include "isched_GqlExecutor.hpp"
+#include "isched_gql_grammar.hpp"
 
 #include <boost/dll/shared_library.hpp>
 #include <nlohmann/json.hpp>
@@ -18,10 +19,12 @@
 #include <charconv>
 #include <chrono>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <optional>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 #include <spdlog/spdlog.h>
@@ -29,6 +32,12 @@
 namespace isched::v0_0_1::backend {
 namespace {
     using json = nlohmann::json;
+
+    [[nodiscard]] bool is_blank(std::string_view value) {
+        return std::ranges::all_of(value, [](unsigned char ch) {
+            return std::isspace(ch) != 0;
+        });
+    }
 
     [[nodiscard]] static String routeKeyUpper(String value) {
         std::ranges::transform(value, value.begin(), [](unsigned char ch) {
@@ -83,6 +92,44 @@ namespace {
             }
         }
         return true;
+    }
+
+    [[nodiscard]] String normalize_route_path(std::string_view raw_path) {
+        const auto segments = split_path_segments(raw_path);
+        if (segments.empty()) {
+            return "/";
+        }
+        String normalized{"/"};
+        for (std::size_t i = 0; i < segments.size(); ++i) {
+            if (i > 0) {
+                normalized.push_back('/');
+            }
+            normalized.append(segments[i]);
+        }
+        return normalized;
+    }
+
+    [[nodiscard]] std::vector<PluginRoute> normalize_manifest_routes(const std::vector<PluginRoute>& routes) {
+        std::vector<PluginRoute> normalized;
+        normalized.reserve(routes.size());
+        for (const auto& route : routes) {
+            normalized.push_back(PluginRoute{
+                .method = routeKeyUpper(route.method),
+                .path = normalize_route_path(route.path)
+            });
+        }
+        return normalized;
+    }
+
+    [[nodiscard]] bool has_internal_route_conflict(const std::vector<PluginRoute>& routes) {
+        for (std::size_t i = 0; i < routes.size(); ++i) {
+            for (std::size_t j = i + 1; j < routes.size(); ++j) {
+                if (routes_overlap(routes[i], routes[j])) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     [[nodiscard]] bool route_matches_request(const PluginRoute& route,
@@ -149,6 +196,36 @@ namespace {
         }
         return std::nullopt;
     }
+
+    [[nodiscard]] std::optional<String> validate_resolver_schema_sdl(const String& schema_sdl) {
+        if (schema_sdl.empty() || is_blank(schema_sdl)) {
+            return "invalid GraphQL SDL: resolver plugin schema is empty";
+        }
+        try {
+            tao::pegtl::string_input<> sdl_input(schema_sdl, "resolverSchemaSdl");
+            auto parsed = gql::generate_ast_and_log<gql::Document>(
+                sdl_input, "resolverSchemaSdl", false, false);
+            if (!std::get<0>(parsed)) {
+                return "invalid GraphQL SDL: resolver plugin schema failed to parse";
+            }
+        } catch (const tao::pegtl::parse_error& e) {
+            return String{"invalid GraphQL SDL: "} + e.what();
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::string scope_to_type_name(const StringVector& scope) {
+        if (scope.empty()) {
+            return "Query";
+        }
+        if (scope.size() == 1 && scope.front() == "isched") {
+            return "IschedQueryNamespace";
+        }
+        if (scope.size() == 1) {
+            return scope.front();
+        }
+        return scope.back();
+    }
 }
 
 String toString(PluginKind kind) {
@@ -179,6 +256,63 @@ void PluginManager::set_executor(GqlExecutor* executor) noexcept {
     m_executor = executor;
 }
 
+void PluginManager::set_plugins_root(std::filesystem::path plugins_root) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_plugins_root = std::move(plugins_root);
+}
+
+std::optional<String> PluginManager::validate_library_path(const String& library_path) const {
+    namespace fs = std::filesystem;
+
+    fs::path library = fs::path(library_path);
+    if (!library.is_absolute()) {
+        return "path policy validation failed: libraryPath must be absolute";
+    }
+
+    std::optional<fs::path> configured_root;
+    {
+        const std::lock_guard<std::mutex> lock(m_mutex);
+        configured_root = m_plugins_root;
+    }
+
+    if (!configured_root.has_value()) {
+        if (const char* env_root = std::getenv("ISCHED_PLUGINS_ROOT"); env_root != nullptr && *env_root != '\0') {
+            configured_root = fs::path(env_root);
+        } else {
+            configured_root = fs::path{"/"};
+        }
+    }
+
+    std::error_code ec;
+    fs::path canonical_root = fs::canonical(*configured_root, ec);
+    if (ec) {
+        return std::format("path policy validation failed: cannot canonicalize plugins_root '{}': {}",
+                           configured_root->string(),
+                           ec.message());
+    }
+
+    ec.clear();
+    fs::path canonical_library = fs::canonical(library, ec);
+    if (ec) {
+        return std::format("path policy validation failed: cannot canonicalize libraryPath '{}': {}",
+                           library.string(),
+                           ec.message());
+    }
+
+    auto root_it = canonical_root.begin();
+    auto lib_it = canonical_library.begin();
+    for (; root_it != canonical_root.end() && lib_it != canonical_library.end(); ++root_it, ++lib_it) {
+        if (*root_it != *lib_it) {
+            return "path policy validation failed: libraryPath must resolve under plugins_root";
+        }
+    }
+    if (root_it != canonical_root.end()) {
+        return "path policy validation failed: libraryPath must resolve under plugins_root";
+    }
+
+    return std::nullopt;
+}
+
 String PluginManager::normalize_route_key(const PluginRoute& route) {
     return normalize_route_key(route.method, route.path);
 }
@@ -197,6 +331,7 @@ String PluginManager::manifest_to_json(const PluginManifest& manifest) {
     root["libraryPath"] = manifest.libraryPath;
     root["abi_version"] = manifest.abi_version;
     root["openApiFragmentJson"] = manifest.openApiFragmentJson;
+    root["resolverSchemaSdl"] = manifest.resolverSchemaSdl;
     root["requestRoutes"] = json::array();
     for (const auto& route : manifest.requestRoutes) {
         root["requestRoutes"].push_back({
@@ -232,6 +367,7 @@ std::optional<PluginManifest> PluginManager::manifest_from_json(const String& js
     manifest.libraryPath = parsed.value("libraryPath", "");
     manifest.abi_version = parsed.value("abi_version", String(PLUGIN_ABI_VERSION));
     manifest.openApiFragmentJson = parsed.value("openApiFragmentJson", "");
+    manifest.resolverSchemaSdl = parsed.value("resolverSchemaSdl", "");
     if (parsed.contains("requestRoutes") && parsed["requestRoutes"].is_array()) {
         for (const auto& route : parsed["requestRoutes"]) {
             if (!route.is_object()) continue;
@@ -350,6 +486,105 @@ bool PluginManager::resolver_conflicts_with_loaded(const PluginManifest& manifes
     return false;
 }
 
+bool PluginManager::resolver_schema_conflicts_with_loaded(const String& schema_sdl, String& error_out) const {
+    if (schema_sdl.empty()) {
+        return false;
+    }
+
+    if (!m_database) {
+        error_out = "Resolver schema validation requires database context";
+        return true;
+    }
+
+    GqlExecutor probe{m_database};
+    std::vector<String> loaded_sdls;
+    {
+        const std::lock_guard<std::mutex> lock(m_mutex);
+        loaded_sdls.reserve(m_loaded_plugins.size());
+        for (const auto& [_, loaded] : m_loaded_plugins) {
+            if (loaded.manifest.kind == PluginKind::Resolver && !loaded.manifest.resolverSchemaSdl.empty()) {
+                loaded_sdls.push_back(loaded.manifest.resolverSchemaSdl);
+            }
+        }
+    }
+
+    for (const auto& existing_sdl : loaded_sdls) {
+        auto existing_load = probe.load_schema(existing_sdl);
+        if (!existing_load.is_success()) {
+            error_out = "schema conflict: failed to validate existing resolver schema baseline";
+            return true;
+        }
+    }
+
+    auto merge_result = probe.load_schema(schema_sdl);
+    if (merge_result.is_success()) {
+        return false;
+    }
+
+    if (!merge_result.errors.empty()) {
+        error_out = "schema conflict: " + merge_result.errors.front().message;
+    } else {
+        error_out = "schema conflict: failed to merge resolver schema";
+    }
+    return true;
+}
+
+bool PluginManager::resolver_binding_targets_exist(const PluginManifest& manifest, String& error_out) const {
+    if (m_executor == nullptr) {
+        error_out = "Resolver plugin loading requires an attached GraphQL executor";
+        return false;
+    }
+
+    for (const auto& binding : manifest.resolverBindings) {
+        const auto type_name = scope_to_type_name(binding.scope);
+        if (!m_executor->schema_field_exists(type_name, binding.fieldName)) {
+            error_out = "field not found: " + type_name + "." + binding.fieldName;
+            return false;
+        }
+    }
+    return true;
+}
+
+bool PluginManager::resolver_bindings_unclaimed(const PluginManifest& manifest, String& error_out) const {
+    if (m_executor == nullptr) {
+        error_out = "Resolver plugin loading requires an attached GraphQL executor";
+        return false;
+    }
+
+    for (const auto& binding : manifest.resolverBindings) {
+        if (m_executor->has_resolver(binding.scope, binding.fieldName)) {
+            error_out = "resolver already registered: " + concat_vector(binding.scope, ".") +
+                        (binding.scope.empty() ? "" : ".") + binding.fieldName;
+            return false;
+        }
+    }
+    return true;
+}
+
+void PluginManager::unregister_resolver_plugin_bindings(const LoadedPlugin& loaded) {
+    if (m_executor == nullptr || loaded.manifest.kind != PluginKind::Resolver) {
+        return;
+    }
+    if (auto resolver = std::dynamic_pointer_cast<ResolverPlugin>(loaded.plugin)) {
+        class DirectRegistrar final : public IResolverRegistrar {
+        public:
+            explicit DirectRegistrar(GqlExecutor& executor) : m_executor(executor) {}
+            void register_resolver(const ResolverPath& scope,
+                                   const std::string& field_name,
+                                   ResolverFunction resolver) override {
+                m_executor.register_resolver(scope, field_name, std::move(resolver));
+            }
+            void unregister_resolver(const ResolverPath& scope,
+                                     const std::string& field_name) override {
+                m_executor.unregister_resolver(scope, field_name);
+            }
+        private:
+            GqlExecutor& m_executor;
+        } registrar{*m_executor};
+        resolver->unregisterResolvers(registrar);
+    }
+}
+
 std::optional<PluginManager::LoadedPlugin> PluginManager::find_loaded_plugin(const String& plugin_id) const {
     const std::lock_guard<std::mutex> lock(m_mutex);
     const auto it = m_loaded_plugins.find(plugin_id);
@@ -364,6 +599,12 @@ PluginOperationResult PluginManager::load_plugin(
     PluginKind kind,
     std::optional<String> plugin_id)
 {
+    if (const auto path_error = validate_library_path(library_path); path_error) {
+        PluginOperationResult result;
+        result.errors.push_back(*path_error);
+        return result;
+    }
+
     switch (kind) {
         case PluginKind::Request:
             return load_request_plugin(library_path, std::move(plugin_id));
@@ -400,6 +641,11 @@ PluginOperationResult PluginManager::load_request_plugin(
         }
         if (manifest.requestRoutes.empty()) {
             result.errors.push_back("Request plugin must declare at least one request route");
+            return result;
+        }
+        manifest.requestRoutes = normalize_manifest_routes(manifest.requestRoutes);
+        if (has_internal_route_conflict(manifest.requestRoutes)) {
+            result.errors.push_back("Request plugin declares conflicting routes");
             return result;
         }
         if (const auto abi_error = validate_abi_version(manifest); abi_error) {
@@ -470,12 +716,30 @@ PluginOperationResult PluginManager::load_resolver_plugin(
             result.errors.push_back("Resolver plugin must declare at least one resolver binding");
             return result;
         }
+        const auto supplied_schema = plugin->graphqlSchema();
+        const bool has_supplied_schema = !supplied_schema.empty() && !is_blank(supplied_schema);
+        if (has_supplied_schema) {
+            manifest.resolverSchemaSdl = supplied_schema;
+            if (const auto schema_error = validate_resolver_schema_sdl(manifest.resolverSchemaSdl); schema_error) {
+                result.errors.push_back(*schema_error);
+                return result;
+            }
+            String schema_conflict_error;
+            if (resolver_schema_conflicts_with_loaded(manifest.resolverSchemaSdl, schema_conflict_error)) {
+                result.errors.push_back(schema_conflict_error);
+                return result;
+            }
+        }
         if (const auto abi_error = validate_abi_version(manifest); abi_error) {
             result.errors.push_back(*abi_error);
             return result;
         }
         if (resolver_conflicts_with_loaded(manifest)) {
             result.errors.push_back("Resolver plugin binding conflicts with an already loaded plugin");
+            return result;
+        }
+        if (m_executor == nullptr) {
+            result.errors.push_back("Resolver plugin loading requires an attached GraphQL executor");
             return result;
         }
 
@@ -485,6 +749,16 @@ PluginOperationResult PluginManager::load_resolver_plugin(
                 result.errors.push_back("Plugin id already loaded: " + manifest.id);
                 return result;
             }
+        }
+
+        String binding_error;
+        if (!resolver_bindings_unclaimed(manifest, binding_error)) {
+            result.errors.push_back(binding_error);
+            return result;
+        }
+        if (!has_supplied_schema && !resolver_binding_targets_exist(manifest, binding_error)) {
+            result.errors.push_back(binding_error);
+            return result;
         }
 
         class CrashSafeRegistrar final : public IResolverRegistrar {
@@ -531,43 +805,38 @@ PluginOperationResult PluginManager::load_resolver_plugin(
             String m_plugin_id;
         };
 
-        if (m_executor != nullptr) {
+        const auto loaded_at = iso_now();
+        LoadedPlugin candidate{library, plugin, manifest, record_from_manifest(manifest, true, loaded_at, {})};
+
+        try {
             CrashSafeRegistrar registrar{*m_executor, *this, manifest.id};
             plugin->registerResolvers(registrar);
+        } catch (const std::exception& ex) {
+            result.errors.push_back(String{"resolver registration failed: "} + ex.what());
+            return result;
         }
 
-        PluginRecord record = record_from_manifest(manifest, true, iso_now(), {});
+        if (has_supplied_schema) {
+            auto schema_load = m_executor->load_schema(manifest.resolverSchemaSdl);
+            if (!schema_load.is_success()) {
+                unregister_resolver_plugin_bindings(candidate);
+                if (!schema_load.errors.empty()) {
+                    result.errors.push_back("schema conflict: " + schema_load.errors.front().message);
+                } else {
+                    result.errors.push_back("schema conflict: resolver schema merge failed");
+                }
+                return result;
+            }
+        }
+
+        if (const auto persisted = persist_record(manifest, true, loaded_at); !persisted.success) {
+            unregister_resolver_plugin_bindings(candidate);
+            return persisted;
+        }
+
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_loaded_plugins.emplace(manifest.id, LoadedPlugin{std::move(library), std::move(plugin), manifest, record});
-        }
-
-        if (const auto persisted = persist_record(manifest, true, record.loadedAt); !persisted.success) {
-            if (m_executor != nullptr) {
-                if (const auto loaded = find_loaded_plugin(manifest.id); loaded) {
-                    if (auto resolver = std::dynamic_pointer_cast<ResolverPlugin>(loaded->plugin)) {
-                        class DirectRegistrar final : public IResolverRegistrar {
-                        public:
-                            explicit DirectRegistrar(GqlExecutor& executor) : m_executor(executor) {}
-                            void register_resolver(const ResolverPath& scope,
-                                                   const std::string& field_name,
-                                                   ResolverFunction resolver) override {
-                                m_executor.register_resolver(scope, field_name, std::move(resolver));
-                            }
-                            void unregister_resolver(const ResolverPath& scope,
-                                                     const std::string& field_name) override {
-                                m_executor.unregister_resolver(scope, field_name);
-                            }
-                        private:
-                            GqlExecutor& m_executor;
-                        } registrar{*m_executor};
-                        resolver->unregisterResolvers(registrar);
-                    }
-                }
-            }
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_loaded_plugins.erase(manifest.id);
-            return persisted;
+            m_loaded_plugins.emplace(manifest.id, std::move(candidate));
         }
 
         result.success = true;
@@ -584,36 +853,33 @@ PluginOperationResult PluginManager::load_resolver_plugin(
 
 PluginOperationResult PluginManager::unload_plugin(const String& plugin_id) {
     PluginOperationResult result;
+    if (plugin_id.empty()) {
+        result.errors.push_back("Plugin id is required");
+        return result;
+    }
+
+    if (m_database) {
+        const auto persisted = m_database->get_plugin_record(plugin_id);
+        if (persisted && persisted.value().has_value() && !persisted.value()->isLoaded) {
+            result.success = true;
+            result.pluginId = plugin_id;
+            return result;
+        }
+    }
+
     std::optional<LoadedPlugin> runtime;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         const auto it = m_loaded_plugins.find(plugin_id);
         if (it == m_loaded_plugins.end()) {
-            result.errors.push_back("Plugin not loaded: " + plugin_id);
+            result.errors.push_back("Plugin not found or not loaded: " + plugin_id);
             return result;
         }
         runtime = it->second;
     }
 
     if (runtime && runtime->manifest.kind == PluginKind::Resolver && m_executor != nullptr) {
-        if (auto resolver = std::dynamic_pointer_cast<ResolverPlugin>(runtime->plugin)) {
-            class DirectRegistrar final : public IResolverRegistrar {
-            public:
-                explicit DirectRegistrar(GqlExecutor& executor) : m_executor(executor) {}
-                void register_resolver(const ResolverPath& scope,
-                                       const std::string& field_name,
-                                       ResolverFunction resolver) override {
-                    m_executor.register_resolver(scope, field_name, std::move(resolver));
-                }
-                void unregister_resolver(const ResolverPath& scope,
-                                         const std::string& field_name) override {
-                    m_executor.unregister_resolver(scope, field_name);
-                }
-            private:
-                GqlExecutor& m_executor;
-            } registrar{*m_executor};
-            resolver->unregisterResolvers(registrar);
-        }
+        unregister_resolver_plugin_bindings(*runtime);
     }
 
     {
@@ -627,7 +893,13 @@ PluginOperationResult PluginManager::unload_plugin(const String& plugin_id) {
     }
 
     auto record = runtime->record;
+    if (const auto persisted = m_database->get_plugin_record(plugin_id); persisted && persisted.value()) {
+        record = *persisted.value();
+    }
     record.isLoaded = false;
+    if (record.loadedAt.empty()) {
+        record.loadedAt = runtime->record.loadedAt;
+    }
     record.unloadedAt = iso_now();
     const auto db_result = m_database->upsert_plugin_record(record);
     if (!db_result) {
@@ -641,16 +913,32 @@ PluginOperationResult PluginManager::unload_plugin(const String& plugin_id) {
 }
 
 std::vector<PluginRecord> PluginManager::list_plugins() const {
+    if (m_database) {
+        if (const auto persisted = m_database->list_plugin_records(); persisted) {
+            return persisted.value();
+        }
+    }
+
     std::vector<PluginRecord> records;
-    const std::lock_guard<std::mutex> lock(m_mutex);
-    records.reserve(m_loaded_plugins.size());
-    for (const auto& [_, plugin] : m_loaded_plugins) {
-        records.push_back(plugin.record);
+    {
+        const std::lock_guard<std::mutex> lock(m_mutex);
+        records.reserve(m_loaded_plugins.size());
+        for (const auto& [_, plugin] : m_loaded_plugins) {
+            records.push_back(plugin.record);
+        }
     }
     return records;
 }
 
 std::optional<PluginRecord> PluginManager::get_plugin(const String& plugin_id) const {
+    if (plugin_id.empty()) {
+        return std::nullopt;
+    }
+    if (m_database) {
+        if (const auto persisted = m_database->get_plugin_record(plugin_id); persisted) {
+            return persisted.value();
+        }
+    }
     const std::lock_guard<std::mutex> lock(m_mutex);
     const auto it = m_loaded_plugins.find(plugin_id);
     if (it == m_loaded_plugins.end()) {
@@ -715,7 +1003,13 @@ void PluginManager::crash_unload_resolver_plugin(const String& plugin_id,
                                                  const std::exception& ex) noexcept {
     spdlog::error("Resolver plugin '{}' crashed: {}", plugin_id, ex.what());
     try {
-        std::ignore = unload_plugin(plugin_id);
+        std::thread([this, plugin_id]() {
+            try {
+                std::ignore = unload_plugin(plugin_id);
+            } catch (const std::exception& cleanup_ex) {
+                spdlog::error("Resolver plugin '{}' crash cleanup failed: {}", plugin_id, cleanup_ex.what());
+            }
+        }).detach();
     } catch (const std::exception& cleanup_ex) {
         spdlog::error("Resolver plugin '{}' crash cleanup failed: {}", plugin_id, cleanup_ex.what());
     }
@@ -757,7 +1051,35 @@ nlohmann::json PluginManager::export_openapi_document() const {
 }
 
 void PluginManager::inject_loaded_plugin(std::shared_ptr<Plugin> plugin, PluginManifest manifest) {
+    class DirectRegistrar final : public IResolverRegistrar {
+    public:
+        explicit DirectRegistrar(GqlExecutor& executor) : m_executor(executor) {}
+
+        void register_resolver(const ResolverPath& scope,
+                               const std::string& field_name,
+                               ResolverFunction resolver) override {
+            m_executor.register_resolver(scope, field_name, std::move(resolver));
+        }
+
+        void unregister_resolver(const ResolverPath& scope,
+                                 const std::string& field_name) override {
+            m_executor.unregister_resolver(scope, field_name);
+        }
+
+    private:
+        GqlExecutor& m_executor;
+    };
+
     PluginRecord record = record_from_manifest(manifest, true, iso_now(), {});
+
+    if (manifest.kind == PluginKind::Resolver && m_executor != nullptr) {
+        const auto resolver_plugin = std::dynamic_pointer_cast<ResolverPlugin>(plugin);
+        if (resolver_plugin) {
+            DirectRegistrar registrar{*m_executor};
+            resolver_plugin->registerResolvers(registrar);
+        }
+    }
+
     std::lock_guard<std::mutex> guard(m_mutex);
     m_loaded_plugins.emplace(manifest.id,
         LoadedPlugin{/*library=*/nullptr, std::move(plugin), manifest, record});
@@ -783,7 +1105,16 @@ void PluginManager::restore_persisted_plugins() {
         if (m_loaded_plugins.contains(record.id)) {
             continue;
         }
+        const auto attempted_at = iso_now();
         auto result = load_plugin(record.libraryPath, *kind, record.id);
+        if (m_database) {
+            const auto error_message = result.success || result.errors.empty() ? "" : result.errors.front();
+            std::ignore = m_database->record_plugin_restore_attempt(
+                record.id,
+                result.success,
+                error_message,
+                attempted_at);
+        }
         if (!result.success) {
             spdlog::warn("PluginManager: failed to restore plugin '{}': {}", record.id,
                 result.errors.empty() ? "unknown error" : result.errors.front());

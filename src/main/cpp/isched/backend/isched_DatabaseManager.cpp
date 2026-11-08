@@ -1047,6 +1047,9 @@ PluginRecord row_to_plugin_record(sqlite3_stmt* stmt) {
     record.isLoaded = sqlite3_column_int(stmt, 7) != 0;
     record.loadedAt = col_str(8);
     record.unloadedAt = col_str(9);
+    record.lastRestoreError = col_str(10);
+    record.restoreAttempts = sqlite3_column_int(stmt, 11);
+    record.lastRestoreAttemptAt = col_str(12);
     return record;
 }
 } // namespace
@@ -1068,7 +1071,10 @@ DatabaseResult<void> DatabaseManager::initialize_plugin_store() {
             manifest_json TEXT NOT NULL,
             is_loaded     INTEGER NOT NULL DEFAULT 0,
             loaded_at     TEXT,
-            unloaded_at   TEXT
+            unloaded_at   TEXT,
+            last_restore_error      TEXT NOT NULL DEFAULT '',
+            restore_attempts        INTEGER NOT NULL DEFAULT 0,
+            last_restore_attempt_at TEXT
         );
     )sql";
     if (sqlite3_exec(system_db_.get(), ddl, nullptr, nullptr, nullptr) != SQLITE_OK) {
@@ -1086,9 +1092,10 @@ DatabaseResult<void> DatabaseManager::upsert_plugin_record(const PluginRecord& r
 
     const char* sql = R"sql(
         INSERT INTO plugin_registry
-            (id, kind, name, version, description, library_path, manifest_json, is_loaded, loaded_at, unloaded_at)
+            (id, kind, name, version, description, library_path, manifest_json, is_loaded, loaded_at, unloaded_at,
+             last_restore_error, restore_attempts, last_restore_attempt_at)
         VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             kind=excluded.kind,
             name=excluded.name,
@@ -1098,7 +1105,10 @@ DatabaseResult<void> DatabaseManager::upsert_plugin_record(const PluginRecord& r
             manifest_json=excluded.manifest_json,
             is_loaded=excluded.is_loaded,
             loaded_at=excluded.loaded_at,
-            unloaded_at=excluded.unloaded_at;
+            unloaded_at=excluded.unloaded_at,
+            last_restore_error=excluded.last_restore_error,
+            restore_attempts=excluded.restore_attempts,
+            last_restore_attempt_at=excluded.last_restore_attempt_at;
     )sql";
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(system_db_.get(), sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -1115,6 +1125,9 @@ DatabaseResult<void> DatabaseManager::upsert_plugin_record(const PluginRecord& r
     sqlite3_bind_int(stmt, 8, record.isLoaded ? 1 : 0);
     if (record.loadedAt.empty()) sqlite3_bind_null(stmt, 9); else sqlite3_bind_text(stmt, 9, record.loadedAt.c_str(), -1, SQLITE_TRANSIENT);
     if (record.unloadedAt.empty()) sqlite3_bind_null(stmt, 10); else sqlite3_bind_text(stmt, 10, record.unloadedAt.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 11, record.lastRestoreError.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 12, record.restoreAttempts);
+    if (record.lastRestoreAttemptAt.empty()) sqlite3_bind_null(stmt, 13); else sqlite3_bind_text(stmt, 13, record.lastRestoreAttemptAt.c_str(), -1, SQLITE_TRANSIENT);
 
     const int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -1134,7 +1147,8 @@ DatabaseManager::get_plugin_record(const std::string& plugin_id) const
     sqlite3* db = system_db_.get();
 
     const char* sql = R"sql(
-        SELECT id,kind,name,version,description,library_path,manifest_json,is_loaded,loaded_at,unloaded_at
+        SELECT id,kind,name,version,description,library_path,manifest_json,is_loaded,loaded_at,unloaded_at,
+               last_restore_error,restore_attempts,last_restore_attempt_at
         FROM plugin_registry WHERE id=? LIMIT 1;
     )sql";
     sqlite3_stmt* stmt = nullptr;
@@ -1165,7 +1179,8 @@ DatabaseManager::list_plugin_records() const
     sqlite3* db = system_db_.get();
 
     const char* sql = R"sql(
-        SELECT id,kind,name,version,description,library_path,manifest_json,is_loaded,loaded_at,unloaded_at
+        SELECT id,kind,name,version,description,library_path,manifest_json,is_loaded,loaded_at,unloaded_at,
+               last_restore_error,restore_attempts,last_restore_attempt_at
         FROM plugin_registry ORDER BY id ASC;
     )sql";
     sqlite3_stmt* stmt = nullptr;
@@ -1179,6 +1194,32 @@ DatabaseManager::list_plugin_records() const
     }
     sqlite3_finalize(stmt);
     return DatabaseResult<std::vector<PluginRecord>>{std::move(records)};
+}
+
+DatabaseResult<void> DatabaseManager::record_plugin_restore_attempt(
+    const std::string& plugin_id,
+    bool success,
+    const std::string& error,
+    const std::string& attempted_at)
+{
+    auto existing = get_plugin_record(plugin_id);
+    if (!existing) {
+        return existing.error();
+    }
+    if (!existing.value().has_value()) {
+        return DatabaseError::NotFound;
+    }
+
+    auto record = *existing.value();
+    record.lastRestoreAttemptAt = attempted_at;
+    if (success) {
+        record.lastRestoreError.clear();
+        record.restoreAttempts = 0;
+    } else {
+        record.lastRestoreError = error;
+        record.restoreAttempts = std::max(0, record.restoreAttempts) + 1;
+    }
+    return upsert_plugin_record(record);
 }
 
 // ============================================================================
@@ -1282,7 +1323,10 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
             manifest_json TEXT NOT NULL,
             is_loaded     INTEGER NOT NULL DEFAULT 0,
             loaded_at     TEXT,
-            unloaded_at   TEXT
+            unloaded_at   TEXT,
+            last_restore_error      TEXT NOT NULL DEFAULT '',
+            restore_attempts        INTEGER NOT NULL DEFAULT 0,
+            last_restore_attempt_at TEXT
         );
     )sql";
 
@@ -1307,6 +1351,9 @@ DatabaseResult<void> DatabaseManager::ensure_system_db() {
         "ALTER TABLE plugin_registry ADD COLUMN is_loaded INTEGER NOT NULL DEFAULT 0;",
         "ALTER TABLE plugin_registry ADD COLUMN loaded_at TEXT;",
         "ALTER TABLE plugin_registry ADD COLUMN unloaded_at TEXT;",
+        "ALTER TABLE plugin_registry ADD COLUMN last_restore_error TEXT NOT NULL DEFAULT '';",
+        "ALTER TABLE plugin_registry ADD COLUMN restore_attempts INTEGER NOT NULL DEFAULT 0;",
+        "ALTER TABLE plugin_registry ADD COLUMN last_restore_attempt_at TEXT;",
         nullptr
     };
     for (int mi = 0; migrations[mi] != nullptr; ++mi) {

@@ -733,6 +733,15 @@ public:
     [[nodiscard]] DatabaseResult<std::vector<PluginRecord>>
     list_plugin_records() const;
 
+    /**
+     * @brief Update restore-attempt metadata for a persisted plugin.
+     */
+    [[nodiscard]] DatabaseResult<void> record_plugin_restore_attempt(
+        const std::string& plugin_id,
+        bool success,
+        const std::string& error,
+        const std::string& attempted_at);
+
     // -------------------------------------------------------------------------
     // System database (T047-000)
     // -------------------------------------------------------------------------

@@ -1,9 +1,8 @@
-# Quickstart: Implementing the SP-012 Plugin System Gap Closure
+# Quickstart: SP-012 Clarification Alignment
 
 **Branch**: `012-plugin-system-boost-dll`
 
-This guide is for contributors implementing the five gap areas identified in `plan.md`.
-The core plugin system is already working — these are targeted additions.
+This quickstart covers implementation work needed to align runtime behavior with clarified requirements for optional resolver schema flow, strict `plugins_root` path policy, and lifecycle admin subscription semantics.
 
 ---
 
@@ -12,187 +11,163 @@ The core plugin system is already working — these are targeted additions.
 ```bash
 cd /home/groby/dev/isched
 git checkout 012-plugin-system-boost-dll
-
-# Build and confirm baseline passes
 cmake --preset conan-release -S . -B build/release
 cmake --build build/release --parallel
-cd build/release && ctest --output-on-failure  # expect 53/53 passing
+cd build/release && ctest --output-on-failure
 ```
 
 ---
 
-## Implementation Order
+## Step 1 — Enforce `plugins_root` path policy (FR-022, SC-015)
 
-Follow the phased sequence in `plan.md §Implementation Sequence`. Phases A and B are independent
-additive helpers — work on them first. Phase C has the highest coupling. Phase D is a 4-line change.
+Implement validation before any dynamic loading in `PluginManager::load_plugin(...)` path:
 
----
+1. Reject relative `libraryPath`.
+2. Canonicalize configured `plugins_root` and incoming `libraryPath`.
+3. Reject if canonical library path is outside canonical root.
+4. Return validation error in `PluginOperationResult.errors` with no state mutation.
 
-## Phase A+B — ABI versioning, OpenAPI validation, template routing
+Suggested touch points:
 
-### Step 1: Add `abi_version` to `PluginManifest`
-
-In `isched_PluginSystem.hpp`, add to the struct and add the two constants:
-
-```cpp
-// In PluginManifest:
-String abi_version{"1.0.0"};
-
-// Module scope (before the struct):
-inline constexpr std::string_view PLUGIN_ABI_VERSION = "1.0.0";
-inline constexpr int PLUGIN_ABI_MAJOR = 1;
-```
-
-### Step 2: Add helpers in `isched_PluginSystem.cpp` anonymous namespace
-
-```cpp
-// Parse the major component from a dotted semver string.
-// Returns nullopt if the string is empty or does not start with a valid integer.
-std::optional<int> extract_semver_major(std::string_view sv) {
-    if (sv.empty()) return std::nullopt;
-    const auto dot = sv.find('.');
-    const auto major_str = dot == std::string_view::npos ? sv : sv.substr(0, dot);
-    // parse major_str as integer
-    ...
-}
-
-// Returns error string on bad fragment, nullopt on OK.
-std::optional<String> validate_openapi_fragment(const String& json_str) {
-    if (json_str.empty()) return std::nullopt;
-    const auto parsed = json::parse(json_str, nullptr, false);
-    if (parsed.is_discarded()) return "Plugin openApiFragmentJson is not valid JSON";
-    return std::nullopt;
-}
-
-// Template-aware route functions
-bool is_template_segment(std::string_view seg);
-std::vector<std::string_view> split_path_segments(std::string_view path);
-bool routes_overlap(const PluginRoute& a, const PluginRoute& b);
-bool route_matches_request(const PluginRoute& r, std::string_view method, std::string_view target);
-```
-
-### Step 3: Wire into load functions
-
-In `load_request_plugin()` and `load_resolver_plugin()` after `manifest = plugin->manifest()`:
-
-```cpp
-// ABI check
-if (const auto err = validate_abi_version(manifest); err) {
-    result.errors.push_back(*err);
-    return result;
-}
-// OpenAPI check (request only)
-if (const auto err = validate_openapi_fragment(manifest.openApiFragmentJson); err) {
-    result.errors.push_back(*err);
-    return result;
-}
-```
-
-Update `route_conflicts_with_loaded` to call `routes_overlap` and `dispatch_request` to call `route_matches_request`.
+- `src/main/cpp/isched/backend/isched_PluginSystem.cpp`
+- config/root retrieval code used by `PluginManager`
 
 ---
 
-## Phase C — Crash containment + IResolverRegistrar
+## Step 2 — Implement resolver optional schema branch (FR-021)
 
-### Step 1: Add `IResolverRegistrar` to the header
+For resolver plugins, branch on `graphqlSchema()` output:
 
-See `data-model.md §New Interface` for the full declaration.
+- **Non-empty SDL**:
+  - Parse SDL.
+  - Validate syntax.
+  - Detect schema conflicts against core + loaded plugin schemas.
+  - Merge schema before resolver registration.
+- **Empty SDL string sentinel**:
+  - Skip merge.
+  - Permit resolver registration only for existing schema fields with no existing resolver.
 
-### Step 2: Update `ResolverPlugin` signatures
+Any parse/conflict/registration error must fail load without partial activation.
 
-```cpp
-virtual void registerResolvers(IResolverRegistrar& registrar) = 0;
-virtual void unregisterResolvers(IResolverRegistrar& registrar) = 0;
-```
+Suggested touch points:
 
-### Step 3: Update `StubResolverPlugin` in tests
-
-Change `registerResolvers(GqlExecutor& executor)` → `registerResolvers(IResolverRegistrar& registrar)`.
-The body still calls `registrar.register_resolver(...)` — the call site is unchanged.
-
-### Step 4: Add `CrashSafeRegistrar` in `isched_PluginSystem.cpp`
-
-```cpp
-// In anonymous namespace
-class CrashSafeRegistrar final : public IResolverRegistrar {
-    GqlExecutor& m_executor;
-    String m_plugin_id;
-    PluginManager& m_manager;
-public:
-    CrashSafeRegistrar(GqlExecutor& ex, String id, PluginManager& mgr)
-        : m_executor(ex), m_plugin_id(std::move(id)), m_manager(mgr) {}
-
-    void register_resolver(const ResolverPath& scope,
-                           const std::string& field,
-                           ResolverFunction fn) override {
-        String pid = m_plugin_id;
-        m_executor.register_resolver(scope, field,
-            [fn = std::move(fn), pid, &mgr = m_manager]
-            (const json& parent, const json& args, const ResolverCtx& ctx) -> json {
-                try {
-                    return fn(parent, args, ctx);
-                } catch (const std::exception& ex) {
-                    spdlog::error("Plugin '{}' resolver threw: {}", pid, ex.what());
-                    mgr.crash_unload_resolver_plugin(pid, ex);
-                    return json{{"errors", json::array({json{{"message",
-                        std::string("Plugin error: ") + ex.what()}}})}};
-                }
-            });
-    }
-    void unregister_resolver(const ResolverPath& scope,
-                             const std::string& field) override {
-        m_executor.unregister_resolver(scope, field);
-    }
-};
-```
-
-### Step 5: Make `dispatch_request` non-const, add request crash guard
-
-```cpp
-// Wrap handleRequest call:
-try {
-    if (auto response = request_plugin->handleRequest(request)) {
-        return response;
-    }
-} catch (const std::exception& ex) {
-    return crash_unload_request_plugin(loaded.manifest.id, ex);
-}
-```
+- `src/main/cpp/isched/backend/isched_PluginSystem.cpp`
+- `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
+- schema helpers used during resolver registration
 
 ---
 
-## Phase D — Authorization
+## Step 3 — Preserve conflict and rollback guarantees (SC-013, SC-014)
 
-In `isched_GqlExecutor.cpp`, in `setup_builtin_resolvers()`, after the four plugin-related
-`register_resolver(…)` calls:
+Ensure failure paths are fail-fast and side-effect safe:
 
-```cpp
-require_roles("plugins",      {std::string(Role::PLATFORM_ADMIN)});
-require_roles("plugin",       {std::string(Role::PLATFORM_ADMIN)});
-require_roles("loadPlugin",   {std::string(Role::PLATFORM_ADMIN)});
-require_roles("unloadPlugin", {std::string(Role::PLATFORM_ADMIN)});
-```
+- No DB write for rejected loads.
+- No in-memory route/resolver registration retained on failure.
+- No partial schema merge retained when merge/registration fails.
 
 ---
 
-## Running Tests
+## Step 4 — Keep GraphQL contract and auth guards aligned
+
+Confirm resolver setup still enforces:
+
+- `loadPlugin` + `unloadPlugin` restricted to `platform_admin`.
+- `plugins` + `plugin(id)` restricted to `platform_admin`.
+- `pluginLifecycleEvents` subscription restricted to `platform_admin` **before** stream establishment.
+- Plugin management remains `/graphql` only.
+
+---
+
+## Step 5 — Implement lifecycle event publish pipeline (FR-023/FR-024)
+
+Define publish points and mapping in plugin lifecycle transitions:
+
+1. Publish one `LOADED` event only after successful load activation + persistence.
+2. Publish one `UNLOADED` event only after successful unload deactivation + persistence.
+3. Do not publish for validation/auth/conflict/not-found/idempotent-no-transition paths.
+4. Map payload fields from affected plugin record: `eventType`, `pluginId`, `pluginKind`, `pluginName`, `libraryPath`, `occurredAt`.
+
+---
+
+## Step 6 — Add/Update tests
+
+Update `isched_plugin_system_tests.cpp` (and related auth tests) to cover:
+
+1. **SC-015**: reject relative path and outside-root path.
+2. **SC-013(a)**: schema supplied + valid SDL succeeds.
+3. **SC-013(b)**: invalid SDL rejected, no partial state.
+4. **SC-013(c)**: no-schema flow registers only existing fields.
+5. **SC-014**: schema conflicts and no-schema field conflicts reject with no partial state.
+6. **SC-017**: successful load/unload each emits exactly one lifecycle event.
+7. **SC-018 negative paths**: failed load, conflict reject, unload-not-found, already-unloaded idempotent path emit zero new events.
+8. **SC-018 payload checks**: assert all required fields are non-empty and match plugin record values.
+9. **SC-017 latency method**: record `(event_received_ts - mutation_completed_ts)` over N>=20 successful trials; compute p95 and assert <=2000ms with >=95% trials within target.
+
+---
+
+## Step 7 — Run performance regression gate (constitution)
+
+Capture baseline and post-change benchmark results for core paths under equivalent hardware/configuration:
+
+1. `PluginManager::dispatch_request` p95 latency
+2. `GqlExecutor::execute` for plugin resolver path p95 latency
+3. `PluginManager::restore_persisted_plugins` startup duration
+
+Pass criteria: each post-change metric must be **<= 5% regression** vs baseline.
+
+Record raw numbers in feature notes so gate evidence is reviewable.
+
+Reference harness command:
 
 ```bash
-cd build/release
-ctest -R isched_plugin_system_tests --output-on-failure
-ctest -R isched_gql_executor_auth_resolvers_tests --output-on-failure
-ctest --output-on-failure             # full suite — target: 53+ passing
+./tools/benchmarks/plugin_system_perf.sh \
+  --build-dir /home/groby/dev/isched/build/release \
+  --output /home/groby/dev/isched/specs/012-plugin-system-boost-dll/benchmarks/post-change.json \
+  --iterations 20
 ```
 
 ---
 
-## Coverage Check
+## Step 8 — Update security threat-model docs (constitution)
 
-```bash
-# (Requires a coverage build preset — see CMakePresets.json)
-cmake --preset conan-coverage -S . -B build/coverage
-cmake --build build/coverage --parallel
-cd build/coverage && ctest
-# Check lcov / gcovr report for isched_PluginSystem.cpp ≥ 80% line + branch
-```
+Security documentation is complete only when both are updated:
 
+1. Feature-scoped threat-model update under `specs/012-plugin-system-boost-dll/`
+2. Project summary update in `docs/security-threat-model.md`
+
+---
+
+## Step 9 — Verification checklist (operator runbook)
+
+Use this checklist when validating SP-012 behavior on a release candidate:
+
+- [ ] FR-021 schema-supplied path: load resolver plugin with non-empty SDL and confirm queryability.
+- [ ] FR-021 no-schema path: load resolver plugin with empty SDL and confirm only pre-existing fields are allowed.
+- [ ] FR-022 path policy: verify relative/outside-root/canonicalization-failure paths are rejected before load.
+- [ ] FR-023 transition emission: verify successful `loadPlugin` emits exactly one `LOADED` event and successful `unloadPlugin` emits exactly one `UNLOADED` event.
+- [ ] FR-024 payload mapping: verify event payload fields map to affected plugin record (`eventType`, `pluginId`, `pluginKind`, `pluginName`, `libraryPath`, `occurredAt`).
+- [ ] FR-025 auth timing: verify unauthorized `pluginLifecycleEvents` subscription attempts fail before stream establishment.
+- [ ] SC-017 latency: confirm p95 lifecycle delivery <= 2000ms with >=95% trials within 2s.
+- [ ] SC-018 negative paths: confirm failed load/unload non-transition paths publish zero new events.
+
+Record outcomes in `validation-report.md` and keep benchmark artifacts under `benchmarks/`.
+
+Current evidence artifacts:
+
+- `specs/012-plugin-system-boost-dll/benchmarks/baseline.json`
+- `specs/012-plugin-system-boost-dll/benchmarks/post-change.json`
+- `specs/012-plugin-system-boost-dll/benchmarks/perf-gate-report.md`
+- `specs/012-plugin-system-boost-dll/validation-report.md`
+
+---
+
+## Done Criteria
+
+Implementation is ready for `/speckit.tasks` execution when:
+
+- FR-021 and FR-022 behaviors are implemented and test-backed.
+- FR-023/FR-024/FR-025 lifecycle subscription behavior is implemented and test-backed.
+- SC-013, SC-014, SC-015, SC-017, and SC-018 scenarios are automated.
+- Performance benchmark gate passes with <=5% regression on relevant core paths.
+- Both feature-scoped and project-level threat-model docs are updated.
+- No constitution gate regressions are introduced.

@@ -19,6 +19,7 @@ Dockerfile*
 
 # Logs and temporary files
 *.log
+*.log*
 *.tmp
 *.swp
 *.swo

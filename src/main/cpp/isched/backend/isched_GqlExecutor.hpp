@@ -390,6 +390,12 @@ namespace isched::v0_0_1::backend {
             return m_resolvers.unregister_resolver(path, field_name);
         }
 
+        [[nodiscard]] bool has_resolver(const ResolverPath& path, const std::string& field_name) const {
+            return m_resolvers.has_resolver(path, field_name);
+        }
+
+        [[nodiscard]] bool schema_field_exists(const std::string& type_name, std::string_view field_name) const;
+
         /**
          * @brief Declare which roles are required to call a top-level field.
          *

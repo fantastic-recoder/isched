@@ -1,6 +1,6 @@
 # Security Threat Model Summary
 
-**Updated**: 2026-05-23
+**Updated**: 2026-05-26
 
 ## Purpose
 
@@ -64,15 +64,21 @@ This document summarizes the security posture and recurring mitigations for Isch
   - Authenticated users can inspect schema metadata and query responses by design
   - Browser storage may retain harmless layout preferences across sessions
 
-## Feature SP-012 Security Closeout Snapshot (2026-06-03)
+## Feature SP-012 Security Closeout Snapshot (2026-05-26)
 
-- **Scope**: Plugin loading and runtime execution (`loadPlugin`, `unloadPlugin`, `plugins`, `plugin`) for Boost.DLL request/resolver plugins
+- **Scope**: Plugin loading and runtime execution (`loadPlugin`, `unloadPlugin`, `plugins`, `plugin`) plus lifecycle subscription streaming (`pluginLifecycleEvents`) for Boost.DLL request/resolver plugins
 - **Validated mitigations**:
   - Plugin GraphQL administration fields are restricted to `platform_admin`
-  - Plugin manifests now carry `abi_version`; load rejects semver-major mismatches
+  - FR-025 pre-stream authorization is enforced for `pluginLifecycleEvents` (unauthorized callers rejected before stream creation)
+  - Plugin manifests carry `abi_version`; load rejects semver-major mismatches
   - Request-plugin `openApiFragmentJson` is validated as strict JSON at load time
-  - Request route matching supports templates while blocking overlap collisions
+  - FR-022 canonical path policy blocks relative/outside-root/symlink-escape plugin paths before dynamic load
+  - Request route matching supports templates while blocking deterministic overlap collisions
   - Request and resolver plugin exceptions are contained and trigger automatic unload
+  - FR-023/FR-024 lifecycle events are emitted exactly once only after successful load/unload state transitions
+- **Validation evidence**:
+  - Full backend regression: `ctest --output-on-failure` PASS (55/55)
+  - Plugin suites: `isched_plugin_system_tests`, `isched_plugin_system_subscription_integration_tests`, and `isched_gql_executor_auth_resolvers_tests` PASS
 - **Residual risk**:
   - A privileged operator can still intentionally load malicious native code
   - Crash containment does not sandbox arbitrary plugin side effects outside resolver/request callback boundaries

@@ -101,12 +101,24 @@ target_link_libraries(isched_config_tests PRIVATE isched Catch2::Catch2WithMain 
 add_test(NAME isched_config_tests COMMAND isched_config_tests)
 
 # Plugin system unit tests (SP-012)
+set(_plugin_fixture_targets hello_plugin request_demo_plugin)
+set(_plugin_fixture_definitions
+    ISCHED_HELLO_PLUGIN_PATH="$<TARGET_FILE:hello_plugin>"
+    ISCHED_REQUEST_PLUGIN_PATH="$<TARGET_FILE:request_demo_plugin>")
+
 add_executable(isched_plugin_system_tests isched_plugin_system_tests.cpp)
 target_link_libraries(isched_plugin_system_tests PRIVATE isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl Boost::filesystem sago::platform_folders)
-add_dependencies(isched_plugin_system_tests hello_plugin)
-target_compile_definitions(isched_plugin_system_tests PRIVATE
-        ISCHED_HELLO_PLUGIN_PATH="$<TARGET_FILE:hello_plugin>")
+add_dependencies(isched_plugin_system_tests ${_plugin_fixture_targets})
+target_compile_definitions(isched_plugin_system_tests PRIVATE ${_plugin_fixture_definitions})
 add_test(NAME isched_plugin_system_tests COMMAND isched_plugin_system_tests)
+
+add_executable(isched_plugin_system_subscription_integration_tests
+        isched_plugin_system_subscription_integration_tests.cpp)
+target_link_libraries(isched_plugin_system_subscription_integration_tests PRIVATE
+        isched Catch2::Catch2WithMain spdlog::spdlog nlohmann_json::nlohmann_json SQLite::SQLite3 taocpp::pegtl Boost::filesystem sago::platform_folders)
+add_dependencies(isched_plugin_system_subscription_integration_tests ${_plugin_fixture_targets})
+target_compile_definitions(isched_plugin_system_subscription_integration_tests PRIVATE ${_plugin_fixture_definitions})
+add_test(NAME isched_plugin_system_subscription_integration_tests COMMAND isched_plugin_system_subscription_integration_tests)
 
 # Integration tests for User Story 1 - Frontend Developer Setup
 add_executable(test_server_startup ../integration/test_server_startup.cpp)
@@ -315,6 +327,16 @@ target_link_libraries(benchmark_profile PRIVATE isched Catch2::Catch2WithMain
     taocpp::pegtl httplib::httplib openssl::openssl
     Boost::url Boost::system Boost::thread)
 
+# SP-012 plugin-system performance harness (dispatch / GraphQL / restore)
+add_custom_target(plugin_system_perf
+    COMMAND "${CMAKE_SOURCE_DIR}/tools/benchmarks/plugin_system_perf.sh"
+            --build-dir "${CMAKE_BINARY_DIR}"
+            --output "${CMAKE_SOURCE_DIR}/specs/012-plugin-system-boost-dll/benchmarks/post-change.json"
+            --iterations 20
+    DEPENDS isched_plugin_system_tests
+    USES_TERMINAL
+    COMMENT "Running SP-012 plugin-system performance harness")
+
 # Global C++ test timeout policy split by suite type.
 set(_isched_fast_unit_tests
     isched_grammar_tests
@@ -349,6 +371,7 @@ set(_isched_fast_unit_tests
     isched_visitor_tests
     isched_ast_benchmarks
     isched_plugin_system_tests
+    isched_plugin_system_subscription_integration_tests
 )
 
 set(_isched_integration_tests

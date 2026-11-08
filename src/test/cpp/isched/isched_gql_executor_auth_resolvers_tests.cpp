@@ -67,6 +67,7 @@ TEST_CASE("Authentication and plugin admin RBAC", "[gql][auth][plugin]") {
     auto db = std::make_shared<DatabaseManager>();
     REQUIRE(db->ensure_system_db().has_value());
     REQUIRE(db->initialize_tenant("default_tenant").has_value());
+    REQUIRE(db->initialize_plugin_store().has_value());
 
     GqlExecutor executor{db};
 
@@ -80,11 +81,35 @@ TEST_CASE("Authentication and plugin admin RBAC", "[gql][auth][plugin]") {
     platform_admin.tenant_id = "default_tenant";
     platform_admin.db = db;
 
-    CHECK_FALSE(executor.execute("query { isched { plugins { id } } }", "{}", tenant_admin).is_success());
-    CHECK_FALSE(executor.execute("query { isched { plugin(id: \"missing\") { id } } }", "{}", tenant_admin).is_success());
+    const auto baseline_plugins = executor.execute("query { isched { plugins { id } } }", "{}", platform_admin);
+    REQUIRE(baseline_plugins.is_success());
+    REQUIRE(baseline_plugins.data.contains("isched"));
+    REQUIRE(baseline_plugins.data["isched"].contains("plugins"));
+    REQUIRE(baseline_plugins.data["isched"]["plugins"].is_array());
+    const auto baseline_size = baseline_plugins.data["isched"]["plugins"].size();
+
+    const auto plugins_forbidden = executor.execute("query { isched { plugins { id } } }", "{}", tenant_admin);
+    REQUIRE_FALSE(plugins_forbidden.is_success());
+    REQUIRE_FALSE(plugins_forbidden.errors.empty());
+    CHECK(plugins_forbidden.errors.front().message.find("Access denied") != std::string::npos);
+
+    const auto plugin_forbidden = executor.execute("query { isched { plugin(id: \"missing\") { id } } }", "{}", tenant_admin);
+    REQUIRE_FALSE(plugin_forbidden.is_success());
+    REQUIRE_FALSE(plugin_forbidden.errors.empty());
+    CHECK(plugin_forbidden.errors.front().message.find("Access denied") != std::string::npos);
+
     CHECK_FALSE(executor.execute("mutation { isched { loadPlugin(input:{libraryPath:\"/tmp/nope.so\", kind:\"request\"}) { success } } }", "{}", tenant_admin).is_success());
-    CHECK_FALSE(executor.execute("mutation { isched { unloadPlugin(id:\"missing\") { success } } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("mutation { isched { unloadPlugin(id:\"auth-seeded-plugin\") { success } } }", "{}", tenant_admin).is_success());
+    CHECK_FALSE(executor.execute("subscription { isched { pluginLifecycleEvents { eventType } } }", "{}", tenant_admin).is_success());
+
+    const auto after_forbidden = executor.execute("query { isched { plugins { id } } }", "{}", platform_admin);
+    REQUIRE(after_forbidden.is_success());
+    REQUIRE(after_forbidden.data.contains("isched"));
+    REQUIRE(after_forbidden.data["isched"].contains("plugins"));
+    REQUIRE(after_forbidden.data["isched"]["plugins"].is_array());
+    CHECK(after_forbidden.data["isched"]["plugins"].size() == baseline_size);
 
     CHECK(executor.execute("query { isched { plugins { id } } }", "{}", platform_admin).is_success());
     CHECK(executor.execute("query { isched { plugin(id: \"missing\") { id } } }", "{}", platform_admin).is_success());
+    CHECK(executor.execute("subscription { isched { pluginLifecycleEvents { eventType } } }", "{}", platform_admin).is_success());
 }

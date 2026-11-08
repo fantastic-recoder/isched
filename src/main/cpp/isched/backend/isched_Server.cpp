@@ -267,6 +267,10 @@ private:
                     std::unordered_map<std::string, std::string> hdrs{{"Authorization", bearer}};
                     const auto ar = auth_->validate_request(hdrs, "");
                     if (ar.is_authenticated && !ar.session_id.empty()) {
+                        auth_ctx_.current_user_id = ar.user_id;
+                        auth_ctx_.user_name = ar.user_name;
+                        auth_ctx_.tenant_id = ar.tenant_id;
+                        auth_ctx_.roles = ar.roles;
                         // Register so revoke_auth_session() can close this WS.
                         broker_->register_auth_session(
                             ar.session_id, session_id_,
@@ -318,9 +322,14 @@ private:
 
         // Execute the subscription query once for the initial value
         if (executor_) {
-            const auto result = executor_->execute(query, vars);
+            const auto result = executor_->execute(query, vars, auth_ctx_);
             auto resp         = result.to_json();
             send_next(op_id, resp);
+            if (!result.is_success()) {
+                nlohmann::json rep = {{"type", "complete"}, {"id", op_id}};
+                enqueue_raw(rep.dump());
+                return;
+            }
         }
 
         // Determine broker topic and register for ongoing events
@@ -403,6 +412,7 @@ private:
         if (query.find("healthChanged") != std::string::npos) return "health";
         if (query.find("serverMetricsUpdated") != std::string::npos) return "__metrics/server";
         if (query.find("pluginRegistryChanged") != std::string::npos) return "__plugin_registry";
+        if (query.find("pluginLifecycleEvents") != std::string::npos) return "__plugin_lifecycle";
         if (query.find("tenantMetricsUpdated") != std::string::npos) {
             // Extract organizationId from variables or inline literal
             if (payload.contains("variables") &&
@@ -456,6 +466,7 @@ private:
     bool                                        writing_{false};
     std::deque<std::string>                     send_queue_;
     std::unordered_map<std::string, std::string> sub_ids_; // op_id → sub_id
+    ResolverCtx                                  auth_ctx_{};
 
     static inline std::atomic<uint64_t> session_counter_{0};
 };

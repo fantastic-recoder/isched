@@ -270,6 +270,27 @@ type IschedSubscriptionNamespace {
   tenantMetricsUpdated(organizationId: ID!): TenantMetrics
   """Fires when a plugin is loaded or unloaded; triggers schema tree reload"""
   pluginRegistryChanged: PluginRegistryEvent!
+  """Admin-only lifecycle stream for successful plugin load/unload transitions"""
+  pluginLifecycleEvents: PluginLifecycleEvent!
+}
+
+enum PluginLifecycleEventType {
+  LOADED
+  UNLOADED
+}
+
+enum PluginKind {
+  REQUEST
+  RESOLVER
+}
+
+type PluginLifecycleEvent {
+  eventType: PluginLifecycleEventType!
+  pluginId: String!
+  pluginKind: PluginKind!
+  pluginName: String!
+  libraryPath: String!
+  occurredAt: String!
 }
 
 """Event emitted when the plugin registry changes"""

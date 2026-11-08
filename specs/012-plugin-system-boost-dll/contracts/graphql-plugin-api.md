@@ -1,28 +1,33 @@
 # GraphQL Plugin API Contract (SP-012)
 
-**Contract type**: GraphQL mutations and queries
-**Schema file**: `src/main/resources/isched_builtin_server_schema.graphql`
+**Contract type**: GraphQL queries, mutations, and subscriptions  
+**Schema source**: `src/main/cpp/isched/backend/isched_builtin_server_schema.graphql`  
 **Branch**: `012-plugin-system-boost-dll`
 
 ---
 
 ## Overview
 
-All plugin management operations are exposed exclusively through the `/graphql` endpoint.
-No REST endpoints are defined for plugin management (the `/plugin/*` HTTP prefix is the
-*dispatch target* for loaded request-plugin payloads, not a management API).
+Plugin management remains GraphQL-only at `/graphql` (HTTP + WebSocket).  
+No REST management endpoint is introduced.
 
-**Authorization**: All four operations require the caller to hold the `platform_admin` role
-(enforced via `require_roles` in `GqlExecutor::setup_builtin_resolvers()`).
+`/plugin/*` remains request-plugin dispatch space, not admin API surface.
+
+**Authorization**: `plugins`, `plugin(id)`, `loadPlugin`, `unloadPlugin`, and `pluginLifecycleEvents` require `platform_admin` via `require_roles`.
 
 ---
 
-## Types (already implemented, no changes)
+## Core Types
 
 ```graphql
 enum PluginKind {
   REQUEST
   RESOLVER
+}
+
+enum PluginLifecycleEventType {
+  LOADED
+  UNLOADED
 }
 
 type PluginRecord {
@@ -47,8 +52,17 @@ type PluginOperationResult {
 
 input LoadPluginInput {
   libraryPath: String!
-  kind: String!          # "request" or "resolver"
-  pluginId: String       # optional override; derived from library stem if omitted
+  kind: String!
+  pluginId: String
+}
+
+type PluginLifecycleEvent {
+  eventType: PluginLifecycleEventType!
+  pluginId: String!
+  pluginKind: PluginKind!
+  pluginName: String!
+  libraryPath: String!
+  occurredAt: String!
 }
 ```
 
@@ -58,40 +72,17 @@ input LoadPluginInput {
 
 ### `plugins(kind: String): [PluginRecord!]!`
 
-Returns all currently loaded (in-memory) plugin records. Optionally filter by kind.
-
-**Authorization**: `platform_admin` required.
-
-**Example**:
-```graphql
-query {
-  plugins {
-    id kind name version isLoaded loadedAt
-  }
-}
-```
-
-**Behaviour**:
-- Returns in-memory loaded plugins only (not unloaded historical records).
-- Optional `kind` filter accepts `"request"` or `"resolver"`.
-- Returns empty array if no plugins loaded.
-
----
+Returns all known plugin records from persisted registry, optionally filtered by kind.
 
 ### `plugin(id: String!): PluginRecord`
 
-Returns a single loaded plugin by its id, or `null` if not found / not loaded.
+Returns the plugin record for the given id, or `null` if missing.
 
-**Authorization**: `platform_admin` required.
+### Discovery response semantics
 
-**Example**:
-```graphql
-query {
-  plugin(id: "my-plugin") {
-    id kind name version manifestJson isLoaded
-  }
-}
-```
+- `plugins` returns `[]` when no plugin records are persisted.
+- `plugin(id:)` returns `null` (not an error) when the id is unknown.
+- `manifestJson` must include `abi_version` and `openApiFragmentJson` keys for management visibility.
 
 ---
 
@@ -99,95 +90,202 @@ query {
 
 ### `loadPlugin(input: LoadPluginInput!): PluginOperationResult!`
 
-Loads a shared library as a plugin. The library must be accessible on the server filesystem.
+Loads and activates a plugin if all validation stages succeed.
 
-**Authorization**: `platform_admin` required.
+#### Validation order
 
-**Validation sequence** (new in gap-closure work):
-1. ABI version check: manifest's `abi_version` major must equal server's `PLUGIN_ABI_MAJOR` (currently `1`).
-2. OpenAPI fragment check (request plugins): `openApiFragmentJson`, if non-empty, must be valid JSON.
-3. Route/resolver conflict check: No overlap with already-loaded plugins.
+1. **Authorization** (`platform_admin`)  
+2. **Path policy** (FR-022): `libraryPath` must be absolute and resolve under configured `plugins_root`  
+3. **Dynamic load/factory + manifest extraction**  
+4. **Manifest checks** (ABI / OpenAPI JSON / identity)  
+5. **Conflict checks** (routes/resolvers)  
+6. **Resolver schema flow** (FR-021, resolver plugins only):
+   - **Schema supplied** (`graphqlSchema()` non-empty): parse SDL -> validate -> detect conflicts -> merge -> register resolvers
+   - **No schema supplied** (`graphqlSchema()` returns empty string sentinel): register resolvers only to existing schema fields with no existing resolver
+7. **Persist + activate**
 
-**Success response**:
-```json
-{
-  "loadPlugin": {
-    "success": true,
-    "pluginId": "my-plugin",
-    "errors": [],
-    "plugin": { "id": "my-plugin", "isLoaded": true, ... }
-  }
-}
-```
-
-**Failure response** (example: ABI mismatch):
-```json
-{
-  "loadPlugin": {
-    "success": false,
-    "pluginId": null,
-    "errors": ["ABI version mismatch: plugin declares '2.0.0', server requires major '1'"],
-    "plugin": null
-  }
-}
-```
-
-**Failure response** (example: invalid OpenAPI fragment):
-```json
-{
-  "loadPlugin": {
-    "success": false,
-    "pluginId": null,
-    "errors": ["Plugin openApiFragmentJson is not valid JSON"],
-    "plugin": null
-  }
-}
-```
-
----
+If any stage fails, response is `success: false`, with no partial activation/persistence.
 
 ### `unloadPlugin(pluginId: String!): PluginOperationResult!`
 
-Unloads a loaded plugin. Idempotent if the plugin is not loaded (returns success without change).
+Unloads plugin routes/resolvers and marks persisted record unloaded.
 
-**Authorization**: `platform_admin` required.
+---
 
-**Post-condition**: Plugin's routes/resolver bindings are deregistered; `plugin_registry` record updated with `is_loaded = false` and `unloaded_at` timestamp.
+## Subscriptions
 
-**Example**:
+### `pluginLifecycleEvents: PluginLifecycleEvent!`
+
+Dedicated admin subscription delivering plugin load/unload lifecycle transitions.
+
+#### Auth timing (FR-025)
+
+- `require_roles(platform_admin)` is evaluated before stream establishment.
+- Unauthorized callers receive authorization error and no stream is created.
+
+#### Publish timing (FR-023)
+
+- Emit exactly one `LOADED` event after a successful `loadPlugin` state transition completes (activation + persistence).
+- Emit exactly one `UNLOADED` event after a successful `unloadPlugin` state transition completes (deactivation + persistence).
+- Emit nothing for failed operations or idempotent non-transition outcomes.
+
+#### Payload mapping (FR-024)
+
+- `eventType`: from transition (`LOADED`/`UNLOADED`)
+- `pluginId`: plugin id from manifest/record
+- `pluginKind`: plugin kind enum mapped to GraphQL `PluginKind`
+- `pluginName`: plugin manifest/record name
+- `libraryPath`: plugin manifest/record library path
+- `occurredAt`: server transition commit timestamp (UTC)
+
+---
+
+## Resolver Schema Flow Contract (FR-021)
+
+### A) Schema-supplied flow
+
+- Input plugin returns non-empty SDL from `graphqlSchema()`.
+- SDL must parse successfully.
+- Type/field conflicts against core schema or loaded plugin schemas reject the load.
+- On success, merged schema becomes active before resolver registration.
+
+### B) No-schema flow
+
+- Plugin returns an empty string from `graphqlSchema()`.
+- No schema merge is attempted.
+- Resolver registration is allowed only for fields already present in active schema and currently unclaimed by another resolver.
+- Field-missing or resolver-conflict rejects load.
+
+---
+
+## Path Policy Contract (FR-022, SC-015)
+
+`loadPlugin` MUST reject before load attempt when:
+
+- `libraryPath` is relative
+- `libraryPath` is absolute but outside configured `plugins_root`
+- canonicalization/normalization fails
+
+Rejected requests MUST NOT load, persist, or activate plugin state.
+
+---
+
+## Error Surface (`PluginOperationResult.errors`)
+
+Representative error categories/messages:
+
+| Error prefix | Condition |
+|---|---|
+| `authorization error` | caller lacks `platform_admin` |
+| `path policy validation failed` | relative/outside-root/unresolvable `libraryPath` |
+| `ABI version mismatch` | manifest major differs from server ABI major |
+| `openApiFragmentJson is not valid JSON` | invalid fragment JSON |
+| `invalid GraphQL SDL` | `graphqlSchema()` returned unparsable SDL |
+| `schema conflict` | duplicate/conflicting type/field during merge |
+| `field not found` | no-schema flow targets non-existent field |
+| `resolver already registered` | no-schema or merge flow conflicts at target field |
+| `route conflict` | request route overlap/conflict |
+
+Subscription authorization failure surface:
+
+| Error prefix | Condition |
+|---|---|
+| `authorization error` | caller lacks `platform_admin` for `pluginLifecycleEvents` |
+
+Discovery authorization failure surface:
+
+| Error prefix | Condition |
+|---|---|
+| `authorization error` | caller lacks `platform_admin` for `plugins` or `plugin(id:)` |
+
+---
+
+## Examples
+
+### Success (schema-supplied resolver plugin)
+
 ```graphql
 mutation {
-  unloadPlugin(pluginId: "my-plugin") {
-    success errors
+  loadPlugin(input: {
+    libraryPath: "/opt/isched/plugins/inventory_resolver.so"
+    kind: "resolver"
+  }) {
+    success
+    pluginId
+    errors
   }
 }
 ```
 
----
+### Failure (outside `plugins_root`)
 
-## Error Codes (as returned in `errors` array)
+```json
+{
+  "loadPlugin": {
+    "success": false,
+    "pluginId": null,
+    "errors": ["path policy validation failed: libraryPath must resolve under plugins_root"],
+    "plugin": null
+  }
+}
+```
 
-| Error message (prefix) | Condition |
-|------------------------|-----------|
-| `"ABI version mismatch: plugin declares '…', server requires major '…'"` | FR-018: major version mismatch |
-| `"Plugin openApiFragmentJson is not valid JSON"` | FR-019: invalid OpenAPI fragment |
-| `"Request plugin route conflicts with an already loaded plugin"` | FR-006: route overlap |
-| `"Resolver plugin binding conflicts with an already loaded plugin"` | FR-007: resolver overlap |
-| `"Plugin id already loaded: …"` | Duplicate ID already in memory |
-| `"Plugin not loaded: …"` | `unloadPlugin` called for unknown id |
-| `"Request plugin factory returned null"` | Boost.DLL loaded but factory returned null |
-| `"Resolver plugin factory returned null"` | Boost.DLL loaded but factory returned null |
-| `"Plugin persistence unavailable"` | DatabaseManager not configured |
-| Authorization error (framework-level) | Caller lacks `platform_admin` role (FR-017) |
+### Failure (no-schema flow field missing)
 
----
+```json
+{
+  "loadPlugin": {
+    "success": false,
+    "pluginId": null,
+    "errors": ["field not found: Query.dynamicField"],
+    "plugin": null
+  }
+}
+```
 
-## Crash Containment Behaviour (FR-020)
+### Discovery list example (empty)
 
-If a loaded plugin's handler or resolver callable throws after activation:
+```graphql
+query {
+  isched {
+    plugins {
+      id
+      kind
+      manifestJson
+    }
+  }
+}
+```
 
-- **Request plugin crash**: `dispatch_request()` returns `PluginHttpResponse{status: 500, body: "Plugin error"}`. The plugin is automatically unloaded (routes deregistered, DB updated).
-- **Resolver plugin crash**: `GqlExecutor::execute()` returns a response with a GraphQL error node. The plugin is automatically unloaded (resolver bindings deregistered, DB updated).
+Returns `plugins: []` when the registry is empty.
 
-These automatic unloads are transparent to the GraphQL client — no special schema type is needed.
+### Discovery by id example (not found)
+
+```graphql
+query {
+  isched {
+    plugin(id: "missing-plugin") {
+      id
+      manifestJson
+    }
+  }
+}
+```
+
+Returns `plugin: null` when no persisted record exists.
+
+### Subscription example (authorized admin)
+
+```graphql
+subscription {
+  pluginLifecycleEvents {
+    eventType
+    pluginId
+    pluginKind
+    pluginName
+    libraryPath
+    occurredAt
+  }
+}
+```
 

@@ -981,7 +981,38 @@ namespace isched::v0_0_1::backend {
                 return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
             });
 
-        auto plugin_to_json = [](const PluginRecord& plugin) -> json {
+        auto normalize_manifest_json = [](const PluginRecord& plugin) -> std::string {
+            if (plugin.manifestJson.empty()) {
+                json manifest = json::object();
+                manifest["id"] = plugin.id;
+                manifest["name"] = plugin.name;
+                manifest["version"] = plugin.version;
+                manifest["libraryPath"] = plugin.libraryPath;
+                manifest["abi_version"] = std::string(PLUGIN_ABI_VERSION);
+                manifest["openApiFragmentJson"] = "";
+                return manifest.dump();
+            }
+
+            json parsed = json::parse(plugin.manifestJson, nullptr, false);
+            if (parsed.is_discarded() || !parsed.is_object()) {
+                return plugin.manifestJson;
+            }
+
+            bool changed = false;
+            if (!parsed.contains("abi_version") || !parsed["abi_version"].is_string() ||
+                parsed["abi_version"].get<std::string>().empty()) {
+                parsed["abi_version"] = std::string(PLUGIN_ABI_VERSION);
+                changed = true;
+            }
+            if (!parsed.contains("openApiFragmentJson")) {
+                parsed["openApiFragmentJson"] = "";
+                changed = true;
+            }
+
+            return changed ? parsed.dump() : plugin.manifestJson;
+        };
+
+        auto plugin_to_json = [normalize_manifest_json](const PluginRecord& plugin) -> json {
             return json{
                 {"id", plugin.id},
                 {"kind", plugin.kind},
@@ -989,20 +1020,70 @@ namespace isched::v0_0_1::backend {
                 {"version", plugin.version},
                 {"description", plugin.description},
                 {"libraryPath", plugin.libraryPath},
-                {"manifestJson", plugin.manifestJson},
+                {"manifestJson", normalize_manifest_json(plugin)},
                 {"isLoaded", plugin.isLoaded},
                 {"loadedAt", plugin.loadedAt.empty() ? json(nullptr) : json(plugin.loadedAt)},
                 {"unloadedAt", plugin.unloadedAt.empty() ? json(nullptr) : json(plugin.unloadedAt)}
             };
         };
 
-        register_resolver(k_builtin_namespace_path, "plugins",
-            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
-                json result = json::array();
-                if (!m_plugins) {
-                    return result;
+        auto fetch_plugin_records = [this]() -> std::vector<PluginRecord> {
+            if (m_database) {
+                if (const auto persisted = m_database->list_plugin_records(); persisted) {
+                    return persisted.value();
                 }
-                const auto list = m_plugins->list_plugins();
+            }
+            if (m_plugins) {
+                return m_plugins->list_plugins();
+            }
+            return {};
+        };
+
+        auto fetch_plugin_record = [this](const std::string& plugin_id) -> std::optional<PluginRecord> {
+            if (plugin_id.empty()) {
+                return std::nullopt;
+            }
+            if (m_database) {
+                if (const auto persisted = m_database->get_plugin_record(plugin_id); persisted) {
+                    return persisted.value();
+                }
+            }
+            if (m_plugins) {
+                return m_plugins->get_plugin(plugin_id);
+            }
+            return std::nullopt;
+        };
+
+        auto plugin_kind_to_graphql = [](std::string_view kind) -> std::string {
+            if (kind == "resolver") {
+                return "RESOLVER";
+            }
+            return "REQUEST";
+        };
+
+        auto publish_lifecycle_event = [this, &plugin_kind_to_graphql](
+            std::string_view event_type,
+            const PluginRecord& plugin) {
+            if (!m_broker) {
+                return;
+            }
+            json payload;
+            payload["eventType"] = event_type;
+            payload["pluginId"] = plugin.id;
+            payload["pluginKind"] = plugin_kind_to_graphql(plugin.kind);
+            payload["pluginName"] = plugin.name;
+            payload["libraryPath"] = plugin.libraryPath;
+            const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            payload["occurredAt"] = std::to_string(now_ms);
+            m_broker->publish("__plugin_lifecycle", "pluginLifecycleEvents",
+                json{{"pluginLifecycleEvents", payload}});
+        };
+
+        register_resolver(k_builtin_namespace_path, "plugins",
+            [plugin_to_json, fetch_plugin_records](const json&, const json& args, const ResolverCtx&) -> json {
+                json result = json::array();
+                const auto list = fetch_plugin_records();
                 const auto kind_filter = args.contains("kind") && args["kind"].is_string()
                     ? pluginKindFromString(args["kind"].get<std::string>())
                     : std::optional<PluginKind>{};
@@ -1017,21 +1098,18 @@ namespace isched::v0_0_1::backend {
         require_roles("plugins", {std::string(Role::PLATFORM_ADMIN)});
 
         register_resolver(k_builtin_namespace_path, "plugin",
-            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
-                if (!m_plugins) {
-                    return nullptr;
-                }
+            [plugin_to_json, fetch_plugin_record](const json&, const json& args, const ResolverCtx&) -> json {
                 const std::string plugin_id = args.value("id", "");
                 if (plugin_id.empty()) {
                     return nullptr;
                 }
-                const auto record = m_plugins->get_plugin(plugin_id);
+                const auto record = fetch_plugin_record(plugin_id);
                 return record ? plugin_to_json(*record) : json(nullptr);
             });
         require_roles("plugin", {std::string(Role::PLATFORM_ADMIN)});
 
         register_resolver(k_builtin_namespace_path, "loadPlugin",
-            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+            [this, plugin_to_json, publish_lifecycle_event](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"] = false;
                 result["pluginId"] = nullptr;
@@ -1069,6 +1147,8 @@ namespace isched::v0_0_1::backend {
                 result["success"] = true;
                 result["pluginId"] = load_result.pluginId;
                 result["plugin"] = record ? plugin_to_json(*record) : json(nullptr);
+
+
                 // Publish subscription event so UIs can refresh their schema tree.
                 if (m_broker) {
                     const auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1080,12 +1160,15 @@ namespace isched::v0_0_1::backend {
                     m_broker->publish("__plugin_registry", "pluginRegistryChanged",
                                       json{{"pluginRegistryChanged", evt}});
                 }
+                if (record) {
+                    publish_lifecycle_event("LOADED", *record);
+                }
                 return result;
             });
         require_roles("loadPlugin", {std::string(Role::PLATFORM_ADMIN)});
 
         register_resolver(k_builtin_namespace_path, "unloadPlugin",
-            [this, plugin_to_json](const json&, const json& args, const ResolverCtx&) -> json {
+            [this, plugin_to_json, publish_lifecycle_event](const json&, const json& args, const ResolverCtx&) -> json {
                 json result;
                 result["success"] = false;
                 result["pluginId"] = nullptr;
@@ -1100,6 +1183,7 @@ namespace isched::v0_0_1::backend {
                     result["errors"].push_back("pluginId is required");
                     return result;
                 }
+                const auto pre_unload_record = m_plugins->get_plugin(plugin_id);
                 const auto unload_result = m_plugins->unload_plugin(plugin_id);
                 if (!unload_result.success) {
                     result["errors"] = unload_result.errors;
@@ -1119,6 +1203,9 @@ namespace isched::v0_0_1::backend {
                     evt["timestamp"] = std::to_string(now_ms);
                     m_broker->publish("__plugin_registry", "pluginRegistryChanged",
                                       json{{"pluginRegistryChanged", evt}});
+                }
+                if (pre_unload_record && pre_unload_record->isLoaded) {
+                    publish_lifecycle_event("UNLOADED", *pre_unload_record);
                 }
                 return result;
             });
@@ -1508,6 +1595,12 @@ namespace isched::v0_0_1::backend {
                 evt["timestamp"] = fmt_iso8601(std::chrono::system_clock::now());
                 return evt;
             });
+
+        register_resolver(k_builtin_namespace_path, "pluginLifecycleEvents",
+            [](const json&, const json&, const ResolverCtx&) -> json {
+                return nullptr;
+            });
+        require_roles("pluginLifecycleEvents", {std::string(Role::PLATFORM_ADMIN)});
 
         // ---------------------------------------------------------------
         // Phase 5 subscription: configurationActivated (T046)
@@ -3546,6 +3639,28 @@ namespace isched::v0_0_1::backend {
             }
         }
         return nullptr;
+    }
+
+    bool GqlExecutor::schema_field_exists(const std::string& type_name, std::string_view field_name) const {
+        const auto it = m_type_map.find(type_name);
+        if (it == m_type_map.end() || it->second == nullptr || !it->second->get()) {
+            return false;
+        }
+
+        const auto* type_node = it->second->get();
+        for (const auto& child : type_node->children) {
+            if (!child || get_node_type(child) != NodeType::FieldDefinition) {
+                continue;
+            }
+            for (const auto& field_child : child->children) {
+                const auto field_child_type = get_node_type(field_child);
+                if ((field_child_type == NodeType::Name || field_child_type == NodeType::TypeName) &&
+                    field_child->string_view() == field_name) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     ExecutionResult GqlExecutor::load_schema(std::string &&pSchemaDocument, bool p_print_dot) {

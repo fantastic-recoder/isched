@@ -12,6 +12,7 @@
 #include <boost/dll/shared_library.hpp>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <string_view>
@@ -73,6 +74,7 @@ namespace isched::v0_0_1::backend {
         String libraryPath;
         String abi_version{String(PLUGIN_ABI_VERSION)};
         String openApiFragmentJson;
+        String resolverSchemaSdl;
         std::vector<PluginRoute> requestRoutes;
         std::vector<PluginResolverBinding> resolverBindings;
     };
@@ -105,6 +107,9 @@ namespace isched::v0_0_1::backend {
         bool isLoaded{false};
         String loadedAt;
         String unloadedAt;
+        String lastRestoreError;
+        int restoreAttempts{0};
+        String lastRestoreAttemptAt;
     };
 
     /**
@@ -150,6 +155,7 @@ namespace isched::v0_0_1::backend {
      */
     class ResolverPlugin : public Plugin {
     public:
+        [[nodiscard]] virtual String graphqlSchema() const { return {}; }
         virtual void registerResolvers(IResolverRegistrar& registrar) = 0;
         virtual void unregisterResolvers(IResolverRegistrar& registrar) = 0;
     };
@@ -171,6 +177,9 @@ namespace isched::v0_0_1::backend {
         explicit PluginManager(std::shared_ptr<DatabaseManager> database);
 
         void set_executor(GqlExecutor* executor) noexcept;
+
+        /// Configure the trusted plugin root used by FR-022 path-policy validation.
+        void set_plugins_root(std::filesystem::path plugins_root);
 
         [[nodiscard]] PluginOperationResult load_plugin(
             const String& library_path,
@@ -219,6 +228,8 @@ namespace isched::v0_0_1::backend {
             const String& library_path,
             std::optional<String> plugin_id);
 
+        [[nodiscard]] std::optional<String> validate_library_path(const String& library_path) const;
+
         [[nodiscard]] PluginOperationResult persist_record(
             const PluginManifest& manifest,
             bool is_loaded,
@@ -238,6 +249,10 @@ namespace isched::v0_0_1::backend {
 
         [[nodiscard]] bool route_conflicts_with_loaded(const PluginManifest& manifest) const;
         [[nodiscard]] bool resolver_conflicts_with_loaded(const PluginManifest& manifest) const;
+        [[nodiscard]] bool resolver_schema_conflicts_with_loaded(const String& schema_sdl, String& error_out) const;
+        [[nodiscard]] bool resolver_binding_targets_exist(const PluginManifest& manifest, String& error_out) const;
+        [[nodiscard]] bool resolver_bindings_unclaimed(const PluginManifest& manifest, String& error_out) const;
+        void unregister_resolver_plugin_bindings(const LoadedPlugin& loaded);
         [[nodiscard]] std::optional<LoadedPlugin> find_loaded_plugin(const String& plugin_id) const;
         [[nodiscard]] PluginHttpResponse crash_unload_request_plugin(const String& plugin_id,
                                                                      const std::exception& ex) noexcept;
@@ -245,6 +260,7 @@ namespace isched::v0_0_1::backend {
 
         std::shared_ptr<DatabaseManager> m_database;
         GqlExecutor* m_executor{nullptr};
+        std::optional<std::filesystem::path> m_plugins_root;
         mutable std::mutex m_mutex;
         std::unordered_map<String, LoadedPlugin> m_loaded_plugins;
     };

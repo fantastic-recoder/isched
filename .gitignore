@@ -8,6 +8,7 @@
 
 # Node.js artifacts from test fixtures/tools
 node_modules/
+dist/
 
 # C++ compiled objects and libraries
 *.o
@@ -82,7 +83,6 @@ Thumbs.db
 tools/comparable_benchmark/results/*.json
 
 # Node.js
-node_modules/
 Testing/
 
 # SQLite databases (for development)

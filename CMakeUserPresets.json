@@ -6,6 +6,7 @@
     "include": [
         "cmake-build-release/CMakePresets.json",
         "build/release/CMakePresets.json",
-        "cmake-build-debug/CMakePresets.json"
+        "cmake-build-debug/CMakePresets.json",
+        "build/coverage/CMakePresets.json"
     ]
 }
