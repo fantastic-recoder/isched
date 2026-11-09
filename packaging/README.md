@@ -50,6 +50,7 @@ The eventual shared build wrapper must reject a mismatched revision.
   links before checking notice hashes; formatted file listings are not paths.
 - Conan notices retain package/source/recipe namespaces so same-named license
   files cannot overwrite each other or invalidate inventory checksums.
+  Discovery excludes `test` and `tests` subtrees but retains production notices.
 - Never install packages onto the host. Runtime/SDK verification uses fresh,
   exact-target containers, with disposable state and only owned processes.
 - Never run `--seed`, ship application databases, or install service state.

@@ -91,6 +91,8 @@ def _notice_files(node: dict[str, Any]) -> list[tuple[Path, Path]]:
         for path in files:
             if not path.is_file() or not _NOTICE_NAME.match(path.name):
                 continue
+            if any(part.casefold() in {"test", "tests"} for part in path.relative_to(root).parts[:-1]):
+                continue
             try:
                 resolved = path.resolve(strict=True)
                 relative = prefix / path.relative_to(root)

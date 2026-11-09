@@ -31,6 +31,19 @@ class LicenseCollectionTests(unittest.TestCase):
                     notice.write_bytes(content)
                     expected[f"licenses/conan/zlib_1.3.1_recipe/{area}/{relative}"] = content
                 node[f"{area}_folder"] = str(directory)
+                for relative in (
+                    "libs/beast/test/bench/LICENSE-MIT",
+                    "libs/beast/tests/extern/COPYING",
+                ):
+                    excluded = directory / relative
+                    excluded.parent.mkdir(parents=True, exist_ok=True)
+                    excluded.write_text("test-only dependency notice\n")
+                production = directory / "libs/beast/include/LICENSE"
+                production.parent.mkdir(parents=True, exist_ok=True)
+                production.write_bytes(b"production notice\n")
+                expected[f"licenses/conan/zlib_1.3.1_recipe/{area}/libs/beast/include/LICENSE"] = (
+                    b"production notice\n"
+                )
             graph = root / "graph.json"
             graph.write_text(json.dumps({"graph": {"nodes": {"1": node}}}))
             angular = root / "3rdpartylicenses.txt"
@@ -42,6 +55,10 @@ class LicenseCollectionTests(unittest.TestCase):
                 inventory = json.loads((output / role / "license-inventory.json").read_text())
                 records = inventory["notices"]
                 self.assertEqual(len({record["path"] for record in records}), len(records))
+                self.assertFalse(any(
+                    part.casefold() in {"test", "tests"}
+                    for record in records for part in Path(record["path"]).parts
+                ))
                 for relative, content in expected.items():
                     self.assertEqual((output / role / relative).read_bytes(), content)
                 for record in records:

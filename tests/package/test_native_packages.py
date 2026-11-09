@@ -225,12 +225,18 @@ class GeneratedPackageTests(unittest.TestCase):
                                 for name in notices],
                 }))
             (source / "header.hpp").write_text("// public header fixture\n")
+            (source / "main.c").write_text(
+                "// SPDX-License-Identifier: MPL-2.0\n"
+                "#include <stdio.h>\n"
+                'int main(void) { return puts("package fixture") < 0; }\n'
+            )
             (source / "libisched.a").write_bytes(b"static archive fixture")
             for name in ("ischedConfig.cmake", "ischedTargets.cmake"):
                 (source / name).write_text("# relocatable export fixture\n")
             (source / "CMakeLists.txt").write_text(
                 'cmake_minimum_required(VERSION 3.19)\n'
-                'project(isched NONE)\n'
+                'project(isched C)\n'
+                'add_executable(isched_srv main.c)\n'
                 'set(CMAKE_INSTALL_LIBDIR lib)\n'
                 'include(GNUInstallDirs)\n'
                 'set(ISCHED_ENABLE_PACKAGING ON)\n'
@@ -242,7 +248,7 @@ class GeneratedPackageTests(unittest.TestCase):
                 f'set(ISCHED_PACKAGE_IDENTITY_FILE "{root / "identity.json"}")\n'
                 f'set(ISCHED_PACKAGE_LICENSE_OUTPUT "{root / "licenses"}")\n'
                 f'set(ISCHED_PACKAGE_OUTPUT_DIR "{root / "out"}")\n'
-                'install(PROGRAMS /bin/true DESTINATION bin RENAME isched_srv COMPONENT runtime)\n'
+                'install(TARGETS isched_srv RUNTIME DESTINATION bin COMPONENT runtime)\n'
                 'foreach(header IN ITEMS isched.hpp backend/isched_Server.hpp '
                 'backend/isched_common.hpp shared/config/isched_config.hpp)\n'
                 '  get_filename_component(directory "${header}" DIRECTORY)\n'
@@ -261,12 +267,30 @@ class GeneratedPackageTests(unittest.TestCase):
                 capture_output=True, text=True, timeout=120,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run(
+                ["cmake", "--build", str(root / "build")],
+                capture_output=True, text=True, timeout=120,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             (root / "out").mkdir()
             self.builder.generate_packages(
                 root / "build", root / "cpack", root / "out", records, dict(os.environ),
             )
             validated = self.validator.validate(target["id"], REVISION, root / "out")
             self.assertEqual({item["role"] for item in validated}, {"runtime", "developer"})
+            _, _, runtime_contents = self.validator._metadata(
+                root / "out" / records[0]["package_filename"], target,
+            )
+            self.assertEqual(
+                runtime_contents["usr/bin/isched_srv"][:20],
+                (root / "build/isched_srv").read_bytes()[:20],
+            )
+            result = subprocess.run(
+                [str(root / "build/isched_srv")],
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "package fixture")
             developer = root / "out" / records[1]["package_filename"]
             metadata, paths, contents = self.validator._metadata(developer, target)
             if target["package_format"] == "deb":
