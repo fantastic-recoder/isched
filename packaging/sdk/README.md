@@ -52,3 +52,6 @@ Do not add `isched-runtime` as a dependency to resolve static-library link
 requirements. Runtime shared-object requirements belong to the separate
 runtime package. Package identity and license/third-party notices are installed
 alongside the SDK files; review those notices for redistribution obligations.
+SDK notices are under `/usr/share/doc/isched-devel/`. The static SDK may have
+no native package dependencies: its third-party link dependencies are resolved
+through the shipped Conan inputs, not an invented dependency on the runtime.

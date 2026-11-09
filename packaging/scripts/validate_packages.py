@@ -228,7 +228,8 @@ def _validate_payload(target: dict, role: str, paths: set[str],
                 or executable[4] != 2 or executable[5] != 1
                 or struct.unpack_from("<H", executable, 18)[0] != 62):
             raise ValidationError(f"target={target_id} runtime executable is not a little-endian x86_64 ELF")
-    inventory_path = f"usr/share/doc/isched-{role}/license-inventory.json"
+    documentation_name = "isched-runtime" if role == "runtime" else "isched-devel"
+    inventory_path = f"usr/share/doc/{documentation_name}/license-inventory.json"
     raw_inventory = contents.get(inventory_path)
     if raw_inventory is None:
         raise ValidationError(f"target={target_id} {role} license inventory is unreadable")
@@ -244,7 +245,7 @@ def _validate_payload(target: dict, role: str, paths: set[str],
     for record in notices:
         if not isinstance(record, dict) or set(record) != {"path", "sha256"}:
             raise ValidationError(f"target={target_id} {role} license inventory record is malformed")
-        notice_path = f"usr/share/doc/isched-{role}/{record['path']}"
+        notice_path = f"usr/share/doc/{documentation_name}/{record['path']}"
         notice = contents.get(notice_path)
         if notice is None or hashlib.sha256(notice).hexdigest() != record["sha256"]:
             raise ValidationError(f"target={target_id} {role} notice missing or checksum mismatch: {record['path']}")
@@ -327,7 +328,7 @@ def validate(target_id: str, revision: str, directory: Path) -> list[dict[str, A
                     f"expected {expected_value!r}, got {metadata.get(key)!r}"
                 )
         dependency_text = metadata.get("depends", "")
-        if not dependency_text.strip():
+        if role == "runtime" and not dependency_text.strip():
             raise ValidationError(f"target={target_id} {package.name} has no declared native dependencies")
         forbidden_role = "isched-devel" if role == "runtime" else "isched-runtime"
         if forbidden_role in dependency_text:

@@ -114,11 +114,11 @@ install(FILES "${_isched_identity_output}/developer.json"
         RENAME package-identity.json COMPONENT devel)
 
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE.md" "${PROJECT_SOURCE_DIR}/README.md"
-        DESTINATION "${CMAKE_INSTALL_DOCDIR}/isched-runtime" COMPONENT runtime)
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/isched-runtime" COMPONENT runtime)
 install(FILES "${PROJECT_SOURCE_DIR}/LICENSE.md"
-        DESTINATION "${CMAKE_INSTALL_DOCDIR}/isched-devel" COMPONENT devel)
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/isched-devel" COMPONENT devel)
 install(FILES "${PROJECT_SOURCE_DIR}/packaging/sdk/README.md"
-        DESTINATION "${CMAKE_INSTALL_DOCDIR}/isched-devel" COMPONENT devel)
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/isched-devel" COMPONENT devel)
 install(FILES
         "${PROJECT_SOURCE_DIR}/packaging/sdk/conanfile.txt"
         "${PROJECT_SOURCE_DIR}/packaging/sdk/conan.lock"
@@ -128,9 +128,9 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/packaging/conan/profiles/"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/isched/developer/profiles"
         COMPONENT devel)
 install(DIRECTORY "${ISCHED_PACKAGE_LICENSE_OUTPUT}/runtime/"
-        DESTINATION "${CMAKE_INSTALL_DOCDIR}/isched-runtime" COMPONENT runtime)
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/isched-runtime" COMPONENT runtime)
 install(DIRECTORY "${ISCHED_PACKAGE_LICENSE_OUTPUT}/developer/"
-        DESTINATION "${CMAKE_INSTALL_DOCDIR}/isched-devel" COMPONENT devel)
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/isched-devel" COMPONENT devel)
 
 set(CPACK_PACKAGE_NAME "isched")
 set(CPACK_PACKAGE_VENDOR "isched contributors")
