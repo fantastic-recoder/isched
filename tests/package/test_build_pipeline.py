@@ -129,6 +129,52 @@ class PackageGenerationTests(unittest.TestCase):
                 self.assertGreater((output / filename).stat().st_size, 0)
                 self.assertEqual((output / filename).read_bytes(), (staging / filename).read_bytes())
 
+    @unittest.skipUnless(
+        all(shutil.which(tool) for tool in ("cmake", "cpack", "rpmbuild", "rpm")),
+        "RPM regression requires CMake, CPack, rpmbuild and rpm",
+    )
+    def test_rpm_cpack_staging_is_not_exported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            (source / "payload.txt").write_text("package payload\n")
+            (source / "CMakeLists.txt").write_text(
+                'cmake_minimum_required(VERSION 3.19)\n'
+                'project(package_fixture NONE)\n'
+                'set(CPACK_GENERATOR RPM)\n'
+                'set(CPACK_RPM_PACKAGE_LICENSE "MPL-2.0")\n'
+                'set(CPACK_RPM_COMPONENT_INSTALL ON)\n'
+                'set(CPACK_COMPONENTS_ALL runtime devel)\n'
+                'set(CPACK_RPM_RUNTIME_FILE_NAME isched-runtime.rpm)\n'
+                'set(CPACK_RPM_DEVEL_FILE_NAME isched-developer.rpm)\n'
+                f'set(CPACK_PACKAGE_DIRECTORY "{root / "out"}")\n'
+                'install(FILES payload.txt DESTINATION share/runtime COMPONENT runtime)\n'
+                'install(FILES payload.txt DESTINATION share/devel COMPONENT devel)\n'
+                'include(CPack)\n'
+            )
+            build = root / "build"
+            subprocess.run(
+                ["cmake", "-S", str(source), "-B", str(build)],
+                check=True, capture_output=True, text=True, timeout=30,
+            )
+            staging, output = root / "cpack", root / "out"
+            output.mkdir()
+            records = [
+                {"package_filename": "isched-runtime.rpm"},
+                {"package_filename": "isched-developer.rpm"},
+            ]
+            self.builder.generate_packages(build, staging, output, records, dict(os.environ))
+            self.assertTrue((staging / "_CPack_Packages").is_dir())
+            self.assertEqual(
+                {path.name for path in output.iterdir()},
+                {record["package_filename"] for record in records},
+            )
+            for record in records:
+                filename = record["package_filename"]
+                self.assertGreater((output / filename).stat().st_size, 0)
+                self.assertEqual((output / filename).read_bytes(), (staging / filename).read_bytes())
+
     def test_missing_or_unexpected_packages_are_not_exported(self):
         for filenames in (
             ("isched-runtime.deb",),
