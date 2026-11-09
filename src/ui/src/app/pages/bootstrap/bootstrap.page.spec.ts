@@ -48,21 +48,15 @@ describe('BootstrapPage', () => {
     });
     comp.submit();
 
-    // 1) Bootstrap mutation
+    // 1) Bootstrap mutation establishes the cookie session and returns CSRF.
     httpMock.expectOne('/graphql').flush({
-      data: { isched: { bootstrapPlatformAdmin: { token: 'x', expiresAt: '2099-01-01T00:00:00Z' } } },
+      data: { isched: { bootstrapPlatformAdmin: { csrfToken: 'session-csrf' } } },
     });
     await flushMicrotasks();
 
-    // 2) Auto-login mutation (AuthService.signIn)
+    // 2) Read-only session bootstrap query resolves the cookie-authenticated user.
     httpMock.expectOne('/graphql').flush({
-      data: { isched: { login: { token: 'session-jwt' } } },
-    });
-    await flushMicrotasks();
-
-    // 3) Session bootstrap query (AuthService.bootstrapSession → currentUser)
-    httpMock.expectOne('/graphql').flush({
-      data: { isched: { currentUser: { id: '1' } } },
+      data: { isched: { currentUser: { id: '1' }, currentSessionCsrfToken: 'session-csrf' } },
     });
     await flushMicrotasks();
 
@@ -84,7 +78,7 @@ describe('BootstrapPage', () => {
 
     // 1) Bootstrap mutation succeeds
     httpMock.expectOne('/graphql').flush({
-      data: { isched: { bootstrapPlatformAdmin: { token: 'x', expiresAt: '2099-01-01T00:00:00Z' } } },
+      data: { isched: { bootstrapPlatformAdmin: { csrfToken: 'session-csrf' } } },
     });
     await flushMicrotasks();
 
@@ -347,4 +341,3 @@ describe('BootstrapPage', () => {
     expect(comp.password.errors?.['server']).toBeUndefined();
   });
 });
-

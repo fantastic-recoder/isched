@@ -4,7 +4,7 @@
  * @brief Displays query execution results, loading, errors, or subscription advisory (SP-011).
  */
 
-import { ChangeDetectionStrategy, Component, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PlaygroundQueryResult } from '../../../services/playground-query.service';
 
@@ -25,6 +25,15 @@ export class ResultPanelComponent {
   }
 
   get result(): PlaygroundQueryResult | null { return this._result; }
+
+  /** Parent-owned retry capability; button is shown only for recoverable failures. */
+  @Input() canRetry = false;
+  /** Emitted when the user asks to re-submit the preserved editor content. */
+  @Output() retry = new EventEmitter<void>();
+
+  onRetry(): void {
+    this.retry.emit();
+  }
 
   private _result: PlaygroundQueryResult | null = null;
   readonly _expanded = signal(false);

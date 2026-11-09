@@ -1,4 +1,15 @@
 <div class="h-full flex flex-col border border-base-300 rounded-lg overflow-hidden">
+  @if (schemaStatus === 'loading') {
+    <div class="alert alert-info rounded-none py-2" role="status" data-testid="schema-assistance-loading">
+      Loading the active GraphQL schema for editor assistance…
+    </div>
+  } @else if (schemaStatus === 'unavailable') {
+    <div class="alert alert-warning rounded-none py-2" role="status" data-testid="schema-assistance-unavailable">
+      Schema-aware completion and validation are unavailable.
+      @if (schemaError) {
+        <span>{{ schemaError }}</span>
+      }
+    </div>
+  }
   <div #editorHost class="flex-1 min-h-0 overflow-auto" data-testid="query-editor-host"></div>
 </div>
-

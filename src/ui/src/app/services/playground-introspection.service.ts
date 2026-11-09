@@ -7,6 +7,12 @@
  */
 
 import { Injectable, inject, signal } from '@angular/core';
+import {
+  buildClientSchema,
+  getIntrospectionQuery,
+  type GraphQLSchema,
+  type IntrospectionQuery,
+} from 'graphql';
 import { GraphQLService } from './graphql.service';
 import { GraphQLSubscriptionService } from './graphql-subscription.service';
 import {
@@ -24,42 +30,12 @@ import {
   unwrapTypeName,
 } from './playground-introspection.models';
 
-const INTROSPECTION_QUERY = `
-  query IntrospectionQuery {
-    __schema {
-      queryType { name }
-      mutationType { name }
-      subscriptionType { name }
-      types {
-        kind
-        name
-        fields(includeDeprecated: true) {
-          name
-          type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
-          args {
-            name
-            type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
-          }
-        }
-        inputFields {
-          name
-          type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
-        }
-        enumValues(includeDeprecated: true) { name }
-        interfaces { name }
-        possibleTypes { name }
-      }
-      directives {
-        name
-        locations
-        args {
-          name
-          type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
-        }
-      }
-    }
-  }
-`;
+const INTROSPECTION_QUERY = getIntrospectionQuery({
+  descriptions: true,
+  directiveIsRepeatable: true,
+  schemaDescription: true,
+  specifiedByUrl: true,
+});
 
 const SCHEMA_DOCUMENTS_QUERY = `
   query SchemaDocuments {
@@ -89,24 +65,38 @@ export class PlaygroundIntrospectionService {
   readonly treeNodes = signal<SchemaTreeNode[]>([]);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
+  readonly schema = signal<GraphQLSchema | null>(null);
+  readonly schemaStatus = signal<'loading' | 'ready' | 'unavailable'>('unavailable');
 
   load(): void {
     this.loading.set(true);
     this.error.set(null);
+    this.schema.set(null);
+    this.schemaStatus.set('loading');
 
-    this.gql.query<RawIntrospectionResult>(INTROSPECTION_QUERY).subscribe({
+    this.gql.query<IntrospectionQuery>(INTROSPECTION_QUERY).subscribe({
       next: (response) => {
         const schema = response?.__schema;
         if (schema) {
-          const introspection: RawIntrospectionResult = { __schema: schema };
-          this.loadSchemaDocuments(introspection);
+          try {
+            const introspection = { __schema: schema } as IntrospectionQuery;
+            this.schema.set(buildClientSchema(introspection));
+            this.schemaStatus.set('ready');
+            this.loadSchemaDocuments(introspection as unknown as RawIntrospectionResult);
+          } catch (error: unknown) {
+            this.loading.set(false);
+            this.schemaStatus.set('unavailable');
+            this.error.set(errorMessage(error, 'Failed to build the active GraphQL schema'));
+          }
         } else {
           this.loading.set(false);
+          this.schemaStatus.set('unavailable');
           this.error.set('Failed to load schema introspection: missing __schema');
         }
       },
       error: (err: unknown) => {
         this.loading.set(false);
+        this.schemaStatus.set('unavailable');
         this.error.set(errorMessage(err, 'Failed to load schema introspection'));
       },
     });

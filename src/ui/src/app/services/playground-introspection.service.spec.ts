@@ -7,93 +7,19 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { buildSchema, introspectionFromSchema } from 'graphql';
 import { PlaygroundIntrospectionService } from './playground-introspection.service';
 
-const MINIMAL_INTROSPECTION = {
-  __schema: {
-    queryType: { name: 'Query' },
-    mutationType: { name: 'Mutation' },
-    subscriptionType: null,
-    types: [
-      {
-        kind: 'OBJECT',
-        name: 'Query',
-        fields: [
-          {
-            name: 'isched',
-            type: { kind: 'OBJECT', name: 'IschedQueryNamespace', ofType: null },
-            args: [],
-          },
-        ],
-        inputFields: null,
-        enumValues: null,
-        interfaces: [],
-        possibleTypes: null,
-      },
-      {
-        kind: 'OBJECT',
-        name: 'Mutation',
-        fields: [
-          {
-            name: 'isched',
-            type: { kind: 'OBJECT', name: 'IschedMutationNamespace', ofType: null },
-            args: [],
-          },
-        ],
-        inputFields: null,
-        enumValues: null,
-        interfaces: [],
-        possibleTypes: null,
-      },
-      {
-        kind: 'OBJECT',
-        name: 'IschedQueryNamespace',
-        fields: [
-          {
-            name: 'health',
-            type: { kind: 'OBJECT', name: 'Health', ofType: null },
-            args: [],
-          },
-        ],
-        inputFields: null,
-        enumValues: null,
-        interfaces: [],
-        possibleTypes: null,
-      },
-      {
-        kind: 'OBJECT',
-        name: 'IschedMutationNamespace',
-        fields: [
-          {
-            name: 'login',
-            type: { kind: 'SCALAR', name: 'String', ofType: null },
-            args: [],
-          },
-        ],
-        inputFields: null,
-        enumValues: null,
-        interfaces: [],
-        possibleTypes: null,
-      },
-      {
-        kind: 'OBJECT',
-        name: 'Health',
-        fields: [
-          {
-            name: 'status',
-            type: { kind: 'SCALAR', name: 'String', ofType: null },
-            args: [],
-          },
-        ],
-        inputFields: null,
-        enumValues: null,
-        interfaces: [],
-        possibleTypes: null,
-      },
-    ],
-    directives: [],
-  },
-};
+const MINIMAL_INTROSPECTION = introspectionFromSchema(
+  buildSchema(`
+    schema { query: Query mutation: Mutation }
+    type Query { isched: IschedQueryNamespace }
+    type Mutation { isched: IschedMutationNamespace }
+    type IschedQueryNamespace { health: Health }
+    type IschedMutationNamespace { login: String }
+    type Health { """Current service health.""" status: String }
+  `),
+);
 
 describe('PlaygroundIntrospectionService', () => {
   let service: PlaygroundIntrospectionService;
@@ -119,6 +45,8 @@ describe('PlaygroundIntrospectionService', () => {
     expect(service.treeNodes()).toEqual([]);
     expect(service.loading()).toBe(false);
     expect(service.error()).toBeNull();
+    expect(service.schema()).toBeNull();
+    expect(service.schemaStatus()).toBe('unavailable');
   });
 
    it('sets loading=true immediately after load() is called', () => {
@@ -157,7 +85,76 @@ describe('PlaygroundIntrospectionService', () => {
 
       expect(service.loading()).toBe(false);
       expect(service.error()).toBeNull();
+      expect(service.schema()).not.toBeNull();
+      expect(service.schemaStatus()).toBe('ready');
     });
+
+  it('requests a complete described schema through the GraphQL endpoint', () => {
+    service.load();
+
+    const request = httpMock.expectOne('/graphql');
+    expect(request.request.body.query).toContain('description');
+    expect(request.request.body.query).toContain('inputFields');
+    expect(request.request.body.query).toContain('enumValues');
+    expect(request.request.body.query).toContain('args');
+    request.flush({ data: MINIMAL_INTROSPECTION });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { schemaDocuments: [] } } });
+
+    expect(service.schemaStatus()).toBe('ready');
+    expect(service.schema()?.getQueryType()?.getFields()['isched'].type).toBeDefined();
+  });
+
+  it('retains described field, argument, input, enum, and nested type references', () => {
+    const describedSchema = buildSchema(`
+      """Root query description."""
+      type Query {
+        """Find matching records."""
+        search(
+          """Search constraints."""
+          filter: SearchFilter!,
+          mode: SearchMode = ALL
+        ): [SearchResult!]!
+      }
+      """Filter input description."""
+      input SearchFilter {
+        """Text matched by the search."""
+        text: String!
+      }
+      """Search modes."""
+      enum SearchMode {
+        """Return every matching record."""
+        ALL
+      }
+      """A matching record."""
+      type SearchResult { id: ID! }
+    `);
+    const completeIntrospection = introspectionFromSchema(describedSchema);
+
+    service.load();
+    httpMock.expectOne('/graphql').flush({ data: completeIntrospection });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { schemaDocuments: [] } } });
+
+    const schema = service.schema();
+    expect(schema?.getQueryType()?.description).toBe('Root query description.');
+    const search = schema?.getQueryType()?.getFields()['search'];
+    expect(search?.description).toBe('Find matching records.');
+    expect(search?.args[0].type.toString()).toBe('SearchFilter!');
+    expect(search?.args[0].description).toBe('Search constraints.');
+    expect(search?.type.toString()).toBe('[SearchResult!]!');
+    expect(schema?.getType('SearchFilter')?.description).toBe('Filter input description.');
+    const filterType = schema?.getType('SearchFilter');
+    expect(filterType && 'getFields' in filterType).toBe(true);
+    if (filterType && 'getFields' in filterType) {
+      expect(filterType.getFields()['text'].description).toBe('Text matched by the search.');
+    }
+    expect(schema?.getType('SearchMode')?.description).toBe('Search modes.');
+    const modeType = schema?.getType('SearchMode');
+    expect(modeType && 'getValues' in modeType).toBe(true);
+    if (modeType && 'getValues' in modeType) {
+      expect(modeType.getValues()[0].description).toBe('Return every matching record.');
+    }
+    expect(schema?.getType('SearchResult')?.description).toBe('A matching record.');
+  });
 
    it('merges schema documents into the tree', () => {
      service.load();
@@ -187,6 +184,8 @@ describe('PlaygroundIntrospectionService', () => {
 
     expect(service.loading()).toBe(false);
     expect(service.error()).toBeTruthy();
+    expect(service.schemaStatus()).toBe('unavailable');
+    expect(service.schema()).toBeNull();
   });
 
    it('continues without schema documents when schemaDocuments request fails', () => {
@@ -215,61 +214,14 @@ describe('PlaygroundIntrospectionService', () => {
     });
 
     it('supports nested namespaces (namespace within namespace)', () => {
-      const nestedIntrospection = {
-        __schema: {
-          queryType: { name: 'Query' },
-          mutationType: null,
-          subscriptionType: null,
-          types: [
-            {
-              kind: 'OBJECT',
-              name: 'Query',
-              fields: [
-                {
-                  name: 'admin',
-                  type: { kind: 'OBJECT', name: 'AdminQueryNamespace', ofType: null },
-                  args: [],
-                },
-              ],
-              inputFields: null,
-              enumValues: null,
-              interfaces: [],
-              possibleTypes: null,
-            },
-            {
-              kind: 'OBJECT',
-              name: 'AdminQueryNamespace',
-              fields: [
-                {
-                  name: 'reports',
-                  type: { kind: 'OBJECT', name: 'ReportsNamespace', ofType: null },
-                  args: [],
-                },
-              ],
-              inputFields: null,
-              enumValues: null,
-              interfaces: [],
-              possibleTypes: null,
-            },
-            {
-              kind: 'OBJECT',
-              name: 'ReportsNamespace',
-              fields: [
-                {
-                  name: 'systemMetrics',
-                  type: { kind: 'SCALAR', name: 'String', ofType: null },
-                  args: [],
-                },
-              ],
-              inputFields: null,
-              enumValues: null,
-              interfaces: [],
-              possibleTypes: null,
-            },
-          ],
-          directives: [],
-        },
-      };
+      const nestedIntrospection = introspectionFromSchema(
+        buildSchema(`
+          schema { query: Query }
+          type Query { admin: AdminQueryNamespace }
+          type AdminQueryNamespace { reports: ReportsNamespace }
+          type ReportsNamespace { systemMetrics: String }
+        `),
+      );
 
       service.load();
       httpMock.expectOne('/graphql').flush({ data: nestedIntrospection });

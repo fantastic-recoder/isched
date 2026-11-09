@@ -49,37 +49,42 @@ export interface IntrospectionArg {
 export interface RawIntrospectionType {
   kind: string;
   name: string | null;
+  description?: string | null;
   fields?: RawFieldDef[] | null;
   inputFields?: RawInputFieldDef[] | null;
-  enumValues?: { name: string }[] | null;
-  interfaces?: { name: string }[] | null;
-  possibleTypes?: { name: string }[] | null;
+  enumValues?: { name: string; description?: string | null }[] | null;
+  interfaces?: RawTypeRef[] | null;
+  possibleTypes?: RawTypeRef[] | null;
 }
 
 export interface RawFieldDef {
   name: string;
+  description?: string | null;
   type: RawTypeRef;
   args?: RawArgDef[];
 }
 
 export interface RawInputFieldDef {
   name: string;
+  description?: string | null;
   type: RawTypeRef;
 }
 
 export interface RawArgDef {
   name: string;
+  description?: string | null;
   type: RawTypeRef;
 }
 
 export interface RawTypeRef {
   kind: string;
   name: string | null;
-  ofType: RawTypeRef | null;
+  ofType?: RawTypeRef | null;
 }
 
 export interface RawIntrospectionResult {
   __schema: {
+    description?: string | null;
     queryType: { name: string } | null;
     mutationType: { name: string } | null;
     subscriptionType: { name: string } | null;
@@ -98,13 +103,13 @@ export interface SchemaDocument {
 export function unwrapTypeName(typeRef: RawTypeRef | null): string {
   if (!typeRef) return 'Unknown';
   if (typeRef.name) return typeRef.name;
-  return unwrapTypeName(typeRef.ofType);
+  return unwrapTypeName(typeRef.ofType ?? null);
 }
 
 /** Produce a string like "String!", "[ID!]!" for display */
 export function typeRefToString(typeRef: RawTypeRef | null): string {
   if (!typeRef) return 'Unknown';
-  if (typeRef.kind === 'NON_NULL') return `${typeRefToString(typeRef.ofType)}!`;
-  if (typeRef.kind === 'LIST') return `[${typeRefToString(typeRef.ofType)}]`;
+  if (typeRef.kind === 'NON_NULL') return `${typeRefToString(typeRef.ofType ?? null)}!`;
+  if (typeRef.kind === 'LIST') return `[${typeRefToString(typeRef.ofType ?? null)}]`;
   return typeRef.name ?? 'Unknown';
 }

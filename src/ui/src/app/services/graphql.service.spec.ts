@@ -6,7 +6,7 @@
 
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
   GraphQLRequestError,
   GraphQLService,
@@ -14,6 +14,8 @@ import {
   asKnownGraphQLErrorCode,
   normalizeGraphQLError,
 } from './graphql.service';
+import { AuthService } from './auth.service';
+import { authInterceptor } from '../interceptors/auth.interceptor';
 
 describe('GraphQLService', () => {
   let service: GraphQLService;
@@ -115,7 +117,7 @@ describe('GraphQLService', () => {
     });
 
     it('should parse RATE_LIMITED error from GraphQL response', (done) => {
-      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { token } }').subscribe({
+      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { csrfToken } }').subscribe({
         error: (err: GraphQLRequestError) => {
           expect(err.code).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
           expect(err.message).toBeTruthy();
@@ -136,7 +138,7 @@ describe('GraphQLService', () => {
     });
 
     it('should extract retryAfterMs from RATE_LIMITED error extensions', (done) => {
-      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { token } }').subscribe({
+      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { csrfToken } }').subscribe({
         error: (err: GraphQLRequestError) => {
           expect(err.retryAfterMs).toBe(60000);
           done();
@@ -157,7 +159,7 @@ describe('GraphQLService', () => {
     });
 
     it('should handle RATE_LIMITED without retryAfterMs', (done) => {
-      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { token } }').subscribe({
+      service.mutate<unknown>('mutation { login(email: "test@example.com", password: "test") { csrfToken } }').subscribe({
         error: (err: GraphQLRequestError) => {
           expect(err.code).toBe(GRAPHQL_ERROR_CODES.RATE_LIMITED);
           expect(err.retryAfterMs).toBeUndefined();
@@ -236,5 +238,51 @@ describe('GraphQLService', () => {
 
       expect(normalized.retryAfterMs).toBeUndefined();
     });
+  });
+});
+
+describe('GraphQL browser cookie and CSRF transport', () => {
+  let graphql: GraphQLService;
+  let auth: AuthService;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        GraphQLService,
+        AuthService,
+        provideHttpClient(withInterceptors([authInterceptor])),
+        provideHttpClientTesting(),
+      ],
+    });
+    graphql = TestBed.inject(GraphQLService);
+    auth = TestBed.inject(AuthService);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  it('uses the browser-managed cookie without bearer or CSRF headers on queries', async () => {
+    auth.setCsrfToken('session-csrf');
+    graphql.query('query { currentUser { id } }').subscribe();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const request = http.expectOne('/graphql');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    expect(request.request.headers.has('X-CSRF-Token')).toBe(false);
+    request.flush({ data: { currentUser: { id: 'user-1' } } });
+  });
+
+  it('sends the in-memory session-bound CSRF value on mutations and no bearer credential', async () => {
+    auth.setCsrfToken('session-csrf');
+    graphql.mutate('# mutation comment does not affect GraphQL operation parsing\nmutation { changeSetting }').subscribe();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const request = http.expectOne('/graphql');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.get('X-CSRF-Token')).toBe('session-csrf');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({ data: { changeSetting: true } });
   });
 });

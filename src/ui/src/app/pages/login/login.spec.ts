@@ -47,9 +47,9 @@ describe('LoginComponent', () => {
     comp.onSubmit();
 
     httpMock.expectOne('/graphql').flush({
-      data: { isched: { login: { token: 'tok_xyz', expiresAt: '2099-01-01T00:00:00Z' } } },
+      data: { isched: { login: { csrfToken: 'session-csrf' } } },
     });
-    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1' } } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1' }, currentSessionCsrfToken: 'session-csrf' } } });
 
     Promise.resolve().then(() => {
       expect(navSpy).toHaveBeenCalledWith(['/dashboard']);
@@ -219,4 +219,3 @@ describe('LoginComponent', () => {
     expect(focusables.every((el) => el.tabIndex >= 0)).toBe(true);
   });
 });
-

@@ -85,6 +85,61 @@ def wait_for_server(url: str, timeout_s: int = HEALTH_TIMEOUT_S) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Dev proxy verification (spec 013, T034)
+# ---------------------------------------------------------------------------
+
+
+def verify_graphql_forwarding(host: str, port: int, timeout_s: float = 5.0) -> list[str]:
+    """Check that *host:port* forwards both HTTP and WebSocket traffic on /graphql.
+
+    Works against the backend directly or against the Angular dev server
+    (``ng serve`` with ``proxy.conf.json``). Returns a list of failures
+    (empty on success). Uses only the standard library.
+    """
+    import base64
+    import json
+    import socket
+
+    failures: list[str] = []
+
+    # HTTP: a GraphQL query must be answered via POST /graphql.
+    req = urllib.request.Request(
+        f"http://{host}:{port}/graphql",
+        data=json.dumps({"query": "query { isched { health { status } } }"}).encode(),
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            body = json.loads(resp.read().decode())
+            if resp.status != 200 or "data" not in body:
+                failures.append(f"HTTP /graphql unexpected response: {resp.status} {body}")
+    except Exception as exc:  # noqa: BLE001 - report any transport failure
+        failures.append(f"HTTP /graphql failed: {exc}")
+
+    # WebSocket: handshake must return 101 with the graphql-transport-ws subprotocol.
+    key = base64.b64encode(os.urandom(16)).decode()
+    handshake = (
+        "GET /graphql HTTP/1.1\r\n"
+        f"Host: {host}:{port}\r\n"
+        "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+        "Sec-WebSocket-Protocol: graphql-transport-ws\r\n\r\n"
+    )
+    try:
+        with socket.create_connection((host, port), timeout=timeout_s) as sock:
+            sock.settimeout(timeout_s)
+            sock.sendall(handshake.encode())
+            status_line = sock.recv(1024).split(b"\r\n", 1)[0].decode(errors="replace")
+            if " 101 " not in status_line:
+                failures.append(f"WebSocket upgrade on /graphql not accepted: {status_line!r}")
+    except Exception as exc:  # noqa: BLE001
+        failures.append(f"WebSocket upgrade on /graphql failed: {exc}")
+
+    return failures
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -114,6 +169,19 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=DEFAULT_PORT,
         metavar="PORT",
         help=f"Port for the isched server (default: {DEFAULT_PORT}).",
+    )
+
+    parser.add_argument(
+        "--verify-proxy",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="HOST:PORT",
+        help=(
+            "Instead of running Playwright, start the server and verify HTTP + WebSocket "
+            "forwarding on /graphql at HOST:PORT (default: the server itself; pass "
+            "127.0.0.1:4200 to check the Angular dev-server proxy)."
+        ),
     )
 
     # Everything after '--' goes to playwright.
@@ -167,6 +235,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[run_e2e] Waiting for server at {health_url} …")
         wait_for_server(health_url)
         print("[run_e2e] Server is ready.")
+
+        if args.verify_proxy is not None:
+            target = args.verify_proxy or f"{SERVER_HOST}:{args.port}"
+            host, _, port_s = target.rpartition(":")
+            failures = verify_graphql_forwarding(host or SERVER_HOST, int(port_s))
+            for failure in failures:
+                print(f"[run_e2e] FAIL: {failure}", file=sys.stderr)
+            if not failures:
+                print(f"[run_e2e] OK: HTTP + WebSocket forwarding verified at {target}")
+            exit_code = 1 if failures else 0
+            return exit_code
 
         playwright_cmd = ["pnpm", "playwright", "test", *args.playwright_args]
         print(f"[run_e2e] Running  : {' '.join(playwright_cmd)}")

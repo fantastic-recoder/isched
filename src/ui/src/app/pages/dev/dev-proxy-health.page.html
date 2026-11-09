@@ -6,5 +6,21 @@
     <li>Ensure WebSocket upgrade is proxied on <code>/graphql</code>.</li>
     <li>Ensure CSRF header is attached on mutations.</li>
   </ul>
-</section>
 
+  <div class="flex items-center gap-3">
+    <button class="btn btn-sm btn-outline" (click)="probeWebSocket()" data-testid="ws-probe-btn">
+      Test WebSocket
+    </button>
+    <span data-testid="ws-state">WebSocket: {{ connection() }}</span>
+  </div>
+
+  @if (connection() === 'failed') {
+    <div class="alert alert-warning" role="status" data-testid="ws-failed-banner">
+      <span>
+        The WebSocket connection through the proxy failed. Subscriptions are unavailable, but
+        queries and mutations over HTTP <code>/graphql</code> keep working. Check that
+        <code>proxy.conf.json</code> has <code>"ws": true</code> and the backend is running.
+      </span>
+    </div>
+  }
+</section>

@@ -7,6 +7,7 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { SessionBootstrapStateService } from './session-bootstrap-state.service';
 import { AuthService } from './auth.service';
 import { ShellStatusService } from './shell-status.service';
 
@@ -33,7 +34,7 @@ describe('AuthService', () => {
     service.bootstrapSession().subscribe((isLoggedIn) => {
       expect(isLoggedIn).toBe(true);
       expect(service.isLoggedIn()).toBe(true);
-      expect(service.getCsrfToken()).toMatch(/^csrf_/);
+      expect(service.getCsrfToken()).toBe('session-csrf');
       expect(shellStatus.identity()).toMatchObject({
         displayName: 'Jane Admin',
         userId: 'u1',
@@ -42,20 +43,23 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' } } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' }, currentSessionCsrfToken: 'session-csrf' } } });
   });
 
   it('signIn authenticates through bootstrapSession without exposing token storage', (done) => {
     service.signIn('admin@example.com', 'password').subscribe((ok) => {
       expect(ok).toBe(true);
       expect(service.isLoggedIn()).toBe(true);
-      expect(service.getCsrfToken()).toMatch(/^csrf_/);
+      expect(service.getCsrfToken()).toBe('session-csrf');
       expect(shellStatus.identity().displayName).toBe('Jane Admin');
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { isched: { login: { token: 'opaque-cookie-token' } } } });
-    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' } } } });
+    const login = httpMock.expectOne('/graphql');
+    expect(login.request.body.query).toContain('csrfToken');
+    expect(login.request.body.query).not.toContain('token\n');
+    login.flush({ data: { isched: { login: { csrfToken: 'session-csrf' } } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' }, currentSessionCsrfToken: 'session-csrf' } } });
   });
 
   it('isLoggedIn() returns false by default', () => {
@@ -97,7 +101,37 @@ describe('AuthService', () => {
       done();
     });
 
-    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' } } } });
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: { id: 'u1', name: 'Jane Admin' }, currentSessionCsrfToken: 'session-csrf' } } });
+  });
+
+  it('does not create IndexedDB databases or write storage during bootstrap/reauth handling', (done) => {
+    const idb = { open: jest.fn() };
+    Object.defineProperty(window, 'indexedDB', { value: idb, configurable: true });
+    const localSetSpy = jest.spyOn(Object.getPrototypeOf(window.localStorage), 'setItem');
+
+    service.handleReauthRequired('/playground');
+
+    service.bootstrapSession().subscribe(() => {
+      expect(idb.open).not.toHaveBeenCalled();
+      expect(localSetSpy).not.toHaveBeenCalled();
+      expect('getToken' in service).toBe(false);
+      expect(service.getCsrfToken()).toBeNull();
+      localSetSpy.mockRestore();
+      done();
+    });
+
+    httpMock.expectOne('/graphql').flush({ data: { isched: { currentUser: null, currentSessionCsrfToken: null } } });
+  });
+
+  it('handleReauthRequired clears in-memory token/CSRF and flags reauth-required', () => {
+    service.setCsrfToken('csrf');
+    service.handleReauthRequired('/playground');
+    expect('getToken' in service).toBe(false);
+    expect(service.getCsrfToken()).toBeNull();
+    expect(service.isLoggedIn()).toBe(false);
+    const state = TestBed.inject(SessionBootstrapStateService);
+    expect(state.reauthRequired()).toBe(true);
+    expect(state.returnUrl()).toBe('/playground');
   });
 
   it('does not write auth state to localStorage/sessionStorage during signOut', (done) => {

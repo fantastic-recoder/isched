@@ -89,5 +89,60 @@ describe('PlaygroundQueryService', () => {
 
     await promise;
   });
-});
 
+  describe('error category mapping', () => {
+    async function lastResult(flush: (req: ReturnType<HttpTestingController['expectOne']>) => void) {
+      const promise = firstValueFrom(service.execute('{ x }').pipe(toArray()));
+      flush(httpMock.expectOne('/graphql'));
+      const all = await promise;
+      return all[all.length - 1];
+    }
+
+    it.each([
+      ['VALIDATION_FAILED', 'validation', false],
+      ['BAD_USER_INPUT', 'validation', false],
+      ['UNAUTHENTICATED', 'authorization', false],
+      ['FORBIDDEN', 'authorization', false],
+      ['TRANSIENT_NETWORK', 'transport', true],
+      ['RATE_LIMITED', 'transport', true],
+    ])('maps %s -> %s (retryable=%s)', async (code, category, retryable) => {
+      const r = await lastResult((req) =>
+        req.flush({ errors: [{ message: 'boom', extensions: { code } }] }),
+      );
+      expect(r.errorCategory).toBe(category);
+      expect(r.retryable).toBe(retryable);
+      expect(r.reauthRequired ?? false).toBe(code === 'UNAUTHENTICATED');
+    });
+
+    it('maps unknown/missing codes to unknown', async () => {
+      const r = await lastResult((req) => req.flush({ errors: [{ message: 'weird' }] }));
+      expect(r.errorCategory).toBe('unknown');
+      expect(r.retryable).toBe(false);
+    });
+
+    it('surfaces normalized code, fieldErrors and retryAfterMs', async () => {
+      const r = await lastResult((req) =>
+        req.flush({
+          errors: [
+            {
+              message: 'slow down',
+              extensions: { code: 'RATE_LIMITED', retryAfterMs: 2500, fieldErrors: { email: ['bad'] } },
+            },
+          ],
+        }),
+      );
+      expect(r.code).toBe('RATE_LIMITED');
+      expect(r.retryAfterMs).toBe(2500);
+      expect(r.fieldErrors).toEqual({ email: ['bad'] });
+    });
+
+    it('maps HTTP 401 to authorization + reauthRequired, 5xx/network to transport', async () => {
+      const r401 = await lastResult((req) => req.flush('no', { status: 401, statusText: 'Unauthorized' }));
+      expect(r401.errorCategory).toBe('authorization');
+      expect(r401.reauthRequired).toBe(true);
+      const r503 = await lastResult((req) => req.flush('no', { status: 503, statusText: 'Unavailable' }));
+      expect(r503.errorCategory).toBe('transport');
+      expect(r503.retryable).toBe(true);
+    });
+  });
+});

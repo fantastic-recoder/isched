@@ -5,13 +5,17 @@
  */
 
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { buildASTSchema, parse, validate } from 'graphql';
+import { graphql } from 'cm6-graphql';
 import { QueryEditorComponent } from './query-editor';
+import { describeHoverAtPosition } from './query-editor';
 
 describe('QueryEditorComponent', () => {
   let fixture: ComponentFixture<QueryEditorComponent>;
   let component: QueryEditorComponent;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     await TestBed.configureTestingModule({
       imports: [QueryEditorComponent],
     }).compileComponents();
@@ -27,6 +31,73 @@ describe('QueryEditorComponent', () => {
 
   it('getContent returns empty string before initialisation', () => {
     expect(component.getContent()).toBe('');
+  });
+
+  it('uses the active schema for editor language support', () => {
+    const schema = buildASTSchema(parse(`
+      type Query {
+        """Current service health."""
+        health: String
+      }
+    `));
+    component.schema = schema;
+    component.schemaStatus = 'ready';
+
+    fixture.detectChanges();
+
+    expect(component.schemaStatus).toBe('ready');
+    expect(component.schema).not.toBeNull();
+    expect(graphql).toHaveBeenCalledWith(schema);
+  });
+
+  it('schema validation identifies syntax and type errors for editor diagnostics', () => {
+    const schema = buildASTSchema(parse('type Query { health: String }'));
+    component.schema = schema;
+    component.schemaStatus = 'ready';
+    fixture.detectChanges();
+
+    const syntaxErrors = (() => {
+      try {
+        parse('query { health');
+        return [];
+      } catch (error) {
+        return [error];
+      }
+    })();
+    const typeErrors = validate(schema, parse('query { missingField }'));
+
+    expect(syntaxErrors).toHaveLength(1);
+    expect(typeErrors.map((error) => error.message).join(' ')).toContain('Cannot query field');
+    expect(graphql).toHaveBeenCalledWith(schema);
+  });
+
+  it('shows an explicit unavailable state when no active schema exists', () => {
+    fixture.detectChanges();
+
+    const status = fixture.nativeElement.querySelector('[data-testid="schema-assistance-unavailable"]');
+    expect(status).not.toBeNull();
+    expect(status.textContent).toContain('completion and validation are unavailable');
+    expect(graphql).toHaveBeenCalledWith(undefined);
+  });
+
+  it('returns field documentation at the hovered GraphQL field', () => {
+    const schema = buildASTSchema(parse(`
+      type Query {
+        """Current service health."""
+        health: String
+      }
+    `));
+    const source = 'query { health }';
+
+    expect(describeHoverAtPosition(schema, source, source.indexOf('health') + 2))
+      .toBe('Current service health.');
+  });
+
+  it('does not invent documentation for undocumented fields', () => {
+    const schema = buildASTSchema(parse('type Query { health: String }'));
+    const source = 'query { health }';
+
+    expect(describeHoverAtPosition(schema, source, source.indexOf('health') + 2)).toBeNull();
   });
 
   it('emits contentChange after content is set (debounced)', async () => {
@@ -73,4 +144,3 @@ describe('QueryEditorComponent', () => {
     );
   });
 });
-

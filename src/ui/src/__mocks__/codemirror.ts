@@ -21,11 +21,10 @@ export class EditorState {
 
 export const basicSetup: unknown[] = [];
 
-export function graphql(): unknown {
-  return {};
-}
+export const graphql = jest.fn((_schema?: unknown): unknown => ({}));
+
+export const updateSchema = jest.fn();
+export const hoverTooltip = jest.fn(() => ({}));
 
 // Re-export anything else callers may import
 export default {};
-
-

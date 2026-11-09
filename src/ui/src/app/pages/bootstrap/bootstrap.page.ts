@@ -62,8 +62,9 @@ export class BootstrapPage implements OnInit {
     const formData = this.form.getRawValue();
 
     this.bootstrapService.completeBootstrap(formData).subscribe({
-      next: () => {
-        this.auth.signIn(formData.email, formData.password).subscribe({
+      next: (result) => {
+        this.auth.setCsrfToken(result.bootstrapPlatformAdmin.csrfToken);
+        this.auth.bootstrapSession().subscribe({
           next: (isAuthenticated) => {
             this.pending.set(false);
             if (isAuthenticated) {
@@ -186,4 +187,3 @@ export class BootstrapPage implements OnInit {
       && maybeError.message.toLowerCase().includes('no longer available');
   }
 }
-

@@ -28,10 +28,11 @@ describe('authInterceptor', () => {
     httpMock.verify();
   });
 
-  it('adds X-CSRF-Token for GraphQL mutations', () => {
+  it('adds X-CSRF-Token for GraphQL mutations', async () => {
     authService.setCsrfToken('csrf_token');
 
     http.post('/graphql', { query: 'mutation { logout }' }).subscribe();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const req = httpMock.expectOne('/graphql');
     expect(req.request.headers.get('X-CSRF-Token')).toBe('csrf_token');
@@ -39,10 +40,11 @@ describe('authInterceptor', () => {
     req.flush({ data: {} });
   });
 
-  it('does not add X-CSRF-Token for GraphQL queries', () => {
+  it('does not add X-CSRF-Token for GraphQL queries', async () => {
     authService.setCsrfToken('csrf_token');
 
     http.post('/graphql', { query: '{ version }' }).subscribe();
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     const req = httpMock.expectOne('/graphql');
     expect(req.request.headers.has('X-CSRF-Token')).toBe(false);
@@ -50,4 +52,3 @@ describe('authInterceptor', () => {
     req.flush({ data: {} });
   });
 });
-

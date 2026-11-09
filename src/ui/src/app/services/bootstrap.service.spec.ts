@@ -58,19 +58,20 @@ describe('BootstrapService', () => {
       password: 'SecurePass1!',
       displayName: 'Admin',
     }).subscribe((result) => {
-      expect(result.bootstrapPlatformAdmin.token).toBe('jwt');
+      expect(result.bootstrapPlatformAdmin.csrfToken).toBe('session-csrf');
     });
 
     const req = httpMock.expectOne('/graphql');
     expect(req.request.body.query).toContain('isched {');
     expect(req.request.body.query).toContain('bootstrapPlatformAdmin');
+    expect(req.request.body.query).toContain('csrfToken');
+    expect(req.request.body.query).not.toContain('expiresAt');
 
     req.flush({
       data: {
         isched: {
           bootstrapPlatformAdmin: {
-            token: 'jwt',
-            expiresAt: '2099-01-01T00:00:00Z',
+            csrfToken: 'session-csrf',
           },
         },
       },
@@ -99,4 +100,3 @@ describe('BootstrapService', () => {
     httpMock.expectNone('/graphql');
   });
 });
-

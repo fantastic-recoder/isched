@@ -10,13 +10,15 @@
  * - Reconnects with exponential back-off after unexpected close/error.
  * - Returns cold Observables; the connection is established lazily on the first
  *   subscriber and torn down when the last subscriber unsubscribes.
- * - Token is NOT persisted — we rely on the `Authorization` cookie set by the
- *   auth flow (secure cookie-based flow); the WS upgrade carries the cookie
- *   automatically.
+ * - Authentication is provided only by the browser-managed HTTP-only session
+ *   cookie during the WebSocket handshake. Protocol payloads contain no token.
+ * - Close code 4401 (unauthorized) is terminal: no reconnect, state becomes `failed`.
  */
 
-import { Injectable, OnDestroy } from '@angular/core';
+import { Injectable, OnDestroy, signal } from '@angular/core';
 import { Observable, Subject, Subscriber } from 'rxjs';
+
+export type SubscriptionConnection = 'connecting' | 'open' | 'closed' | 'failed';
 
 interface GqlTransportMessage {
   id?: string;
@@ -34,6 +36,7 @@ const WS_GRAPHQL_PROTOCOL = 'graphql-transport-ws';
 const INITIAL_RECONNECT_DELAY_MS = 500;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const KEEP_ALIVE_TIMEOUT_MS = 30_000;
+export const WS_CLOSE_UNAUTHORIZED = 4401;
 
 @Injectable({ providedIn: 'root' })
 export class GraphQLSubscriptionService implements OnDestroy {
@@ -46,6 +49,10 @@ export class GraphQLSubscriptionService implements OnDestroy {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private keepAliveTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  private readonly connectionSignal = signal<SubscriptionConnection>('closed');
+
+  /** Signal-backed connection state for diagnostics UI. */
+  readonly connection = this.connectionSignal.asReadonly();
 
   /** Emits when the WebSocket connection is established or restored. */
   readonly connected$ = new Subject<void>();
@@ -101,11 +108,21 @@ export class GraphQLSubscriptionService implements OnDestroy {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = `${protocol}//${window.location.host}/graphql`;
 
-    const ws = new WebSocket(url, [WS_GRAPHQL_PROTOCOL]);
+    this.connectionSignal.set('connecting');
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url, [WS_GRAPHQL_PROTOCOL]);
+    } catch {
+      this.connectionSignal.set('failed');
+      this.scheduleReconnect();
+      return;
+    }
     this.ws = ws;
 
     ws.onopen = () => {
-      this.ws!.send(JSON.stringify({ type: 'connection_init', payload: {} }));
+      // The browser attaches the HttpOnly session cookie to the handshake.
+      // Never send authentication material in graphql-transport-ws messages.
+      this.ws?.send(JSON.stringify({ type: 'connection_init' }));
     };
 
     ws.onmessage = (event: MessageEvent<string>) => {
@@ -122,11 +139,19 @@ export class GraphQLSubscriptionService implements OnDestroy {
       // onclose will follow; handled there.
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event: CloseEvent) => {
+      const wasOpen = this.isConnected;
       this.isConnected = false;
       this.ws = null;
       this.disconnected$.next();
       this.clearKeepAlive();
+      if (event?.code === WS_CLOSE_UNAUTHORIZED) {
+        // Terminal: credentials rejected. Surface to pending subscribers; no reconnect loop.
+        this.connectionSignal.set('failed');
+        this.failAll([{ message: 'Unauthorized', extensions: { code: 'UNAUTHENTICATED' } }]);
+        return;
+      }
+      this.connectionSignal.set(wasOpen || this.destroyed ? 'closed' : 'failed');
       if (!this.destroyed) {
         this.scheduleReconnect();
       }
@@ -137,6 +162,7 @@ export class GraphQLSubscriptionService implements OnDestroy {
     switch (msg.type) {
       case 'connection_ack': {
         this.isConnected = true;
+        this.connectionSignal.set('open');
         this.reconnectDelay = INITIAL_RECONNECT_DELAY_MS;
         this.connected$.next();
         this.resetKeepAlive();
@@ -188,6 +214,13 @@ export class GraphQLSubscriptionService implements OnDestroy {
         this.ws?.close(1000, 'server requested terminate');
         break;
     }
+  }
+
+  private failAll(errors: unknown[]): void {
+    const all = [...this.pendingSubscriptions.values(), ...this.activeSubscriptions.values()];
+    this.pendingSubscriptions.clear();
+    this.activeSubscriptions.clear();
+    for (const record of all) record.subscriber.error(errors);
   }
 
   private sendSubscribe(id: string, record: SubscriptionRecord): void {
@@ -252,4 +285,3 @@ export class GraphQLSubscriptionService implements OnDestroy {
     }
   }
 }
-

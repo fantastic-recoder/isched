@@ -9,6 +9,7 @@ import { provideRouter, ActivatedRouteSnapshot, RouterStateSnapshot, UrlTree } f
 import { of, throwError } from 'rxjs';
 import { authGuard } from './auth.guard';
 import { AuthService } from '../services/auth.service';
+import { GRAPHQL_ERROR_CODES, GraphQLRequestError } from '../services/graphql.service';
 import { BootstrapService } from '../services/bootstrap.service';
 import { SessionBootstrapStateService } from '../services/session-bootstrap-state.service';
 
@@ -161,6 +162,42 @@ describe('authGuard', () => {
       expect(result).toBeInstanceOf(UrlTree);
       expect((result as UrlTree).toString()).toBe('/login');
       expect(sessionBootstrapState.sessionBootstrapState().initialRouteResolved).toBe(true);
+      done();
+    });
+  });
+
+  it('sets reauth-required, clears in-memory credentials and keeps returnUrl on UNAUTHENTICATED', (done) => {
+    jest.spyOn(bootstrap, 'bootstrapStatus').mockReturnValue(
+      of({ systemState: { seedModeActive: false } }),
+    );
+    auth.setCsrfToken('csrf');
+    jest.spyOn(auth, 'bootstrapSession').mockReturnValue(
+      throwError(() => new GraphQLRequestError('expired', GRAPHQL_ERROR_CODES.UNAUTHENTICATED)),
+    );
+
+    const result$ = TestBed.runInInjectionContext(() =>
+      authGuard(dummyRoute, { url: '/playground' } as RouterStateSnapshot),
+    );
+    (result$ as ReturnType<typeof of>).subscribe((result: boolean | UrlTree) => {
+      expect((result as UrlTree).toString()).toBe('/login?returnUrl=%2Fplayground');
+      expect(sessionBootstrapState.reauthRequired()).toBe(true);
+      expect(sessionBootstrapState.returnUrl()).toBe('/playground');
+      expect('getToken' in auth).toBe(false);
+      expect(auth.getCsrfToken()).toBeNull();
+      done();
+    });
+  });
+
+  it('ignores unsafe return URLs', (done) => {
+    jest.spyOn(bootstrap, 'bootstrapStatus').mockReturnValue(
+      of({ systemState: { seedModeActive: false } }),
+    );
+    jest.spyOn(auth, 'bootstrapSession').mockReturnValue(of(false));
+    const result$ = TestBed.runInInjectionContext(() =>
+      authGuard(dummyRoute, { url: '//evil.example' } as RouterStateSnapshot),
+    );
+    (result$ as ReturnType<typeof of>).subscribe((result: boolean | UrlTree) => {
+      expect((result as UrlTree).toString()).toBe('/login');
       done();
     });
   });

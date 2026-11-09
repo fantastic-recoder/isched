@@ -49,6 +49,9 @@ importers:
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
+      graphql:
+        specifier: ^16.13.1
+        version: 16.13.1
       rxjs:
         specifier: ~7.8.0
         version: 7.8.2
@@ -4300,6 +4303,7 @@ packages:
   image-size@0.5.5:
     resolution: {integrity: sha512-6TDAlDPZxUFCv+fuOkIoXT/V/f3Qbq8e37p+YOiYrUv3v9cc3/6x78VdfPgFVaB9dZYeLUfKgHRebpkm/oP2VQ==}
     engines: {node: '>=0.10.0'}
+    deprecated: Please migrate to image-size@2.x
     hasBin: true
 
   immutable@5.1.5:

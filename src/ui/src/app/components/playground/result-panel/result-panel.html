@@ -19,9 +19,41 @@
   }
 
   @if (!result?.loading && !result?.isSubscriptionAdvisory && (result?.errors?.length ?? 0) > 0) {
-    <div class="alert alert-error m-2 text-sm" role="alert" data-testid="result-errors">
+    <div
+      class="alert m-2 text-sm flex-col items-start"
+      [class.alert-error]="result?.errorCategory !== 'validation'"
+      [class.alert-warning]="result?.errorCategory === 'validation'"
+      role="alert"
+      data-testid="result-errors"
+      [attr.data-error-category]="result?.errorCategory ?? 'unknown'"
+    >
       @for (err of result!.errors!; track $index) {
         <div>{{ err }}</div>
+      }
+      @switch (result?.errorCategory) {
+        @case ('validation') {
+          <div class="text-xs" data-testid="result-error-hint">Fix the query and run it again.</div>
+        }
+        @case ('authorization') {
+          <div class="text-xs" data-testid="result-error-hint">
+            You are not allowed to run this operation or your session expired. Sign in again.
+          </div>
+        }
+        @case ('transport') {
+          <div class="text-xs" data-testid="result-error-hint">
+            Could not reach the server.
+            @if (result?.retryAfterMs) { Retry in about {{ result!.retryAfterMs! / 1000 | number: '1.0-0' }}s. }
+            Your query is preserved.
+          </div>
+        }
+        @default {
+          <div class="text-xs" data-testid="result-error-hint">Unexpected error.</div>
+        }
+      }
+      @if (canRetry) {
+        <button class="btn btn-sm btn-outline" (click)="onRetry()" data-testid="result-retry-btn">
+          Retry
+        </button>
       }
     </div>
   }

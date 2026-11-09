@@ -1,5 +1,6 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { from, switchMap } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 
 function isGraphqlEndpoint(url: string): boolean {
@@ -13,23 +14,29 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
-  const body = req.body as { query?: string } | null;
-  const isMutation =
-    typeof body?.query === 'string' &&
-    body.query.trimStart().startsWith('mutation');
+  const body = req.body as { query?: string; operationName?: string } | null;
+  return from(import('graphql')).pipe(
+    switchMap(({ getOperationAST, parse }) => {
+      let isMutation = false;
+      if (typeof body?.query === 'string') {
+        try {
+          const operation = getOperationAST(parse(body.query), body.operationName);
+          isMutation = operation?.operation === 'mutation';
+        } catch {
+          // Invalid documents are rejected by GraphQL; do not infer an operation from text.
+        }
+      }
 
-  // Build headers: attach Bearer token + CSRF token as needed.
-  const headers: Record<string, string> = {};
-  const token = auth.getToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  if (isMutation) {
-    const csrf = auth.getCsrfToken();
-    if (csrf) {
-      headers['X-CSRF-Token'] = csrf;
-    }
-  }
+      // The browser manages the HttpOnly cookie. JavaScript sends no bearer token.
+      const headers: Record<string, string> = {};
+      if (isMutation) {
+        const csrf = auth.getCsrfToken();
+        if (csrf) {
+          headers['X-CSRF-Token'] = csrf;
+        }
+      }
 
-  return next(req.clone({ setHeaders: headers, withCredentials: true }));
+      return next(req.clone({ setHeaders: headers, withCredentials: true }));
+    }),
+  );
 };

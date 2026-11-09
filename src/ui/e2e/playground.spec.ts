@@ -10,6 +10,7 @@
 
 import { expect, test } from '@playwright/test';
 import { ensureAuthenticatedDashboard } from './authenticated-session.helpers';
+import { OperationLatencyRecorder } from '../src/app/services/operation-latency.util';
 
 const PLAYGROUND_PATH = '/isched/playground';
 
@@ -153,5 +154,30 @@ test.describe('GraphQL Playground', () => {
 
     await expect(page.getByTestId('result-subscription-advisory')).toBeVisible({ timeout: 5_000 });
   });
-});
 
+  test('SC-001: primary Playground flow p95 latency <= 2s', async ({ page }) => {
+    await ensureAuthenticatedDashboard(page);
+    await openPlaygroundViaShellNav(page);
+    await waitForPlaygroundReady(page);
+
+    const editor = page.getByTestId('query-editor-host').locator('.cm-content');
+    await editor.click();
+    await page.keyboard.press('Control+A');
+    await page.keyboard.type('query { isched { health { status } } }');
+
+    const recorder = new OperationLatencyRecorder();
+    const runBtn = page.getByTestId('run-query-btn');
+    const resultJson = page.getByTestId('result-json');
+
+    for (let i = 0; i < 10; i++) {
+      const timer = recorder.start('playground-query');
+      await runBtn.click();
+      await expect(resultJson).toContainText('status', { timeout: 10_000 });
+      timer.stop();
+      await expect(runBtn).toBeEnabled();
+    }
+
+    expect(recorder.all().length).toBe(10);
+    expect(recorder.percentile(95, 'playground-query')).toBeLessThanOrEqual(2_000);
+  });
+});

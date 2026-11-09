@@ -136,4 +136,43 @@ test.describe('Angular dev-server proxy', () => {
     expect(result.status).toBe(200);
     expect(result.body).toContain('seedModeActive');
   });
+
+  test('proxies WebSocket upgrades on /graphql (graphql-transport-ws handshake)', async ({ page }) => {
+    test.setTimeout(120_000);
+
+    await page.goto(`${DEV_SERVER_URL}/`);
+
+    const result = await page.evaluate(
+      () =>
+        new Promise<{ opened: boolean; ack: boolean; protocol: string; closeCode?: number }>((resolve) => {
+          const ws = new WebSocket(`ws://${window.location.host}/graphql`, ['graphql-transport-ws']);
+          const state = { opened: false, ack: false, protocol: '' };
+          const timer = setTimeout(() => {
+            ws.close();
+            resolve(state);
+          }, 10_000);
+          ws.onopen = () => {
+            state.opened = true;
+            state.protocol = ws.protocol;
+            ws.send(JSON.stringify({ type: 'connection_init', payload: {} }));
+          };
+          ws.onmessage = (event) => {
+            if (JSON.parse(String(event.data)).type === 'connection_ack') {
+              state.ack = true;
+              clearTimeout(timer);
+              ws.close();
+              resolve(state);
+            }
+          };
+          ws.onclose = (event) => {
+            clearTimeout(timer);
+            resolve({ ...state, closeCode: event.code });
+          };
+        }),
+    );
+
+    expect(result.opened).toBe(true);
+    expect(result.ack).toBe(true);
+    expect(result.protocol).toBe('graphql-transport-ws');
+  });
 });

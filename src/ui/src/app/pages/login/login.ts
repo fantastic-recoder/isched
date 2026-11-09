@@ -4,6 +4,7 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService, AuthSignInError } from '../../services/auth.service';
 import { UserFacingAlert } from '../../services/auth-bootstrap.models';
+import { SessionBootstrapStateService, isSafeReturnUrl } from '../../services/session-bootstrap-state.service';
 
 @Component({
   selector: 'app-login',
@@ -16,6 +17,7 @@ export class LoginComponent {
   private readonly auth   = inject(AuthService);
   private readonly route  = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly sessionState = inject(SessionBootstrapStateService);
 
   readonly form = this.fb.group({
     email:    ['', [Validators.required, Validators.email]],
@@ -26,11 +28,17 @@ export class LoginComponent {
   readonly pending  = signal(false);
   readonly lockoutAlert = signal<UserFacingAlert | null>(null);
   readonly authAlert = signal<UserFacingAlert | null>(null);
+  /** True when the user was sent here because the session expired (spec 013). */
+  readonly reauthRequired = signal(false);
 
   get email() { return this.form.controls.email; }
   get pass()  { return this.form.controls.password; }
 
   ngOnInit(): void {
+    this.reauthRequired.set(
+      this.sessionState.reauthRequired() ||
+        this.route.snapshot.queryParamMap.get('reason') === 'reauth-required',
+    );
     this.applyBootstrapNoticeHandoff();
   }
 
@@ -48,7 +56,14 @@ export class LoginComponent {
         next: (ok) => {
           this.finishSignInFlight();
           if (ok) {
-            void this.router.navigate(['/dashboard']);
+            const returnUrl =
+              this.route.snapshot.queryParamMap.get('returnUrl') ?? this.sessionState.returnUrl();
+            this.sessionState.clearReauthRequired();
+            if (returnUrl && isSafeReturnUrl(returnUrl)) {
+              void this.router.navigateByUrl(returnUrl);
+            } else {
+              void this.router.navigate(['/dashboard']);
+            }
             return;
           }
 

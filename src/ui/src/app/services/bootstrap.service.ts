@@ -21,16 +21,14 @@ interface BootstrapStatusResponse {
 interface CompleteBootstrapPayload {
   isched: {
     bootstrapPlatformAdmin: {
-      token: string;
-      expiresAt: string;
+      csrfToken: string;
     };
   };
 }
 
 interface CompleteBootstrapResponse {
   bootstrapPlatformAdmin: {
-    token: string;
-    expiresAt: string;
+    csrfToken: string;
   };
 }
 
@@ -68,9 +66,8 @@ export class BootstrapService {
         `mutation($email: String!, $password: String!, $displayName: String) {
            isched {
              bootstrapPlatformAdmin(input: { email: $email, password: $password, displayName: $displayName }) {
-               token
-               expiresAt
-             }
+                csrfToken
+              }
            }
          }`,
         input,

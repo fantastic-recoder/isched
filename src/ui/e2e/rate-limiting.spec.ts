@@ -172,5 +172,35 @@ test.describe('Rate Limiting E2E Flow', () => {
     // The form structure should remain intact for retry
     expect(await page.locator('form').count()).toBeGreaterThan(0);
   });
-});
 
+  test('no JWT artifacts in any browser storage API after login and session expiry', async ({ page }) => {
+    await ensureLoginReady(page);
+    await page.locator('#email').fill('storage-check@e2e.test');
+    await page.locator('#password').fill(CORRECT_PASSWORD);
+    await page.getByRole('button', { name: 'Sign In' }).click();
+    await page.waitForTimeout(1_000);
+
+    // Simulate expiry: drop the server session cookie, then reload (in-memory token is lost).
+    await page.context().clearCookies();
+    await page.reload();
+
+    const artifacts = await page.evaluate(async () => {
+      const jwtLike = /eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/;
+      const hits: string[] = [];
+      for (const store of [window.localStorage, window.sessionStorage]) {
+        for (let i = 0; i < store.length; i++) {
+          const key = store.key(i) ?? '';
+          if (jwtLike.test(store.getItem(key) ?? '') || /token|jwt/i.test(key)) hits.push(`storage:${key}`);
+        }
+      }
+      const idb = (indexedDB as IDBFactory & { databases?: () => Promise<IDBDatabaseInfo[]> });
+      const dbs = idb.databases ? await idb.databases() : [];
+      for (const db of dbs) {
+        if (/auth|token|jwt|session/i.test(db.name ?? '')) hits.push(`indexedDB:${db.name}`);
+      }
+      return hits;
+    });
+
+    expect(artifacts).toEqual([]);
+  });
+});

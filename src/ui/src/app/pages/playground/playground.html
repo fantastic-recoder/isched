@@ -59,6 +59,9 @@
             <app-query-editor
               #editor
               [initialContent]="editorContent()"
+              [schema]="activeSchema()"
+              [schemaStatus]="schemaStatus()"
+              [schemaError]="treeError()"
               (contentChange)="onEditorContentChange($event)"
               class="flex-1 min-h-0"
             />
@@ -68,6 +71,8 @@
           <div slot="second" class="h-full flex flex-col overflow-hidden border-t border-base-300">
             <app-result-panel
               [result]="queryResult()"
+              [canRetry]="canRetry()"
+              (retry)="retry()"
               class="flex-1 min-h-0"
             />
           </div>
@@ -76,4 +81,3 @@
     </app-resizable-split>
   </div>
 </div>
-

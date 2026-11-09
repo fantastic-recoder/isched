@@ -7,7 +7,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { Router } from '@angular/router';
+import { Subject, of } from 'rxjs';
 import { PlaygroundPage } from './playground';
+import { AuthService } from '../../services/auth.service';
+import { SessionBootstrapStateService } from '../../services/session-bootstrap-state.service';
+import { PlaygroundQueryResult, PlaygroundQueryService } from '../../services/playground-query.service';
 import { PlaygroundIntrospectionService } from '../../services/playground-introspection.service';
 
 describe('PlaygroundPage', () => {
@@ -84,5 +89,79 @@ describe('PlaygroundPage', () => {
     component.onTopResize(60);
     expect(component.layout.layout().topHeightPct).toBe(60);
   });
-});
 
+  describe('operation lifecycle', () => {
+    let execSpy: jest.SpyInstance;
+    const query = '{ isched { health { status } } }';
+
+    beforeEach(() => {
+      fixture.detectChanges();
+      execSpy = jest.spyOn(TestBed.inject(PlaygroundQueryService), 'execute');
+      component.editorRef.getContent = () => query;
+    });
+
+    it('transitions idle -> submitting -> success', () => {
+      const subject = new Subject<PlaygroundQueryResult>();
+      execSpy.mockReturnValue(subject);
+      expect(component.status()).toBe('idle');
+
+      component.runQuery();
+      expect(component.status()).toBe('submitting');
+      expect(component.isRunning()).toBe(true);
+
+      subject.next({ loading: false, data: { isched: { health: { status: 'UP' } } } });
+      expect(component.status()).toBe('success');
+      expect(component.isRunning()).toBe(false);
+      expect(component.canRetry()).toBe(false);
+    });
+
+    it('keeps editor content and allows retry after a recoverable transport error', () => {
+      execSpy.mockReturnValueOnce(
+        of({ loading: false, errors: ['Network error'], errorCategory: 'transport', retryable: true }),
+      );
+      component.editorContent.set(query);
+      component.runQuery();
+
+      expect(component.status()).toBe('error');
+      expect(component.canRetry()).toBe(true);
+      expect(component.editorContent()).toBe(query);
+
+      execSpy.mockReturnValueOnce(of({ loading: false, data: { ok: true } }));
+      component.retry();
+      expect(execSpy).toHaveBeenCalledTimes(2);
+      expect(execSpy).toHaveBeenLastCalledWith(query);
+      expect(component.status()).toBe('success');
+    });
+
+    it('does not offer retry for validation errors', () => {
+      execSpy.mockReturnValue(
+        of({ loading: false, errors: ['bad'], errorCategory: 'validation', retryable: false }),
+      );
+      component.runQuery();
+      expect(component.status()).toBe('error');
+      expect(component.canRetry()).toBe(false);
+    });
+
+    it('preserves draft, clears credentials and redirects on reauth-required', () => {
+      const router = TestBed.inject(Router);
+      const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+      const auth = TestBed.inject(AuthService);
+      const state = TestBed.inject(SessionBootstrapStateService);
+      auth.setCsrfToken('csrf');
+      execSpy.mockReturnValue(
+        of({ loading: false, errors: ['expired'], errorCategory: 'authorization', reauthRequired: true }),
+      );
+
+      component.runQuery();
+
+      expect(component.status()).toBe('reauth-required');
+      expect(auth.getCsrfToken()).toBeNull();
+      expect(state.reauthRequired()).toBe(true);
+      expect(state.takePlaygroundDraft()).toBe(query);
+      expect(navSpy).toHaveBeenCalledWith(
+        ['/login'],
+        expect.objectContaining({ queryParams: expect.objectContaining({ reason: 'reauth-required' }) }),
+      );
+    });
+  });
+});

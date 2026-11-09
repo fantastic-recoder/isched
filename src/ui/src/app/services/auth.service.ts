@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, switchMap, tap, throwError } from 'rxjs';
-import { GraphQLRequestError, GraphQLService } from './graphql.service';
+import { GRAPHQL_ERROR_CODES, GraphQLRequestError, GraphQLService } from './graphql.service';
 import { mapAuthAttemptOutcome, mapAuthErrorToAlert } from './auth-alert.mapper';
 import { AuthAttemptOutcome, UserFacingAlert } from './auth-bootstrap.models';
 import { SessionBootstrapStateService } from './session-bootstrap-state.service';
@@ -20,13 +20,14 @@ export class AuthSignInError extends Error {
 interface CurrentSessionResponse {
   isched: {
     currentUser: { id: string; name?: string | null } | null;
+    currentSessionCsrfToken: string | null;
   };
 }
 
 interface SignInResponse {
   isched: {
     login: {
-      token?: string;
+      csrfToken?: string;
     };
   };
 }
@@ -43,7 +44,6 @@ export class AuthService {
   private readonly sessionBootstrapState = inject(SessionBootstrapStateService);
   private readonly shellStatus = inject(ShellStatusService);
   private csrfToken: string | null = null;
-  private accessToken: string | null = null;
   private authenticated = false;
 
   signIn(email: string, password: string): Observable<boolean> {
@@ -52,7 +52,7 @@ export class AuthService {
         `mutation($email: String!, $password: String!) {
           isched {
             login(email: $email, password: $password) {
-              token
+              csrfToken
             }
           }
         }`,
@@ -60,8 +60,8 @@ export class AuthService {
       )
       .pipe(
         map((res) => {
-          if (res.isched?.login?.token) {
-            this.accessToken = res.isched.login.token;
+          if (res.isched?.login?.csrfToken) {
+            this.csrfToken = res.isched.login.csrfToken;
             return true;
           }
           this.clearAuthState();
@@ -83,22 +83,20 @@ export class AuthService {
 
   bootstrapSession(): Observable<boolean> {
     return this.gql
-      .query<CurrentSessionResponse>('query { isched { currentUser { id name } } }')
+      .query<CurrentSessionResponse>(
+        'query { isched { currentUser { id name } currentSessionCsrfToken } }',
+      )
       .pipe(
-        map((res) => res.isched?.currentUser ?? null),
-        tap((currentUser) => {
-          const isAuthenticated = !!currentUser;
+        map((res) => ({
+          currentUser: res.isched?.currentUser ?? null,
+          csrfToken: res.isched?.currentSessionCsrfToken ?? null,
+        })),
+        tap(({ currentUser, csrfToken }) => {
+          const isAuthenticated = !!currentUser && !!csrfToken;
           this.authenticated = isAuthenticated;
-          if (isAuthenticated && !this.csrfToken) {
-            // Keep CSRF material ephemeral and in-memory only.
-            this.csrfToken = this.createEphemeralCsrfToken();
-          }
-          if (!isAuthenticated) {
-            this.accessToken = null;
-            this.csrfToken = null;
-          }
+          this.csrfToken = isAuthenticated ? csrfToken : null;
 
-          if (currentUser) {
+          if (isAuthenticated && currentUser) {
             this.shellStatus.setIdentity({
               userId: currentUser.id,
               displayName: currentUser.name,
@@ -109,7 +107,7 @@ export class AuthService {
 
           this.sessionBootstrapState.markSessionKnown(isAuthenticated);
         }),
-        map((currentUser) => !!currentUser),
+        map(({ currentUser, csrfToken }) => !!currentUser && !!csrfToken),
         catchError((error: unknown) => {
           this.clearEphemeralAuthState();
           this.shellStatus.reset();
@@ -123,16 +121,28 @@ export class AuthService {
     return this.authenticated;
   }
 
-  getToken(): string | null {
-    return this.accessToken;
-  }
-
   setCsrfToken(token: string): void {
     this.csrfToken = token;
   }
 
   getCsrfToken(): string | null {
     return this.csrfToken;
+  }
+
+  /**
+   * Handles a protected-operation failure. UNAUTHENTICATED / HTTP 401 means the session is
+   * gone: clear the in-memory CSRF and non-secret session state and flag `reauth-required`.
+   */
+  handleReauthRequired(returnUrl?: string | null): void {
+    this.clearAuthState();
+    this.sessionBootstrapState.markReauthRequired(returnUrl);
+  }
+
+  /** True when the given error maps to the `reauth-required` outcome. */
+  isReauthError(error: unknown): boolean {
+    return (
+      error instanceof GraphQLRequestError && error.code === GRAPHQL_ERROR_CODES.UNAUTHENTICATED
+    );
   }
 
   clearAuthState(): void {
@@ -159,12 +169,7 @@ export class AuthService {
 
   private clearEphemeralAuthState(): void {
     this.authenticated = false;
-    this.accessToken = null;
     this.csrfToken = null;
-  }
-
-  private createEphemeralCsrfToken(): string {
-    return `csrf_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
   }
 
   private mapAuthFailureToOutcome(error: unknown, alert: UserFacingAlert): AuthAttemptOutcome {

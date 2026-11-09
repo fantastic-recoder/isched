@@ -3,9 +3,14 @@ import { CanActivateFn, Router } from '@angular/router';
 import { catchError, map, of, switchMap } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { BootstrapService } from '../services/bootstrap.service';
-import { SessionBootstrapStateService } from '../services/session-bootstrap-state.service';
+import { SessionBootstrapStateService, isSafeReturnUrl } from '../services/session-bootstrap-state.service';
 
-export const authGuard: CanActivateFn = (_route, _state) => {
+function loginTree(router: Router, returnUrl: string | undefined) {
+  const safe = returnUrl && isSafeReturnUrl(returnUrl) && returnUrl !== '/' ? returnUrl : null;
+  return router.createUrlTree(['/login'], safe ? { queryParams: { returnUrl: safe } } : {});
+}
+
+export const authGuard: CanActivateFn = (_route, routerState) => {
   const bootstrapService = inject(BootstrapService);
   const auth = inject(AuthService);
   const router = inject(Router);
@@ -25,13 +30,16 @@ export const authGuard: CanActivateFn = (_route, _state) => {
             sessionBootstrapState.markSessionKnown(isAuthenticated);
             sessionBootstrapState.markFirstGuardRevalidationComplete();
             sessionBootstrapState.markInitialRouteResolved();
-            return isAuthenticated ? true : router.createUrlTree(['/login']);
+            return isAuthenticated ? true : loginTree(router, routerState?.url);
           }),
-          catchError(() => {
+          catchError((err: unknown) => {
+            if (auth.isReauthError(err)) {
+              auth.handleReauthRequired(routerState?.url);
+            }
             sessionBootstrapState.markSessionKnown(false);
             sessionBootstrapState.markFirstGuardRevalidationComplete();
             sessionBootstrapState.markInitialRouteResolved();
-            return of(router.createUrlTree(['/login']));
+            return of(loginTree(router, routerState?.url));
           }),
         );
       }
@@ -39,7 +47,7 @@ export const authGuard: CanActivateFn = (_route, _state) => {
       const isAuthenticated = auth.isLoggedIn();
       sessionBootstrapState.markSessionKnown(isAuthenticated);
       sessionBootstrapState.markInitialRouteResolved();
-      return of(isAuthenticated ? true : router.createUrlTree(['/login']));
+      return of(isAuthenticated ? true : loginTree(router, routerState?.url));
     }),
     catchError(() => {
       sessionBootstrapState.markSessionKnown(false);
