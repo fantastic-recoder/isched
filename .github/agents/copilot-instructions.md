@@ -1,6 +1,6 @@
 # isched Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-04
+Auto-generated from all feature plans. Last updated: 2026-11-09
 
 ## Active Technologies
 - C++23 backend + TypeScript (strict) / Angular 21 frontend + `cpp-httplib`, `nlohmann_json`, `sqlite3`, `jwt-cpp`, `spdlog`, `boost` (backend); Angular standalone APIs, signals, Tailwind CSS, DaisyUI (frontend) (004-add-isched-webui)
@@ -28,7 +28,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), `GqlExecutor::load_schema` with project PEGTL grammar (`isched_gql_grammar.hpp`) for SDL validation, spdlog (012-plugin-system-boost-dll)
 - Existing per-tenant SQLite sessions and session/revocation support; no feature-specific schema migration is planned. Browser JWT transport is a Secure, HttpOnly, SameSite=Strict cookie; no JWT in localStorage, sessionStorage, IndexedDB, or application-managed memory. Login and first-run platform-admin bootstrap establish cookie sessions and return session-bound CSRF in GraphQL; an authenticated read-only GraphQL query reacquires it after page reload. (013-lsp-graphql-angular)
 - C++23 backend; TypeScript 5.9 / Angular 21 frontend (strict mode and strict templates) + Existing CMake + Ninja, Conan 2.x, Catch2 3.x, cpp-httplib/Boost.Beast HTTP+WebSocket server, jwt-cpp, SQLite; Angular standalone APIs, signals, typed reactive forms, RxJS where stream semantics are needed, CodeMirror 6, `cm6-graphql` 0.2.x, GraphQL.js 16.x, GraphQL Language Service APIs, Jest/Angular test harness, Playwright (013-lsp-graphql-angular)
-- C++23; packaging/workflow glue uses Bash, Python, CMake, and YAML + Conan 2.34.0; CMake 3.22.6 and Ninja 1.12.1 from existing Conan tool-requires; Node.js 24.22.2; pnpm 10.30.3; CPack; Docker BuildKit; GitHub Actions (014-docker-linux-packaging)
+- C++23; Python 3 packaging helpers; CMake and GitHub Actions YAML; existing Angular 21/strict TypeScript frontend. No new shell helper files. + Conan 2.34.0; CMake 3.22.6 and Ninja 1.12.1 from Conan tool-requires; Node.js 24.22.2; pnpm 10.30.3; CPack DEB/RPM; Docker BuildKit/Buildx; GitHub Actions. (014-docker-linux-packaging)
 
 - (004-add-isched-webui)
 
@@ -48,7 +48,7 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
-- 014-docker-linux-packaging: Added C++23; packaging/workflow glue uses Bash, Python, CMake, and YAML + Conan 2.34.0; CMake 3.22.6 and Ninja 1.12.1 from existing Conan tool-requires; Node.js 24.22.2; pnpm 10.30.3; CPack; Docker BuildKit; GitHub Actions
+- 014-docker-linux-packaging: Added C++23; Python 3 packaging helpers; CMake and GitHub Actions YAML; existing Angular 21/strict TypeScript frontend. No new shell helper files. + Conan 2.34.0; CMake 3.22.6 and Ninja 1.12.1 from Conan tool-requires; Node.js 24.22.2; pnpm 10.30.3; CPack DEB/RPM; Docker BuildKit/Buildx; GitHub Actions.
 - 013-lsp-graphql-angular: Completed C++23/Angular 21 GraphQL-only `/graphql` work with secure cookie sessions, session-bound CSRF, and browser-local CodeMirror assistance; all 70 tasks complete. Artifacts archived under `specs/archive/013-lsp-graphql-angular/`; manual acceptance testing follows separately.
 
 

@@ -1,106 +1,155 @@
 # Implementation Plan: Dockerized Linux Package Builds
 
 **Branch**: `014-docker-linux-packaging` | **Date**: 2026-11-09 | **Spec**: [spec.md](spec.md)
-**Input**: Approved feature specification and checklist in `specs/014-docker-linux-packaging/`
+**Input**: `/home/groby/dev/isched/specs/014-docker-linux-packaging/spec.md`
+**Repository root**: `/home/groby/dev/isched`
 
 ## Summary
 
-Replace the broken starter multi-platform CMake workflow with one Docker-based Linux package workflow for pull requests and pushes to `master`. It builds, tests, validates, and exports native `.deb` and `.rpm` packages for the pinned Ubuntu 26.04 LTS and Fedora 45 x86_64 targets. Each target produces separate `isched-runtime` and `isched-devel` packages, with artifact names and embedded metadata carrying the source revision, target, format, and role. CMake install/export rules will make the existing static `isched` library consumable as `isched::isched`; Conan 2 remains the SDK's transitive dependency manager.
+Replace the starter `.github/workflows/cmake-multi-platform.yml` in place with a Docker-based native-package workflow for pull requests and pushes to `master`. Exactly two initial targets, Ubuntu 26.04 LTS and Fedora 45 x86_64, each produce separately downloadable `isched-runtime` and `isched-devel` packages in DEB and RPM format respectively. Preserve the C++23/Conan/CMake/Ninja build and embedded Angular 21 WebUI. Add install/export integration for the existing static SDK, then require full target CTest, native package validation, clean runtime installation, and an external SDK compile/link/run before uploading either role.
+
+This is a planning-only refresh. Existing uncommitted changes to packaging, tests, locks, `configure.py`, ignore rules, and `tasks.md` are inputs, not changes made or verified by this planning run. Existing Python-helper refinements are retained. The plan does not authorize implementation, commits, pushes, hosted workflow execution, or release publication.
 
 ## Technical Context
 
-**Language/Version**: C++23; packaging/workflow glue uses Bash, Python, CMake, and YAML  
-**Primary Dependencies**: Conan 2.34.0; CMake 3.22.6 and Ninja 1.12.1 from existing Conan tool-requires; Node.js 24.22.2; pnpm 10.30.3; CPack; Docker BuildKit; GitHub Actions  
-**Storage**: N/A  
-**Testing**: Existing Angular tests run through the CMake UI build; full CTest suite on each target; package metadata/content/architecture validation; clean-container install/run smoke test; installed-SDK CMake consumer compile/link smoke test.  
-**Target Platform**: `linux/amd64` only: Ubuntu 26.04 LTS `.deb` and Fedora 45 `.rpm`  
-**Project Type**: C++23 server and static-library SDK with embedded Angular 21 WebUI; native Linux packages and CI workflow  
-**Performance Goals**: No runtime behavior or performance changes. Packaging adds no runtime service wrapper or always-on process.  
-**Constraints**: Exactly two initial distribution/version/architecture targets and two package roles per target; use Docker; do not publish formal releases; execute without secrets or interactive input; validate before artifact upload; no `act` requirement.  
-**Scale/Scope**: Four package files per successful revision (two roles × two targets), individually attributable to the full Git SHA and target dimensions.
+**Language/Version**: C++23; Python 3 packaging helpers; CMake and GitHub Actions YAML; existing Angular 21/strict TypeScript frontend. No new shell helper files.
+**Primary Dependencies**: Conan 2.34.0; CMake 3.22.6 and Ninja 1.12.1 from Conan tool-requires; Node.js 24.22.2; pnpm 10.30.3; CPack DEB/RPM; Docker BuildKit/Buildx; GitHub Actions.
+**Storage**: No new application persistence. Per-target output directories, JSON identity/evidence manifests, and workflow-run artifacts only.
+**Testing**: Python packaging contract/failure tests; fresh Angular test/build/embed; full Release CTest per target with nonzero test discovery; native package inspection; clean runtime install/loader/UI/GraphQL checks; clean SDK compile/link/run; authorized hosted artifact checks and human SC-005 verification.
+**Target Platform**: `linux/amd64`: Ubuntu 26.04 LTS (`amd64`, DEB), Fedora 45 (`x86_64`, RPM).
+**Project Type**: Existing C++ server/static-library SDK with embedded WebUI; build/distribution infrastructure.
+**Performance Goals**: No runtime hot-path or service behavior changes; no performance improvement claim. Independent matrix jobs preserve feedback when one target fails. Do not trade verification for faster CI.
+**Constraints**: Exactly two initial target tuples and two roles each; pinned images/toolchains; Conan-managed C++ dependencies; lockfile-managed frontend dependencies; no secrets, seeded state, host package installation, release upload, or silent target/tool substitution.
+**Scale/Scope**: Four native packages and four role-specific downloadable artifacts per passing source revision. Helpers use argument-list subprocess calls, explicit errors, timeouts, and cleanup of owned processes/temporary resources.
 
 ## Constitution Check
 
-*GATE: Pass before research; re-evaluated after design below.*
+*GATE: Pass before Phase 0; re-evaluated after Phase 1. Constitution v2.3.0.*
 
-- [x] GraphQL-only external interface preserved (`/graphql` HTTP/WebSocket only); no application interface changes.
-- [x] Language and build baseline preserved (C++23, Conan-managed dependencies, CMake + Ninja).
-- [x] No WebUI source changes; Angular code conventions are unaffected. Angular 21 build/test remains part of asset generation.
-- [x] No frontend API, browser JWT, or local Angular proxy changes.
-- [x] Test plan requires full CTest and package/SDK-specific checks before success; the repository's 100% CTest commit gate remains unchanged.
-- [x] Security-sensitive CI/package supply-chain design has a feature threat model and a project-level summary entry.
-- [x] Planned glue is limited to focused packaging/build functions; no hot-path runtime abstractions are introduced.
+- [x] High performance: no runtime hot-path changes or new abstractions; performance testing is required only if implementation scope later changes.
+- [x] GraphQL-only HTTP/WebSocket `/graphql` contract and specification compliance preserved; no new application endpoint.
+- [x] C++23, Conan-managed library dependencies, CMake + Ninja, and Linux portability retained.
+- [x] Angular standards remain intact: no UI source changes; fresh existing tests/build/embed required, with no stale-header fallback in packaging.
+- [x] No frontend REST transport, browser JWT persistence, auth, or local development proxy changes.
+- [x] Test coverage and failure-path checks required before story completion; packaging success requires the complete target test suite and both role integrations.
+- [x] Security-first: feature [threat-model.md](threat-model.md) and existing project summary in `/home/groby/dev/isched/docs/security-threat-model.md`; least-privilege, secret-free PR builds.
+- [x] Clean code: small, focused Python helpers; shared target data and distro-specific Dockerfiles avoid large conditional chains; no gratuitous runtime dispatch.
+- [x] Direct system dependencies justified only for the native packaging boundary: distro compiler/libc ABI, Python/venv, DEB/RPM/ELF tools, Docker/BuildKit. These are not replacements for Conan libraries. Node/pnpm and frontend packages retain the existing lockfile-based frontend build boundary.
 
-**Gate result**: PASS. No constitution exceptions or implementation blockers are identified. The library's missing install/export configuration is an implementation gap to close, not a reason to block the design.
+**Pre-research result: PASS (design scope).** No constitution exception. This does not certify target builds, dependency locks, package usability, or hosted behavior.
 
-## Design Decisions
+## Phase 0 — Research
 
-1. **Targets**: Ubuntu 26.04 LTS (Resolute Raccoon), x86_64/`amd64`, `.deb`; Fedora 45, x86_64, `.rpm`. These are supported current releases as of 2026-11-09. The Docker base references use the observed platform-specific immutable image-manifest digests recorded in [research.md](research.md).
-2. **Build orchestration**: Replace `.github/workflows/cmake-multi-platform.yml` in place rather than adding a second workflow with overlapping `master`/PR triggers. Use a two-entry, extensible target matrix with `fail-fast: false`; each job invokes the existing `configure.py release`/Conan+CMake flow with explicit distro compilers, then runs the full CTest suite and package checks. The workflow retains pull-request and default-branch push validation and adds no release publishing.
-3. **Package implementation**: Add CMake install/export rules and use CPack's DEB and RPM generators with separate `runtime` and `devel` components. Keep the existing default static-library form (`libisched.a`) unless package integration proves an explicit change is needed; do not change runtime behavior to make packaging easier.
-4. **SDK interface**: Export the supported CMake target as `isched::isched`, install the public-header include closure preserving `isched/...` paths, and ship CMake package config plus a Conan 2 consumer dependency manifest/instructions. The exported config resolves declared transitive dependencies through Conan-generated CMakeDeps targets. A clean consumer fixture must prove this works; the SDK must not silently claim to be self-contained if dependency provisioning is required.
-5. **Version and artifact identity**: Prefer a project version only from a tag matching `vMAJOR.MINOR.PATCH`; otherwise use a non-release `0.0.0+git.<short-sha>` package version. Embed the full `github.sha` in package metadata and artifact identity. Naming pattern: `isched-{role}-{version}-{distro}-{distro-version}-x86_64-{deb|rpm}-{full-sha}`. Keep both role packages private to the workflow run as downloadable artifacts; do not publish them to a repository or formal release.
-6. **Artifact publication**: Build and validate both role packages before uploading either role artifact for that target. Use independent matrix jobs, explicit artifact names, error-on-missing outputs, and no shared mutable package output. A failed build, test, or validation fails its target and the workflow; `fail-fast: false` preserves the other target's result.
-7. **Reproducibility**: Pin the Docker base image to the recorded amd64 manifest digest; pin GCC (`g++-15` 15.2.0-16ubuntu1 on Ubuntu and `gcc-c++` 16.2.1-2.fc45.1 on Fedora); pin Conan 2.34.0 and its Python dependency set; use CMake 3.22.6/Ninja 1.12.1 from the existing Conan tool-requires and a committed Conan lockfile; pin Node.js 24.22.2 by its official tarball SHA-256 and pnpm 10.30.3 through the repository's packageManager/lockfile. Pin other OS tool packages or use dated repository inputs. Do not equate an immutable base-image digest alone with a bit-for-bit reproducible package: repository inputs, source revision, and all package inputs must be recorded/locked. Refresh pins through reviewed changes before a target loses support.
-8. **Runtime payload and licensing**: Install `isched_srv` at `/usr/bin/isched_srv`; its Angular UI remains embedded. Runtime packages contain only the executable and required license/readme metadata; they do not install service state, a database, sample credentials, or `--seed` output. Install the SDK library, public headers, CMake package integration, and dependency manifest in standard GNUInstallDirs paths. Include `LICENSE.md` (MPL-2.0) and third-party/Angular license notices for distributed linked/embedded content.
-9. **Dependency metadata**: Derive runtime shared-library requirements from each built target using native package tooling (`dpkg-shlibdeps`/DEB metadata and RPM automatic ELF dependency generation), then validate installed runtime closure in a clean target-release container. The developer package is not coupled to the runtime executable package; it documents and resolves the library's Conan-managed link dependencies. Do not hard-code a cross-distro dependency list without validation.
-10. **Local verification**: Provide a direct Docker BuildKit path for each target and document installation/smoke checks. `act` is not required; Docker is available locally.
+Update [research.md](research.md) using Decision / Rationale / Alternatives considered. Retain the selected releases and existing pin evidence, reconcile against current packaging inputs, and resolve the SDK, native-version, source-identity, dependency-boundary, and verification decisions.
+
+| Target | Image input | Compiler input | Native architecture / format |
+|---|---|---|---|
+| Ubuntu 26.04 LTS | `ubuntu:26.04@sha256:157dc3d6e4a3e4f2c68d12df9df9ed6e808b59af6d4c3757b432b4f519916725` | `/usr/bin/gcc-15`, `/usr/bin/g++-15`, `15.2.0-16ubuntu1` | `amd64` / DEB |
+| Fedora 45 | `fedora:45@sha256:53d138f25f6738257c78553d51369b662efc0e0eb1cd1556a2fe0ad5a115be88` | `/usr/bin/gcc`, `/usr/bin/g++`, `16.2.1-2.fc45.1` | `x86_64` / RPM |
+
+Use `/home/groby/dev/isched/packaging/targets.json` and `tool-versions.json` as the implementation's machine-readable inputs, not duplicated workflow constants. Their presence and recorded checks do not prove all transitive OS packages or Conan recipes work on both targets. Pin updates must be reviewed; unavailable pins fail closed.
+
+**Phase 0 result**: Planning decisions resolved; no outstanding requirements clarification. Target compatibility and end-to-end execution remain explicit implementation gates below.
+
+## Phase 1 — Design and Contracts
+
+### Package payload and SDK integration
+
+Use CMake install/export rules and CPack `runtime` / `devel` components. Artifact role `developer` maps to CPack `devel` and native package name `isched-devel`.
+
+- Runtime: `/usr/bin/isched_srv` with fresh embedded WebUI, project license, applicable linked/embedded third-party notices, and usage documentation. No Node runtime, test binaries, build tools, service unit, database, seed output, or credential.
+- Developer: `libisched.a` under GNUInstallDirs `${libdir}`, relocatable CMake config/targets under `${libdir}/cmake/isched`, dependency manifest/lock/profiles and instructions under `${datadir}/isched`, licenses, and the supported public header closure:
+  - `${includedir}/isched/isched.hpp`
+  - `${includedir}/isched/backend/isched_Server.hpp`
+  - `${includedir}/isched/backend/isched_common.hpp`
+  - `${includedir}/isched/shared/config/isched_config.hpp`
+- Export `isched::isched` with C++23 and installed include usage requirements. The four-header closure above is the current supported umbrella API; do not install every private backend header or generated UI/schema header merely because it exists.
+- Resolve the current static link graph through Conan CMakeDeps: PEGTL 3.2.8, cpp-httplib 0.18.3, OpenSSL 3.5.0, spdlog 1.12.0, fmt 10.2.1, nlohmann_json 3.11.3, jwt-cpp 0.7.0, SQLite 3.44.0, Boost 1.84.0 (`url`, `system`, `thread`, `program_options`, `filesystem` and transitive components), platformfolders 4.3.0, and platform loader/thread requirements. Keep Catch2, CMake, and Ninja out of the SDK runtime link interface.
+- `ischedConfig.cmake` uses `find_dependency` for corresponding Conan-generated targets, including `openssl::openssl`, `Boost::*`, and the target names currently linked by `isched`. Export static transitive requirements without embedding producer source/build/Conan-cache paths. The consumer must resolve its own compatible Conan graph, compiler and ABI; the SDK is not self-contained.
+- No runtime ↔ developer native package dependency: the static SDK does not need the executable. Derive runtime shared-object requirements using DEB shlibdeps and RPM ELF auto-requires; prove closure with clean installs.
+
+### Identity and workflow
+
+- Derive the full source revision from the actual checkout. For PR merge checkouts use the checked-out merge commit consistently, not a different PR head revision.
+- Use only an unambiguous exact-at-HEAD `vMAJOR.MINOR.PATCH` tag; otherwise canonical version is `0.0.0+git.<first-12-sha-digits>`.
+- DEB native version equals canonical version. RPM uses `Version=MAJOR.MINOR.PATCH, Release=1` for tagged builds; fallback uses `Version=0.0.0, Release=0.git.<first-12-sha-digits>`. Preserve canonical version/full SHA in embedded and accompanying metadata. Validate parsing and ordering natively rather than claiming `+` is categorically invalid for RPM.
+- Artifact identity: `isched-{runtime|developer}-{canonical-version}-{distribution}-{release}-x86_64-{deb|rpm}-{full-sha}`. Each role artifact contains exactly its native package plus JSON identity/checksum metadata. Artifact visibility is that of the repository/workflow, not an assurance of private storage.
+- Docker context excludes `.git` and generated/host state. A Python wrapper validates checkout identity and supplies `ISCHED_SOURCE_REVISION` and `ISCHED_PACKAGE_VERSION` build arguments. Resolve tags outside Docker; no Git authentication or secret arguments.
+- Matrix comes from validated target inputs, with exactly two initial entries and `fail-fast: false`; name jobs with distribution, version, architecture, and format. No `continue-on-error` or missing-output success path.
+- Build Release via existing `configure.py release` with explicit Conan lock/profiles and Conan build environment activation. Existing optional packaging arguments are work in progress, not certified.
+- Require pnpm and regenerate Angular assets; then run the full CTest suite, package, validate native metadata/payload, install/runtime-check and SDK-check. Stage outputs only after both roles pass.
+- Use `pull_request` and push to `master`, read-only token permissions, SHA-pinned Actions, no publishing credentials, and no privileged Docker execution/socket mounting into build containers. Upload each role with explicit name and error-on-missing files only after all target gates pass.
+
+### Validation and acceptance
+
+1. Contract tests reject missing/empty/duplicate packages, wrong internal format/suffix, role, release, revision, version, architecture and ELF class/machine; reject private payload/state and missing notices.
+2. Verify target `/etc/os-release`, `linux/amd64`, exact toolchain/build-tool versions, lock inputs, and fresh WebUI test/build/embed. Nonzero full Release CTest must pass on both targets.
+3. Install runtime into a fresh exact-release container without the build toolchain. Verify loader closure, start unprivileged with isolated writable data, check existing GraphQL health and embedded UI plus an asset, and clean up without `--seed`.
+4. Install SDK into a clean target consumer environment without the runtime package. Provision Conan dependencies from shipped inputs, `find_package(isched CONFIG REQUIRED)`, include `<isched/isched.hpp>`, link `isched::isched`, call a real out-of-line symbol such as `is_lifecycle_trace_enabled()`, and run. No producer tree/cache path may be required.
+5. Test one-target failure isolation and upload suppression. Hosted runs/download checks need separate authorization; a local simulation is not hosted evidence.
+6. Temporarily exercise an additional independently pinned supported target for US3 without expanding the committed initial matrix or relabeling its outputs.
+7. SC-005: one real contributor selects each of the four target/role artifacts and identifies all required dimensions in ≤60 seconds per selection from visible workflow metadata. Record actual timings; automation cannot replace this human check.
+
+Detailed interfaces and entities are in [contracts/package-artifact-contract.md](contracts/package-artifact-contract.md) and [data-model.md](data-model.md). Local procedures are in [quickstart.md](quickstart.md).
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```text
-specs/014-docker-linux-packaging/
+/home/groby/dev/isched/specs/014-docker-linux-packaging/
+├── spec.md
 ├── plan.md
 ├── research.md
 ├── data-model.md
 ├── quickstart.md
 ├── threat-model.md
-└── contracts/
-    └── package-artifact-contract.md
+├── contracts/package-artifact-contract.md
+├── checklists/implementation-readiness.md  # existing execution evidence; preserve
+└── tasks.md                              # existing; not regenerated by planning
 ```
 
-### Planned source and packaging changes
+### Source Code (repository root; implementation scope, not this run's edits)
 
 ```text
-.github/workflows/cmake-multi-platform.yml  # replace starter matrix workflow in place
-docs/security-threat-model.md               # add a planning-stage feature summary
-CMakeLists.txt                              # package/install configuration and version plumbing
-src/main/cpp/isched/CMakeLists.txt           # public include/export and install targets
-conan.lock                                   # lock complete Conan graph for package builds
-packaging/
-├── docker/
-│   ├── ubuntu/Dockerfile
-│   └── fedora/Dockerfile
-├── sdk/                                     # consumer dependency manifest/config inputs
-└── scripts/                                 # focused package identity/validation helpers
+/home/groby/dev/isched/
+├── .github/workflows/cmake-multi-platform.yml
+├── CMakeLists.txt
+├── src/main/cpp/isched/CMakeLists.txt
+├── configure.py
+├── conan.lock
+├── packaging/
+│   ├── targets.json
+│   ├── tool-versions.json
+│   ├── requirements-*.lock
+│   ├── conan/profiles/{ubuntu-26.04,fedora-45}
+│   ├── docker/{ubuntu,fedora}/Dockerfile
+│   ├── sdk/
+│   └── scripts/                           # Python build/identity/validation/smoke helpers
+├── tests/package/                         # contract/failure and SDK fixtures
+├── tools/package/validate_artifacts.py    # wrapper for shared Python validators
+└── docs/security-threat-model.md
 ```
 
-**Structure Decision**: Keep packaging isolated under `packaging/`, reuse the current source build and the existing workflow path, and add CMake packaging rules at the actual library/executable targets. Do not create a second workflow that competes with the starter's existing PR and `master` triggers.
-
-## Validation Design
-
-- Every matrix entry identifies one fixed distro release, x86_64 architecture, compiler family/version, and native package format.
-- Configure and build the Release profile using the pinned Conan 2.34.0, CMake 3.22.6, Ninja 1.12.1, Node.js 24.22.2, and pnpm 10.30.3; reject a missing or unpinned build input.
-- Run all registered CTest cases with `ctest --output-on-failure`; retain the repository's full-suite 100% gate.
-- Generate both component packages. Inspect native package metadata and payload to confirm package name/role, version, architecture, expected format, source revision, executable/library/header/config paths, and license files.
-- Validate the DEB/RPM by native metadata/listing tools and reject empty, duplicate, wrong-format, wrong-architecture, or misidentified files.
-- Install the runtime package into a clean container of its exact target release without build tools; inspect dynamic dependency resolution and start `isched_srv` with a disposable temporary data directory, without seeding or persisted credentials.
-- Install the developer package in a clean consumer environment, provision Conan dependencies from the shipped manifest, configure a tiny CMake client that includes the supported header and links `isched::isched`, then compile/link.
-- Upload separate role artifacts only after all target validation passes. Verify the full revision and all target dimensions are visible in artifact names/metadata.
-- Verify SC-005 with the project's single contributor: select each of the four named Ubuntu/Fedora target × runtime/developer role artifacts and correctly identify distribution, release, architecture, format, and role within one minute per selection using visible workflow artifact metadata only. No recruitment or multi-contributor threshold is required.
+**Structure Decision**: Extend existing build targets, isolate packaging inputs/helpers, and replace the starter workflow rather than adding overlapping workflows. Existing packaging files are partial implementation; paths shown above include future files. Update `/home/groby/dev/isched/.github/agents/copilot-instructions.md` through the repository agent-context script, preserving manual additions.
 
 ## Post-Design Constitution Check
 
-- [x] Build language, C++23, Conan 2, CMake, and Ninja baselines remain intact.
-- [x] No GraphQL, runtime auth, JWT persistence, REST client, or UI source behavior is changed.
-- [x] Tests cover full CTest plus clean installed-runtime and SDK behavior before the target is successful.
-- [x] Feature and project-level threat model updates are included.
-- [x] No performance-sensitive runtime changes are designed.
+**PASS for design.** All pre-research checks still hold. No application behavior, public GraphQL schema, browser storage, or hot-path change is designed. Conan remains the C++ dependency boundary; native tool/ABI dependencies have explicit justification. Feature/project threat models already exist. SDK usability, secure artifact handling, and both-role verification are required completion gates, not optional follow-up.
 
-**Post-design gate result**: PASS. No complexity exception is required.
+## Phase 2 — Handoff and Evidence Gates
+
+Planning stops here; do not execute or regenerate existing `tasks.md`. That task list and implementation-readiness notes predate this refresh; their historical references to earlier plan gaps are not current design conclusions. Preserve task completion markers and reconcile them only in a separately requested task-management/implementation pass.
+
+**No blocking requirements clarification or constitution violation remains.** Implementation readiness is conditional on:
+
+- Proving target Python dependency locks, GCC 15/16 Conan settings/recipe compatibility, complete producer/consumer locks, and resolvable OS dependency closure on both pinned targets.
+- Proving the installed SDK export and native version encodings against actual tools; file presence or public package availability alone is not sufficient.
+- Building/testing/installing both roles on both releases and collecting authorized hosted/failure-isolation evidence.
+- Obtaining the real contributor's four artifact-selection results and reviewing redistribution notices.
+
+These are required verification gates; they were not run or marked passed during this planning refresh. If a pinned input or target graph fails, stop affected implementation and report the blocker rather than changing the agreed releases or library versions silently.
 
 ## Complexity Tracking
 
-No constitution violations or exceptions.
+No constitution violations or exceptions. Native packaging/build-tool dependencies are justified above; no new runtime architecture or application persistence is introduced.

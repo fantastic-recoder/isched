@@ -1,140 +1,135 @@
 # Tasks: Dockerized Linux Package Builds
 
-**Input**: `/home/groby/dev/isched/specs/014-docker-linux-packaging/` — `spec.md`, `plan.md`, `research.md`, `data-model.md`, `contracts/package-artifact-contract.md`, `quickstart.md`, and `threat-model.md`; repository constitution `.specify/memory/constitution.md` v2.3.0.
+**Input**: `/home/groby/dev/isched/specs/014-docker-linux-packaging/` — `spec.md`, refreshed `plan.md`, `research.md`, `data-model.md`, `contracts/package-artifact-contract.md`, `quickstart.md`, and the feature `threat-model.md`.
 **Branch**: `014-docker-linux-packaging`
 **Organization**: Setup → Foundation → US1 (P1) → US2 (P2) → US3 (P3) → Polish.
-**Tests**: Explicitly required by the user, acceptance scenarios, and constitution. Test authoring precedes the corresponding implementation; passing automated coverage, full CTest, installed-runtime checks, and SDK consumer build/link/run are completion gates, not optional build-existence checks.
+**Tests**: Required by the feature specification, plan, and project constitution. Include automated contract/failure tests and target-level CTest/runtime/SDK verification; actual tests and human/hosted evidence are implementation gates, not inferred from file presence.
 
-## Execution rules and design issues
+## Execution notes
 
-- This document is an implementation plan, not implementation evidence. All tasks start unchecked. Paths below are relative to repository root `/home/groby/dev/isched`; this document's absolute path is `/home/groby/dev/isched/specs/014-docker-linux-packaging/tasks.md`.
-- Preserve the existing dirty planning/context files and any unrelated changes. Do not rerun setup-plan, regenerate the plan, archive the feature, commit, push, merge, or publish releases. The parent handles the final artifact commit; **100% of the full CTest suite must be green before any eventual commit**.
-- Initial production targets stay exactly Ubuntu 26.04 LTS x86_64 DEB and Fedora 45 x86_64 RPM. Each produces `isched-runtime` and `isched-devel`; the developer artifact role label is `developer`, while its CPack component is `devel`.
-- Read `plan.md` and `research.md` for the recorded amd64 image digests, compiler package versions, Conan 2.34.0, Node.js 24.22.2 checksum, pnpm 10.30.3, CMake 3.22.6, and Ninja 1.12.1. These are supplied planning inputs, **not verified by task generation**. Missing image/package availability, unsupported Conan compiler settings, incompatible dependency recipes, or failed compilation are explicit blockers; do not float pins, downgrade targets, or change dependencies silently.
-- The plan says there are no blockers, but OS repository snapshots/additional OS package pins, the Conan Python dependency lock, target compiler/recipe compatibility, the exact exported-header/link closure, and native fallback-version encoding remain implementation work requiring evidence. T001 records these qualifications without overwriting the plan.
-- `quickstart.md` references `tools/package/validate-artifacts.sh` while the plan locates helpers in `packaging/scripts/`. Keep the implementation in the latter and provide the documented wrapper in T027.
-- Canonical identity version remains `0.0.0+git.<short-sha>` for non-tag builds. DEB/RPM native version/release fields may require a deterministic format-valid encoding (RPM must not blindly receive an invalid `+` version). Preserve the canonical version and full revision in embedded/accompanying metadata; document and test any encoding, rather than changing version policy.
-- The plan/contract/quickstart specify SDK compile/link, but the user additionally requires **run**. T011/T023/T030 cover execution of a client that actually calls a library symbol. No GraphQL/auth/UI runtime behavior changes are authorized.
-- The build revision must equal the actual checked-out source. For PR validation, distinguish GitHub's merge SHA from head SHA and use the checkout revision consistently; do not label merge-checkout packages with an unrelated PR head SHA.
-- SC-005 requires the project's single contributor to verify all four initial Ubuntu/Fedora target × runtime/developer role selections, identifying distribution, release, architecture, format, and role within one minute per selection from visible artifact metadata only. No recruitment is required. Hosted workflow/artifact evidence requires an authorized run and access. Record unavailable evidence as pending/blocking, never manufacture results or push merely to obtain it.
-- A future-target experiment for US3 is temporary, uses a separately verified supported release and pins, and does not expand the committed initial production matrix. Unsupported/duplicate target definitions fail explicitly.
+- Tasks and paths are repository-relative. Implementation changes are in progress; checked implementation items below reflect code and host-side tests only, not unrun target compatibility, package builds, hosted runs, or usability evidence.
+- Preserve the existing checked markers for T001–T004: their readiness record, Docker context exclusions, packaging README, and two pinned target definitions are present and supported by the recorded evidence. T002 is scoped to the `.dockerignore` boundary and documenting explicit identity inputs; actual revision/version argument transport remains an implementation task.
+- Initial production targets remain exactly Ubuntu 26.04 LTS x86_64/amd64 DEB and Fedora 45 x86_64 RPM. Each target produces `isched-runtime` and `isched-devel` (artifact role `developer`, CPack component `devel`). Use the exact pins in `research.md`, `packaging/targets.json`, and `packaging/tool-versions.json`; do not silently substitute releases, compilers, dependencies, or moving aliases.
+- Build/package orchestration, validation, and verification helpers are Python under `packaging/scripts/`; invoke subprocesses with argument lists, explicit timeouts/errors, and cleanup of owned resources. Do not add shell helper files.
+- Package identity uses the actual checkout's full SHA (including a PR merge checkout), exact-at-HEAD `vMAJOR.MINOR.PATCH` tags only, and the canonical fallback `0.0.0+git.<first-12-sha-digits>`. Validate DEB/RPM-native version mapping and ordering; never infer identity from matrix order.
+- Runtime and SDK packages are independent. Require fresh Angular test/build/embed output, full nonempty target Release CTest, native package checks, clean runtime install/smoke, and external SDK compile/link/run before a target can succeed or either role can be uploaded.
+- Hosted workflow/artifact evidence requires a separately authorized hosted run. SC-005 requires the project's one contributor to select each of four target/role artifacts and identify distribution, release, architecture, format, and role within 60 seconds per selection from visible artifact metadata. Keep these tasks unchecked until actual evidence exists.
+- A future-target exercise must use a separately verified, pinned compatible target in temporary configuration; do not expand the two-entry production matrix. If target compatibility or an authorized hosted experiment is unavailable, record the blocker and keep the affected acceptance evidence pending.
+- Local target pipelines are pending: the checkout contains staged, unstaged, and untracked work, so an artifact identified as the current `HEAD` would misrepresent its source. `build_local.py` now rejects dirty checkouts before export; do not commit as part of this task execution.
 
 ## Format and path conventions
 
-Every task uses `- [ ] Tnnn [P?] [USn?] Description with file path`.
-`[P]` means the task can run beside other eligible tasks on different files **after its listed prerequisites are complete**. Only story phases carry `[US1]`, `[US2]`, or `[US3]`.
-
-New packaging helpers belong in `packaging/scripts/`; SDK inputs in `packaging/sdk/`; fixtures/tests in `tests/package/`; evidence in `specs/014-docker-linux-packaging/checklists/`. Do not initialize a new project or introduce an application database/API.
+Every task uses `- [ ] Tnnn [P?] [USn?] Description with a concrete repository-relative path`. `[P]` means it can run alongside eligible tasks on different files after its actual prerequisites are complete. Only user-story phase tasks have `[US1]`, `[US2]`, or `[US3]` labels. Existing completed work uses its retained `[X]` marker.
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Establish execution boundaries and a clean Docker source context without modifying the existing planning artifacts.
+**Purpose**: Establish execution boundaries, target/source-context assumptions, and packaging layout.
 
-- [ ] T001 Record the design issues above, verification commands for supplied pins/compiler support, native-version encoding decision criteria, constitution justification for OS/build-tool dependencies, and human/hosted evidence prerequisites in `specs/014-docker-linux-packaging/checklists/implementation-readiness.md`; preserve `plan.md`, `research.md`, and dirty context files and stop affected work if a required pin cannot be verified.
-- [ ] T002 Add or update `.dockerignore` to exclude host build trees, `node_modules`, UI dist/generated embedded assets, Conan caches, package output directories, application databases, credentials, and local state while retaining tracked build inputs and license sources; establish explicit revision/version build arguments so Git metadata is not required inside the clean Docker context.
-- [ ] T003 [P] Create `packaging/README.md` documenting the directory layout, target/role contract, intended shared script CLI, evidence locations, no-host-install/no-seed rules, and no-commit execution boundary; reference the feature artifacts instead of duplicating or rewriting them.
+- [x] T001 Record supplied-pin verification, unresolved compatibility/version-encoding questions, native dependency justification, and hosted/human evidence prerequisites in `specs/014-docker-linux-packaging/checklists/implementation-readiness.md`; preserve planning artifacts and do not claim unrun implementation checks.
+- [x] T002 Update `.dockerignore` to exclude host build/dependency/generated state, package outputs, databases, credentials, and local state while retaining source/build inputs and licenses; document in `.dockerignore` and `packaging/README.md` that callers must pass the checked-out revision and canonical package version because `.git` is excluded.
+- [x] T003 [P] Document the packaging layout, initial target/role contract, intended Python entry points, evidence locations, and no-host-install/no-seed/no-publish boundaries in `packaging/README.md`.
 
-**Checkpoint**: Clean context and implementation boundaries are documented.
+**Checkpoint**: Shared boundaries and current pin evidence are recorded; completed markers above are historical repository work, not proof of package builds.
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: Define shared target identity and locked build inputs used by every story.
-**Gate**: Finish this phase before story work; no target substitution on failure.
+**Purpose**: Freeze reproducible inputs and provide the shared configuration/identity foundation. Complete this phase before story implementation.
 
-- [ ] T004 Define `packaging/targets.json` with exactly two initial tuples, distro/release/native and artifact architectures, format, role mapping, recorded image digest, Dockerfile path, explicit C/C++ compiler/version, and dated repository inputs or exact OS package pins; validate supplied references and reject unresolved pins rather than using latest aliases.
-- [ ] T005 [P] Create `packaging/requirements-conan.lock` with Conan 2.34.0 and its exact Python dependency versions/hashes, pin any Python test/YAML-parser dependencies in `packaging/requirements-tests.lock`, and record interpreter compatibility and checksum-verified Node/pnpm bootstrap inputs in `packaging/tool-versions.json`; verify the research checksum/version inputs and retain CMake/Ninja tool-requires rather than implicitly selecting host tools.
-- [ ] T006 [P] Generate the complete recipe-revision-locked build graph in `conan.lock` using `conanfile.txt` and add explicit Release/C++23/architecture/compiler/libstdc++ ABI host profiles in `packaging/conan/profiles/ubuntu-26.04` and `packaging/conan/profiles/fedora-45`; verify both target graphs with Conan 2.34.0 and report unsupported compiler versions or recipe incompatibilities instead of altering requirements silently.
-- [ ] T007 [P] Implement `packaging/scripts/package_identity.py` to validate target tuples, role mapping, full source SHA, exact-at-HEAD `vMAJOR.MINOR.PATCH` tags, canonical fallback version, deterministic native DEB/RPM version/release encoding, and stable artifact/package filenames; emit machine-readable identity and fail on malformed, duplicate, or inconsistent values without shell evaluation of inputs.
-- [ ] T008 Extend `configure.py` with narrowly scoped optional lockfile/profile/CMake-argument support needed by packaging while preserving ordinary debug/release behavior; apply explicit target compilers/C++23, activate Conan-generated build environment tools so pinned CMake/Ninja are actually used, and propagate Conan/configure/build failures rather than relying on best-effort profile detection for package builds.
+- [x] T004 Define the exactly-two-target tuples, image/compiler pins, architectures/formats, role mapping, and OS package inputs in `packaging/targets.json`; preserve recorded verification in `specs/014-docker-linux-packaging/checklists/implementation-readiness.md` and fail closed on unresolved pins.
+- [X] T005 [P] Complete pinned bootstrap/test dependencies and tool metadata in `packaging/requirements-conan.lock`, `packaging/requirements-tests.lock`, and `packaging/tool-versions.json`; verify Conan/Node/pnpm checksums and installability/interpreter compatibility for the two target Python versions without relying on host tools.
+- [X] T006 [P] Generate the full recipe-revision-locked C++ dependency graph in `conan.lock` and explicit Release/C++23/architecture/compiler/libstdc++ ABI profiles in `packaging/conan/profiles/ubuntu-26.04` and `packaging/conan/profiles/fedora-45`; resolve both graphs with the pinned Conan/compiler inputs or record an explicit compatibility blocker without changing pins.
+- [X] T007 [P] Complete `packaging/scripts/package_identity.py` and `tests/package/test_package_identity.py` for target/role validation, full checkout SHA, exact semver-tag selection, canonical fallback, native DEB/RPM version/release mapping and ordering, stable filenames, and malformed/duplicate/mismatched identity rejection.
+- [X] T008 Extend `configure.py` with narrowly scoped packaging-only lock/profile/CMake argument and Conan build-environment support; prove ordinary debug/release behavior remains intact and package builds fail on Conan/configure/build errors rather than falling back to host-selected tools.
 
-**Checkpoint**: Both target graphs and build input identities are defined; unresolved tool/registry assumptions are tracked as blockers.
+**Checkpoint**: Both pinned target tool/dependency graphs and the reusable identity/build configuration are validated before US1 begins.
 
 ## Phase 3: User Story 1 — Build packages for the initial Linux targets (Priority: P1) — MVP
 
-**Goal**: Build the UI/backend from clean target-specific Docker environments, run all tests, produce both native package roles, prove installability/runtime closure/SDK usability, and report independent failures without a false-green matrix.
+**Goal**: Build the application and both native package roles inside pinned Ubuntu/Fedora Docker environments, validate clean runtime and SDK use, and surface independent target failures without false success.
 
-**Independent Test**: Run the shared local Docker path for both initial targets and inspect a workflow run using that same path. Both targets must produce two validated native packages after Angular verification and full CTest. Install runtime packages in separate clean target containers with no build toolchain; assert parsed GraphQL health and embedded HTML plus a referenced UI asset. Install each SDK independently, provision only its declared Conan dependencies, and compile/link/run an external C++23 client using `isched::isched`. Inject one-target build/test/install/SDK/no-output failures: the target and overall workflow fail while the other target remains observable.
+**Independent Test**: Run the local Docker package path for each initial target. Each must produce exactly one valid runtime and developer native package after fresh Angular verification and nonzero full Release CTest; install runtime in a clean same-release environment and verify loader closure, existing GraphQL health, embedded UI and asset; install the SDK without the runtime package and compile/link/run an external client. Inject target-specific build/test/package/install/SDK failures and confirm they cannot be reported as success.
 
 ### Tests for User Story 1
 
-- [ ] T009 [P] [US1] Add native package contract tests in `tests/package/test_native_packages.py` for both formats/roles, required payloads/licenses, native version encoding, exact revision/release/architecture, derived dependency metadata, no role-to-role SDK dependency, and rejection of empty/missing/duplicate/misnamed/internal-format-mismatched/state-contaminated outputs; use disposable native packages and target-native tooling, not suffix-only fixtures.
-- [ ] T010 [P] [US1] Add runtime integration coverage in `tests/package/test_runtime_install.sh` that invokes the clean-runtime verifier for each target, asserts native install succeeds without development packages, no unresolved ELF dependency, bounded startup, parsed existing GraphQL health response without errors, embedded UI HTML and referenced asset content, and cleanup/nonzero failure for install/start/health/UI/loader failures; use temporary data without `--seed`.
-- [ ] T011 [P] [US1] Create external SDK fixtures in `tests/package/sdk-consumer/CMakeLists.txt` and `tests/package/sdk-consumer/main.cpp`, plus `tests/package/test_sdk_install.sh`, to include `<isched/isched.hpp>`, find installed `isched CONFIG REQUIRED`, link `isched::isched`, call a real existing library API and return a checked result, and run successfully without runtime package/source-tree/build-cache access; include missing-header/dependency/export and leaked-build-path failures.
-- [ ] T012 [P] [US1] Add orchestration failure tests in `tests/package/test_build_pipeline.py` using controlled command adapters/fixtures for image pull/start, frozen frontend install/test/build, Conan/configure/build, CTest, package generation, validation, clean install, and SDK failures; assert nonzero exits, target attribution, and no exported successful packages at any failed gate.
+- [X] T009 [P] [US1] Add native package fixtures and tests in `tests/package/test_native_packages.py` for DEB/RPM format, role, native identity/version/architecture/release, required payload and notices, checksums/dependencies, no invented SDK→runtime dependency, and rejection of missing/empty/duplicate/misnamed/state-contaminated packages using native inspection rather than suffix-only checks.
+- [X] T010 [P] [US1] Add clean runtime integration tests in `tests/package/test_runtime_install.py` for both target releases: package-manager installation without development tools, resolved ELF loader dependencies, bounded unprivileged start, parsed existing GraphQL health response, embedded UI plus referenced asset, disposable data without `--seed`, and cleanup/nonzero outcomes for injected failures.
+- [X] T011 [P] [US1] Add external SDK consumer fixtures in `tests/package/sdk-consumer/CMakeLists.txt`, `tests/package/sdk-consumer/main.cpp`, and `tests/package/test_sdk_install.py`; test installed `find_package(isched CONFIG REQUIRED)`, `<isched/isched.hpp>`, `isched::isched`, a real out-of-line symbol, and successful run without runtime package, producer tree, build tree, or Conan cache.
+- [X] T012 [P] [US1] Add controlled build-pipeline failure tests in `tests/package/test_build_pipeline.py` for image startup, frozen frontend install/test/build/embed, Conan/configure/build, full/empty CTest, package generation/validation, runtime install, and SDK consumption; assert actionable target attribution, nonzero status, and no successful package export at a failed gate.
+- [X] T013 [P] [US1] Inventory the public header closure from `src/main/cpp/isched/isched.hpp` into `packaging/sdk/public-headers.cmake`; preserve the `isched/...` layout for the four supported headers and record public third-party includes while excluding private/generated schema/UI headers.
 
 ### Implementation for User Story 1
 
-- [ ] T013 [P] [US1] Inventory the supported public include closure starting at `src/main/cpp/isched/isched.hpp` through `backend/isched_Server.hpp`, `backend/isched_common.hpp`, and shared configuration headers in `packaging/sdk/public-headers.cmake`; preserve `isched/...` layout, document public third-party include requirements, and exclude generated UI/internal schema headers unless genuinely required by the public API.
-- [ ] T014 [US1] Update `src/main/cpp/isched/CMakeLists.txt` to install the existing static `isched` archive and supported headers as `devel`, install `isched_srv` as `runtime`, export namespace `isched::` target `isched`, and express C++23, relocatable BUILD_INTERFACE/INSTALL_INTERFACE include paths and complete static-library link requirements without absolute source/build/Conan-cache paths; preserve default linkage and runtime behavior.
-- [ ] T015 [US1] Add `packaging/sdk/ischedConfig.cmake.in` with the actual `find_dependency` names/components needed by the exported link graph, CMake package/version initialization and exported targets import; resolve through consumer-generated Conan CMakeDeps targets, including OpenSSL/Boost components, without requiring Catch2 or the producer build tree.
-- [ ] T016 [US1] Add `packaging/sdk/conanfile.txt`, `packaging/sdk/conan.lock`, and `packaging/sdk/README.md` for the exact public/link transitive dependency graph, matching target compiler/ABI/options and consumer build environment activation; exclude producer-only test dependencies, explicitly declare required development tooling and system-link requirements, and explain why the SDK does not depend on `isched-runtime`.
-- [ ] T017 [US1] Implement `packaging/scripts/collect_licenses.py` to inventory linked Conan dependencies and embedded Angular production notices, collect `LICENSE.md` plus relevant third-party notices for each role, and fail on missing inventories/notices; distinguish distributed content from test/tool-only dependencies and record maintainer review needs without inventing license conclusions.
-- [ ] T018 [US1] Add `packaging/cmake/Package.cmake` configuring CPack DEB/RPM component packages, valid target-native package metadata/version fields, full-revision/target/role metadata, GNUInstallDirs payload paths, license/docs components and distinct output names; derive DEB shared-library dependencies using `dpkg-shlibdeps` and RPM ELF requirements, and do not invent a developer-to-runtime dependency or ship service/data/seed state.
-- [ ] T019 [US1] Wire packaging opt-in, identity inputs, GNUInstallDirs, SDK config/version generation, header/export installation, licenses and CPack into `CMakeLists.txt`; ensure required dependency discovery matches the actual library graph and package mode fails if pnpm or clean UI generation is unavailable rather than accepting the current warning/stale generated-header fallback.
-- [ ] T020 [US1] Implement `packaging/scripts/build-target.sh` to validate inputs/tool versions, select explicit Conan profiles and lockfile, perform `pnpm install --frozen-lockfile`, run `configure.py release` in the pinned Conan build environment, require fresh Angular test/build/embed outputs, execute the complete Release CTest suite without regex filtering and reject zero registered tests, then generate both components and licenses; every failed stage exits nonzero with target-qualified diagnostics.
-- [ ] T021 [US1] Implement `packaging/scripts/validate-packages.sh` using `dpkg-deb`/RPM native tools and ELF inspection to enforce T009's format/name/version/revision/role/release/native-architecture/required-path/license/dependency checks, exactly one package per role, explicit payload allowlists and no source/cache/test/tool/database/credential/seed payload; report validation results and never infer identity from execution order.
-- [ ] T022 [US1] Implement `packaging/scripts/verify-runtime.sh` for fresh same-release verification stages without compiler/Conan/Node/development packages: install `isched-runtime` using the native package manager and declared dependencies, check loader closure, start `/usr/bin/isched_srv` with isolated disposable data, assert existing `/graphql` health JSON and embedded UI/asset bytes with bounded waits, preserve failure diagnostics, and terminate only the owned process and clean temporary state.
-- [ ] T023 [US1] Implement `packaging/scripts/verify-sdk.sh` to install only `isched-devel` in a fresh same-target consumer environment, provision locked dependencies from the installed manifest with the matching compiler ABI, configure/build/link/run T011's client through installed `find_package`/`isched::isched`, test the documented installation layout and a relocated staged SDK prefix, and reject source/build/cache path leakage or accidental runtime-package requirements.
-- [ ] T024 [P] [US1] Create `packaging/docker/ubuntu/Dockerfile` with the verified Ubuntu 26.04 amd64 digest and pinned compiler/repository/tool inputs, clean build stage invoking shared helpers, separate minimal runtime and SDK-consumer verification stages, and a final scratch export of exactly two validated DEBs plus evidence only after all gates pass; do not mount host state/secrets/socket or use privileged Docker.
-- [ ] T025 [P] [US1] Create `packaging/docker/fedora/Dockerfile` with the verified Fedora 45 amd64 digest and pinned compiler/repository/tool inputs, clean build stage invoking shared helpers, separate minimal runtime and SDK-consumer verification stages, and a final scratch export of exactly two validated RPMs plus evidence only after all gates pass; keep parity with Ubuntu and fail unresolved compiler/recipe pins explicitly.
-- [ ] T026 [US1] Implement `packaging/scripts/build-local.sh` accepting a validated target and output directory, checking the actual checkout full revision/tag, passing identity safely to `docker buildx build --platform linux/amd64`, exporting from the validated scratch stage to isolated fresh target paths, rejecting stale/preexisting successful outputs, and preserving BuildKit failure codes; use this exact path from local documentation and CI.
-- [ ] T027 [US1] Add `tools/package/validate-artifacts.sh` as the compatibility wrapper for quickstart's `--ubuntu`, `--fedora`, and `--revision` arguments, dispatching native checks through the matching Docker environment/shared `packaging/scripts/validate-packages.sh` rather than requiring both distro tools on the host; reject missing target directories and metadata/revision mismatches.
-- [ ] T028 [US1] Register lightweight helper/contract/failure coverage in `tests/package/CMakeLists.txt` and `CMakeLists.txt`, and provide explicit container integration entry points for native/install/SDK tests; keep package-producing builds from recursively spawning Docker builds in CTest while requiring full core/helper CTest followed by both clean-container integrations before package success.
-- [ ] T029 [US1] Replace `.github/workflows/cmake-multi-platform.yml` in place with PR and `master` Docker packaging jobs using exactly two complete named target entries and `fail-fast: false`, shared local runner, checkout-consistent full SHA, SHA-pinned Actions, least-privilege read permissions, no secrets/shared writable PR cache/privileged trigger/release publishing, and target-qualified always-visible summaries/logs; do not add uploads until the both-role gates in US2 are wired.
-- [ ] T030 [US1] Run both clean Docker builds through `packaging/scripts/build-local.sh` and T027's wrapper, run all package tests/full CTest and both runtime/SDK integrations, and record package listings/dependency resolution/health/UI/consumer-run/toolchain evidence in `specs/014-docker-linux-packaging/checklists/us1-validation.md`; reject host-generated UI assets or masked runtime dependencies and leave failures blocked rather than marking completion.
-- [ ] T031 [US1] Exercise T009–T012's negative cases, including absent/wrong-format/architecture/revision/role/license payloads and one-target build/test/install/SDK failures, and record nonzero results/no successful exports/remaining-target evidence in `specs/014-docker-linux-packaging/checklists/us1-failure-validation.md`; include malformed inputs and stale-output contamination.
-- [ ] T032 [US1] Inspect an authorized run of `.github/workflows/cmake-multi-platform.yml` for independent initial-target results and a controlled one-target failure/other-target continuation, recording run URLs/job conclusions/overall failure in `specs/014-docker-linux-packaging/checklists/us1-workflow-validation.md`; do not push/create a run without authorization, and report this gate pending if hosted evidence is unavailable.
+- [x] T014 [US1] Add install/export rules in `src/main/cpp/isched/CMakeLists.txt` for `isched_srv` runtime and the existing static `isched` library/public headers in the `devel` component; export `isched::isched` with C++23 and relocatable build/install include/link requirements, retaining default linkage and no producer/cache paths.
+- [x] T015 [US1] Add `packaging/sdk/ischedConfig.cmake.in` and generated package config/version support for `isched::isched`; resolve the actual Conan CMakeDeps target names and required OpenSSL/Boost components without Catch2 or producer paths.
+- [x] T016 [US1] Add `packaging/sdk/conanfile.txt`, `packaging/sdk/conan.lock`, and `packaging/sdk/README.md` for the exact static link dependency closure and compatible consumer ABI/tool activation; ship dependency resolution instructions, exclude test-only dependencies, and explain SDK independence from `isched-runtime`.
+- [x] T017 [US1] Implement `packaging/scripts/collect_licenses.py` to inventory linked Conan and embedded Angular production notices and assemble role-specific license payloads; fail on missing inputs, exclude test/tool-only dependencies, and leave legal interpretation for maintainer review.
+- [x] T018 [US1] Configure CPack component DEB/RPM packaging in `packaging/cmake/Package.cmake` with native package metadata, role-specific paths/names, license/docs, embedded identity, and derived runtime requirements (`dpkg-shlibdeps`/RPM ELF auto-requires); prohibit role confusion, service/data/seed state, and an unsupported SDK-to-runtime dependency.
+- [X] T019 [US1] Wire opt-in packaging, GNUInstallDirs, SDK config/version generation, header export, license collection, and CPack into root `CMakeLists.txt`; make package mode fail unless fresh Angular test/build/embed output is available, with no stale generated-header fallback.
+- [X] T020 [US1] Implement `packaging/scripts/build_target.py` to apply the selected target's pinned tools/profile/lock, run frozen pnpm install and fresh Angular test/build/embed, invoke `configure.py release`, run the complete Release CTest suite and reject zero discovered tests, then build both package roles and collect notices with target-qualified failures.
+- [X] T021 [US1] Implement `packaging/scripts/validate_packages.py` using native DEB/RPM/ELF tools to verify exactly one package per role, internal format, filename, native metadata/version/release/architecture, source SHA/target/role, payload allowlist/notices/dependencies/checksum, and absence of source/cache/test/tool/database/credential/seed content.
+- [X] T022 [US1] Implement `packaging/scripts/verify_runtime.py` to install `isched-runtime` in a fresh exact-release container without build tools, validate declared/loader dependencies, start `/usr/bin/isched_srv` unprivileged with temporary data, check existing GraphQL health and embedded UI/asset responses, bound waits, preserve failure diagnostics, and clean only owned processes/state.
+- [X] T023 [US1] Implement `packaging/scripts/verify_sdk.py` to install only `isched-devel` in a fresh same-target consumer environment, provision the shipped Conan dependency inputs, configure/build/link/run T011's external client against the installed relocatable SDK, and fail on missing dependencies, producer-path leakage, or accidental runtime-package dependence.
+- [X] T024 [P] [US1] Create `packaging/docker/ubuntu/Dockerfile` from the exact pinned Ubuntu 26.04 amd64 image/tool inputs; run shared build/validation helpers, separate minimal runtime and SDK verification stages, and export only the two validated DEBs plus evidence after every gate, without host state/secrets/socket mounts or privileged execution.
+- [X] T025 [P] [US1] Create `packaging/docker/fedora/Dockerfile` from the exact pinned Fedora 45 amd64 image/tool inputs; run the same shared gates and export only the two validated RPMs plus evidence, failing explicitly on unavailable package/compiler/recipe pins and retaining parity with Ubuntu.
+- [X] T026 [US1] Implement `packaging/scripts/build_local.py` with the contract CLI, actual checkout SHA/tag/version validation, explicit `ISCHED_SOURCE_REVISION` and `ISCHED_PACKAGE_VERSION` BuildKit arguments, `linux/amd64` and target Dockerfile selection, isolated fresh output directories, stale-output rejection, and faithful Docker failure status.
+- [X] T027 [US1] Add the documented compatibility wrapper `tools/package/validate_artifacts.py` for `--ubuntu`, `--fedora`, and `--revision`; dispatch to the shared per-target native validator and reject missing directories or mismatched metadata without duplicating validation policy.
+- [X] T028 [US1] Register Python helper/contract tests in `tests/package/CMakeLists.txt` and root `CMakeLists.txt`, and define explicit target-container runtime/SDK integration entry points that do not recursively start Docker package builds from CTest.
+- [X] T029 [US1] Replace `.github/workflows/cmake-multi-platform.yml` with pull-request and `master` push validation using the exact two named targets, `fail-fast: false`, shared local build path, checkout-consistent SHA, SHA-pinned Actions, read-only permissions, and visible target-qualified outcomes; do not upload artifacts before US2's both-role staging gate.
+- [ ] T030 [US1] Run helper/contract tests, full CTest, and the Ubuntu and Fedora local Docker package pipelines through `packaging/scripts/build_local.py` and `tools/package/validate_artifacts.py`; record exact tool, package, native metadata, runtime, GraphQL/UI/asset, and SDK compile/link/run evidence in `specs/014-docker-linux-packaging/checklists/us1-validation.md`.
+- [ ] T031 [US1] Execute the negative package and orchestration cases from T009–T012, including wrong format/architecture/revision/role/release, missing notices, contaminated payload, no output, and one-target build/test/runtime/SDK failure; record target status and suppressed outputs in `specs/014-docker-linux-packaging/checklists/us1-failure-validation.md`.
+- [ ] T032 [US1] Inspect an authorized hosted run of `.github/workflows/cmake-multi-platform.yml` to confirm both initial target results are independently visible and a controlled single-target failure does not hide the other result; record run URLs and conclusions in `specs/014-docker-linux-packaging/checklists/us1-workflow-validation.md`, or leave pending with an authorization/access blocker.
 
-**Checkpoint**: US1 MVP is complete only with both native roles, full test/clean-install/SDK-run gates, and attributable target failure evidence. Downloadable publication is the next increment.
+**Checkpoint**: Both local target pipelines have passed complete build, test, native package, runtime and SDK gates. Hosted workflow evidence remains a separate authorized gate; US1 does not claim workflow artifact downloads.
 
 ## Phase 4: User Story 2 — Retrieve and identify a package (Priority: P2)
 
-**Goal**: Publish independently identifiable role artifacts only from successful, fully validated target outputs.
+**Goal**: Make each successfully validated runtime/developer package separately downloadable and unambiguously identifiable by source revision, target, format, and role.
 
-**Independent Test**: Retrieve all four artifacts from an authorized passing run. Inspect visible names and accompanying/native metadata for role, canonical/native version, full checkout revision, exact distro/release, x86_64/native architecture and format without job-order knowledge; compare downloaded checksums. In a one-target or one-role validation failure, neither role of that failed target is uploaded, the other successful target remains downloadable, and the overall run fails. Separately, one contributor must correctly select each of the four named target/role artifacts and identify distribution, release, architecture, format, and role within one minute per selection using visible artifact metadata only.
+**Independent Test**: From an authorized successful hosted run, retrieve all four artifacts, inspect `metadata.json`, checksums, and native package identity, and identify role/distribution/release/architecture/format independent of matrix order. Verify a failed target uploads neither role while the other successful target's outcome remains distinguishable and the overall workflow fails. Perform SC-005's one-contributor four-selection timing exercise using only visible workflow artifact metadata.
 
 ### Tests for User Story 2
 
-- [ ] T033 [P] [US2] Add `tests/package/test_artifact_identity.py` covering tag/fallback/native version mapping, full revision/role/target naming, metadata/checksum correspondence, reversed matrix ordering, collisions and wrong revisions, malformed inputs, duplicate files and both-role publication eligibility; distinguish untrusted PR/run context from release identity.
-- [ ] T034 [P] [US2] Add `tests/package/test_workflow_contract.py` validating `.github/workflows/cmake-multi-platform.yml` triggers/read permissions/SHA-pinned Actions/exact two-entry matrix/fail-fast setting and upload gating, with failed/skipped/missing-output states unable to satisfy target success and no `continue-on-error`, privileged downstream artifact consumer, or release job.
+- [ ] T033 [P] [US2] Add artifact identity/checksum tests in `tests/package/test_artifact_identity.py` for full SHA and role/target/format/version names, native/canonical version correspondence, exact `metadata.json` fields/checksum, reversed matrix order, collisions, duplicate files, stale/wrong revision, and both-role eligibility.
+- [ ] T034 [P] [US2] Add workflow contract tests in `tests/package/test_workflow_contract.py` for triggers, least-privilege permissions, SHA-pinned Actions, exactly two initial targets, fail-fast behavior, both-role validation-before-upload, unique names and error-on-missing files; reject `continue-on-error`, privileged artifact consumers, and release publication.
 
 ### Implementation for User Story 2
 
-- [ ] T035 [US2] Implement `packaging/scripts/prepare-artifacts.py` consuming validated package identities/evidence to create separate role staging directories and accompanying `artifact.json` with canonical/native version, full source revision, target/role, package filename/SHA-256, validation status and workflow-run/PR-or-push context; require both roles' successful build/test/install/SDK evidence before staging either and reject duplicates or stale metadata.
-- [ ] T036 [US2] Update `.github/workflows/cmake-multi-platform.yml` to stage/downloadable-upload runtime and developer separately through T035 only after the target's complete gate succeeds, use full-dimension immutable artifact names and `if-no-files-found: error`, retain logs without presenting failed outputs as packages, and make upload/staging failures fail the target and overall workflow.
-- [ ] T037 [US2] Document artifact selection/download/checksum and native metadata inspection, version encoding, SDK/runtime independence, and untrusted unsigned validation-output status in `packaging/README.md`; state that artifacts are workflow-run downloads only and show names for both targets and roles without a fixed execution order.
-- [ ] T038 [US2] Retrieve four artifacts from an authorized successful workflow and inspect metadata/native contents/checksums, then inspect a controlled failed-target run for no failed-target role artifacts and continued successful-target publication; record URLs/artifact identities/results in `specs/014-docker-linux-packaging/checklists/us2-validation.md`, reporting lack of hosted access as a pending gate rather than substituting mocked retrieval for real evidence.
-- [ ] T039 [US2] Conduct SC-005's single-contributor selection check for all four named initial Ubuntu/Fedora target × runtime/developer role combinations using only visible workflow artifact metadata; record selected artifacts, distribution, release, architecture, format, role, correctness, and elapsed time per selection in `specs/014-docker-linux-packaging/checklists/artifact-usability.md`, require all four correct within one minute each, and flag missing evidence or any failing selection without requiring recruitment.
+- [ ] T035 [US2] Implement `packaging/scripts/prepare_artifacts.py` to consume only validated target evidence and stage one native package plus contract-compliant `metadata.json` per role with full identity and final-package SHA-256; require both roles' build/test/install/SDK gates before staging either and reject duplicates/stale evidence.
+- [ ] T036 [US2] Add separate runtime/developer artifact uploads to `.github/workflows/cmake-multi-platform.yml` after T035, with immutable full-dimension names, `if-no-files-found: error`, target-specific logs/results, and failure propagation for staging/upload; do not present invalid or failed-target packages as successful outputs.
+- [ ] T037 [US2] Document workflow-run-only download, artifact naming/selection, metadata/checksum/native package inspection, and unsigned validation-output status in `packaging/README.md`; include examples for both targets and roles that do not rely on matrix order or imply formal release publication.
+- [ ] T038 [US2] Using separately authorized hosted runs, retrieve and inspect all four artifacts from a passing run and a controlled failed-target run, verify package checksums/metadata/target isolation and no failed-target role upload, and record URLs/identities/results in `specs/014-docker-linux-packaging/checklists/us2-validation.md`; if unauthorized or inaccessible, record the blocker and leave the gate pending.
+- [ ] T039 [US2] Have the project's single contributor perform SC-005 on all four initial target/role artifacts using only visible workflow metadata; record selected artifact, correctness, target dimensions, role, and elapsed seconds in `specs/014-docker-linux-packaging/checklists/artifact-usability.md` and require four correct selections at no more than 60 seconds each.
 
-**Checkpoint**: US2 adds four retrievable, distinct artifacts with fail-closed publication and verified single-contributor evidence for all four target/role selections.
+**Checkpoint**: Validated packages are retrievable and identifiable, with hosted publication and the actual human selection gate evidenced rather than assumed.
 
 ## Phase 5: User Story 3 — Extend the supported target set (Priority: P3)
 
-**Goal**: Demonstrate a data-driven target addition without relabeling, replacing, or suppressing the original outputs.
+**Goal**: Demonstrate data-driven support for a separately identified additional Linux target without relabeling or changing the committed Ubuntu/Fedora identities.
 
-**Independent Test**: Use an isolated temporary matrix/target definition containing the two originals and one separately verified supported additional release/architecture/format tuple. Build/test/install/SDK-verify it and show a distinct artifact while original identity snapshots remain unchanged. Reject duplicate/incomplete/unsupported definitions. Restore the production matrix to exactly the two agreed initial targets.
+**Independent Test**: Add a temporary, independently pinned and compatibility-verified target definition; validate/build/test/package it through the shared target path and show a distinct output while the original two identities and outputs remain unchanged. Reject incomplete, duplicate, unsupported, or unverified inputs, then restore the committed production target set to exactly two entries. A schema-only fixture is not SC-004 evidence.
 
 ### Tests for User Story 3
 
-- [ ] T040 [P] [US3] Add `tests/package/test_target_extension.py` with immutable original-target identity snapshots, order-independent three-target generation, duplicate/incomplete/unsupported tuple rejection, and a temporary additional-target fixture definition outside `packaging/targets.json`; require verified inputs before enabling its real build and never count schema-only simulation as SC-004 build evidence.
+- [ ] T040 [P] [US3] Add `tests/package/test_target_extension.py` with immutable snapshots of the Ubuntu/Fedora identities, order-independent three-target identity/matrix behavior, and duplicate/incomplete/unsupported input rejection using a separate `tests/package/fixtures/additional-target.json`; gate real execution on verified target inputs.
 
 ### Implementation for User Story 3
 
-- [ ] T041 [US3] Generalize target loading/matrix emission in `packaging/scripts/package_identity.py`, `packaging/scripts/build-local.sh`, and `.github/workflows/cmake-multi-platform.yml` around validated `packaging/targets.json` records and shared format handlers; keep the default exactly two targets, permit an explicitly supplied temporary test target set, and fail unsupported builders/architectures/format combinations rather than adding hidden distro branches or altering original names.
-- [ ] T042 [P] [US3] Add `packaging/docs/adding-targets.md` describing required tuple/image/compiler/repository/lock/ABI/native-format/runtime/SDK/license gates, digest refresh policy, and temporary representative-target selection/verification procedure; explain how to preserve the original identity snapshots and keep experimental support out of the initial production matrix.
-- [ ] T043 [US3] Select and verify one supported additional target with complete pinned inputs in `tests/package/fixtures/additional-target.json`, run an isolated three-target build/publication experiment with full CTest/runtime/SDK checks, and record distinct output plus unchanged original identities and restored two-entry production configuration in `specs/014-docker-linux-packaging/checklists/us3-validation.md`; require authorization for hosted evidence and block SC-004 if only fixture/schema tests are available.
+- [ ] T041 [US3] Generalize `packaging/scripts/package_identity.py`, `packaging/scripts/build_local.py`, and `.github/workflows/cmake-multi-platform.yml` to consume validated target records and reusable format handlers, retaining exactly two default production entries and failing unsupported builders/architectures/formats rather than adding silent distro-specific fallbacks.
+- [ ] T042 [P] [US3] Document the target-addition checklist in `packaging/docs/adding-targets.md`, covering release/image digest, compiler/OS package pins, locks/ABI, native format, runtime/SDK/license gates, identity snapshots, and how to keep experiments out of `packaging/targets.json`'s initial two-target production set.
+- [ ] T043 [US3] Select a separately pinned compatible target in `tests/package/fixtures/additional-target.json`, run the isolated additional-target build/test/package/runtime/SDK experiment, prove original target identity snapshots remain unchanged and restore the two-entry `packaging/targets.json`; record evidence or compatibility/authorization blockers in `specs/014-docker-linux-packaging/checklists/us3-validation.md`.
 
-**Checkpoint**: Target expansion is proven, not merely described, and the committed initial matrix is unchanged.
+**Checkpoint**: A real additional target experiment demonstrates extension while the committed initial matrix remains exactly Ubuntu 26.04 and Fedora 45.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-**Purpose**: Close documentation, constitution/threat-model evidence, full regression gates and handoff without commits.
+**Purpose**: Close docs, repository agent context, security/clean-code review, final regression, and evidence handoff.
 
-- [ ] T044 Update `specs/014-docker-linux-packaging/quickstart.md` and `packaging/README.md` with executable shared local commands, revision/output handling, both-target native validation and runtime/SDK build/link/run instructions, pinned input refresh/blocker guidance, and optional `act` guidance explaining Linux Docker prerequisites and hosted artifact-service limitations; keep direct Docker sufficient and never treat `act` as hosted retrieval evidence.
-- [ ] T045 [P] Reconcile implemented mitigations with `specs/014-docker-linux-packaging/threat-model.md` and the existing feature summary in `docs/security-threat-model.md`, recording evidence for triggers/permissions/pins/cache isolation/BuildKit output scoping/invalid payload rejection/runtime closure/SDK path hygiene/no seed or credentials/license inventory and residual risks; preserve unrelated dirty summary content.
-- [ ] T046 Perform a focused constitution/clean-code review of `packaging/scripts/`, `packaging/cmake/Package.cmake`, `packaging/sdk/`, `configure.py`, and `.github/workflows/cmake-multi-platform.yml`, recording findings/resolutions in `specs/014-docker-linux-packaging/checklists/implementation-review.md`; verify small single-purpose helpers, data-driven target dispatch, C++23/RAII fixture compliance, documented system dependencies and no runtime/API/UI behavior changes or gratuitous hot-path abstractions.
-- [ ] T047 Run the complete updated `cmake-build-debug` CTest suite with `ctest --output-on-failure` (no regex exclusions, skips-as-success, or zero-test success), both clean target Release/full-CTest package pipelines and all native/runtime/SDK/failure/extension checks after final changes, and record exact revision/commands/test counts/outcomes in `specs/014-docker-linux-packaging/checklists/final-validation.md`; leave the handoff blocked on any failure and do not commit, push, or merge.
-- [ ] T048 Produce FR-001–FR-010 and SC-001–SC-005 evidence/remaining-blocker traceability in `specs/014-docker-linux-packaging/checklists/completion-evidence.md`, distinguishing implemented/automated/hosted/human gates, confirming production has exactly two targets/four valid role artifacts, and recording final dirty-file status for the parent's eventual full-CTest-green artifact commit; do not claim completion for unavailable hosted or human evidence.
+- [ ] T044 Update `specs/014-docker-linux-packaging/quickstart.md` and `packaging/README.md` with executable local build/validation, native inspection, runtime install and SDK compile/link/run instructions, pin/blocker guidance, and hosted-vs-local verification boundaries; retain Docker as the required path and do not claim current commands have passed.
+- [ ] T045 [P] Update `.github/agents/copilot-instructions.md` through the repository's agent-context script to reflect the settled packaging paths, test/evidence gates, and no-host/no-seed/no-secret rules; preserve existing manual additions and verify only the intended generated section changed.
+- [ ] T046 [P] Reconcile implemented controls and evidence in `specs/014-docker-linux-packaging/threat-model.md` and the feature entry in `docs/security-threat-model.md`, including workflow triggers/permissions, immutable pins, cache boundaries, BuildKit output scoping, payload validation, runtime/SDK checks, no secrets/seed state, notices, and residual risks; preserve unrelated summary content.
+- [ ] T047 Perform the constitution and clean-code review of `packaging/scripts/`, `packaging/cmake/Package.cmake`, `packaging/sdk/`, `configure.py`, and `.github/workflows/cmake-multi-platform.yml`; record findings/resolutions in `specs/014-docker-linux-packaging/checklists/implementation-review.md`, covering focused helpers, data-driven dispatch, C++23/RAII fixtures, justified system dependencies, and no runtime/API/UI changes or gratuitous hot-path abstraction.
+- [ ] T048 Run the complete `cmake-build-debug` CTest suite with `ctest --output-on-failure` and no exclusions/zero-test success, both target Release/full-CTest package flows, all package/runtime/SDK/failure/extension checks, and record exact revision/commands/counts/outcomes in `specs/014-docker-linux-packaging/checklists/final-validation.md`; leave handoff blocked on any failure and do not commit, push, or merge.
+- [ ] T049 Trace FR-001–FR-010 and SC-001–SC-005 to actual implementation/automated/hosted/human evidence in `specs/014-docker-linux-packaging/checklists/completion-evidence.md`; distinguish pending gates, verify the production matrix and role artifacts, and record dirty-file/test status without claiming unavailable evidence complete.
 
 ## Dependencies & Execution Order
 
@@ -143,17 +138,17 @@ New packaging helpers belong in `packaging/scripts/`; SDK inputs in `packaging/s
 ```text
 Setup T001–T003
   └─ Foundation T004–T008
-       └─ US1 T009–T032 (MVP: tested, installable local packages + CI results)
-            └─ US2 T033–T039 (validated role artifact retrieval/selection)
-                 └─ US3 T040–T043 (temporary real target expansion)
-                      └─ Polish T044–T048 (final gates and parent handoff)
+       └─ US1 T009–T032 (MVP: validated local packages and target CI results)
+            └─ US2 T033–T039 (downloadable artifacts and measured selection)
+                 └─ US3 T040–T043 (temporary real target extension)
+                      └─ Polish T044–T049 (final evidence and handoff)
 ```
 
-US1 has no story prerequisite beyond Foundation. US2 genuinely depends on US1's validated packages/workflow. US3's real publication experiment depends on US1's builders and US2's artifact contract; its fixture/doc authoring may be prepared earlier, but its completion gate cannot. Stories are independently **testable increments**, not falsely advertised as dependency-free.
+US1 depends on the shared foundation. US2 follows US1's validated package/workflow contract so it can safely stage and retrieve artifacts. US3's real experiment uses the shared builder and artifact identity established by earlier stories; its committed initial target set must not change. Story phases are separately testable increments, but these real implementation/evidence prerequisites are intentional.
 
 ### Task prerequisites
 
-Every row is a dependency, not merely list order. A comma means all named prerequisites. Phase gates apply in addition to these within-phase edges. `[P]` never overrides a dependency or same-file serialization.
+A listed prerequisite is a real dependency; phase gates also apply. `[P]` does not override any edge or same-file ownership.
 
 | Task(s) | Prerequisite(s) |
 |---|---|
@@ -162,23 +157,23 @@ Every row is a dependency, not merely list order. A comma means all named prereq
 | T004 | T002, T003 |
 | T005, T006, T007 | T004 |
 | T008 | T005, T006, T007 |
-| T009, T010, T011, T012, T013 | Foundation complete (T004–T008) |
+| T009–T013 | Foundation complete (T004–T008) |
 | T014 | T013 |
 | T015 | T014 |
-| T016 | T013, T006 |
+| T016 | T006, T013 |
 | T017 | T016 |
-| T018 | T007, T014, T015, T016, T017 |
+| T018 | T007, T014–T017 |
 | T019 | T018 |
 | T020 | T008, T019 |
 | T021 | T009, T018 |
 | T022 | T010, T021 |
-| T023 | T011, T014, T015, T016, T021 |
-| T024, T025 | T002, T004, T005, T006, T020, T021, T022, T023 |
+| T023 | T011, T014–T016, T021 |
+| T024, T025 | T005, T006, T020–T023 |
 | T026 | T012, T024, T025 |
 | T027 | T021, T026 |
-| T028 | T009, T010, T011, T012, T019, T027 |
+| T028 | T009–T012, T019, T027 |
 | T029 | T026, T028 |
-| T030 | T027, T028, T029 |
+| T030 | T027–T029 |
 | T031 | T030 |
 | T032 | T029, T031; authorized hosted run |
 | T033, T034 | US1 complete |
@@ -186,71 +181,58 @@ Every row is a dependency, not merely list order. A comma means all named prereq
 | T036 | T034, T035 |
 | T037 | T036 |
 | T038 | T036, T037; authorized hosted passing/failing runs |
-| T039 | T038; the project's single contributor performs all four target/role selections |
-| T040 | US2 complete |
+| T039 | T038; one contributor performs all four real selections |
+| T040, T042 | US2 complete |
 | T041 | T040 |
-| T042 | US2 complete; existing shared interface contract |
-| T043 | T040, T041, T042; verified extra target inputs and authorized publication experiment |
-| T044, T045 | US3 complete |
-| T046 | T044, T045 |
-| T047 | T046 |
-| T048 | T047; hosted/human evidence or explicit blocker accounting |
+| T043 | T041, T042; compatible pinned target, and authorization if hosted evidence is used |
+| T044–T046 | US3 complete |
+| T047 | T044–T046 |
+| T048 | T047 and all required local/target checks available |
+| T049 | T048; hosted/human gates evidenced or explicitly recorded as blockers |
 
 ### Parallel opportunities and examples
 
-- **Setup**: After T001, T002 (`.dockerignore`) and T003 (`packaging/README.md`) can proceed together.
-- **Foundation**: After T004, T005 (Python/tool pins), T006 (Conan lock/profiles), and T007 (identity helper) use different files and can proceed together. T008 waits for their outputs.
-- **US1 example — foundation complete**: Author T009 native contract tests, T010 runtime tests, T011 SDK fixture, T012 failure tests, and T013 public-header inventory concurrently. Then serialize target CMake export/config wiring; T016/T017's SDK/license branch can run alongside T014/T015 once the inventory is settled. After shared helpers pass, T024 Ubuntu and T025 Fedora Dockerfiles run in parallel. Actual target builds use isolated output directories and may run concurrently when resources permit.
-- **US2 example — US1 complete**: T033 artifact identity tests and T034 workflow contract tests can be authored concurrently. T035 staging implementation follows T033; T036 owns workflow edits and waits for both. Do not edit workflow YAML concurrently with US1 or US3.
-- **US3 example — US2 complete**: T040 target-extension tests and T042 target-maintenance documentation can run concurrently; T041 generalization follows T040 and T043 waits for both branches plus verified extra inputs.
-- **Polish**: T044 quickstart/local docs and T045 threat-model evidence touch different files. T046 review, T047 final tests and T048 handoff are serial gates.
+- **Setup/Foundation**: After T001, T002 and T003 use different files. After T004, T005 (bootstrap locks), T006 (Conan graph/profiles), and T007 (identity helper/tests) can proceed independently; T008 waits for all three.
+- **US1**: After Foundation, author T009–T013 in parallel. Then SDK/CMake changes are ordered T014→T015, while T016/T017 form the separate dependency/license branch. Once shared gates/helpers are ready, Ubuntu T024 and Fedora T025 Dockerfiles can be authored independently. Do not run same-target builds into shared output paths.
+- **US2**: After US1, T033 and T034 can be authored in parallel; T035 follows identity tests, and T036 owns workflow edits only after both-role staging is ready. T037 follows the final artifact interface.
+- **US3**: After US2, T040 and T042 touch separate test/documentation files and can proceed in parallel; T041 follows extension tests and T043 waits for compatible pins and the builder/documentation paths.
+- **Polish**: Once US3 is complete, T045 and T046 can be done in parallel on distinct files; T044 is local procedure documentation. T047 and then T048/T049 are serial review/validation/evidence gates.
 
 ## Requirements and entity mapping
 
-| Requirement / entity | Primary task coverage |
+| Requirement/entity | Primary task coverage |
 |---|---|
-| FR-001, FR-003, FR-004; initial Build Target | T004–T006, T020, T024–T030 |
-| FR-002, FR-008; target/revision identity | T007, T018, T021, T029, T033, T035–T038 |
-| FR-005; Runtime and Developer Package Roles | T009–T011, T013–T025, T030 |
-| FR-006; Workflow Run status and failure isolation | T012, T020–T032, T034, T036, T038 |
-| FR-007; downloadable Package Artifact | T035–T038 |
-| FR-009; stable target extension | T040–T043 |
-| FR-010; built → validated → uploaded transition | T009–T012, T021–T023, T030–T031, T033–T036 |
-| SC-001; both roles × both targets pass | T030, T038, T047 |
-| SC-002; target outcome visibility | T029, T032, T036, T038 |
-| SC-003; valid-only retrievable artifacts | T034–T038 |
-| SC-004; demonstrated additional target | T040–T043 |
-| SC-005; one contributor, four correct target/role selections within one minute each | T039 |
-| Supply-chain/runtime/SDK/license threat mitigations | T002, T004–T006, T013–T025, T029, T031, T034–T037, T045 |
-| Full CTest before completion/eventual commit | T020, T028, T030, T043, T047–T048 |
+| FR-001, FR-003, FR-004; initial Build Targets | T004–T006, T020, T024–T032 |
+| FR-002, FR-008; source/target identity | T007, T026, T033, T035–T038 |
+| FR-005; Runtime and Developer Package Roles / SDK Interface | T009–T011, T013–T023, T030 |
+| FR-006; independent Workflow Run results | T012, T029–T032, T034, T036, T038 |
+| FR-007; downloadable Package Artifacts | T033–T039 |
+| FR-009; stable extensible target set | T040–T043 |
+| FR-010; validated-before-upload transition | T009, T012, T018, T021–T023, T030–T036 |
+| SC-001 | T020–T023, T030, T048 |
+| SC-002 | T029, T032, T036, T038 |
+| SC-003 | T021, T030–T031, T035–T038 |
+| SC-004 | T040–T043 |
+| SC-005 | T039 (human timing evidence only) |
+| Security, license, and clean-code controls | T002, T005–T006, T017–T025, T029, T034–T037, T045–T047 |
 
 ## Implementation Strategy
 
-### MVP first
+### MVP first — User Story 1
 
-Complete Setup and Foundation, then US1. Demonstrate both Docker targets producing runtime and SDK packages after clean UI/backend builds, full CTest, native payload checks, installed GraphQL/UI smoke and external SDK compile/link/run. Stop on pin/toolchain/test blockers; a copied executable or archive is not an MVP. US1 does not yet claim downloadable artifacts or full feature completion.
+Complete Setup and Foundation, then US1. Demonstrate both pinned Docker targets producing valid runtime and SDK packages after fresh UI/backend builds, full nonempty CTest, native payload checks, clean GraphQL/UI runtime smoke, and an external SDK compile/link/run. Stop and report pin/toolchain/recipe/ABI blockers; a copied executable/archive is not an MVP. US1 does not claim downloadable artifact verification or completion of hosted/human acceptance gates.
 
 ### Incremental delivery
 
-1. US1 supplies validated local packages and CI target results.
-2. US2 adds fail-closed separate uploads, actual retrieval/checksum evidence, and single-contributor selection measurement for all four initial target/role combinations.
-3. US3 proves one temporary future target without changing the agreed production target set.
-4. Polish closes threat-model/review/regression/evidence gaps. Parent receives uncommitted changes and exact test status; no implementation task instructs a commit.
+1. Setup + Foundation: stabilize target inputs and shared identity/build helpers.
+2. US1: deliver independently validated local target packages and target-specific workflow outcomes.
+3. US2: add separate fail-closed workflow downloads, checksum/metadata inspection, authorized hosted evidence, and the four human artifact-selection measurements.
+4. US3: demonstrate an independently pinned additional target temporarily, preserving the original production identities.
+5. Polish: update procedures/context, review security and clean-code evidence, run final full gates, and report any unavailable hosted or human checks as blockers. Do not commit or publish as part of these tasks.
 
-### Readiness and completion policy
+### Conditional evidence gates
 
-Task generation is complete when this file is structurally validated. Implementation can begin at T001; availability/compatibility/encoding decisions are early explicit gates. Story completion requires its independent test and all mandatory evidence. Docker-only local success does not prove hosted matrix/upload behavior; automated artifact names do not prove SC-005's four single-contributor selections. Mark unavailable hosted access, missing selection evidence, or failed pins/builds/tests as blockers in the evidence files, retain unchecked work, and do not silently reduce scope. No additional contributors are required.
-
-## Task totals
-
-| Phase | Tasks |
-|---|---:|
-| Setup | 3 |
-| Foundation | 5 |
-| US1 (P1) | 24 |
-| US2 (P2) | 7 |
-| US3 (P3) | 4 |
-| Polish | 5 |
-| **Total** | **48** |
-
-**Parallel-marked tasks**: 16. Actual parallel execution is limited by the prerequisite table and shared-file ownership.
+- Target Python/Conan/compiler/OS dependency compatibility, native DEB/RPM version parsing, complete package builds, both clean runtime installs, and SDK consumer runs require actual target execution; existing lock/profile/file presence is not proof.
+- Hosted workflow and artifact-download/failure-isolation evidence requires explicit authorization and real workflow-run URLs; local workflow simulation is not hosted evidence.
+- SC-005 requires one real contributor's four artifact selections and recorded timings; automation and naming tests cannot satisfy it.
+- US3 requires an additional independently pinned compatible target; fixture/schema tests alone do not satisfy SC-004. Preserve unchecked tasks and record blockers where gates cannot be performed.

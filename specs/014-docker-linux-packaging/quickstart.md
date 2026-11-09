@@ -1,6 +1,9 @@
 # Quickstart: Linux Package Build Validation
 
-**Status**: Planning reference. The paths below describe the implementation this plan calls for and become executable when the follow-on implementation tasks are complete. No package Dockerfiles or package scripts are created by this planning phase.
+**Status**: Planning reference refreshed 2026-11-09. Partial identity/bootstrap scripts, target inputs, profiles and locks already exist in the dirty worktree. The build/validation commands below describe interfaces that are not yet all implemented; this planning run creates no product/package code and does not claim successful package builds.
+
+**Repository root**: `/home/groby/dev/isched`. Commands below run from this
+absolute checkout path; change it explicitly when using a different checkout.
 
 ## Prerequisites
 
@@ -12,42 +15,54 @@
 
 ## Local package build
 
-Build both targets directly with Docker BuildKit, exporting package outputs from the final scratch stage to distinct directories:
+After implementation, use the shared Python wrapper to validate the actual
+checkout revision, derive its canonical version and build each target with
+Docker BuildKit, exporting packages to distinct directories:
 
 ```bash
-mkdir -p dist/ubuntu-26.04 dist/fedora-45
+cd /home/groby/dev/isched
+REVISION="$(git rev-parse HEAD)"
 
-docker buildx build \
-  --platform linux/amd64 \
-  --file packaging/docker/ubuntu/Dockerfile \
-  --output type=local,dest=dist/ubuntu-26.04 \
-  .
+python3 /home/groby/dev/isched/packaging/scripts/build_local.py \
+  --target ubuntu-26.04 --revision "$REVISION" \
+  --output /home/groby/dev/isched/dist/ubuntu-26.04
 
-docker buildx build \
-  --platform linux/amd64 \
-  --file packaging/docker/fedora/Dockerfile \
-  --output type=local,dest=dist/fedora-45 \
-  .
+python3 /home/groby/dev/isched/packaging/scripts/build_local.py \
+  --target fedora-45 --revision "$REVISION" \
+  --output /home/groby/dev/isched/dist/fedora-45
 ```
 
-The Dockerfiles use the immutable base-image references in [research.md](research.md), a pinned Release build, the Conan lockfile, and exact tool versions. They should run the full CTest suite and validate both roles before exposing either package in the exported directory.
+The wrapper invokes target Dockerfiles with `--platform linux/amd64`, explicit
+`ISCHED_SOURCE_REVISION` and `ISCHED_PACKAGE_VERSION` build arguments, and
+BuildKit local output export. `.git` is excluded from Docker context; do not
+expect `git describe` to work inside it. The revision is the checked-out commit,
+including GitHub's merge commit for a PR merge checkout.
+
+The Dockerfiles use the immutable base-image references in [research.md](research.md), a pinned Release build, the Conan lockfile, and exact tool versions. They must require fresh Angular test/build/embed output, run the full nonempty CTest suite and validate both roles before exposing either package in the exported directory. Missing pins or incompatible recipes are errors, not permission to change releases/tool versions.
 
 ## Inspect package identity and payload
 
 After implementation, use the native package tooling and the repository's package-validation helper:
 
 ```bash
-tools/package/validate-artifacts.sh \
-  --ubuntu dist/ubuntu-26.04 \
-  --fedora dist/fedora-45 \
+cd /home/groby/dev/isched
+python3 /home/groby/dev/isched/tools/package/validate_artifacts.py \
+  --ubuntu /home/groby/dev/isched/dist/ubuntu-26.04 \
+  --fedora /home/groby/dev/isched/dist/fedora-45 \
   --revision "$(git rev-parse HEAD)"
 ```
 
 Expected output: two valid packages per directory. The report must show role, package version, source SHA, exact target release, native architecture, format, expected content paths, and validation status. The command must return non-zero for a missing/empty file, wrong extension or internal format, wrong architecture/release, missing required payload/license, source-revision mismatch, or unexpected seed/config data.
 
+Each uploaded role contains one package plus `metadata.json`, including its
+SHA-256 and the identity fields defined in the contract. Compare that metadata
+with the package's embedded identity and native metadata. Snapshot RPM
+`Version=0.0.0, Release=0.git.<12-sha-digits>` must map back to canonical
+`0.0.0+git.<12-sha-digits>`; DEB uses the canonical version directly.
+
 ## Verify installed runtime in clean containers
 
-Install the runtime package in a fresh container based on the same target release without build tools. Use a temporary data directory, do not seed, and confirm the server process starts and serves its existing embedded WebUI/GraphQL endpoint. Verify all ELF shared-library dependencies resolve using the target's native loader tooling. Remove the container and its temporary state after the check.
+Install the runtime package in a fresh container based on the same target release without build tools. Run the server unprivileged with a temporary writable data directory, do not seed, and confirm the server process starts and serves its existing embedded WebUI, a referenced asset and GraphQL health response. Verify all ELF shared-library dependencies resolve using the target's native loader tooling. Remove owned processes, the container and its temporary state after the check, including on failure/timeout.
 
 The test is deliberately not a permanent system service or a host installation. It verifies package-manager installation and runtime closure without relying on the packaging build container's compiler and development libraries.
 
@@ -59,12 +74,24 @@ Install the `isched-devel` package in a fresh same-target container or disposabl
 2. Calls `find_package(isched CONFIG REQUIRED)`.
 3. Links the exported `isched::isched` target.
 4. Compiles and links successfully without source-tree paths or build-directory artifacts.
+5. Calls an existing out-of-line symbol, for example
+   `isched::v0_0_1::backend::is_lifecycle_trace_enabled()`, and runs successfully
+   without installing the `isched-runtime` executable package.
 
-This check is required to prove SDK usability; merely finding `libisched.a` and headers is not sufficient.
+The installed public header closure is `isched.hpp`,
+`backend/isched_Server.hpp`, `backend/isched_common.hpp` and
+`shared/config/isched_config.hpp` beneath `${includedir}/isched`. Use the
+shipped Conan manifest/lock/profiles and compatible compiler/ABI for the static
+link dependencies enumerated in `plan.md`; do not rely on producer Conan cache
+paths. This check is required to prove SDK usability; merely finding
+`libisched.a` and headers, or compiling without calling a library symbol, is not
+sufficient.
 
 ## GitHub Actions verification
 
-Open a pull request or push to `master`. For each target, inspect the independent job result and verify:
+When separately authorized, inspect a hosted run caused by an approved pull
+request or push to `master`. Do not push or trigger a workflow merely to complete
+this planning pass. For each target, inspect the independent job result and verify:
 
 - Build and full CTest both complete successfully.
 - Both package roles pass target-native metadata/content and clean-install checks before artifact upload.
@@ -72,6 +99,21 @@ Open a pull request or push to `master`. For each target, inspect the independen
 - A failure in either target remains visible without hiding the other target's outcome; the overall run is not green if either target fails.
 - Artifacts are available only from that workflow run; there is no formal release publication.
 
+Controlled invalid fixtures must prove target-specific failure and suppression
+of both uploads after validation failure. Upload failure itself must fail the
+target even if one already validated role artifact was uploaded. For US3, use a
+temporary, separately pinned target experiment without changing the two-entry
+initial production matrix.
+
 ## Single-contributor artifact selection (SC-005)
 
 One contributor verifies all four named target/role combinations: Ubuntu 26.04 runtime, Ubuntu 26.04 developer, Fedora 45 runtime, and Fedora 45 developer. For each selection, use only the workflow run's visible artifact metadata to select the correct artifact and identify its distribution, distribution version, architecture, package format, and role within one minute. Record each selection's correctness and elapsed time in `checklists/artifact-usability.md`; all four must pass. No additional contributors or recruitment are required. This is a verification procedure, not a claim that the check has already passed.
+
+## Planning handoff
+
+No product build, native package installation, hosted workflow or human timing
+check was performed in this refresh. Existing implementation-readiness notes
+remain historical evidence. Target Python/Conan/compiler compatibility, complete
+dependency locks, both-target clean integrations, hosted evidence and SC-005
+remain completion gates. Stop affected implementation if they fail; do not
+reinterpret the design-level constitution PASS as implementation approval.

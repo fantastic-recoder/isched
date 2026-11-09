@@ -38,13 +38,15 @@ One native installable package plus its uploaded workflow artifact.
 |---|---|---|
 | `role` | enum | `runtime` or `developer` |
 | `package_name` | string | `isched-runtime` or `isched-devel` |
-| `version` | string | Exact conventional `vMAJOR.MINOR.PATCH` tag version; otherwise non-release `0.0.0+git.<short-sha>` |
+| `version` | string | Version from an unambiguous exact-at-checkout `vMAJOR.MINOR.PATCH` tag; otherwise `0.0.0+git.<first-12-sha-digits>` |
+| `native_version` / `native_release` | strings | DEB version equals canonical version, no separate release; tagged RPM uses semver / `1`, fallback RPM uses `0.0.0` / `0.git.<first-12-sha-digits>` |
 | `source_revision` | string | Full Git SHA, embedded in metadata and artifact identity |
 | `distribution` / `distribution_version` | string | Inherited from Build Target |
 | `architecture` | string | Native package metadata checked against x86_64 |
 | `format` | enum | Native DEB or RPM only |
 | `payload_manifest` | file list | Role-specific required files; no path outside expected package prefixes |
 | `license_payload` | file list | Project MPL-2.0 license plus relevant linked/embedded dependency notices |
+| `package_sha256` | lowercase hex string | 64 digits computed from the final package bytes and included in accompanying metadata |
 | `validation_state` | enum | `built` → `validated` → `uploaded`; a failed validation cannot transition to `uploaded` |
 
 **Artifact identity**: `isched-{role}-{version}-{distro}-{distro-version}-x86_64-{format}-{full-sha}`. Artifact names do not depend on matrix ordering.
@@ -61,7 +63,20 @@ One GitHub Actions run tied to one source revision and trigger.
 | `target_status` | enum | `pending`, `building`, `validating`, `succeeded`, `failed` |
 | `uploaded_artifacts` | collection | Separate runtime and developer artifacts for a target, present only after both package files validate |
 
-**State transitions**: A target moves from `pending` to `building`, then `validating`; it becomes `succeeded` only after build, complete CTest, both-role package validation, clean runtime install/smoke, and SDK consumer checks pass. Any stage may transition the target to `failed`. With `fail-fast: false`, one target's failure does not suppress the other target's result. The overall run succeeds only when all required targets succeed.
+**State transitions**: A target moves from `pending` to `building`, then `validating`; it becomes `succeeded` only after build, complete nonempty CTest, both-role package validation, clean runtime install/smoke, SDK consumer compile/link/run, and both artifact uploads succeed. Any stage, including upload, may transition the target to `failed`. With `fail-fast: false`, one target's failure does not suppress the other target's result. The overall run succeeds only when all required targets succeed. Both role validations precede either upload; upload operations are not transactional, so an upload error can leave one validated artifact downloadable while the target remains failed.
+
+### SDK Interface
+
+The developer role installs `isched.hpp`, `backend/isched_Server.hpp`,
+`backend/isched_common.hpp`, and `shared/config/isched_config.hpp` beneath
+`${includedir}/isched`, plus `libisched.a`, relocatable config/targets for
+`isched::isched`, and the consumer Conan manifest/lock/profiles.
+
+**Relationships**: The exported target requires C++23, public Boost.URL headers,
+and the library's static transitive link closure. Exact dependency versions and
+target names are specified in `plan.md`; Catch2 and producer build paths are
+not part of the installed SDK link interface. Consumer dependencies are resolved
+under its own compatible Conan environment, not the producer cache.
 
 ## Package identity invariants
 
@@ -72,3 +87,5 @@ One GitHub Actions run tied to one source revision and trigger.
 5. Developer payload supplies the library, public header closure, build-system import, and dependency-resolution instructions.
 6. No artifact contains initialized runtime data, a seeded administrator, user credentials, signing keys, or workflow secrets.
 7. Invalid or missing package outputs are failures and cannot be uploaded as successful artifacts.
+8. Embedded and accompanying identity agree with the actual checked-out source SHA, including PR merge checkouts. Build arguments transport that identity into a Git-free Docker context.
+9. Canonical and native version fields round-trip without changing source identity; native format parsing and ordering require tests.

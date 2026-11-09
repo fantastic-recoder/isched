@@ -1,10 +1,10 @@
 # Build directories
-cmake-build-debug/
+cmake-build-*/
 build/
 bin/
 obj/
 out/
-node_modules/
+**/node_modules/
 
 # Git and version control
 .git/
@@ -56,8 +56,42 @@ doxygen/
 
 # Conan cache and temp files
 .conan/
-conandata.yml
 conanbuild.sh
 conanrun.sh
 conaninfo.txt
 graph_info.json
+
+# Never reuse generated assets or a developer's dependency cache.
+src/main/cpp/isched/backend/isched_ui_assets.hpp
+**/__pycache__/
+.conan2/
+**/.conan2/
+dist/
+packaging/output/
+.cache/
+
+# Application state and credentials are not build inputs.
+data/
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+**/*.sqlite3-*
+**/*.pem
+**/*.key
+**/.env*
+**/credentials*
+**/secrets/
+.ssh/
+.aws/
+.kube/
+.npmrc
+**/.npmrc
+.netrc
+.pypirc
+
+# Preserve dependency manifests/locks and license sources. Git is excluded:
+# callers must pass the checked-out SHA and canonical version explicitly.
+.DS_Store
+Thumbs.db

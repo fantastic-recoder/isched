@@ -1,4 +1,5 @@
 # Reconfigure when the embedded GraphQL schema changes.
+include(GNUInstallDirs)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/backend/isched_builtin_server_schema.graphql")
 # Reads the file and embeds it in a C string.
@@ -60,11 +61,45 @@ add_library(isched
         backend/isched_srv_cli.hpp
         backend/isched_srv_cli.cpp
 )
-target_link_libraries(isched PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
-        jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::url Boost::system Boost::thread Boost::program_options sago::platform_folders Boost::filesystem ${CMAKE_DL_LIBS})
-target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog_INCLUDE_DIRS} "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(isched
+        PUBLIC Boost::url
+        PRIVATE taocpp::pegtl httplib::httplib openssl::openssl spdlog::spdlog nlohmann_json::nlohmann_json
+                jwt-cpp::jwt-cpp SQLite::SQLite3 Boost::system Boost::thread Boost::program_options
+                sago::platform_folders Boost::filesystem ${CMAKE_DL_LIBS})
+target_include_directories(isched
+        PUBLIC
+            $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/main/cpp>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        PRIVATE ${pegtl_INCLUDE_DIRS} ${stdlog_INCLUDE_DIRS} "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_features(isched PUBLIC cxx_std_23)
 
 add_executable(isched_srv backend/isched_srv_main.cpp)
 target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog Boost::url openssl::openssl)
 target_include_directories(isched_srv PRIVATE ${openssl_INCLUDE_DIRS})
 
+if(ISCHED_ENABLE_PACKAGING)
+    include("${PROJECT_SOURCE_DIR}/packaging/sdk/public-headers.cmake")
+
+    set_target_properties(isched PROPERTIES EXPORT_NAME isched)
+    install(TARGETS isched
+            EXPORT ischedTargets
+            ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT devel)
+    install(TARGETS isched_srv
+            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT runtime)
+    install(EXPORT ischedTargets
+            FILE ischedTargets.cmake
+            NAMESPACE isched::
+            DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/isched"
+            COMPONENT devel)
+
+    foreach(header IN LISTS ISCHED_PUBLIC_HEADER_RELATIVE_PATHS)
+        get_filename_component(header_directory "${header}" DIRECTORY)
+        if(header_directory STREQUAL ".")
+            set(header_destination "${CMAKE_INSTALL_INCLUDEDIR}/isched")
+        else()
+            set(header_destination "${CMAKE_INSTALL_INCLUDEDIR}/isched/${header_directory}")
+        endif()
+        install(FILES "${PROJECT_SOURCE_DIR}/src/main/cpp/isched/${header}"
+                DESTINATION "${header_destination}" COMPONENT devel)
+    endforeach()
+endif()

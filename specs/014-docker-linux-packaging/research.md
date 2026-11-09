@@ -3,6 +3,12 @@
 **Date**: 2026-11-09  
 **Feature**: [spec.md](spec.md)
 
+**Planning refresh**: 2026-11-09. Earlier repository observations below describe
+the initial planning baseline. The worktree now contains partial packaging
+implementation; see decision 7 for reconciliation. Recorded command evidence in
+`checklists/implementation-readiness.md` is not a new successful build performed
+by this planning run.
+
 ## Decisions
 
 ### 1. Select current, supported target releases
@@ -71,11 +77,13 @@
 
 ### 4. Use CPack components and create an actual consumable CMake SDK
 
-**Decision**: Add CMake install/export configuration for the current `isched` static library and `isched_srv`; use CPack DEB/RPM component packaging to make separate runtime and developer/library packages. Export `isched::isched`, install the supported public header closure, and provide a CMake config plus Conan 2 dependency manifest/instructions. Keep the SDK's dependencies explicitly Conan-managed and verify them from an external consumer project.
+**Decision**: Add CMake install/export configuration for the current `isched` static library and `isched_srv`; use CPack DEB/RPM component packaging to make separate runtime and developer/library packages. Export `isched::isched`, install the supported public header closure, and provide a CMake config plus Conan 2 dependency manifest/instructions. Keep the SDK's dependencies explicitly Conan-managed and verify them by compiling, linking, and running an external consumer project.
 
 **Rationale**:
 
 - The current source CMake project declares `isched` with `add_library` and `isched_srv` with `add_executable`, but contains no install/export rules. The default CMake library type is static in this repository; the existing Release build contains `libisched.a`.
+- The current umbrella-header closure consists of `isched.hpp`, `backend/isched_Server.hpp`, `backend/isched_common.hpp`, and `shared/config/isched_config.hpp`, preserving their `isched/` relative paths under the install include directory. The latter two headers include only standard-library headers; `Server` additionally exposes Boost.URL.
+- The source target links PEGTL, httplib, OpenSSL, spdlog, JSON, jwt-cpp, SQLite, Boost URL/system/thread/program_options/filesystem, platformfolders and `${CMAKE_DL_LIBS}`. The SDK consumer manifest must retain the exact corresponding Conan versions and transitive fmt/crypto/platform requirements. Catch2 is a test dependency, not an installed SDK link dependency. Export compile usage for Boost headers and C++23, and retain static transitive link requirements without producer-cache paths.
 - `src/main/cpp/isched/isched.hpp` describes itself as the complete public API convenience include and includes `backend/isched_Server.hpp`. The server header includes `isched_common.hpp`, `isched_config.hpp`, and Boost.URL, so headers and transitive dependencies must be treated as a coherent SDK interface.
 - `target_link_libraries(isched PRIVATE ...)` and source-tree-relative include paths are not a usable installed consumer contract by themselves. Exported targets must carry installed include paths and resolved dependencies through a package config with `find_dependency`/Conan CMakeDeps integration.
 - Native packages can carry target-native package metadata while CMake/Conan remain the project-native development integration. The developer package is independent from the runtime executable package; consumers receive a clear Conan dependency path, not an unsupported promise that the static archive is self-contained.
@@ -120,6 +128,65 @@
 - One shared artifact name or one matrix job with fail-fast behavior: rejected because names can collide and the first failure can obscure other target results.
 - Require `act`: rejected; direct Docker is sufficient for the build/package path, while hosted Actions-specific artifact behavior is tested in GitHub.
 
+### 7. Reconcile current implementation inputs without treating them as proof
+
+**Decision**: Retain the Python-helper convention and machine-readable
+`packaging/targets.json` / `tool-versions.json` inputs already in progress.
+Canonical fallback version is exactly `0.0.0+git.<first-12-sha-digits>`.
+DEB uses that native version unchanged. RPM deliberately separates
+`Version=0.0.0` and `Release=0.git.<first-12-sha-digits>`; tagged versions use
+`Version=MAJOR.MINOR.PATCH`, `Release=1`. Preserve the canonical version and full
+revision in embedded identity metadata and validate native parsing/ordering.
+
+**Rationale**:
+
+- Existing `package_identity.py` already expresses this deterministic mapping.
+  RPM's grammar does not categorically prohibit `+`; the separate Release field
+  is a policy choice to distinguish snapshot builds from tagged builds, not a
+  claim that the canonical spelling is universally invalid. Native ordering
+  tests remain required.
+- `.dockerignore` excludes `.git`; derive version from exact-at-HEAD tags and
+  revision outside Docker, then pass both `ISCHED_SOURCE_REVISION` and
+  `ISCHED_PACKAGE_VERSION`. Use the actual checkout SHA, including a PR merge
+  checkout. Reject ambiguous tags and mismatched revisions.
+- The quickstart's `tools/package/validate_artifacts.py` is a compatibility
+  wrapper for shared validators under `packaging/scripts/`, not a second
+  validator implementation. Helpers use Python argument-list subprocess calls
+  with timeouts and owned-resource cleanup.
+- Existing readiness notes record successful base-image startup/OS/compiler
+  queries for both targets. Public-source research in this refresh reconfirmed
+  the image references and Conan/Node releases; Fedora `.1` compiler metadata
+  was not independently located on primary x86_64 Koji by that research, so the
+  existing target-native query record remains the relevant local evidence.
+- The Node hash `361718c444e49af2ca5a110c83ba6a8901143f23ab285ebbef0341f391f482a9`
+  refers specifically to `node-v24.22.2-linux-x64.tar.gz`, not `.tar.xz`.
+  Current tool metadata records a byte-level archive check; it does not prove
+  installation on both target interpreters.
+- Current lockfiles/profiles/configurator changes are partial work. Conan
+  compatibility with GCC 15/16, target Python dependency installation, complete
+  OS/Conan dependency closure, and SDK ABI/link behavior require actual target
+  execution before implementation completion.
+- Native distro compilers/libc, Python/venv, DEB/RPM/ELF tools and Docker are
+  justified system build/ABI boundary dependencies. All application C++
+  dependencies remain Conan-managed; frontend packages remain pnpm-managed.
+- An SDK consumer must call an out-of-line symbol and run without the executable
+  package. Compile-only checks can mask missing archive/link dependencies.
+
+**Alternatives considered**:
+
+- Discard existing work and regenerate tasks: rejected; this request is planning
+  only and must preserve pending implementation changes and task markers.
+- Float pins or replace releases when a recipe fails: rejected; fail closed and
+  report affected gates.
+- Mark locks, hosted runs or human usability complete based on document/file
+  presence: rejected; evidence must come from the corresponding execution.
+- Delegate runtime link dependencies to native system development libraries:
+  rejected because it breaks the approved Conan SDK dependency boundary.
+
+**Research completion**: No unresolved requirements clarification. Remaining
+items are implementation compatibility/verification gates, enumerated in
+`plan.md`, not successful results or waived requirements.
+
 ## Public research references
 
 1. Canonical Ubuntu release cycle and support status: <https://ubuntu.com/about/release-cycle?product=ubuntu&release=ubuntu&version=26.04+LTS>
@@ -135,6 +202,9 @@
 11. Node.js 24.22.2 LTS release: <https://nodejs.org/en/blog/release/v24.22.2>; official checksums: <https://nodejs.org/dist/v24.22.2/SHASUMS256.txt>
 12. Conan 2.34.0 release notes: <https://docs.conan.io/2.34/changelog.html>
 13. CMake 3.22 CPack component support: <https://cmake.org/cmake/help/v3.22/module/CPackComponent.html>
+14. Public image metadata: <https://hub.docker.com/v2/repositories/library/ubuntu/tags/26.04/> and <https://hub.docker.com/v2/repositories/library/fedora/tags/45/>
+15. Debian package version grammar: <https://manpages.debian.org/unstable/dpkg-dev/deb-version.5.en.html>
+16. RPM version semantics: <https://rpm.org/docs/latest/man/rpm-version.7>
 
 ## Repository evidence
 
@@ -146,3 +216,4 @@
 - `src/docker/Dockerfile`: historical Ubuntu 20.04 development container; it is not a package build workflow and includes an interactive shell/default legacy compiler profile, so it is not reused as-is.
 - `README.md`: runtime data path is user-local by default; `--data-dir` allows isolated tests; `--seed` is explicitly a runtime operation and must not be used by packaging.
 - Existing local Release build: `isched_srv` is an x86_64 ELF; its observed dynamic closure is the C++ runtime, math, GCC support, libc, and loader. Each target must still derive and test its own package requirements.
+- Planning refresh inputs: `packaging/README.md`, `targets.json`, `tool-versions.json`, `scripts/package_identity.py`, and `checklists/implementation-readiness.md`. Existing execution/task notes are preserved; their checks are not rerun or marked complete by planning.
