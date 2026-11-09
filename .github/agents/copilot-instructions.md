@@ -47,7 +47,7 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
-- 013-lsp-graphql-angular (plan): Planned C++23/Angular 21 GraphQL-only `/graphql` work with secure cookie sessions, session-bound CSRF, browser-local CodeMirror GraphQL assistance, and no new endpoint, runtime service, or migration.
+- 013-lsp-graphql-angular: Completed C++23/Angular 21 GraphQL-only `/graphql` work with secure cookie sessions, session-bound CSRF, and browser-local CodeMirror assistance; all 70 tasks complete. Artifacts archived under `specs/archive/013-lsp-graphql-angular/`; manual acceptance testing follows separately.
 
 
 <!-- MANUAL ADDITIONS START -->

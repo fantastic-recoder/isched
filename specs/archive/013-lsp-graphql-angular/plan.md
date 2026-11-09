@@ -1,7 +1,7 @@
 # Implementation Plan: LSP GraphQL Angular Integration
 
 **Branch**: `013-lsp-graphql-angular` | **Date**: 2026-11-08 | **Spec**: [spec.md](spec.md)
-**Input**: `specs/013-lsp-graphql-angular/spec.md`
+**Input**: `specs/archive/013-lsp-graphql-angular/spec.md`
 **Status**: Completed; implementation and review evidence is recorded in [quickstart.md](quickstart.md).
 
 ## Summary
@@ -52,7 +52,7 @@ These decisions supersede prior draft questions about LSP JSON-RPC conformance, 
 ### Documentation (this feature)
 
 ```text
-specs/013-lsp-graphql-angular/
+specs/archive/013-lsp-graphql-angular/
 ├── plan.md
 ├── research.md
 ├── data-model.md

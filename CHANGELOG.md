@@ -1,3 +1,15 @@
+## [Feature 013] Secure GraphQL WebUI and Schema-Aware Editing — 2026-11-09
+
+### Added
+- Browser-local schema-aware completion, hover documentation, and live syntax/type diagnostics in the GraphQL Playground.
+- Organization/user administration flows with typed forms, signal-backed state, and actionable errors.
+- Secure, HttpOnly, SameSite=Strict cookie sessions for GraphQL HTTP/WebSocket traffic, exact-Origin validation, and session-bound CSRF for authenticated HTTP mutations.
+- Browser acceptance and independent 10-user performance gates for Playground and Admin; explicit public/protected subscription coverage on both WebSocket listeners.
+
+### Status
+- All 70 implementation tasks and the constitution review are complete. Specification artifacts and verification evidence are archived under `specs/archive/013-lsp-graphql-angular/`.
+- Manual acceptance testing is a separate follow-up using `docs/validation/manual-webui-checklist.md`; archival does not claim that manual testing has been performed.
+
 ## [Unreleased] UI GraphQL Namespace Alignment — 2026-05-25
 
 ### Fixed

@@ -3,6 +3,7 @@
 **Feature Branch**: `013-lsp-graphql-angular`
 **Created**: 2026-11-08
 **Status**: Completed
+**Archived**: 2026-11-09; implementation and review evidence retained for manual acceptance testing.
 **Completion evidence**: [quickstart.md](quickstart.md), including the backend constitution review and subscription-policy verification on 2026-11-09.
 **Input**: Deliver schema-aware GraphQL editor assistance and complete Playground and organization/user administration journeys through the existing GraphQL-only browser API, with cookie-only authentication, local proxy support, security controls, and measurable UI performance.
 

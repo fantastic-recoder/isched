@@ -34,7 +34,7 @@ The supported local browser route is `http://localhost:4200` through the Angular
 - **Focused browser tests**: `python3 tools/run_e2e.py -- e2e/dev-proxy.spec.ts`, plus the Admin, Playground, and cookie/CSRF/Origin acceptance suites from `src/ui`.
 - **Backend tests**: `cmake --build cmake-build-debug -j2` followed by `ctest --test-dir cmake-build-debug --output-on-failure`, including auth/session, GraphQL HTTP, WebSocket handshake/subscription authorization, allowed-Origin, CSRF, login bootstrap, and no-side-effect rejection cases.
 - **Security checks**: inspect HTTP and WebSocket traffic and browser storage; assert no JWT in app-managed memory, localStorage, sessionStorage, IndexedDB, Authorization headers, URLs, or `connection_init`. Assert the cookie attributes and no wildcard credentialed CORS behavior.
-- **Threat models**: review `specs/013-lsp-graphql-angular/threat-model.md` and the corresponding summary in `docs/security-threat-model.md`; distinguish verified controls from residual risks.
+- **Threat models**: review `specs/archive/013-lsp-graphql-angular/threat-model.md` and the corresponding summary in `docs/security-threat-model.md`; distinguish verified controls from residual risks.
 
 ## Reproducible Performance Protocol (SC-001)
 

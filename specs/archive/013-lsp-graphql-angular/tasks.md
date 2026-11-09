@@ -1,6 +1,6 @@
 # Tasks: LSP GraphQL Angular Integration
 
-**Input**: Design documents in `specs/013-lsp-graphql-angular/` (`plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `threat-model.md`)
+**Input**: Design documents in `specs/archive/013-lsp-graphql-angular/` (`plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/`, `quickstart.md`, and `threat-model.md`)
 
 **Tests**: Required by the feature specification and constitution. Unit/component, contract, integration, security, strict Angular, GraphQL-boundary, and separate per-journey performance verification are completion gates.
 
@@ -88,7 +88,7 @@
 - [X] T032 [US4] Surface subscription connection lifecycle as signal-backed state in `src/ui/src/app/services/graphql-subscription.service.ts`
 - [X] T033 [US4] Render a non-blocking failed-subscription diagnostic in `src/ui/src/app/pages/dev/dev-proxy-health.page.html`
 - [X] T034 [US4] Add local dev-proxy verification for HTTP and WS forwarding in `tools/run_e2e.py`
-- [X] T035 [US4] Document local proxy run/troubleshooting steps in `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T035 [US4] Document local proxy run/troubleshooting steps in `specs/archive/013-lsp-graphql-angular/quickstart.md`
 
 ---
 
@@ -97,9 +97,9 @@
 **Purpose**: Closeout work must reflect the finalized two-journey performance protocol and feature-wide verification, not the earlier Playground-only scope.
 
 - [X] T036 [P] Replace the earlier Playground-only `p95 <= 2s` check with a deterministic 100-operation manifest and fixed fixture/class counts; synchronize 10 users at a start barrier; have each replay the first 10 manifest operations unmeasured, then all 100 as measured UI operations; time submit dispatch through visible final result after loading settles and an Angular render frame; retain all 1,000 samples and fail on any timeout/error; report aggregate and per-class counts/p95; require nearest-rank rank-950 p95 strictly `< 2,000 ms` in `src/ui/e2e/playground.spec.ts`
-- [X] T037 [P] Update feature threat-model controls and residual-risk notes without claiming implementation evidence in `specs/013-lsp-graphql-angular/threat-model.md`
+- [X] T037 [P] Update feature threat-model controls and residual-risk notes without claiming implementation evidence in `specs/archive/013-lsp-graphql-angular/threat-model.md`
 - [X] T038 [P] Synchronize the feature threat-model summary in `docs/security-threat-model.md`
-- [X] T039 Run the completed quickstart verification after implementation: strict UI build/tests, full applicable CTest gate, security checks, both independent performance runs, and record actual results in `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T039 Run the completed quickstart verification after implementation: strict UI build/tests, full applicable CTest gate, security checks, both independent performance runs, and record actual results in `specs/archive/013-lsp-graphql-angular/quickstart.md`
 - [X] T040 Rework the schema-upload integration regression to prove upload operations remain on GraphQL `/graphql` and no alternate API route is added in `src/test/cpp/integration/test_graphql_schema_upload.cpp`
 
 ---
@@ -161,7 +161,7 @@
 **Independent Test**: Use the configured secure local browser/proxy setup for HTTP query/mutation and WS subscription traffic; verify cookie and Origin behavior, WS upgrade, and graceful failure diagnostics.
 
 - [X] T064 [P] [US4] Add end-to-end proxy acceptance for HTTP and WS cookie/Origin forwarding, successful upgrade, and `connection_init` without credentials in `src/ui/e2e/dev-proxy.spec.ts`
-- [X] T065 [US4] Verify the local `/graphql` proxy remains relative-path and WS-enabled, the dev origin is explicitly present in backend allowlist configuration, and Secure-cookie behavior is not downgraded; document supported secure local setup in `src/ui/proxy.conf.json`, `src/main/cpp/isched/shared/config/isched_config.hpp`, and `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T065 [US4] Verify the local `/graphql` proxy remains relative-path and WS-enabled, the dev origin is explicitly present in backend allowlist configuration, and Secure-cookie behavior is not downgraded; document supported secure local setup in `src/ui/proxy.conf.json`, `src/main/cpp/isched/shared/config/isched_config.hpp`, and `specs/archive/013-lsp-graphql-angular/quickstart.md`
 
 ---
 
@@ -172,8 +172,8 @@
 - [X] T066 [P] [US2] Add the independent Admin performance run with a deterministic 100-operation manifest, fixed fixture and operation-class counts, 10 concurrent users at a start barrier, each replaying the first 10 operations as unmeasured warmups then all 100 as measured UI operations; time submit dispatch through visible final result after loading settles and an Angular render frame; retain all 1,000 samples and fail on any timeout/error; report aggregate/per-class counts and p95; require nearest-rank rank-950 p95 strictly `< 2,000 ms` in `src/ui/e2e/admin-performance.spec.ts`
 - [X] T067 [P] Verify strict TypeScript/template compilation and explicitly check typed reactive forms, standalone components, signal-backed app-owned template state, and modern `@if`/`@for`/`@switch` in `src/ui/package.json` and the affected Playground/Admin component specs
 - [X] T068 [P] Extend the static and browser network boundary gates to cover editor introspection and both P1 business journeys, allowing only GraphQL `/graphql` HTTP/WS application traffic in `src/ui/src/app/graphql-boundary.static.spec.ts` and `src/ui/e2e/playground.spec.ts`
-- [X] T069 Review the feature and project threat models against implemented evidence, distinguishing verified controls from residual/planned risks in `specs/013-lsp-graphql-angular/threat-model.md` and `docs/security-threat-model.md`
-- [X] T070 Record the required constitution-compliance review as complete only after both P1 journeys, all security/strict-Angular/performance checks, and threat-model review pass; document review evidence in `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T069 Review the feature and project threat models against implemented evidence, distinguishing verified controls from residual/planned risks in `specs/archive/013-lsp-graphql-angular/threat-model.md` and `docs/security-threat-model.md`
+- [X] T070 Record the required constitution-compliance review as complete only after both P1 journeys, all security/strict-Angular/performance checks, and threat-model review pass; document review evidence in `specs/archive/013-lsp-graphql-angular/quickstart.md`
 
 ---
 
