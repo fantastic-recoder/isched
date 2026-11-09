@@ -12,6 +12,7 @@ import io
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -35,6 +36,39 @@ STAGES = (
     "runtime-install",
     "sdk-consumption",
 )
+
+
+class FrontendOutputTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location(
+            "build_target_tested", ROOT / "packaging/scripts/build_target.py"
+        )
+        cls.builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.builder)
+
+    def test_application_builder_output_layout_and_required_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            outputs = (
+                root / "src/ui/dist/isched-ui/browser/index.html",
+                root / "src/ui/dist/isched-ui/3rdpartylicenses.txt",
+                root / "src/main/cpp/isched/backend/isched_ui_assets.hpp",
+            )
+            for path in outputs:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("generated content\n")
+            self.assertEqual(self.builder.frontend_outputs(root), outputs)
+            for path in outputs:
+                for content in (None, ""):
+                    with self.subTest(path=path, content=content):
+                        if content is None:
+                            path.unlink()
+                        else:
+                            path.write_text(content)
+                        with self.assertRaisesRegex(ValueError, "non-empty"):
+                            self.builder.frontend_outputs(root)
+                        path.write_text("generated content\n")
 
 
 class BuildPipelineFailureTests(unittest.TestCase):
@@ -68,6 +102,10 @@ class BuildPipelineFailureTests(unittest.TestCase):
                 ]
                 with patch.object(sys, "argv", args), \
                         patch.object(self.builder, "git_output", return_value=""), \
+                        patch.object(
+                            self.builder, "checkout_version",
+                            return_value=f"0.0.0+git.{REVISION[:12]}",
+                        ), \
                         patch.object(
                             self.builder.subprocess,
                             "run",

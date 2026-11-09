@@ -48,6 +48,16 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def frontend_outputs(root: Path) -> tuple[Path, Path, Path]:
+    index = root / "src/ui/dist/isched-ui/browser/index.html"
+    notices = root / "src/ui/dist/isched-ui/3rdpartylicenses.txt"
+    header = root / "src/main/cpp/isched/backend/isched_ui_assets.hpp"
+    for path in (index, notices, header):
+        require(path.is_file() and path.stat().st_size > 0,
+                f"frontend generation failed to produce non-empty {path}")
+    return index, notices, header
+
+
 def os_release() -> dict[str, str]:
     values: dict[str, str] = {}
     for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines():
@@ -121,12 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         run("frontend-build", [pnpm, "--filter", "isched-ui", "run", "build"], env=env)
         run("frontend-embed", [sys.executable, "tools/embed_ui_assets.py"], env=env)
 
-        frontend_index = ROOT / "src/ui/dist/isched-ui/browser/index.html"
-        frontend_notices = ROOT / "src/ui/dist/isched-ui/browser/3rdpartylicenses.txt"
-        embedded_header = ROOT / "src/main/cpp/isched/backend/isched_ui_assets.hpp"
-        for path in (frontend_index, frontend_notices, embedded_header):
-            require(path.is_file() and path.stat().st_size > 0,
-                    f"frontend generation failed to produce non-empty {path}")
+        frontend_index, frontend_notices, embedded_header = frontend_outputs(ROOT)
         gate = work / "frontend-evidence.json"
         gate.write_text(json.dumps({
             "schema_version": 1,
