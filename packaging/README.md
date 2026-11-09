@@ -55,6 +55,8 @@ The eventual shared build wrapper must reject a mismatched revision.
   exact-target containers, with disposable state and only owned processes.
 - Never run `--seed`, ship application databases, or install service state.
 - Runtime must serve the embedded WebUI and existing GraphQL health response.
+  The verifier allowlists its exact loopback origin and sends it on GraphQL
+  requests; HTTP rejection responses fail immediately with status/body details.
 - SDK validation must compile, link **and run** an external client that calls an
   existing library symbol, outside the producer source/build/cache trees.
 - Both roles must pass full target CTest, native checks and clean integrations

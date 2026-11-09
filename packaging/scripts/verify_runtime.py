@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 
@@ -88,7 +88,9 @@ def _free_port() -> int:
 
 def _http_json(url: str, payload: dict, timeout: float = 2.0) -> tuple[int, dict]:
     request = Request(url, data=json.dumps(payload).encode("utf-8"),
-                      headers={"Content-Type": "application/json"}, method="POST")
+                      headers={"Content-Type": "application/json",
+                               "Origin": f"{urlsplit(url).scheme}://{urlsplit(url).netloc}"},
+                      method="POST")
     with urlopen(request, timeout=timeout) as response:
         raw = response.read(2_000_000)
         return response.status, json.loads(raw)
@@ -109,11 +111,13 @@ def _verify_server() -> dict:
     os.chown(work, unprivileged.pw_uid, unprivileged.pw_gid)
     os.chown(data, unprivileged.pw_uid, unprivileged.pw_gid)
     port = _free_port()
+    base_url = f"http://127.0.0.1:{port}"
     environment = dict(os.environ)
     environment.update({
         "HOME": str(work), "ISCHED_SERVER_HOST": "127.0.0.1",
         "ISCHED_SERVER_PORT": str(port), "ISCHED_MIN_THREADS": "1",
         "ISCHED_MAX_THREADS": "2", "ISCHED_LOG_LEVEL": "warn",
+        "ISCHED_ALLOWED_ORIGINS": base_url,
     })
     log_path = work / "server.log"
     process: subprocess.Popen | None = None
@@ -127,7 +131,6 @@ def _verify_server() -> dict:
                 start_new_session=True, user=unprivileged.pw_uid,
                 group=unprivileged.pw_gid,
             )
-            base_url = f"http://127.0.0.1:{port}"
             deadline = time.monotonic() + 30
             health: dict | None = None
             while time.monotonic() < deadline:
@@ -139,6 +142,11 @@ def _verify_server() -> dict:
                         base_url + "/graphql", {"query": "{ isched { health { status } } }"})
                     if status == 200 and isinstance(health, dict) and "data" in health:
                         break
+                except HTTPError as error:
+                    body = error.read(8000).decode("utf-8", "replace")
+                    raise RuntimeError(
+                        f"stage=health HTTP {error.code}: {body}"
+                    ) from error
                 except (URLError, TimeoutError, json.JSONDecodeError, OSError):
                     time.sleep(0.25)
             else:

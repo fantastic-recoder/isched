@@ -11,9 +11,12 @@ import os
 import contextlib
 import importlib.util
 import io
+import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -77,6 +80,39 @@ class RuntimeFailureTests(unittest.TestCase):
         cls.verifier = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = cls.verifier
         spec.loader.exec_module(cls.verifier)
+
+    def test_health_request_sends_exact_server_origin(self):
+        requests = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                requests.append(self.headers.get("Origin"))
+                expected = f"http://127.0.0.1:{self.server.server_port}"
+                valid = requests[-1] == expected
+                self.send_response(200 if valid else 403)
+                self.end_headers()
+                self.wfile.write(json.dumps(
+                    {"data": {"isched": {"health": {"status": "UP"}}}}
+                    if valid else {"errors": [{"message": "Origin rejected"}]}
+                ).encode())
+
+            def log_message(self, *_args):
+                pass
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            worker = threading.Thread(target=server.serve_forever)
+            worker.start()
+            try:
+                origin = f"http://127.0.0.1:{server.server_port}"
+                status, response = self.verifier._http_json(
+                    origin + "/graphql", {"query": "{ isched { health { status } } }"},
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(response["data"]["isched"]["health"]["status"], "UP")
+                self.assertEqual(requests, [origin])
+            finally:
+                server.shutdown()
+                worker.join()
 
     def test_mocked_runtime_failures_return_nonzero_with_target_and_stage(self):
         for target in TARGETS:
