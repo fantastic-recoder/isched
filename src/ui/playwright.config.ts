@@ -10,7 +10,9 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: `http://127.0.0.1:${SERVER_PORT}`,
+    // Secure cookies are accepted by Chromium on localhost; do not use 127.0.0.1
+    // for the cookie-only browser acceptance origin.
+    baseURL: `http://localhost:${SERVER_PORT}`,
     headless: true,
     trace: 'on-first-retry',
   },

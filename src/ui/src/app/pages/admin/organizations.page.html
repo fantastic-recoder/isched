@@ -2,7 +2,18 @@
   <h1 id="organizations-heading" class="text-2xl font-semibold">Organizations</h1>
 
   @if (error()) {
-    <div class="alert alert-error" role="alert" aria-live="polite">{{ error() }}</div>
+    <div class="alert alert-error" role="alert" aria-live="polite">
+      <span>{{ error() }}</span>
+      <button
+        class="btn btn-sm btn-outline"
+        type="button"
+        data-testid="organizations-retry-load"
+        (click)="retryLoad()"
+        [disabled]="loading()"
+      >
+        Refresh organization list
+      </button>
+    </div>
   }
 
   @if (statusMessage()) {
@@ -116,7 +127,6 @@
                 type="button"
                 [attr.aria-label]="'Edit organization ' + org.name"
                 (click)="editOrganization(org.id)"
-                (keydown)="onEditKeydown($event, org.id)"
               >
                 Edit
               </button>
@@ -126,7 +136,6 @@
                 type="button"
                 [attr.aria-label]="(org.status === 'ACTIVE' ? 'Deactivate organization ' : 'Reactivate organization ') + org.name"
                 (click)="toggleOrganizationStatus(org.id)"
-                (keydown)="onToggleKeydown($event, org.id)"
               >
                 {{ org.status === 'ACTIVE' ? 'Deactivate' : 'Reactivate' }}
               </button>

@@ -53,4 +53,21 @@ describe('GraphQL-only transport boundary', () => {
       .map((f) => f.path);
     expect(offenders).toEqual([]);
   });
+
+  it('uses only same-origin GraphQL WebSockets with credential-free initialization', () => {
+    const socketSources = files.filter((f) => /\bnew WebSocket\s*\(/.test(f.text));
+    expect(socketSources).toHaveLength(1);
+    for (const source of socketSources) {
+      expect(source.text).toContain('window.location.host}/graphql');
+      expect(source.text).toContain("JSON.stringify({ type: 'connection_init' })");
+      expect(source.text).not.toMatch(/Authorization|Bearer|accessToken|access_token|jwt/i);
+    }
+  });
+
+  it('does not define bearer or JWT state in application sources', () => {
+    const offenders = files
+      .filter((f) => /\b(?:bearerToken|accessToken|access_token|jwtToken)\b/i.test(f.text))
+      .map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
 });

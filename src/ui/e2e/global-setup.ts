@@ -84,6 +84,9 @@ export default async function globalSetup(): Promise<void> {
       ...process.env,
       ISCHED_SERVER_HOST: '127.0.0.1',
       ISCHED_SERVER_PORT: String(port),
+      ISCHED_ALLOWED_ORIGINS:
+        process.env['ISCHED_ALLOWED_ORIGINS'] ??
+        `http://127.0.0.1:${port},http://localhost:${port},http://127.0.0.1:4200,http://localhost:4200`,
     },
   });
 
@@ -114,4 +117,3 @@ export default async function globalSetup(): Promise<void> {
   await waitForServerReady(`http://127.0.0.1:${port}${APP_ENTRY_PATH}`);
   console.log(`[e2e] Server is ready — running tests`);
 }
-

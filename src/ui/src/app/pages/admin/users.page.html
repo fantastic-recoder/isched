@@ -2,7 +2,18 @@
   <h1 id="users-heading" class="text-2xl font-semibold">Users</h1>
 
   @if (error()) {
-    <div class="alert alert-error" role="alert" aria-live="polite">{{ error() }}</div>
+    <div class="alert alert-error" role="alert" aria-live="polite">
+      <span>{{ error() }}</span>
+      <button
+        class="btn btn-sm btn-outline"
+        type="button"
+        data-testid="users-retry-load"
+        (click)="retryLoad()"
+        [disabled]="loading()"
+      >
+        Refresh user list
+      </button>
+    </div>
   }
 
   @if (warning()) {
@@ -92,9 +103,9 @@
               <div>
                 <span class="font-medium">{{ user.displayName }}</span>
                 <span class="badge badge-outline ml-2" [attr.aria-label]="'User status ' + user.status">{{ user.status }}</span>
-                <p class="text-xs text-base-content/60 mt-1">{{ user.loginId }} · Revision {{ user.revision }}</p>
+                <p class="text-xs text-base-content/60 mt-1">{{ user.email }} · Created {{ user.createdAt }}</p>
               </div>
-              <span class="text-xs text-base-content/60">{{ user.roleAssignments.length }} assignment(s)</span>
+              <span class="text-xs text-base-content/60">{{ user.roles.length }} role(s)</span>
             </div>
           </button>
         </li>
@@ -114,30 +125,59 @@
     <h2 class="text-lg font-medium">
       {{ selectedUserId() ? 'Edit selected user' : 'Create user' }}
     </h2>
-    <label class="form-control" for="users-loginId">
-      <span class="label-text">Login ID</span>
+    <label class="form-control" for="users-email">
+      <span class="label-text">Email address</span>
       <input
-        #loginIdInput
-        id="users-loginId"
+        #emailInput
+        id="users-email"
         class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        formControlName="loginId"
+        type="email"
+        formControlName="email"
         aria-required="true"
-        aria-describedby="users-loginId-help"
+        aria-describedby="users-email-help"
         (input)="markDirty()"
       />
     </label>
-    @if (form.controls.loginId.touched && form.controls.loginId.errors?.['required']) {
-      <p class="text-sm text-error">Login ID is required.</p>
+    @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
+      <p class="text-sm text-error">Email address is required.</p>
     }
-    @if (form.controls.loginId.touched && form.controls.loginId.errors?.['minlength']) {
-      <p class="text-sm text-error">Login ID must be at least 2 characters long.</p>
+    @if (form.controls.email.touched && form.controls.email.errors?.['email']) {
+      <p class="text-sm text-error">Enter a valid email address.</p>
     }
-    @if (form.controls.loginId.errors?.['server']) {
-      <p class="text-sm text-error">{{ form.controls.loginId.errors?.['server'] }}</p>
+    @if (form.controls.email.errors?.['server']) {
+      <p class="text-sm text-error">{{ form.controls.email.errors?.['server'] }}</p>
     }
-    <p id="users-loginId-help" class="text-xs text-base-content/70">
-      Login ID must be unique within the selected organization.
+    <p id="users-email-help" class="text-xs text-base-content/70">
+      Email address must be unique within the selected organization.
     </p>
+
+    @if (!selectedUserId()) {
+      <label class="form-control" for="users-password">
+        <span class="label-text">Temporary password</span>
+        <input
+          id="users-password"
+          class="input input-bordered focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          type="password"
+          formControlName="password"
+          aria-required="true"
+          aria-describedby="users-password-help"
+          autocomplete="new-password"
+          (input)="markDirty()"
+        />
+      </label>
+      @if (form.controls.password.touched && form.controls.password.errors?.['required']) {
+        <p class="text-sm text-error">A temporary password is required.</p>
+      }
+      @if (form.controls.password.touched && form.controls.password.errors?.['minlength']) {
+        <p class="text-sm text-error">Password must be at least 12 characters long.</p>
+      }
+      @if (form.controls.password.errors?.['server']) {
+        <p class="text-sm text-error">{{ form.controls.password.errors?.['server'] }}</p>
+      }
+      <p id="users-password-help" class="text-xs text-base-content/70">
+        Use at least 12 characters. The password is sent only to GraphQL and is not retained after creation.
+      </p>
+    }
 
     <label class="form-control" for="users-displayName">
       <span class="label-text">Display Name</span>
@@ -174,10 +214,9 @@
         id="users-deactivate"
         class="btn btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         type="button"
-        [disabled]="!selectedUserId() || form.controls.loginId.value === '' || submitting() || selectedUser()?.status !== 'ACTIVE'"
+        [disabled]="!selectedUserId() || submitting() || selectedUser()?.status !== 'ACTIVE'"
         aria-label="Deactivate selected user"
         (click)="deactivateSelectedUser()"
-        (keydown)="onDeactivateKeydown($event)"
       >
         Deactivate
       </button>
@@ -188,7 +227,6 @@
         [disabled]="!selectedUserId() || submitting() || selectedUser()?.status !== 'DISABLED'"
         aria-label="Reactivate selected user"
         (click)="reactivateSelectedUser()"
-        (keydown)="onReactivateKeydown($event)"
       >
         Reactivate
       </button>
@@ -226,4 +264,3 @@
     </div>
   </div>
 </section>
-

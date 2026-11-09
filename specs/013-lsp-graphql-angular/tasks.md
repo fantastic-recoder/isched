@@ -94,10 +94,10 @@
 
 **Purpose**: Closeout work must reflect the finalized two-journey performance protocol and feature-wide verification, not the earlier Playground-only scope.
 
-- [ ] T036 [P] Replace the earlier Playground-only `p95 <= 2s` check with a deterministic 100-operation manifest and fixed fixture/class counts; synchronize 10 users at a start barrier; have each replay the first 10 manifest operations unmeasured, then all 100 as measured UI operations; time submit dispatch through visible final result after loading settles and an Angular render frame; retain all 1,000 samples and fail on any timeout/error; report aggregate and per-class counts/p95; require nearest-rank rank-950 p95 strictly `< 2,000 ms` in `src/ui/e2e/playground.spec.ts`
+- [X] T036 [P] Replace the earlier Playground-only `p95 <= 2s` check with a deterministic 100-operation manifest and fixed fixture/class counts; synchronize 10 users at a start barrier; have each replay the first 10 manifest operations unmeasured, then all 100 as measured UI operations; time submit dispatch through visible final result after loading settles and an Angular render frame; retain all 1,000 samples and fail on any timeout/error; report aggregate and per-class counts/p95; require nearest-rank rank-950 p95 strictly `< 2,000 ms` in `src/ui/e2e/playground.spec.ts`
 - [X] T037 [P] Update feature threat-model controls and residual-risk notes without claiming implementation evidence in `specs/013-lsp-graphql-angular/threat-model.md`
 - [X] T038 [P] Synchronize the feature threat-model summary in `docs/security-threat-model.md`
-- [ ] T039 Run the completed quickstart verification after implementation: strict UI build/tests, full applicable CTest gate, security checks, both independent performance runs, and record actual results in `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T039 Run the completed quickstart verification after implementation: strict UI build/tests, full applicable CTest gate, security checks, both independent performance runs, and record actual results in `specs/013-lsp-graphql-angular/quickstart.md`
 - [X] T040 Rework the schema-upload integration regression to prove upload operations remain on GraphQL `/graphql` and no alternate API route is added in `src/test/cpp/integration/test_graphql_schema_upload.cpp`
 
 ---
@@ -113,7 +113,7 @@
 - [X] T043 [US1] Expand the `/graphql` introspection query and models to retain the complete schema shape and descriptions, and declare directly imported GraphQL runtime dependencies in `src/ui/src/app/services/playground-introspection.service.ts`, `src/ui/src/app/services/playground-introspection.models.ts`, `src/ui/package.json`, and `pnpm-lock.yaml`
 - [X] T044 [US1] Build/update the browser-local GraphQL schema and connect schema-backed completion, hover, and live syntax/type diagnostics to CodeMirror in `src/ui/src/app/components/playground/query-editor/query-editor.ts`
 - [X] T045 [US1] Display explicit language-service-unavailable state when introspection/schema construction fails, without implying validation is active, in `src/ui/src/app/components/playground/query-editor/query-editor.html`
-- [ ] T046 [US1] Add Playground browser acceptance coverage for schema browsing, completion, hover, diagnostics, query/mutation execution, and absence of non-`/graphql` editor requests in `src/ui/e2e/playground.spec.ts`
+- [X] T046 [US1] Add Playground browser acceptance coverage for schema browsing, completion, hover, diagnostics, query/mutation execution, and absence of non-`/graphql` editor requests in `src/ui/e2e/playground.spec.ts`
 
 ---
 
@@ -123,11 +123,11 @@
 
 **Independent Test**: Using an authorized cookie-authenticated administrator, independently list and manage an organization and its users; verify server-visible final state, retained safe form input on failures, and `/graphql`-only network requests.
 
-- [ ] T047 [P] [US2] Add organization list/create/update/status and validation/conflict/error component coverage in `src/ui/src/app/pages/admin/organizations.page.spec.ts` and `src/ui/src/app/services/organization.service.spec.ts`
-- [ ] T048 [P] [US2] Add user list/create/update/status and validation/authorization/error component coverage in `src/ui/src/app/pages/admin/users.page.spec.ts` and `src/ui/src/app/services/user.service.spec.ts`
-- [ ] T049 [US2] Complete signal-backed organization management and typed reactive forms, preserving safe form values on retryable failures, in `src/ui/src/app/pages/admin/organizations.page.ts` and `src/ui/src/app/pages/admin/organizations.page.html`
-- [ ] T050 [US2] Complete organization-scoped user management, typed reactive forms, and actionable error outcomes in `src/ui/src/app/pages/admin/users.page.ts` and `src/ui/src/app/pages/admin/users.page.html`
-- [ ] T051 [US2] Add Admin end-to-end acceptance for organization and user management, final visible state, and GraphQL-only requests in `src/ui/e2e/admin.spec.ts`
+- [X] T047 [P] [US2] Add organization list/create/update/status and validation/conflict/error component coverage in `src/ui/src/app/pages/admin/organizations.page.spec.ts` and `src/ui/src/app/services/organization.service.spec.ts`
+- [X] T048 [P] [US2] Add user list/create/update/status and validation/authorization/error component coverage in `src/ui/src/app/pages/admin/users.page.spec.ts` and `src/ui/src/app/services/user.service.spec.ts`
+- [X] T049 [US2] Complete signal-backed organization management and typed reactive forms, preserving safe form values on retryable failures, in `src/ui/src/app/pages/admin/organizations.page.ts` and `src/ui/src/app/pages/admin/organizations.page.html`
+- [X] T050 [US2] Complete organization-scoped user management, typed reactive forms, and actionable error outcomes in `src/ui/src/app/pages/admin/users.page.ts` and `src/ui/src/app/pages/admin/users.page.html`
+- [X] T051 [US2] Add Admin end-to-end acceptance for organization and user management, final visible state, and GraphQL-only requests in `src/ui/e2e/admin.spec.ts`
 
 ---
 
@@ -147,7 +147,7 @@
 - [X] T059 [US3] Replace JavaScript access-token state with non-secret session state and in-memory-only CSRF acquisition from login/bootstrap or the read-only GraphQL bootstrap query in `src/ui/src/app/services/auth.service.ts` and `src/ui/src/app/services/session-bootstrap-state.service.ts`
 - [X] T060 [US3] Ensure browser-cookie GraphQL HTTP requests attach the in-memory CSRF header only for mutations and never add Authorization/bearer credentials in `src/ui/src/app/services/graphql.service.ts` and `src/ui/src/app/interceptors/auth.interceptor.ts`
 - [X] T061 [P] [US3] Add frontend tests for CSRF acquisition/reacquisition/clearing, mutation-only header behavior, and absence of bearer state/Authorization headers in `src/ui/src/app/services/auth.service.spec.ts` and `src/ui/src/app/services/graphql.service.spec.ts`
-- [ ] T062 [P] [US3] Add browser security acceptance asserting cookie attributes/automatic attachment, exact-Origin outcomes, pre-session login/bootstrap behavior, session CSRF rejection before side effects, and zero JWT exposure/persistence in `src/ui/e2e/auth-session-security.spec.ts`
+- [X] T062 [P] [US3] Add browser security acceptance asserting cookie attributes/automatic attachment, exact-Origin outcomes, pre-session login/bootstrap behavior, session CSRF rejection before side effects, and zero JWT exposure/persistence in `src/ui/e2e/auth-session-security.spec.ts`
 - [X] T063 [P] [US3] Assert WebSocket authentication uses the browser cookie and exact Origin with no JWT or Authorization data in `connection_init` in `src/ui/src/app/services/graphql-subscription.service.spec.ts`
 
 ---
@@ -158,8 +158,8 @@
 
 **Independent Test**: Use the configured secure local browser/proxy setup for HTTP query/mutation and WS subscription traffic; verify cookie and Origin behavior, WS upgrade, and graceful failure diagnostics.
 
-- [ ] T064 [P] [US4] Add end-to-end proxy acceptance for HTTP and WS cookie/Origin forwarding, successful upgrade, and `connection_init` without credentials in `src/ui/e2e/dev-proxy.spec.ts`
-- [ ] T065 [US4] Verify the local `/graphql` proxy remains relative-path and WS-enabled, the dev origin is explicitly present in backend allowlist configuration, and Secure-cookie behavior is not downgraded; document supported secure local setup in `src/ui/proxy.conf.json`, `src/main/cpp/isched/shared/config/isched_config.hpp`, and `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T064 [P] [US4] Add end-to-end proxy acceptance for HTTP and WS cookie/Origin forwarding, successful upgrade, and `connection_init` without credentials in `src/ui/e2e/dev-proxy.spec.ts`
+- [X] T065 [US4] Verify the local `/graphql` proxy remains relative-path and WS-enabled, the dev origin is explicitly present in backend allowlist configuration, and Secure-cookie behavior is not downgraded; document supported secure local setup in `src/ui/proxy.conf.json`, `src/main/cpp/isched/shared/config/isched_config.hpp`, and `specs/013-lsp-graphql-angular/quickstart.md`
 
 ---
 
@@ -167,11 +167,11 @@
 
 **Purpose**: Complete both separate benchmark protocols, frontend convention checks, threat-model review, and blocking closeout reviews.
 
-- [ ] T066 [P] [US2] Add the independent Admin performance run with a deterministic 100-operation manifest, fixed fixture and operation-class counts, 10 concurrent users at a start barrier, each replaying the first 10 operations as unmeasured warmups then all 100 as measured UI operations; time submit dispatch through visible final result after loading settles and an Angular render frame; retain all 1,000 samples and fail on any timeout/error; report aggregate/per-class counts and p95; require nearest-rank rank-950 p95 strictly `< 2,000 ms` in `src/ui/e2e/admin-performance.spec.ts`
+- [X] T066 [P] [US2] Add the independent Admin performance run with a deterministic 100-operation manifest, fixed fixture and operation-class counts, 10 concurrent users at a start barrier, each replaying the first 10 operations as unmeasured warmups then all 100 as measured UI operations; time submit dispatch through visible final result after loading settles and an Angular render frame; retain all 1,000 samples and fail on any timeout/error; report aggregate/per-class counts and p95; require nearest-rank rank-950 p95 strictly `< 2,000 ms` in `src/ui/e2e/admin-performance.spec.ts`
 - [X] T067 [P] Verify strict TypeScript/template compilation and explicitly check typed reactive forms, standalone components, signal-backed app-owned template state, and modern `@if`/`@for`/`@switch` in `src/ui/package.json` and the affected Playground/Admin component specs
-- [ ] T068 [P] Extend the static and browser network boundary gates to cover editor introspection and both P1 business journeys, allowing only GraphQL `/graphql` HTTP/WS application traffic in `src/ui/src/app/graphql-boundary.static.spec.ts` and `src/ui/e2e/playground.spec.ts`
-- [ ] T069 Review the feature and project threat models against implemented evidence, distinguishing verified controls from residual/planned risks in `specs/013-lsp-graphql-angular/threat-model.md` and `docs/security-threat-model.md`
-- [ ] T070 Record the required constitution-compliance review as complete only after both P1 journeys, all security/strict-Angular/performance checks, and threat-model review pass; document review evidence in `specs/013-lsp-graphql-angular/quickstart.md`
+- [X] T068 [P] Extend the static and browser network boundary gates to cover editor introspection and both P1 business journeys, allowing only GraphQL `/graphql` HTTP/WS application traffic in `src/ui/src/app/graphql-boundary.static.spec.ts` and `src/ui/e2e/playground.spec.ts`
+- [X] T069 Review the feature and project threat models against implemented evidence, distinguishing verified controls from residual/planned risks in `specs/013-lsp-graphql-angular/threat-model.md` and `docs/security-threat-model.md`
+- [X] T070 Record the required constitution-compliance review as complete only after both P1 journeys, all security/strict-Angular/performance checks, and threat-model review pass; document review evidence in `specs/013-lsp-graphql-angular/quickstart.md`
 
 ---
 

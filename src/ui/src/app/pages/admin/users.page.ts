@@ -35,7 +35,7 @@ export class UsersPage {
 
   readonly warningAlert = viewChild<ElementRef<HTMLElement>>('warningAlert');
   readonly statusAlert = viewChild<ElementRef<HTMLElement>>('statusAlert');
-  readonly loginIdInput = viewChild<ElementRef<HTMLInputElement>>('loginIdInput');
+  readonly emailInput = viewChild<ElementRef<HTMLInputElement>>('emailInput');
 
   readonly organizations = signal<Organization[]>([]);
   readonly users = signal<UserRecord[]>([]);
@@ -46,9 +46,9 @@ export class UsersPage {
   readonly loading = signal(false);
   readonly submitting = signal(false);
   readonly selectedUserId = signal<string | null>(null);
-  readonly selectedUserRevision = signal<number | null>(null);
   readonly form = this.fb.nonNullable.group({
-    loginId: ['', [Validators.required, Validators.minLength(2)]],
+    email: ['', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(12)]],
     displayName: ['', [Validators.required]],
   });
   readonly filterForm = this.fb.nonNullable.group({
@@ -72,7 +72,7 @@ export class UsersPage {
     this.orgContext.setOrganization(nextOrgId);
     this.resetEditor();
     this.loadUsers(1);
-    this.focusLoginIdInput();
+    this.focusEmailInput();
   }
 
   markDirty(): void {
@@ -86,18 +86,17 @@ export class UsersPage {
     }
 
     const organizationId = this.orgContext.requireSelectedOrganizationId();
-    const loginId = this.form.controls.loginId.value.trim();
+    const email = this.form.controls.email.value.trim();
+    const password = this.form.controls.password.value;
     const displayName = this.form.controls.displayName.value.trim();
-
-    if (!loginId) {
-      this.form.controls.loginId.setErrors({ required: true });
-      this.form.controls.loginId.markAsTouched();
-      return;
-    }
 
     if (!displayName) {
       this.form.controls.displayName.setErrors({ required: true });
       this.form.controls.displayName.markAsTouched();
+      return;
+    }
+    if (!this.selectedUserId() && (!email || !password)) {
+      this.form.markAllAsTouched();
       return;
     }
 
@@ -112,10 +111,9 @@ export class UsersPage {
       ? this.userService.updateUser(
           organizationId,
           selectedUserId,
-          { loginId, displayName },
-          this.selectedUserRevision() ?? 0,
+          { displayName },
         )
-      : this.userService.createUser(organizationId, { loginId, displayName });
+      : this.userService.createUser(organizationId, { email, password, displayName });
 
     request$
       .pipe(finalize(() => this.submitting.set(false)))
@@ -159,21 +157,34 @@ export class UsersPage {
     this.warning.set(null);
     this.clearServerErrors();
     this.selectedUserId.set(user.id);
-    this.selectedUserRevision.set(user.revision);
-    this.form.setValue({ loginId: user.loginId, displayName: user.displayName });
+    this.form.controls.email.setValue(user.email);
+    this.form.controls.email.disable();
+    this.form.controls.password.setValue('');
+    this.form.controls.password.clearValidators();
+    this.form.controls.password.updateValueAndValidity();
+    this.form.controls.displayName.setValue(user.displayName);
     this.orgContext.clearDirtyForm();
   }
 
   resetEditor(): void {
     this.selectedUserId.set(null);
-    this.selectedUserRevision.set(null);
     this.clearServerErrors();
-    this.form.reset({ loginId: '', displayName: '' });
+    this.form.controls.email.enable();
+    this.form.controls.password.setValidators([Validators.required, Validators.minLength(12)]);
+    this.form.reset({ email: '', password: '', displayName: '' });
     this.orgContext.clearDirtyForm();
   }
 
   applySearch(): void {
     this.loadUsers(1);
+  }
+
+  retryLoad(): void {
+    if (this.orgContext.selectedOrganizationId()) {
+      this.loadUsers();
+    } else {
+      this.loadOrganizations();
+    }
   }
 
   previousPage(): void {
@@ -192,28 +203,6 @@ export class UsersPage {
     }
 
     this.loadUsers(currentPage.number + 1);
-  }
-
-  onDeactivateKeydown(event: KeyboardEvent): void {
-    if (!this.isActivationKey(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    this.deactivateSelectedUser();
-  }
-
-  onReactivateKeydown(event: KeyboardEvent): void {
-    if (!this.isActivationKey(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    this.reactivateSelectedUser();
-  }
-
-  private isActivationKey(event: KeyboardEvent): boolean {
-    return event.key === 'Enter' || event.key === ' ';
   }
 
   private loadOrganizations(): void {
@@ -299,7 +288,7 @@ export class UsersPage {
     this.submitting.set(true);
     this.error.set(null);
     this.userService
-      .updateUser(organizationId, selectedUserId, { status }, this.selectedUserRevision() ?? selectedUser.revision)
+      .updateUser(organizationId, selectedUserId, { isActive: status === 'ACTIVE' })
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({
         next: (user) => {
@@ -323,7 +312,11 @@ export class UsersPage {
   }
 
   private clearServerErrors(): void {
-    for (const control of [this.form.controls.loginId, this.form.controls.displayName]) {
+    for (const control of [
+      this.form.controls.email,
+      this.form.controls.password,
+      this.form.controls.displayName,
+    ]) {
       const currentErrors = control.errors;
       if (!currentErrors?.['server']) {
         continue;
@@ -340,10 +333,16 @@ export class UsersPage {
        switch (err.code) {
          case GRAPHQL_ERROR_CODES.VALIDATION_FAILED:
            this.error.set('Please correct the highlighted fields and try again.');
-           if (err.fieldErrors['loginId']?.length) {
-             this.form.controls.loginId.setErrors({
-               ...(this.form.controls.loginId.errors ?? {}),
-               server: err.fieldErrors['loginId'][0],
+           if (err.fieldErrors['email']?.length) {
+             this.form.controls.email.setErrors({
+               ...(this.form.controls.email.errors ?? {}),
+               server: err.fieldErrors['email'][0],
+             });
+           }
+           if (err.fieldErrors['password']?.length) {
+             this.form.controls.password.setErrors({
+               ...(this.form.controls.password.errors ?? {}),
+               server: err.fieldErrors['password'][0],
              });
            }
            if (err.fieldErrors['displayName']?.length) {
@@ -388,7 +387,7 @@ export class UsersPage {
     queueMicrotask(() => this.statusAlert()?.nativeElement.focus());
   }
 
-  private focusLoginIdInput(): void {
-    queueMicrotask(() => this.loginIdInput()?.nativeElement.focus());
+  private focusEmailInput(): void {
+    queueMicrotask(() => this.emailInput()?.nativeElement.focus());
   }
 }

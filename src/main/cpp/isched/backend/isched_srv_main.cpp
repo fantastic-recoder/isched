@@ -14,6 +14,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -38,6 +39,7 @@ void handle_signal(int) {
 ///          ISCHED_JWT_SECRET_KEY → config.jwt_secret_key
 ///          ISCHED_MIN_THREADS   → config.min_threads
 ///          ISCHED_MAX_THREADS   → config.max_threads
+///          ISCHED_ALLOWED_ORIGINS → exact comma-separated browser Origin allowlist
 void apply_env_config(isched::v0_0_1::backend::Server::Configuration& cfg) {
     if (const char* v = std::getenv("ISCHED_SERVER_PORT");  v && *v) {
         if (int p = std::atoi(v); p > 0 && p < 65536)
@@ -54,6 +56,17 @@ void apply_env_config(isched::v0_0_1::backend::Server::Configuration& cfg) {
     if (const char* v = std::getenv("ISCHED_MAX_THREADS"); v && *v) {
         if (int n = std::atoi(v); n > 0)
             cfg.max_threads = static_cast<std::size_t>(n);
+    }
+    if (const char* v = std::getenv("ISCHED_ALLOWED_ORIGINS"); v) {
+        cfg.allowed_origins.clear();
+        std::istringstream input(v);
+        std::string origin;
+        while (std::getline(input, origin, ',')) {
+            const auto first = origin.find_first_not_of(" \t\r\n");
+            if (first == std::string::npos) continue;
+            const auto last = origin.find_last_not_of(" \t\r\n");
+            cfg.allowed_origins.push_back(origin.substr(first, last - first + 1));
+        }
     }
 }
 }

@@ -69,6 +69,9 @@ struct ServerConfig {
     std::chrono::seconds jwt_expiration{3600};
     bool enable_cors = true;
     // Keep browser origins explicit; wildcard credentialed CORS is never safe.
+    // The supported local Angular route is http://localhost:4200 so browsers retain
+    // the Secure session cookie; runtime deployments may replace this list with
+    // ISCHED_ALLOWED_ORIGINS and must add their exact HTTPS UI origin.
     std::vector<std::string> allowed_origins{
         "http://localhost:8080", "http://127.0.0.1:8080",
         "http://localhost:4200", "http://127.0.0.1:4200"

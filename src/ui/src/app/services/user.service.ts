@@ -5,20 +5,15 @@ import { FilterInput, PageInput, PageInfo, SortInput } from './organization.serv
 import { GraphQLRequestError, GraphQLService } from './graphql.service';
 import { ShellStatusService } from './shell-status.service';
 
-export interface RoleAssignmentSummary {
-  roleId: string;
-  effective: boolean;
-}
-
 export interface UserRecord {
   id: string;
   organizationId: string;
-  loginId: string;
+  email: string;
   displayName: string;
   status: 'ACTIVE' | 'DISABLED';
-  revision: number;
-  updatedAt: string;
-  roleAssignments: RoleAssignmentSummary[];
+  roles: string[];
+  createdAt: string;
+  lastLogin: string | null;
 }
 
 export interface UserConnection {
@@ -34,31 +29,42 @@ export interface UserListOptions {
 }
 
 export interface CreateUserInput {
-  loginId: string;
+  email: string;
+  password: string;
   displayName: string;
 }
 
 export interface UpdateUserInput {
-  loginId?: string;
   displayName?: string;
-  status?: UserRecord['status'];
+  roles?: string[];
+  isActive?: boolean;
+}
+
+interface GraphQLUserRecord {
+  id: string;
+  email: string;
+  displayName: string;
+  roles: string[];
+  isActive: boolean;
+  createdAt: string;
+  lastLogin: string | null;
 }
 
 interface UsersResponse {
   isched: {
-    users: UserConnection;
+    users: GraphQLUserRecord[];
   };
 }
 
 interface CreateUserResponse {
   isched: {
-    createUser: UserRecord;
+    createUser: GraphQLUserRecord;
   };
 }
 
 interface UpdateUserResponse {
   isched: {
-    updateUser: UserRecord;
+    updateUser: GraphQLUserRecord;
   };
 }
 
@@ -80,40 +86,23 @@ export class UserService {
 
       return this.gql
         .query<UsersResponse>(
-          `query Users($organizationId: ID!, $page: PageInput!, $sort: [SortInput!], $filter: [FilterInput!]) {
+          `query Users($organizationId: ID) {
             isched {
-              users(organizationId: $organizationId, page: $page, sort: $sort, filter: $filter) {
-                nodes {
-                  id
-                  organizationId
-                  loginId
-                  displayName
-                  status
-                  revision
-                  updatedAt
-                  roleAssignments {
-                    roleId
-                    effective
-                  }
-                }
-                pageInfo {
-                  number
-                  size
-                  totalElements
-                  totalPages
-                }
+              users(organizationId: $organizationId) {
+                id
+                email
+                displayName
+                roles
+                isActive
+                createdAt
+                lastLogin
               }
             }
           }`,
-          {
-            organizationId: options.organizationId,
-            page: options.page ?? DEFAULT_PAGE,
-            sort: options.sort ?? DEFAULT_SORT,
-            filter: options.filter,
-          },
+          { organizationId: options.organizationId },
         )
         .pipe(
-          map(({ isched }) => isched.users),
+          map(({ isched }) => this.toConnection(isched.users, options)),
           tap(() => {
             this.shellStatus.completeOperation(
               'organization-users:list',
@@ -146,22 +135,18 @@ export class UserService {
             isched {
               createUser(organizationId: $organizationId, input: $input) {
                 id
-                organizationId
-                loginId
+                email
                 displayName
-                status
-                revision
-                updatedAt
-                roleAssignments {
-                  roleId
-                  effective
-                }
+                roles
+                isActive
+                createdAt
+                lastLogin
               }
             }
           }`,
           { organizationId, input },
         )
-        .pipe(map(({ isched }) => isched.createUser));
+        .pipe(map(({ isched }) => this.toUserRecord(isched.createUser, organizationId)));
     });
   }
 
@@ -169,7 +154,6 @@ export class UserService {
     organizationId: string,
     id: string,
     input: UpdateUserInput,
-    expectedRevision: number,
   ): Observable<UserRecord> {
     return defer(() => {
       const scopeCheck = this.orgContext.validateMutationScope(organizationId);
@@ -179,32 +163,71 @@ export class UserService {
 
       return this.gql
         .mutate<UpdateUserResponse>(
-          `mutation UpdateUser($organizationId: ID!, $id: ID!, $input: UpdateUserInput!, $expectedRevision: Int!) {
+          `mutation UpdateUser($organizationId: ID!, $id: ID!, $input: UpdateUserInput!) {
             isched {
               updateUser(
                 organizationId: $organizationId
                 id: $id
                 input: $input
-                expectedRevision: $expectedRevision
               ) {
                 id
-                organizationId
-                loginId
+                email
                 displayName
-                status
-                revision
-                updatedAt
-                roleAssignments {
-                  roleId
-                  effective
-                }
+                roles
+                isActive
+                createdAt
+                lastLogin
               }
             }
           }`,
-          { organizationId, id, input, expectedRevision },
+          { organizationId, id, input },
         )
-        .pipe(map(({ isched }) => isched.updateUser));
+        .pipe(map(({ isched }) => this.toUserRecord(isched.updateUser, organizationId)));
     });
+  }
+
+  private toConnection(records: GraphQLUserRecord[], options: UserListOptions): UserConnection {
+    let users = records.map((record) => this.toUserRecord(record, options.organizationId));
+    for (const filter of options.filter ?? []) {
+      const field = filter.field === 'loginId' ? 'email' : filter.field;
+      if (field !== 'email' && field !== 'displayName') continue;
+      users = users.filter((user) => {
+        const value = user[field].toLocaleLowerCase();
+        const expected = filter.value.toLocaleLowerCase();
+        return filter.op === 'eq' ? value === expected : value.includes(expected);
+      });
+    }
+
+    const sort = options.sort ?? DEFAULT_SORT;
+    if (sort.length > 0) {
+      const { field, direction } = sort[0];
+      if (field === 'email' || field === 'loginId' || field === 'displayName') {
+        users = [...users].sort((left, right) => {
+          const a = field === 'loginId' ? left.email : left[field];
+          const b = field === 'loginId' ? right.email : right[field];
+          return direction === 'DESC' ? b.localeCompare(a) : a.localeCompare(b);
+        });
+      }
+    }
+
+    const page = options.page ?? DEFAULT_PAGE;
+    const totalElements = users.length;
+    const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / page.size);
+    const offset = Math.max(0, page.number - 1) * page.size;
+    return {
+      nodes: users.slice(offset, offset + page.size),
+      pageInfo: { ...page, totalElements, totalPages },
+    };
+  }
+
+  private toUserRecord(record: GraphQLUserRecord, organizationId: string): UserRecord {
+    return {
+      ...record,
+      organizationId,
+      status: record.isActive ? 'ACTIVE' : 'DISABLED',
+      roles: record.roles ?? [],
+      lastLogin: record.lastLogin ?? null,
+    };
   }
 
   private organizationUsersFailureMessage(error: unknown): string {
@@ -217,4 +240,3 @@ export class UserService {
       : 'Unable to load organization users';
   }
 }
-

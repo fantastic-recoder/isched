@@ -3,8 +3,13 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import {
+  ADMIN_DISPLAY_NAME,
+  ADMIN_EMAIL,
+  ADMIN_PASSWORD,
+} from './authenticated-session.helpers';
 
-const DEV_SERVER_URL = 'http://127.0.0.1:4200';
+const DEV_SERVER_URL = 'http://localhost:4200';
 const BACKEND_PORT = Number(process.env['ISCHED_SERVER_PORT'] ?? '8080');
 
 test.describe.configure({ timeout: 120_000 });
@@ -140,7 +145,48 @@ test.describe('Angular dev-server proxy', () => {
   test('proxies WebSocket upgrades on /graphql (graphql-transport-ws handshake)', async ({ page }) => {
     test.setTimeout(120_000);
 
-    await page.goto(`${DEV_SERVER_URL}/`);
+    const applicationPaths: string[] = [];
+    const graphqlHeaders: Array<Record<string, string>> = [];
+    const requestHeaderTasks: Promise<void>[] = [];
+    const sentFrames: string[] = [];
+    const websocketUrls: string[] = [];
+    page.on('request', (request) => {
+      if (request.resourceType() === 'xhr' || request.resourceType() === 'fetch') {
+        applicationPaths.push(new URL(request.url()).pathname);
+        if (new URL(request.url()).pathname === '/graphql') {
+          requestHeaderTasks.push(
+            request.allHeaders().then((headers) => {
+              graphqlHeaders.push(headers);
+            }),
+          );
+        }
+      }
+    });
+    page.on('websocket', (socket) => {
+      websocketUrls.push(new URL(socket.url()).pathname);
+      socket.on('framesent', (frame) => sentFrames.push(String(frame.payload)));
+    });
+
+    await page.goto(`${DEV_SERVER_URL}/isched`);
+    await page.waitForURL(/(?:\/isched)?\/(bootstrap|login|dashboard)(?:$|\?)/, { timeout: 15_000 });
+    if (page.url().includes('/bootstrap')) {
+      await page.locator('#bs-email').fill(ADMIN_EMAIL);
+      await page.locator('#bs-displayName').fill(ADMIN_DISPLAY_NAME);
+      await page.locator('#bs-password').fill(ADMIN_PASSWORD);
+      await page.locator('#bs-submit').click();
+      await page.waitForURL(/(?:\/isched)?\/dashboard(?:$|\?)/, { timeout: 15_000 });
+    } else if (page.url().includes('/login')) {
+      await page.locator('#email').fill(ADMIN_EMAIL);
+      await page.locator('#password').fill(ADMIN_PASSWORD);
+      await page.locator('#login-submit').click();
+      await page.waitForURL(/(?:\/isched)?\/dashboard(?:$|\?)/, { timeout: 15_000 });
+    }
+
+    const proxyOrigin = await page.evaluate(() => window.location.origin);
+    const cookie = (await page.context().cookies(proxyOrigin)).find(
+      (candidate) => candidate.name === 'isched_session',
+    );
+    expect(cookie).toMatchObject({ secure: true, httpOnly: true, sameSite: 'Strict' });
 
     const result = await page.evaluate(
       () =>
@@ -174,5 +220,13 @@ test.describe('Angular dev-server proxy', () => {
     expect(result.opened).toBe(true);
     expect(result.ack).toBe(true);
     expect(result.protocol).toBe('graphql-transport-ws');
+    await Promise.all(requestHeaderTasks);
+    expect(sentFrames).toContain('{"type":"connection_init","payload":{}}');
+    expect(sentFrames.join('\n')).not.toMatch(/jwt|token|authorization|bearer/i);
+    // Angular's development server can open its own live-reload socket at "/".
+    // The application transport itself must use only the GraphQL endpoint.
+    expect(websocketUrls.filter((url) => url === '/graphql')).toEqual(['/graphql']);
+    expect(applicationPaths.every((path) => path === '/graphql')).toBe(true);
+    expect(graphqlHeaders.some((headers) => headers['cookie']?.includes('isched_session='))).toBe(true);
   });
 });

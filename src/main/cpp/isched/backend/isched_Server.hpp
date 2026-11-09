@@ -101,6 +101,8 @@ public:
         /// Must be at least 32 bytes; a random default is generated at startup if empty.
         String jwt_secret_key;
         /// Explicit browser origins allowed to access the GraphQL HTTP/WS boundary.
+        /// Production deployments should configure ISCHED_ALLOWED_ORIGINS as a
+        /// comma-separated list; entries are parsed and matched as exact origins.
         std::vector<std::string> allowed_origins{
             "http://localhost:8080", "http://127.0.0.1:8080",
             "http://localhost:4200", "http://127.0.0.1:4200"

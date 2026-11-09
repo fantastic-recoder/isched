@@ -8,9 +8,12 @@
  * panel resize persistence, and subscription advisory message.
  */
 
-import { expect, test } from '@playwright/test';
-import { ensureAuthenticatedDashboard } from './authenticated-session.helpers';
-import { OperationLatencyRecorder } from '../src/app/services/operation-latency.util';
+import { expect, test, type Page } from '@playwright/test';
+import {
+  ensureAuthenticatedDashboard,
+  logInAsPlatformAdmin,
+} from './authenticated-session.helpers';
+import { runConcurrentUiBenchmark, type UiBenchmarkOperation } from './performance.helpers';
 
 const PLAYGROUND_PATH = '/isched/playground';
 
@@ -24,6 +27,71 @@ async function openPlaygroundViaShellNav(page: import('@playwright/test').Page):
 async function waitForPlaygroundReady(page: import('@playwright/test').Page): Promise<void> {
   await expect(page.getByTestId('playground-page')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('[aria-label="Loading schema"]')).toHaveCount(0, { timeout: 15_000 });
+}
+
+async function replaceEditorContent(
+  page: import('@playwright/test').Page,
+  source: string,
+): Promise<void> {
+  const editor = page.getByTestId('query-editor-host').locator('.cm-content');
+  await page.evaluate((replacement) => {
+    const content = document.querySelector(
+      '[data-testid="query-editor-host"] .cm-content',
+    );
+    if (!(content instanceof HTMLElement)) {
+      throw new Error('The Playground editor is unavailable.');
+    }
+
+    content.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(content);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    if (!document.execCommand('insertText', false, replacement)) {
+      throw new Error('The browser could not replace the Playground editor content.');
+    }
+  }, source);
+  await expect(editor).toHaveText(source);
+}
+
+const PLAYGROUND_PERFORMANCE_MANIFEST: readonly UiBenchmarkOperation[] = Array.from(
+  { length: 100 },
+  (_, index) => ({
+    operationClass: index % 10 === 0 ? 'mutation-echo' : 'query-system-state',
+    marker: `benchmark_${String(index).padStart(3, '0')}`,
+  }),
+);
+
+async function preparePlaygroundBenchmarkOperation(
+  page: Page,
+  operation: UiBenchmarkOperation,
+  _user: number,
+  _operationIndex: number,
+): Promise<() => Promise<void>> {
+  const document =
+    operation.operationClass === 'mutation-echo'
+      ? `mutation { ${operation.marker}: isched { echo(message: "${operation.marker}") } }`
+      : `query { ${operation.marker}: isched { systemState { seedModeActive } } }`;
+  await replaceEditorContent(page, document);
+
+  return async () => {
+    const request = page.waitForResponse((response) => {
+      if (new URL(response.url()).pathname !== '/graphql') return false;
+      try {
+        const body = response.request().postDataJSON() as { query?: string } | null;
+        return body?.query?.includes(operation.marker) ?? false;
+      } catch {
+        return false;
+      }
+    });
+    await page.getByTestId('run-query-btn').click();
+    await request;
+    await expect(page.getByTestId('result-loading')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('result-json')).toContainText(operation.marker, { timeout: 15_000 });
+    await expect(page.getByTestId('run-query-btn')).toBeEnabled();
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  };
 }
 
 test.describe('GraphQL Playground', () => {
@@ -155,29 +223,166 @@ test.describe('GraphQL Playground', () => {
     await expect(page.getByTestId('result-subscription-advisory')).toBeVisible({ timeout: 5_000 });
   });
 
-  test('SC-001: primary Playground flow p95 latency <= 2s', async ({ page }) => {
+  test('provides schema-backed completion, hover, diagnostics, and GraphQL query/mutation execution', async ({ page }) => {
+    test.setTimeout(60_000);
+    const applicationRequests: string[] = [];
+    const applicationWebSockets: string[] = [];
+    page.on('request', (request) => {
+      if (request.resourceType() === 'xhr' || request.resourceType() === 'fetch') {
+        applicationRequests.push(new URL(request.url()).pathname);
+      }
+    });
+    page.on('websocket', (webSocket) => {
+      applicationWebSockets.push(new URL(webSocket.url()).pathname);
+    });
+
+    await ensureAuthenticatedDashboard(page);
+    await openPlaygroundViaShellNav(page);
+    await waitForPlaygroundReady(page);
+    await expect(page.getByTestId('schema-assistance-loading')).toHaveCount(0);
+    await expect(page.getByTestId('schema-assistance-unavailable')).toHaveCount(0);
+
+    await replaceEditorContent(page, 'query { isched { org');
+    const completionPopup = page.locator('.cm-tooltip-autocomplete');
+    await expect(completionPopup).toBeVisible({ timeout: 10_000 });
+    await expect(completionPopup).toContainText('organizations');
+
+    const documentedOperation = 'query { isched { systemState { seedModeActive } } }';
+    await replaceEditorContent(page, documentedOperation);
+    const hoverPoint = await page.evaluate(() => {
+      const editorContent = document.querySelector('[data-testid="query-editor-host"] .cm-content');
+      if (!editorContent) return null;
+      const walker = document.createTreeWalker(editorContent, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const index = node.textContent?.indexOf('seedModeActive') ?? -1;
+        if (index >= 0) {
+          const range = document.createRange();
+          range.setStart(node, index + 3);
+          range.setEnd(node, index + 4);
+          const bounds = range.getBoundingClientRect();
+          return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+        }
+      }
+      return null;
+    });
+    expect(hoverPoint).not.toBeNull();
+    await page.mouse.move(hoverPoint!.x, hoverPoint!.y);
+    await expect(page.locator('.cm-graphql-description')).toContainText(
+      'True when no active platform administrator exists',
+      { timeout: 10_000 },
+    );
+
+    await replaceEditorContent(page, 'query { isched { missingField } }');
+    await expect(page.locator('.cm-lintRange-error').first()).toBeVisible({ timeout: 10_000 });
+
+    await replaceEditorContent(page, 'query { isched { systemState { seedModeActive } } }');
+    const runBtn = page.getByTestId('run-query-btn');
+    await runBtn.click();
+    await expect(page.getByTestId('result-loading')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('result-json')).toContainText('seedModeActive');
+
+    const organizationName = `Playground E2E ${Date.now()}`;
+    await replaceEditorContent(
+      page,
+      `mutation { isched { createOrganization(input: { name: "${organizationName}" }) { id name status revision } } }`,
+    );
+    await runBtn.click();
+    await expect(page.getByTestId('result-loading')).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('result-json')).toContainText(organizationName);
+
+    expect(applicationRequests.length).toBeGreaterThan(1);
+    expect(applicationRequests.every((path) => path === '/graphql')).toBe(true);
+    expect(applicationWebSockets.every((path) => path === '/graphql')).toBe(true);
+  });
+
+  test('shows syntax and schema type diagnostics and retains editor content after request errors', async ({ page }) => {
     await ensureAuthenticatedDashboard(page);
     await openPlaygroundViaShellNav(page);
     await waitForPlaygroundReady(page);
 
-    const editor = page.getByTestId('query-editor-host').locator('.cm-content');
-    await editor.click();
-    await page.keyboard.press('Control+A');
-    await page.keyboard.type('query { isched { health { status } } }');
+    await replaceEditorContent(page, 'query { isched {');
+    await expect(page.locator('.cm-lintRange-error').first()).toBeVisible({ timeout: 10_000 });
+    await replaceEditorContent(page, 'query { isched { notARealField } }');
+    await expect(page.locator('.cm-lintRange-error').first()).toBeVisible({ timeout: 10_000 });
 
-    const recorder = new OperationLatencyRecorder();
-    const runBtn = page.getByTestId('run-query-btn');
-    const resultJson = page.getByTestId('result-json');
+    await page.route('**/graphql', async (route) => {
+      const body = route.request().postDataJSON() as { query?: string } | null;
+      if (body?.query?.includes('deliberateFailure')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ errors: [{ message: 'Temporary GraphQL failure' }] }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+    const source = 'query { isched { deliberateFailure } }';
+    await replaceEditorContent(page, source);
+    await page.getByTestId('run-query-btn').click();
+    await expect(page.getByTestId('result-errors')).toContainText('Temporary GraphQL failure');
+    await expect(page.getByTestId('query-editor-host')).toContainText('deliberateFailure');
+  });
 
-    for (let i = 0; i < 10; i++) {
-      const timer = recorder.start('playground-query');
-      await runBtn.click();
-      await expect(resultJson).toContainText('status', { timeout: 10_000 });
-      timer.stop();
-      await expect(runBtn).toBeEnabled();
+  test('meets the independent 10-user, 1,000-operation Playground performance protocol', async ({
+    browser,
+  }, testInfo) => {
+    test.setTimeout(600_000);
+    const setupContext = await browser.newContext();
+    const users: Array<{ context: Awaited<ReturnType<typeof browser.newContext>>; page: Page }> = [];
+    try {
+      const setupPage = await setupContext.newPage();
+      await ensureAuthenticatedDashboard(setupPage);
+      await setupContext.close();
+
+      for (let user = 0; user < 10; user += 1) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        users.push({ context, page });
+        await logInAsPlatformAdmin(page);
+        await openPlaygroundViaShellNav(page);
+        await waitForPlaygroundReady(page);
+        await expect(page.getByTestId('schema-assistance-loading')).toHaveCount(0);
+        await expect(page.getByTestId('schema-assistance-unavailable')).toHaveCount(0);
+      }
+
+      const report = await runConcurrentUiBenchmark(
+        users.map(({ page }) => page),
+        PLAYGROUND_PERFORMANCE_MANIFEST,
+        preparePlaygroundBenchmarkOperation,
+        testInfo,
+      );
+      await testInfo.attach('playground-performance-environment.json', {
+        body: JSON.stringify(
+          {
+            journey: 'Playground',
+            fixture: 'isolated data directory with the test-only platform administrator',
+            browser: 'Playwright Chromium',
+            manifestClassCounts: Object.fromEntries(
+              [...new Set(PLAYGROUND_PERFORMANCE_MANIFEST.map((item) => item.operationClass))].map(
+                (operationClass) => [
+                  operationClass,
+                  PLAYGROUND_PERFORMANCE_MANIFEST.filter((item) => item.operationClass === operationClass)
+                    .length,
+                ],
+              ),
+            ),
+            measuredSampleCount: report.samples.length,
+          },
+          null,
+          2,
+        ),
+        contentType: 'application/json',
+      });
+
+      expect(report.warmupFailures).toEqual([]);
+      expect(report.samples).toHaveLength(1_000);
+      expect(report.failures).toEqual([]);
+      expect(report.aggregateP95Ms).not.toBeNull();
+      expect(report.aggregateP95Ms!).toBeLessThan(2_000);
+    } finally {
+      await Promise.all(users.map(({ context }) => context.close()));
     }
-
-    expect(recorder.all().length).toBe(10);
-    expect(recorder.percentile(95, 'playground-query')).toBeLessThanOrEqual(2_000);
   });
 });

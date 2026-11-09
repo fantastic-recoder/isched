@@ -33,8 +33,6 @@ import {
 const INTROSPECTION_QUERY = getIntrospectionQuery({
   descriptions: true,
   directiveIsRepeatable: true,
-  schemaDescription: true,
-  specifiedByUrl: true,
 });
 
 const SCHEMA_DOCUMENTS_QUERY = `

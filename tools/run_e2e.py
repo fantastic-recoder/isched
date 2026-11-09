@@ -39,6 +39,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -73,15 +74,27 @@ def server_binary(build_type: str) -> Path:
 def wait_for_server(url: str, timeout_s: int = HEALTH_TIMEOUT_S) -> None:
     """Poll *url* until it returns a non-5xx response or *timeout_s* elapses."""
     deadline = time.monotonic() + timeout_s
+    last_failure = "no response"
+    parsed_url = urlsplit(url)
+    origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
+            request = urllib.request.Request(url, headers={"Origin": origin})
+            with urllib.request.urlopen(request, timeout=2) as resp:
                 if resp.status < 500:
                     return
+        except urllib.error.HTTPError as exc:
+            # GraphQL may reject this lightweight probe for an application-level
+            # reason; any HTTP response below 500 still proves the server is ready.
+            if exc.code < 500:
+                return
+            last_failure = f"HTTP {exc.code}: {exc.read(512).decode(errors='replace')}"
         except Exception:
             pass
         time.sleep(0.25)
-    raise TimeoutError(f"Server not ready at {url} after {timeout_s}s")
+    raise TimeoutError(
+        f"Server not ready at {url} after {timeout_s}s (last failure: {last_failure})"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -106,7 +119,10 @@ def verify_graphql_forwarding(host: str, port: int, timeout_s: float = 5.0) -> l
     req = urllib.request.Request(
         f"http://{host}:{port}/graphql",
         data=json.dumps({"query": "query { isched { health { status } } }"}).encode(),
-        headers={"content-type": "application/json"},
+        headers={
+            "content-type": "application/json",
+            "Origin": f"http://{host}:{port}",
+        },
         method="POST",
     )
     try:
@@ -124,6 +140,7 @@ def verify_graphql_forwarding(host: str, port: int, timeout_s: float = 5.0) -> l
         f"Host: {host}:{port}\r\n"
         "Upgrade: websocket\r\nConnection: Upgrade\r\n"
         f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+        f"Origin: http://{host}:{port}\r\n"
         "Sec-WebSocket-Protocol: graphql-transport-ws\r\n\r\n"
     )
     try:
@@ -221,6 +238,11 @@ def main(argv: list[str] | None = None) -> int:
             **os.environ,
             "ISCHED_SERVER_HOST": SERVER_HOST,
             "ISCHED_SERVER_PORT": str(args.port),
+            "ISCHED_ALLOWED_ORIGINS": os.environ.get(
+                "ISCHED_ALLOWED_ORIGINS",
+                f"http://127.0.0.1:{args.port},http://localhost:{args.port},"
+                "http://127.0.0.1:4200,http://localhost:4200",
+            ),
             # Signals Playwright's global-setup to skip launching its own server.
             "ISCHED_EXTERNAL_SERVER": "1",
         }
@@ -283,4 +305,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

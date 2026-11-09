@@ -1,6 +1,6 @@
 # Security Threat Model Summary
 
-**Updated**: 2026-05-26
+**Updated**: 2026-11-09
 
 ## Purpose
 
@@ -13,7 +13,19 @@ This document summarizes the security posture and recurring mitigations for Isch
 - `specs/archive/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling
 - `specs/archive/006-upload-schema/threat-model.md` — Tenant-admin schema upload authorization, overwrite conflict controls, SDL validation, and cross-tenant read isolation for schema documents
 - `specs/011-graphql-playground/threat-model.md` — Authenticated schema browsing, query execution, safe editor/result rendering, layout preference persistence, and subscription advisory-only behavior
-- `specs/013-lsp-graphql-angular/threat-model.md` — Planned Secure, HttpOnly, SameSite=Strict cookie-only auth; exact allowed-Origin checks for all GraphQL HTTP requests and WebSocket handshakes; session-bound CSRF for authenticated HTTP mutations, with login and first-run bootstrap establishing cookie sessions and a read-only GraphQL query reacquiring CSRF after reload; GraphQL-only Playground/Admin journeys and browser-local editor language features. Implementation/test evidence remains pending.
+- `specs/013-lsp-graphql-angular/threat-model.md` — Implemented Secure, HttpOnly, SameSite=Strict cookie-only auth; exact allowed-Origin checks for all GraphQL HTTP requests and WebSocket handshakes; session-bound CSRF for authenticated HTTP mutations, with GraphQL login/first-run bootstrap and read-only reacquisition; GraphQL-only Playground/Admin journeys and browser-local editor language features. Verified evidence and residual risks are recorded in the feature model and quickstart.
+
+## Feature 013 Security Closeout Snapshot (2026-11-09)
+
+- **Scope**: `013-lsp-graphql-angular` (cookie-backed browser session, exact-Origin and CSRF enforcement, GraphQL-only Playground/Admin UI, local proxy, and browser-local schema assistance).
+- **Validated mitigations**:
+  - Secure, HttpOnly, SameSite=Strict cookie is issued and used by the browser; JWT is not returned to JavaScript, persisted, placed in Authorization, URL, or `connection_init`.
+  - HTTP Origin tests cover valid, missing, `null`, malformed, and unlisted values; authenticated mutation CSRF rejection is verified before organization-creation side effects.
+  - Login/bootstrap establish the session cookie and expose only the CSRF value via GraphQL; read-only session CSRF reacquisition, logout/revocation, and cookie-authenticated WS behavior are covered by backend tests.
+  - Admin, Playground and proxy browser journeys use only application `/graphql` HTTP/WS traffic. Local proxy acceptance verifies HTTP forwarding and authenticated `graphql-transport-ws` upgrade/ack.
+  - Browser-local schema assistance covers completion, hover, diagnostics, and explicit error/retry behavior; descriptions render as text.
+- **Validation evidence**: CTest **58/58**; Angular **33 suites / 238 tests**; strict production build and Playwright TypeScript check passed. Browser Admin/security/Playground acceptance: **9 passed, 1 skipped** (no subscription field in the acceptance schema); proxy acceptance: **2/2 passed**. Separate 10-user/1,000-operation benchmarks passed with aggregate rank-950 p95 **450.39 ms** (Playground) and **629.33 ms** (Admin), with zero failed or timed-out samples. Detailed class counts and commands are in `specs/013-lsp-graphql-angular/quickstart.md`.
+- **Residual risks**: same-origin XSS can operate within an authenticated session; Origin allowlists and RBAC assignments remain deployment responsibilities; browser Secure-cookie behavior and benchmark performance can differ by environment. This closeout is regression evidence, not a penetration test.
 
 ## Feature 005 Security Closeout Snapshot (2026-04-05)
 
@@ -87,7 +99,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 ## Common Security Themes
 
 - **Secure bootstrap**: any unauthenticated bootstrap path must be narrow, explicitly documented, and automatically disabled after first-use conditions are satisfied.
-- **JWT-first authentication**: GraphQL operations require JWT validation, with scope-aware authorization for platform and tenant operations.
+- **Session authentication and revocation**: GraphQL operations require validated session credentials, with scope-aware authorization for platform and tenant operations. Browser JWT credentials, where used by the backend, remain inside the HttpOnly cookie boundary.
 - **RBAC with scoped roles**: platform and tenant permissions must remain separated; custom roles must be constrained to their owning scope.
 - **Tenant isolation**: tenant boundaries apply to authorization, runtime state, storage, metrics, and integration configuration.
 - **Session revocation**: revoked sessions must be enforced at request time and propagated to long-lived WebSocket connections.

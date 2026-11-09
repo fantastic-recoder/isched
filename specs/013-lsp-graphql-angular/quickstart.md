@@ -1,19 +1,19 @@
 # Quickstart: LSP GraphQL Angular Integration
 
-This is the planned verification procedure, not a record that implementation or tests have already passed. The plan is planning-only and introduces no database migration.
+This document records the supported implementation workflow and observed verification evidence for Spec 13. No database migration was introduced.
 
 ## Prerequisites
 
 - Backend configured with the repository's C++23, Conan, CMake/Ninja workflow (`python3 configure.py`) and exposing the existing `/graphql` HTTP and WebSocket endpoint.
-- UI dependencies installed from the repository workspace (`pnpm install` in `src/ui`). Implementation must declare GraphQL.js directly for schema construction; directly imported GraphQL Language Service APIs must not rely on an undeclared transitive dependency.
-- Configure an explicit exact-match allowlist containing the browser UI origin(s). Wildcard origin is invalid. The Angular development origin must be explicitly configured when using the proxy.
+- UI dependencies installed from the repository workspace (`pnpm install` in `src/ui`). GraphQL.js is declared directly for browser-local schema construction; no separate language-service backend is used.
+- Configure an explicit exact-match allowlist containing the browser UI origin(s). Wildcard origin is invalid. The default local allowlist includes `http://localhost:4200` for Angular development and the `localhost`/loopback backend origins; deployed origins must be explicitly configured.
 - Use Secure, HttpOnly, SameSite=Strict cookie authentication. Do not disable Secure, add an Authorization bearer fallback, or place JWTs in `localStorage`, `sessionStorage`, IndexedDB, or application memory.
-- No schema migration is required by this plan; use existing session/revocation support.
+- No schema migration is required; the implementation reuses existing session/revocation support.
 
 ## Local Run and Manual Acceptance
 
 1. Start the backend with `/graphql` available over HTTP and WebSocket. Confirm configured allowed origins include the UI origin and reject unlisted origins.
-2. Start Angular using the existing proxy: `cd src/ui && pnpm start`. Confirm `src/ui/proxy.conf.json` forwards `/graphql` and enables WebSocket upgrades.
+2. Start Angular using the existing proxy: `cd src/ui && pnpm start`. Open the development UI as `http://localhost:4200` (not `http://127.0.0.1:4200`) in the supported Chromium setup. Confirm `src/ui/proxy.conf.json` forwards relative `/graphql` traffic to the local backend and enables WebSocket upgrades.
 3. Use a fresh browser session and sign in through the GraphQL login operation or complete first-run `bootstrapPlatformAdmin`. Verify each successful response sets a Secure, HttpOnly, SameSite=Strict cookie. Each GraphQL `AuthPayload` supplies the resulting session-bound CSRF value; Angular retains it only in memory. Confirm neither response exposes a JWT to JavaScript. Both operations are exempt from a CSRF header only before a valid session exists, and remain Origin-validated and rate-limited.
 4. Reload the page. Verify the read-only `currentSessionCsrfToken` GraphQL query field authenticates by cookie and returns/reacquires a CSRF value. This query has no mutation-CSRF prerequisite, so startup is not circular.
 5. In Playground, load the active schema through GraphQL introspection and verify schema-aware completion, hover descriptions, and live syntax/type diagnostics. Verify unavailable-schema feedback if introspection fails. Execute a valid query and mutation, and verify visible results/errors and retry behavior.
@@ -21,15 +21,20 @@ This is the planned verification procedure, not a record that implementation or 
 7. Verify an authenticated HTTP GraphQL mutation includes the current `X-CSRF-Token`; missing/stale/cross-session values are rejected before resolver side effects. Verify login/first-run bootstrap is exempt only when no valid session is present and still requires allowed Origin and existing rate limiting. Logout is authenticated and requires CSRF.
 8. Verify every HTTP request to `/graphql` and every WS handshake rejects a missing, `null`, malformed, or unlisted Origin. Verify WebSocket uses the browser cookie and no JWT in `connection_init`. A failed subscription must not break ordinary HTTP query/mutation flow.
 
+### Secure-cookie local development note
+
+The supported local browser route is `http://localhost:4200` through the Angular dev server. Chromium treats the localhost loopback origin as a trustworthy local context and browser acceptance confirmed that it retains and sends the `Secure` session cookie there. The proxy's `secure: false` setting applies only to upstream TLS certificate verification; it does not change or relax the cookie's `Secure` attribute. Do not open the UI through the numeric loopback address, disable `Secure`, or add bearer credentials as a workaround. For non-local development origins, use HTTPS and add the exact origin to `ISCHED_ALLOWED_ORIGINS`.
+
 ## Automated Verification
 
-- **Strict UI compilation**: `cd src/ui && pnpm build` (strict TypeScript and Angular template checks must remain enabled).
-- **Frontend tests**: `cd src/ui && pnpm test`; include typed forms, standalone usage, app-owned signal state, modern template control flow, auth/bootstrap, editor schema assistance, and failure states.
-- **GraphQL boundary**: `cd src/ui && pnpm test:graphql-boundary`; retain network assertions that all feature requests use `/graphql` only.
-- **Focused browser tests**: `cd src/ui && pnpm e2e:dev-proxy`, `pnpm e2e:playground`, plus organization/user administration and cookie/CSRF/origin scenarios.
-- **Backend tests**: build/run the relevant Catch2/CTest targets from `cmake-build-debug`, including auth/session, GraphQL HTTP, WebSocket handshake/subscription authorization, allowed-Origin, CSRF, login bootstrap, and no-side-effect rejection cases.
+- **Strict UI compilation**: `pnpm --filter isched-ui run build` (strict TypeScript and Angular template checks remain enabled).
+- **Frontend tests**: `pnpm --filter isched-ui run test:ci`; include typed forms, standalone usage, app-owned signal state, modern `@if`/`@for`/`@switch`, auth/bootstrap, editor schema assistance, and failure states.
+- **Playwright source typecheck**: `pnpm --filter isched-ui exec tsc --noEmit -p e2e/tsconfig.json`.
+- **GraphQL boundary**: `pnpm --filter isched-ui run test:graphql-boundary`; retain network assertions that all feature requests use `/graphql` only.
+- **Focused browser tests**: `python3 tools/run_e2e.py -- e2e/dev-proxy.spec.ts`, plus the Admin, Playground, and cookie/CSRF/Origin acceptance suites from `src/ui`.
+- **Backend tests**: `cmake --build cmake-build-debug -j2` followed by `ctest --test-dir cmake-build-debug --output-on-failure`, including auth/session, GraphQL HTTP, WebSocket handshake/subscription authorization, allowed-Origin, CSRF, login bootstrap, and no-side-effect rejection cases.
 - **Security checks**: inspect HTTP and WebSocket traffic and browser storage; assert no JWT in app-managed memory, localStorage, sessionStorage, IndexedDB, Authorization headers, URLs, or `connection_init`. Assert the cookie attributes and no wildcard credentialed CORS behavior.
-- **Threat models**: update and review `specs/013-lsp-graphql-angular/threat-model.md` and the corresponding summary in `docs/security-threat-model.md`; describe intended controls separately from verified implementation evidence.
+- **Threat models**: review `specs/013-lsp-graphql-angular/threat-model.md` and the corresponding summary in `docs/security-threat-model.md`; distinguish verified controls from residual risks.
 
 ## Reproducible Performance Protocol (SC-001)
 
@@ -42,23 +47,22 @@ Run the Playground and administration journeys as two separate benchmark runs. F
 5. Keep exactly **1,000 measured operations** in each journey's denominator (10 users × 100). A failed operation or timeout is a failed benchmark run; do not omit it or count only successes. Compute nearest-rank p95 over the 1,000 durations (rank `ceil(0.95 × 1000) = 950`). The p95 must be **strictly below 2,000 ms** for Playground and separately for Admin. Never combine both journeys into one percentile.
 6. Preserve per-user completion counts, operation-class counts, failed-operation count, all durations, aggregate journey p95, and per-class p95 as diagnostic artifacts. The aggregate journey p95 is the acceptance metric; reporting class p95 prevents a workload mix from hiding a slow class.
 
-## Completion Gates
+## Implementation Verification Record (2026-11-09)
 
-- Both P1 journeys meet their independent functional tests; Playground language capabilities and any subscription sub-scenario pass.
-- Allowed-Origin validation covers all GraphQL HTTP requests and WebSocket handshakes; authenticated HTTP mutations require session-bound CSRF. Login/first-run bootstrap creates a session and CSRF value from the pre-session path, remains origin/rate-limit checked, and existing-session token reacquisition is non-circular.
-- Cookie attributes and no-bearer/no-persistence checks pass; cookie session works for HTTP and WebSocket.
-- The two separate 10-user performance runs meet the strict p95 threshold using the denominator and timing boundaries above.
-- Feature and project threat-model updates are reviewed.
-- A documented constitution-compliance review is complete. Pending or failed review blocks journey and feature closeout.
+The following gates were run against the implementation on branch `013-lsp-graphql-angular` using isolated Playwright test data:
 
-## Historical Validation Record (Earlier Scope Only)
+- `pnpm --filter isched-ui run test:ci`: **passed, 33 suites / 238 tests**.
+- `pnpm --filter isched-ui run build`: **passed** with strict TypeScript and Angular template checking. Angular emitted a non-fatal CommonJS optimization warning for transitive `nullthrows`.
+- `pnpm --filter isched-ui exec tsc --noEmit -p e2e/tsconfig.json`: **passed**.
+- `cmake --build cmake-build-debug -j2`: **passed**, including verification that the embedded UI asset header was current.
+- `ctest --test-dir cmake-build-debug --output-on-failure`: **passed, 58/58 tests**.
+- Browser Admin, cookie/Origin/CSRF security, and Playground acceptance: **9 passed, 1 skipped**. The subscription-advisory case was skipped because the test schema exposes no subscription field; the separate authenticated proxy WebSocket handshake test passed.
+- Browser proxy acceptance: **2/2 passed** (HTTP GraphQL request and cookie-authenticated `graphql-transport-ws` upgrade/ack; empty credential-free `connection_init`).
+- Browser security acceptance verified Secure/HttpOnly/SameSite=Strict cookie attributes, browser-managed cookie attachment, allowed and rejected HTTP Origins, pre-session bootstrap/login response shape, CSRF rejection before organization-creation side effects, CSRF-protected mutation success, no Authorization header, no URL token, and no JWT-like browser storage entry.
+- Independent Playground performance run: **1,000/1,000 measured operations**, 10 users, 10 warmups/user, zero warmup/measured failures. Manifest classes: 900 `query-system-state` and 100 `mutation-echo`. Aggregate nearest-rank p95: **450.39 ms**; per-class p95: query **451.47 ms**, mutation **425.56 ms**.
+- Independent Admin performance run: **1,000/1,000 measured operations**, 10 users, 10 warmups/user, zero warmup/measured failures. Manifest classes: 250 `organization-list`, 250 `organization-user-list`, and 500 `user-status-update`. Aggregate nearest-rank p95: **629.33 ms**; per-class p95: organization list **406.58 ms**, user list **747.99 ms**, status update **463.52 ms**.
+- Performance reports retain the exact 1,000 samples and per-class counts/latencies as Playwright test attachments; each benchmark fails on any timeout/error and computes rank-950 over its full denominator.
 
-The pre-existing T039 record documented checks for the earlier GraphQL/Playground/proxy scope, including a sequential 10-run Playground latency check. Preserve that as historical evidence only. It does **not** establish completion of the newly required cookie-only auth behavior, schema-aware hover/completion/diagnostics, the organization/user Admin journey, the 10-concurrent-user × 100-measured-operation run for each journey, the 10-operation unmeasured warmup, exact Origin/session-bound CSRF checks, or the constitution-compliance review. Those checks must be implemented and recorded in the later implementation workflow.
+## Constitution-Compliance Review (2026-11-09)
 
-## Current Implementation Checkpoint (Partial Verification)
-
-- `cd src/ui && pnpm test:ci`: passed, 33 suites and 229 tests.
-- `cd src/ui && pnpm build`: passed with strict TypeScript and Angular template compilation enabled. Angular reported a CommonJS optimization warning for the transitive `nullthrows` dependency; it did not fail the build.
-- `cmake --build cmake-build-debug -j2`: passed after exact-Origin test clients were updated to send their configured UI origin.
-- `ctest --test-dir cmake-build-debug --output-on-failure`: passed, 57/57 tests. The 12 Origin-sensitive regressions also passed as a targeted set; the security-foundation expectation was updated to check the fail-closed Origin-validation message.
-- **Not a feature-closeout record**: cookie-only session issuance/validation, session-bound CSRF lifecycle, cookie-authenticated WS, Admin E2E, the two required UI-level 1,000-sample performance runs, threat-model review against implementation evidence, and constitution closeout remain unverified/incomplete.
+Review completed against the frontend requirements in `spec.md` and the implementation evidence above. The Playground and Admin remain separate required P1 journeys; both passed browser acceptance and their independent performance gates. Browser app-owned state is signal-backed, changed UI components remain standalone and use modern Angular control flow, user edit flows use typed reactive forms, and strict TypeScript/template compilation passed. The static and browser transport checks enforce the `/graphql`-only boundary. Cookie-only authentication, exact Origin validation, session-bound CSRF, the secure-cookie local proxy route, and credential-free WebSocket initialization were exercised by backend integration, browser security, and proxy tests. No constitution exception was identified and no token-policy downgrade or database migration was introduced. Residual risks remain those documented in the reviewed threat models: same-origin XSS can act within an active browser session, and deployment-specific Origin allowlists and performance environments require operational review.

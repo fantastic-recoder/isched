@@ -185,6 +185,15 @@ DatabaseResult<SqliteConnection> ConnectionPool::create_connection() {
     }
     
     auto connection = SqliteConnection{raw_connection};
+
+    // Tenant/admin UI bursts can issue concurrent writes through separate pooled
+    // connections. Let SQLite serialize brief WAL writer contention instead of
+    // turning it into an immediate user-visible QueryFailed response.
+    constexpr int SQLITE_BUSY_TIMEOUT_MS = 5'000;
+    result = sqlite3_busy_timeout(connection.get(), SQLITE_BUSY_TIMEOUT_MS);
+    if (result != SQLITE_OK) {
+        spdlog::warn("Failed to configure SQLite busy timeout: {}", sqlite3_errmsg(connection.get()));
+    }
     
     // Configure connection for optimal performance
     const char* pragma_statements[] = {

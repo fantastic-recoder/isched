@@ -148,6 +148,10 @@ export class OrganizationsPage {
     this.loadOrganizations(1);
   }
 
+  retryLoad(): void {
+    this.loadOrganizations();
+  }
+
   previousPage(): void {
     const currentPage = this.pageInfo().number;
     if (currentPage <= 1) {
@@ -164,28 +168,6 @@ export class OrganizationsPage {
     }
 
     this.loadOrganizations(currentPage.number + 1);
-  }
-
-  onEditKeydown(event: KeyboardEvent, orgId: string): void {
-    if (!this.isActivationKey(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    this.editOrganization(orgId);
-  }
-
-  onToggleKeydown(event: KeyboardEvent, orgId: string): void {
-    if (!this.isActivationKey(event)) {
-      return;
-    }
-
-    event.preventDefault();
-    this.toggleOrganizationStatus(orgId);
-  }
-
-  private isActivationKey(event: KeyboardEvent): boolean {
-    return event.key === 'Enter' || event.key === ' ';
   }
 
   private loadOrganizations(pageNumber = this.pageInfo().number): void {

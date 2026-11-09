@@ -427,6 +427,8 @@ type OrganizationConnection {
 type User {
   """Unique user identifier"""
   id: ID!
+  """Display name exposed for the active authenticated session"""
+  name: String
   """User email address"""
   email: String!
   """Display name"""

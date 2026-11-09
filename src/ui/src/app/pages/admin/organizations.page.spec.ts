@@ -72,7 +72,7 @@ describe('OrganizationsPage accessibility', () => {
     expect(createButton?.className).toContain('focus-visible:outline');
   });
 
-  it('supports keyboard-only create and toggle path with focus-managed status feedback', async () => {
+  it('creates and changes status with focus-managed status feedback', async () => {
     const fixture = TestBed.createComponent(OrganizationsPage);
     fixture.detectChanges();
     const root = fixture.nativeElement as HTMLElement;
@@ -98,7 +98,7 @@ describe('OrganizationsPage accessibility', () => {
     const toggleButton = root.querySelector<HTMLButtonElement>('#org-toggle-local-org-1');
     expect(toggleButton).toBeTruthy();
 
-    toggleButton!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    toggleButton!.click();
     fixture.detectChanges();
     await flushMicrotasks();
     fixture.detectChanges();
@@ -145,6 +145,9 @@ describe('OrganizationsPage accessibility', () => {
      expect(errorDiv).toBeTruthy();
      expect(errorDiv?.textContent).toContain('Failed to fetch organizations');
      expect(errorDiv?.className).toContain('alert-error');
+     expect(root.querySelector('[data-testid="organizations-retry-load"]')?.textContent).toContain(
+       'Refresh organization list',
+     );
    });
 
    it('does not display URL as error message', async () => {
@@ -185,5 +188,57 @@ describe('OrganizationsPage accessibility', () => {
      expect(errorDiv?.textContent).toContain('Organization request failed');
    });
 
-});
+  it('updates the selected organization and renders its final server state', async () => {
+    const fixture = TestBed.createComponent(OrganizationsPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
 
+    root.querySelector<HTMLButtonElement>('#org-edit-org-a')!.click();
+    fixture.detectChanges();
+    const nameInput = root.querySelector<HTMLInputElement>('#org-name-input')!;
+    nameInput.value = 'Org A Updated';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    root.querySelector<HTMLFormElement>('#org-create-form')!.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+    await flushMicrotasks();
+    fixture.detectChanges();
+
+    expect(updateOrganization).toHaveBeenCalledWith('org-a', { name: 'Org A Updated' }, 2);
+    expect(root.querySelector('#organizations-list')?.textContent).toContain('Org A Updated');
+    expect(root.querySelector('#organizations-status')?.textContent).toContain(
+      'Updated organization Org A Updated.',
+    );
+  });
+
+  it('keeps entered organization data and shows field-level validation feedback on failure', async () => {
+    createOrganization.mockImplementationOnce(() =>
+      throwError(
+        () =>
+          new GraphQLRequestError(
+            'Organization name already exists',
+            GRAPHQL_ERROR_CODES.VALIDATION_FAILED,
+            { name: ['An organization with this name already exists.'] },
+          ),
+      ),
+    );
+    const fixture = TestBed.createComponent(OrganizationsPage);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const nameInput = root.querySelector<HTMLInputElement>('#org-name-input')!;
+    nameInput.value = 'Duplicate Org';
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    root.querySelector<HTMLFormElement>('#org-create-form')!.dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+    await flushMicrotasks();
+    fixture.detectChanges();
+
+    expect(nameInput.value).toBe('Duplicate Org');
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('correct the highlighted fields');
+    expect(root.textContent).toContain('An organization with this name already exists.');
+  });
+
+});

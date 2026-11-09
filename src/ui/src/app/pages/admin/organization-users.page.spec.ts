@@ -69,7 +69,7 @@ describe('Organization and user admin deterministic errors', () => {
               throwError(
                 () =>
                   new GraphQLRequestError('validation failed', GRAPHQL_ERROR_CODES.VALIDATION_FAILED, {
-                    loginId: ['Login ID is already in use within this organization.'],
+                    email: ['Email is already in use within this organization.'],
                   }),
               ),
             ),
@@ -83,13 +83,14 @@ describe('Organization and user admin deterministic errors', () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
-    component.form.controls.loginId.setValue('existing-user');
+    component.form.controls.email.setValue('existing@example.test');
+    component.form.controls.password.setValue('Valid!Password123');
     component.form.controls.displayName.setValue('Existing User');
     component.saveUser();
     fixture.detectChanges();
 
     expect(component.error()).toBe('Please correct the highlighted fields and try again.');
-    expect(component.form.controls.loginId.errors?.['server']).toBe('Login ID is already in use within this organization.');
+    expect(component.form.controls.email.errors?.['server']).toBe('Email is already in use within this organization.');
   });
 });
 
@@ -129,4 +130,3 @@ describe('UsersPage org context guard', () => {
     expect(component.warning()).toContain('unsaved changes');
   });
 });
-
