@@ -101,6 +101,8 @@ class SdkFailureTests(unittest.TestCase):
                 "--consumer",
                 str(CONSUMER),
             ]), patch.object(
+                self.verifier.shutil, "which", return_value="/usr/bin/docker"
+            ), patch.object(
                 self.verifier.subprocess, "run", side_effect=failure
             ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 try:

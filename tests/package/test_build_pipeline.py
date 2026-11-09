@@ -107,6 +107,9 @@ class BuildPipelineFailureTests(unittest.TestCase):
                             return_value=f"0.0.0+git.{REVISION[:12]}",
                         ), \
                         patch.object(
+                            self.builder.shutil, "which", return_value="/usr/bin/docker"
+                        ), \
+                        patch.object(
                             self.builder.subprocess,
                             "run",
                             side_effect=failure,
