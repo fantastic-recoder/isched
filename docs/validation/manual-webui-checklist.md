@@ -158,6 +158,42 @@ query ManualHealth {
 - [ ] GQL-12: With a query entered, temporarily block `/graphql` in DevTools or stop the server; Run shows a transport error, clears the spinner, and preserves editor text.
 - [ ] GQL-13: Restore connectivity (restart with the same data directory **without `--seed`** if needed); retry or rerun succeeds without losing the draft.
 
+### Uploaded schema document sample
+
+Use a tenant-admin session for the test organization. The sample is stored as a
+read-only schema document for Playground discovery; its fields do not become
+active resolvers and should not be expected to execute.
+
+```graphql
+mutation UploadManualCatalogSchema {
+  isched {
+    uploadSchemaDocument(input: {
+      name: "manual-catalog-v1"
+      overwrite: false
+      content: """
+        type Query {
+          manualCatalog: [ManualCatalogItem!]!
+        }
+
+        type ManualCatalogItem {
+          id: ID!
+          name: String!
+          price: Float!
+        }
+      """
+    }) {
+      success
+      schema { name createdAt updatedAt updatedBy }
+      error { code message conflictingName }
+    }
+  }
+}
+```
+
+- [ ] GQL-14: Run the mutation above; it succeeds and returns the name `manual-catalog-v1`.
+- [ ] GQL-15: Run `query { isched { schemaDocument(name: "manual-catalog-v1") { name content } } }`; the returned SDL matches the sample. In Playground's schema tree, find the uploaded document and inspect its SDL.
+- [ ] GQL-16: Run the upload again with `overwrite: false`; a name conflict is reported. Change the content (for example, add a `category: String` field) and set `overwrite: true`; the updated SDL is returned by `schemaDocument`.
+
 ## 7. Usability, persistence, and cleanup
 
 For restart checks, stop the server with Ctrl+C and run this in the original
@@ -176,7 +212,7 @@ Do not add `--seed` when checking persistence or recovering connectivity.
 - [ ] UX-01: At desktop and narrow/mobile widths, forms, navigation, dialogs, and Playground controls remain reachable and readable.
 - [ ] UX-02: Use only Tab, Shift+Tab, Enter, and Escape for sign-in and plugin cancellation; focus is visible and modal focus does not escape into the page.
 - [ ] UX-03: Toggle dashboard panels, navigate away/back, and reload; expansion state is restored.
-- [ ] UX-04: Stop and restart the server with the same `--data-dir` but no `--seed`; organizations, users, and role changes remain. Sign-in still works.
+- [ ] UX-04: Stop and restart the server with the same `--data-dir` but no `--seed`; organizations, users, role changes, and `manual-catalog-v1` remain. Sign-in still works.
 - [ ] UX-05: Review Console and Network for unexpected errors; external application API traffic uses `/graphql`, not REST endpoints.
 - [ ] CLEAN-01: Sign out, unload test plugins if still loaded, and stop the test server.
 - [ ] CLEAN-02: Record failed item IDs and reproduction details. Remove only the exact disposable data directories created for this run after retaining any needed evidence.

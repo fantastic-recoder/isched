@@ -26,8 +26,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-04
 - C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), GraphQL executor/schema parser integration, spdlog (012-plugin-system-boost-dll)
 - `isched_system.db` (`plugin_registry`) (012-plugin-system-boost-dll)
 - C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), `GqlExecutor::load_schema` with project PEGTL grammar (`isched_gql_grammar.hpp`) for SDL validation, spdlog (012-plugin-system-boost-dll)
-- C++23 backend, TypeScript (Angular 21) frontend + GraphQL endpoint `/graphql`, Angular standalone APIs, Angular signals, typed reactive forms, RxJS (only where stream semantics required), WebSocket transport for subscriptions, Conan-managed C++ dependencies, CMake/Ninja build toolchain (013-lsp-graphql-angular)
-- Backend existing ACID data store (no storage model changes required for this feature); browser-side auth context in-memory only (013-lsp-graphql-angular)
+- Existing per-tenant SQLite sessions and session/revocation support; no feature-specific schema migration is planned. Browser JWT transport is a Secure, HttpOnly, SameSite=Strict cookie; no JWT in localStorage, sessionStorage, IndexedDB, or application-managed memory. Login and first-run platform-admin bootstrap establish cookie sessions and return session-bound CSRF in GraphQL; an authenticated read-only GraphQL query reacquires it after page reload. (013-lsp-graphql-angular)
+- C++23 backend; TypeScript 5.9 / Angular 21 frontend (strict mode and strict templates) + Existing CMake + Ninja, Conan 2.x, Catch2 3.x, cpp-httplib/Boost.Beast HTTP+WebSocket server, jwt-cpp, SQLite; Angular standalone APIs, signals, typed reactive forms, RxJS where stream semantics are needed, CodeMirror 6, `cm6-graphql` 0.2.x, GraphQL.js 16.x, GraphQL Language Service APIs, Jest/Angular test harness, Playwright (013-lsp-graphql-angular)
 
 - (004-add-isched-webui)
 
@@ -47,9 +47,7 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
-- 013-lsp-graphql-angular: Added C++23 backend, TypeScript (Angular 21) frontend + GraphQL endpoint `/graphql`, Angular standalone APIs, Angular signals, typed reactive forms, RxJS (only where stream semantics required), WebSocket transport for subscriptions, Conan-managed C++ dependencies, CMake/Ninja build toolchain
-- 012-plugin-system-boost-dll: Added C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), `GqlExecutor::load_schema` with project PEGTL grammar (`isched_gql_grammar.hpp`) for SDL validation, spdlog
-- 012-plugin-system-boost-dll: Added C++23 + Boost.DLL + Boost.Filesystem, nlohmann::json, SQLite (`DatabaseManager`), GraphQL executor/schema parser integration, spdlog
+- 013-lsp-graphql-angular (plan): Planned C++23/Angular 21 GraphQL-only `/graphql` work with secure cookie sessions, session-bound CSRF, browser-local CodeMirror GraphQL assistance, and no new endpoint, runtime service, or migration.
 
 
 <!-- MANUAL ADDITIONS START -->

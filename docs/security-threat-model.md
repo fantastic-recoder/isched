@@ -13,6 +13,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - `specs/archive/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling
 - `specs/archive/006-upload-schema/threat-model.md` — Tenant-admin schema upload authorization, overwrite conflict controls, SDL validation, and cross-tenant read isolation for schema documents
 - `specs/011-graphql-playground/threat-model.md` — Authenticated schema browsing, query execution, safe editor/result rendering, layout preference persistence, and subscription advisory-only behavior
+- `specs/013-lsp-graphql-angular/threat-model.md` — Planned Secure, HttpOnly, SameSite=Strict cookie-only auth; exact allowed-Origin checks for all GraphQL HTTP requests and WebSocket handshakes; session-bound CSRF for authenticated HTTP mutations, with login and first-run bootstrap establishing cookie sessions and a read-only GraphQL query reacquiring CSRF after reload; GraphQL-only Playground/Admin journeys and browser-local editor language features. Implementation/test evidence remains pending.
 
 ## Feature 005 Security Closeout Snapshot (2026-04-05)
 
@@ -91,7 +92,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 - **Tenant isolation**: tenant boundaries apply to authorization, runtime state, storage, metrics, and integration configuration.
 - **Session revocation**: revoked sessions must be enforced at request time and propagated to long-lived WebSocket connections.
 - **Secret protection**: external integration secrets must not be stored in plaintext and must be protected against accidental disclosure in logs or responses.
-- **WebUI boundary controls**: browser-facing state must avoid persistent token storage and enforce explicit organization context for admin mutations.
+- **WebUI boundary controls**: browser-facing state must avoid persistent JWT storage or in-memory bearer handling, use Secure, HttpOnly, SameSite=Strict cookie transport, validate exact allowed origins on all GraphQL HTTP requests and WebSocket handshakes, require session-bound CSRF on authenticated HTTP mutations (with GraphQL-only pre-session login/bootstrap handling), and enforce explicit organization context for admin mutations.
 - **Playground safety**: authenticated-only playground features must render untrusted schema/query content as text and keep non-sensitive UI preferences separate from credentials.
 
 ## Reusable Mitigation Checklist
@@ -109,4 +110,3 @@ This document summarizes the security posture and recurring mitigations for Isch
 - review logging for secret redaction and safe error reporting
 - review denial-of-service protections for GraphQL queries, subscriptions, and outbound integrations
 - re-run threat-model review when adding new authentication flows or privileged mutations
-
