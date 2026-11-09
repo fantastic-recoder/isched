@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shutil
 import subprocess
 import sys
 
@@ -56,6 +57,19 @@ def frontend_outputs(root: Path) -> tuple[Path, Path, Path]:
         require(path.is_file() and path.stat().st_size > 0,
                 f"frontend generation failed to produce non-empty {path}")
     return index, notices, header
+
+
+def generate_packages(build_dir: Path, staging: Path, output: Path,
+                      records: list[dict], env: dict[str, str]) -> None:
+    run("package-generation", [
+        "cpack", "--config", str(build_dir / "CPackConfig.cmake"), "-B", str(staging),
+    ], env=env, timeout=1800)
+    expected = {record["package_filename"] for record in records}
+    actual = {path.name for path in staging.iterdir() if path.is_file()}
+    require(actual == expected,
+            f"package output mismatch; expected={sorted(expected)}, actual={sorted(actual)}")
+    for filename in sorted(expected):
+        shutil.copy2(staging / filename, output / filename)
 
 
 def os_release() -> dict[str, str]:
@@ -187,13 +201,7 @@ def main(argv: list[str] | None = None) -> int:
             "--conan-graph", str(graph_json), "--angular-notices", str(frontend_notices),
             "--output-dir", str(license_output),
         ], env=tool_env)
-        run("package-generation", ["cpack", "--config", str(build_dir / "CPackConfig.cmake")],
-            env=tool_env, timeout=1800)
-
-        expected = {record["package_filename"] for record in records}
-        actual = {path.name for path in output.iterdir() if path.is_file()}
-        require(actual == expected,
-                f"target={args.target} package output mismatch; expected={sorted(expected)}, actual={sorted(actual)}")
+        generate_packages(build_dir, work / "cpack", output, records, tool_env)
         run("package-validation", [
             sys.executable, "packaging/scripts/validate_packages.py",
             "--target", args.target, "--revision", args.revision,

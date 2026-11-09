@@ -9,7 +9,9 @@ gate. The stage labels cover the task's required pipeline failure matrix.
 import contextlib
 import importlib.util
 import io
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -69,6 +71,84 @@ class FrontendOutputTests(unittest.TestCase):
                         with self.assertRaisesRegex(ValueError, "non-empty"):
                             self.builder.frontend_outputs(root)
                         path.write_text("generated content\n")
+
+
+class PackageGenerationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location(
+            "build_target_packages_tested", ROOT / "packaging/scripts/build_target.py"
+        )
+        cls.builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.builder)
+
+    @unittest.skipUnless(
+        all(shutil.which(tool) for tool in ("cmake", "cpack", "dpkg-deb")),
+        "DEB regression requires CMake, CPack and dpkg-deb",
+    )
+    def test_cpack_staging_is_not_exported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            (source / "payload.txt").write_text("package payload\n")
+            (source / "CMakeLists.txt").write_text(
+                'cmake_minimum_required(VERSION 3.19)\n'
+                'project(package_fixture NONE)\n'
+                'set(CPACK_GENERATOR DEB)\n'
+                'set(CPACK_PACKAGE_CONTACT "isched contributors")\n'
+                'set(CPACK_DEB_COMPONENT_INSTALL ON)\n'
+                'set(CPACK_COMPONENTS_ALL runtime devel)\n'
+                'set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE amd64)\n'
+                'set(CPACK_DEBIAN_RUNTIME_FILE_NAME isched-runtime.deb)\n'
+                'set(CPACK_DEBIAN_DEVEL_FILE_NAME isched-developer.deb)\n'
+                f'set(CPACK_PACKAGE_DIRECTORY "{root / "out"}")\n'
+                'install(FILES payload.txt DESTINATION share/runtime COMPONENT runtime)\n'
+                'install(FILES payload.txt DESTINATION share/devel COMPONENT devel)\n'
+                'include(CPack)\n'
+            )
+            build = root / "build"
+            subprocess.run(
+                ["cmake", "-S", str(source), "-B", str(build)],
+                check=True, capture_output=True, text=True, timeout=30,
+            )
+            staging, output = root / "cpack", root / "out"
+            output.mkdir()
+            records = [
+                {"package_filename": "isched-runtime.deb"},
+                {"package_filename": "isched-developer.deb"},
+            ]
+            self.builder.generate_packages(build, staging, output, records, dict(os.environ))
+            self.assertTrue((staging / "_CPack_Packages").is_dir())
+            self.assertEqual(
+                {path.name for path in output.iterdir()},
+                {record["package_filename"] for record in records},
+            )
+            for record in records:
+                filename = record["package_filename"]
+                self.assertGreater((output / filename).stat().st_size, 0)
+                self.assertEqual((output / filename).read_bytes(), (staging / filename).read_bytes())
+
+    def test_missing_or_unexpected_packages_are_not_exported(self):
+        for filenames in (
+            ("isched-runtime.deb",),
+            ("isched-runtime.deb", "isched-developer.deb", "unexpected.deb"),
+        ):
+            with self.subTest(filenames=filenames), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                staging, output = root / "cpack", root / "out"
+                staging.mkdir()
+                output.mkdir()
+                for filename in filenames:
+                    (staging / filename).write_bytes(b"package")
+                records = [
+                    {"package_filename": "isched-runtime.deb"},
+                    {"package_filename": "isched-developer.deb"},
+                ]
+                with patch.object(self.builder, "run"), \
+                        self.assertRaisesRegex(ValueError, "package output mismatch"):
+                    self.builder.generate_packages(root / "build", staging, output, records, {})
+                self.assertEqual(list(output.iterdir()), [])
 
 
 class BuildPipelineFailureTests(unittest.TestCase):
