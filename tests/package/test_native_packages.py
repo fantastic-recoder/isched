@@ -8,6 +8,7 @@ packaging implementation task.
 """
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -124,6 +126,55 @@ class GeneratedPackageTests(unittest.TestCase):
         cls.builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.builder)
 
+    def test_deb_payload_paths_come_from_tar_not_formatted_listing(self):
+        archive = io.BytesIO()
+        name = "usr/share/doc/isched-devel/licenses/notice with spaces.txt"
+        with tarfile.open(fileobj=archive, mode="w") as tar:
+            member = tarfile.TarInfo("./" + name)
+            member.size = 7
+            tar.addfile(member, io.BytesIO(b"license"))
+        with patch.object(
+            self.validator.subprocess, "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=archive.getvalue()),
+        ) as run:
+            contents, paths = self.validator._deb_payload(Path("fixture.deb"), "ubuntu-26.04")
+        self.assertEqual(paths, {name})
+        self.assertEqual(contents[name], b"license")
+        self.assertEqual(run.call_count, 1)
+        self.assertIn("--fsys-tarfile", run.call_args.args[0])
+
+    def test_rpm_hardlinks_resolve_data_independent_of_entry_order(self):
+        def entry(name, data, inode, links=2, device=1):
+            encoded = name.encode() + b"\0"
+            fields = [inode, 0o100644, 0, 0, links, 0, len(data),
+                      device, 0, 0, 0, len(encoded), 0]
+            header = b"070701" + "".join(f"{value:08x}" for value in fields).encode()
+            prefix = header + encoded
+            prefix += b"\0" * (-len(prefix) % 4)
+            return prefix + data + b"\0" * (-len(data) % 4)
+
+        first = "usr/share/doc/isched-devel/licenses/first"
+        second = "usr/share/doc/isched-devel/licenses/second"
+        other = "usr/share/doc/isched-devel/licenses/other-device"
+        for data_first in (True, False):
+            with self.subTest(data_first=data_first):
+                archive = (
+                    entry(first, b"license" if data_first else b"", 42)
+                    + entry(other, b"different", 42, links=1, device=2)
+                    + entry(second, b"" if data_first else b"license", 42)
+                    + entry("TRAILER!!!", b"", 0, links=1)
+                )
+                with patch.object(
+                    self.validator.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 0, stdout=archive),
+                ):
+                    contents, paths = self.validator._rpm_cpio_payload(
+                        Path("fixture.rpm"), "fedora-45",
+                    )
+                self.assertEqual(paths, {first, second, other})
+                self.assertEqual(contents, {first: b"license", second: b"license",
+                                            other: b"different"})
+
     @unittest.skipUnless(
         all(shutil.which(tool) for tool in ("cmake", "cpack", "dpkg-deb", "dpkg-shlibdeps")),
         "native package regression requires CMake, CPack and Debian inspection tools",
@@ -162,11 +213,16 @@ class GeneratedPackageTests(unittest.TestCase):
                 directory = root / "licenses" / role
                 (directory / "licenses").mkdir(parents=True)
                 notice = b"third-party license fixture\n"
-                (directory / "licenses/NOTICE").write_bytes(notice)
+                notices = ("licenses/NOTICE", "licenses/duplicate/NOTICE")
+                for name in notices:
+                    path = directory / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(notice)
                 (directory / "license-inventory.json").write_text(json.dumps({
                     "schema_version": 1, "role": role,
-                    "notices": [{"path": "licenses/NOTICE",
-                                 "sha256": hashlib.sha256(notice).hexdigest()}],
+                    "notices": [{"path": name,
+                                 "sha256": hashlib.sha256(notice).hexdigest()}
+                                for name in notices],
                 }))
             (source / "header.hpp").write_text("// public header fixture\n")
             (source / "libisched.a").write_bytes(b"static archive fixture")

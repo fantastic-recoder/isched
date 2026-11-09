@@ -58,12 +58,7 @@ def _capture(path: str) -> bool:
 
 
 def _deb_payload(package: Path, target: str) -> tuple[dict[str, bytes], set[str]]:
-    listing = command(["dpkg-deb", "--contents", str(package)], target)
     payload_names: set[str] = set()
-    for line in listing.splitlines():
-        name = line.split(" ", maxsplit=5)[-1].strip()
-        if name:
-            payload_names.add(_safe_member(name, target))
     archive = subprocess.run(
         ["dpkg-deb", "--fsys-tarfile", str(package)],
         check=True, capture_output=True, timeout=180,
@@ -89,6 +84,8 @@ def _rpm_cpio_payload(package: Path, target: str) -> tuple[dict[str, bytes], set
     ).stdout
     selected: dict[str, bytes] = {}
     names: set[str] = set()
+    hardlinks: dict[tuple[int, int, int], list[str]] = {}
+    hardlink_data: dict[tuple[int, int, int], bytes] = {}
     offset = 0
     try:
         while offset < len(archive):
@@ -112,11 +109,22 @@ def _rpm_cpio_payload(package: Path, target: str) -> tuple[dict[str, bytes], set
             data_end = offset + file_size
             if data_end > len(archive):
                 raise ValidationError(f"target={target} truncated RPM payload file: {path}")
-            if _capture(path) and mode & 0o170000 == 0o100000:
-                selected[path] = archive[offset:data_end]
+            if mode & 0o170000 == 0o100000:
+                data = archive[offset:data_end]
+                if fields[4] > 1:
+                    key = (fields[7], fields[8], fields[0])
+                    hardlinks.setdefault(key, []).append(path)
+                    if key not in hardlink_data or data:
+                        hardlink_data[key] = data
+                elif _capture(path):
+                    selected[path] = data
             offset = (data_end + 3) & ~3
     except (UnicodeDecodeError, ValueError, IndexError) as error:
         raise ValidationError(f"target={target} invalid RPM cpio payload: {error}") from error
+    for key, paths in hardlinks.items():
+        for path in paths:
+            if _capture(path):
+                selected[path] = hardlink_data[key]
     return selected, names
 
 

@@ -46,6 +46,8 @@ The eventual shared build wrapper must reject a mismatched revision.
 
 ## Safety and evidence boundaries
 
+- Native payload validation reads DEB tar entries and resolves RPM cpio hard
+  links before checking notice hashes; formatted file listings are not paths.
 - Never install packages onto the host. Runtime/SDK verification uses fresh,
   exact-target containers, with disposable state and only owned processes.
 - Never run `--seed`, ship application databases, or install service state.
