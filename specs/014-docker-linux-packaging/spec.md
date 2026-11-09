@@ -12,6 +12,7 @@
 - Initial targets: one explicitly pinned Ubuntu release and one explicitly pinned Fedora release, x86_64 only. Select and document exact release versions during planning.
 - Package formats: Ubuntu `.deb` and Fedora `.rpm`.
 - Package contents: separate runnable-server and developer/library distributions. The runtime distribution includes `isched_srv` with its embedded WebUI; the developer distribution provides library artifacts for development.
+- Usability verification: the project currently has one contributor; SC-005 requires single-contributor verification of all initial target/role selections, not recruitment or a multi-contributor threshold.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -102,4 +103,4 @@ A maintainer adds a future Linux distribution/version/architecture target while 
 - **SC-002**: For every target in a workflow run, users can determine its success or failure and identify its distribution, version, architecture, and package format from that run without inspecting workflow internals.
 - **SC-003**: Every successfully validated target package is downloadable from its workflow run, and no failed or invalid output is presented as a successful package.
 - **SC-004**: A maintainer can add at least one future target while preserving distinguishable outputs and successful results for all existing initial targets.
-- **SC-005**: In a usability check, at least 9 of 10 project contributors can select the artifact for a named target and state its compatibility dimensions correctly within one minute, using only the workflow run's visible artifact information.
+- **SC-005**: In a single-contributor usability check, one contributor MUST correctly select the artifact for each named initial Ubuntu/Fedora target and runtime/developer role combination (four selections), and identify its distribution, distribution version, architecture, package format, and role within one minute per selection, using only the workflow run's visible artifact metadata.
