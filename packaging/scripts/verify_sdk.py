@@ -128,6 +128,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         shutil.copytree(consumer, copied_consumer)
         build = scratch / "build"
         _activated(activation, ["cmake", "-S", str(copied_consumer), "-B", str(build),
+                               "-DCMAKE_BUILD_TYPE=Release",
                                f"-DCMAKE_TOOLCHAIN_FILE={toolchain}",
                                f"-DCMAKE_PREFIX_PATH={dependencies}"],
                    stage="consumer-configure", timeout=900, env=environment)

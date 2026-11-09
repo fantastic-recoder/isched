@@ -41,7 +41,8 @@ python3 -m venv .venv/isched-sdk
   --profile:host=/usr/share/isched/developer/profiles/ubuntu-26.04 \
   --profile:build=default \
   --output-folder=build/conan --build=missing
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=build/conan/conan_toolchain.cmake \
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_TOOLCHAIN_FILE=build/conan/conan_toolchain.cmake \
   -DCMAKE_PREFIX_PATH=build/conan
 cmake --build build
 ```

@@ -84,7 +84,7 @@ class SdkFailureTests(unittest.TestCase):
         sys.modules[spec.name] = cls.verifier
         spec.loader.exec_module(cls.verifier)
 
-    def test_dependency_install_uses_activated_cmake_and_isolated_conan_home(self):
+    def test_consumer_uses_activated_cmake_isolated_conan_home_and_release_build(self):
         versions = self.verifier.json.loads(
             (ROOT / "packaging/tool-versions.json").read_text()
         )
@@ -99,7 +99,10 @@ class SdkFailureTests(unittest.TestCase):
                 self.assertEqual(command[5], "/opt/isched-tools/conan/bin/conan")
                 self.assertIn("--build=missing", command)
                 self.assertIn("--profile:build=default", command)
-                raise RuntimeError("dependency-install-reached")
+            if stage == "consumer-configure":
+                self.assertEqual(command[:3], ["bash", "-c", 'source "$1"; shift; exec "$@"'])
+                self.assertIn("-DCMAKE_BUILD_TYPE=Release", command)
+                raise RuntimeError("consumer-configure-reached")
             output = (f"cmake version {versions['cmake']}\n"
                       if stage == "cmake-version" else "")
             return subprocess.CompletedProcess(command, 0, stdout=output)
@@ -111,10 +114,11 @@ class SdkFailureTests(unittest.TestCase):
                     patch.object(self.verifier, "run", side_effect=run), \
                     patch.object(self.verifier, "_find_one", return_value=Path("/fixture/conanbuild.sh")), \
                     patch.object(Path, "is_file", return_value=True), \
-                    self.assertRaisesRegex(RuntimeError, "dependency-install-reached"):
+                    self.assertRaisesRegex(RuntimeError, "consumer-configure-reached"):
                 self.verifier._verify_consumer({"id": target}, CONSUMER)
             self.assertEqual(
-                stages, ["conan-profile", "conan-cmake", "cmake-version", "conan-dependencies"],
+                stages, ["conan-profile", "conan-cmake", "cmake-version",
+                         "conan-dependencies", "consumer-configure"],
             )
             home = environments[0]["CONAN_HOME"]
             self.assertTrue(home.startswith("/tmp/isched-sdk-conan-"))
