@@ -193,6 +193,9 @@ class GeneratedPackageTests(unittest.TestCase):
         from package_identity import identity, load_targets
 
         target = next(item for item in load_targets() if item["id"] == target_id)
+        compiler = (shutil.which(target["compiler"]["c"])
+                    or shutil.which("cc") or shutil.which("gcc"))
+        self.assertIsNotNone(compiler, "native package fixture requires a C compiler")
         records = [identity(target, role, REVISION, "1.0.0")
                    for role in ("runtime", "developer")]
         with tempfile.TemporaryDirectory() as temporary:
@@ -263,7 +266,7 @@ class GeneratedPackageTests(unittest.TestCase):
             )
             result = subprocess.run(
                 ["cmake", "-S", str(source), "-B", str(root / "build"),
-                 "-DCMAKE_INSTALL_PREFIX=/usr"],
+                 "-DCMAKE_INSTALL_PREFIX=/usr", f"-DCMAKE_C_COMPILER={compiler}"],
                 capture_output=True, text=True, timeout=120,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

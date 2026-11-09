@@ -46,7 +46,7 @@ COPY packaging/targets.json packaging/tool-versions.json packaging/requirements-
 COPY packaging/scripts/package_identity.py packaging/scripts/bootstrap_tools.py packaging/scripts/verify_sdk.py packaging/scripts/
 COPY tests/package/sdk-consumer/ consumer/
 COPY --from=build /out/ /tmp/packages/
-RUN set -- /tmp/packages/isched-devel-*.deb \
+RUN set -- /tmp/packages/isched-developer-*.deb \
     && test "$#" -eq 1 \
     && python3 packaging/scripts/verify_sdk.py --target ubuntu-26.04 \
          --package "$1" --consumer /opt/isched/consumer --in-container \

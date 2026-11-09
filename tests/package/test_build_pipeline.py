@@ -7,6 +7,7 @@ target-attributed result and must not expose package artifacts on any failed
 gate. The stage labels cover the task's required pipeline failure matrix.
 """
 import contextlib
+import fnmatch
 import importlib.util
 import io
 import os
@@ -81,6 +82,27 @@ class PackageGenerationTests(unittest.TestCase):
         )
         cls.builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.builder)
+
+    def test_docker_verifiers_select_canonical_package_filenames(self):
+        from package_identity import identity, load_targets
+
+        for target in load_targets():
+            dockerfile = ROOT / "packaging/docker" / target["distribution"] / "Dockerfile"
+            lines = dockerfile.read_text().splitlines()
+            selectors = [
+                line.removeprefix("RUN set -- /tmp/packages/").split()[0]
+                for line in lines if line.startswith("RUN set -- /tmp/packages/")
+            ]
+            records = [identity(target, role, REVISION, "1.0.0")
+                       for role in ("runtime", "developer")]
+            self.assertEqual(len(selectors), len(records))
+            for selector, record in zip(selectors, records):
+                with self.subTest(target=target["id"], role=record["role"]):
+                    self.assertTrue(fnmatch.fnmatchcase(record["package_filename"], selector))
+                    self.assertEqual(
+                        sum(fnmatch.fnmatchcase(item["package_filename"], selector)
+                            for item in records), 1,
+                    )
 
     @unittest.skipUnless(
         all(shutil.which(tool) for tool in ("cmake", "cpack", "dpkg-deb")),

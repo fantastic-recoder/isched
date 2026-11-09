@@ -40,7 +40,7 @@ COPY packaging/targets.json packaging/tool-versions.json packaging/requirements-
 COPY packaging/scripts/package_identity.py packaging/scripts/bootstrap_tools.py packaging/scripts/verify_sdk.py packaging/scripts/
 COPY tests/package/sdk-consumer/ consumer/
 COPY --from=build /out/ /tmp/packages/
-RUN set -- /tmp/packages/isched-devel-*.rpm \
+RUN set -- /tmp/packages/isched-developer-*.rpm \
     && test "$#" -eq 1 \
     && python3 packaging/scripts/verify_sdk.py --target fedora-45 \
          --package "$1" --consumer /opt/isched/consumer --in-container \
