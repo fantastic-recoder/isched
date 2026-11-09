@@ -23,6 +23,7 @@ This document describes conceptual state for the feature. `UiFlowState` and `Gra
 - **Lifecycle**: created when login or first-run `bootstrapPlatformAdmin` establishes the authenticated session; returned in the GraphQL `AuthPayload` for either operation. A read-only `currentSessionCsrfToken` GraphQL query field under the existing `/graphql` endpoint returns/reacquires it after reload. Angular retains it in memory only and sends it as `X-CSRF-Token` on authenticated HTTP mutations. The server validates exact session binding before mutation execution and invalidates the association on logout/revocation.
 - **Pre-session handling**: Login and first-run bootstrap have no authenticated session to bind a token to before execution. They are exempt from the CSRF header only when no authenticated session is present; exact Origin validation and existing rate limits still apply. Repository behavior confirms bootstrap creates an authenticated session on success, so the response layer sets the cookie and the GraphQL result returns that session's CSRF value. The authenticated session-token query is read-only, needs no CSRF header, and is therefore a non-circular acquisition path. Authenticated logout and every other HTTP mutation require the token.
 - **Storage**: never store in localStorage/sessionStorage/IndexedDB or URL. It is not the cookie value and cannot authenticate a request alone.
+- **Synchronization**: all `csrf_sessions_` accesses use an exclusive RAII lock on `sessions_mutex_`, including reads that may erase expired entries. Lookup returns an owned string copy; comparison occurs outside the lock. Database operations and subscription callbacks are not invoked while holding it. Restart loses the association and requires reauthentication; reload in the same server process can reacquire it.
 
 ## AllowedOrigin
 
@@ -36,6 +37,7 @@ This document describes conceptual state for the feature. `UiFlowState` and `Gra
 - **Fields**: `operationName`; `operationType` (`query|mutation|subscription`); `document`; `variables`; result/error envelope; `submittedAt`/`completedAt` for transient measurement only.
 - **Validation**: validate against the active GraphQL schema. For HTTP, parse/select the actual operation before applying mutation CSRF policy; do not classify mutations using a string-prefix heuristic. Authenticated mutations require the session-bound header; pre-session login/bootstrap rules are narrowly scoped. Subscriptions require an allowed-Origin handshake and cookie-authenticated session where protected.
 - **External interface**: contract is GraphQL `/graphql` only; no REST/LSP endpoint is introduced.
+- **Subscription policy**: no cookie plus an allowed Origin permits public anonymous subscriptions; protected subscriptions require valid cookie/session and role/tenant authorization before resolver or broker work. An invalid supplied cookie is never treated as absent.
 
 ## GraphQLSchemaSnapshot (internal frontend model)
 

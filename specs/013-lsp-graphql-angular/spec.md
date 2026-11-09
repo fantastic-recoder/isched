@@ -2,7 +2,8 @@
 
 **Feature Branch**: `013-lsp-graphql-angular`
 **Created**: 2026-11-08
-**Status**: Draft
+**Status**: Completed
+**Completion evidence**: [quickstart.md](quickstart.md), including the backend constitution review and subscription-policy verification on 2026-11-09.
 **Input**: Deliver schema-aware GraphQL editor assistance and complete Playground and organization/user administration journeys through the existing GraphQL-only browser API, with cookie-only authentication, local proxy support, security controls, and measurable UI performance.
 
 ## Clarifications
@@ -76,6 +77,7 @@ As a security-conscious operator, I need browser authentication to use Secure, H
 
 1. **Given** a user authenticates successfully, **When** the app issues protected GraphQL HTTP or WebSocket operations, **Then** the browser sends a secure HttpOnly, SameSite cookie and JavaScript does not handle a bearer token.
 2. **Given** the session expires or is revoked, **When** a protected operation is attempted, **Then** the UI clears non-cookie session state and directs the user to re-authenticate without a bearer-token fallback.
+3. **Given** an allowed-Origin WebSocket handshake without a session cookie, **When** a public subscription such as `healthChanged` is requested, **Then** anonymous delivery remains supported; a protected subscription is rejected before its resolver or broker registration runs. This policy applies to both the same-port and dedicated WebSocket listeners.
 
 ---
 
@@ -97,6 +99,7 @@ As a developer, I can run the Angular app locally with proxy routing for GraphQL
 
 - If `/graphql` is temporarily unavailable, the UI must show non-destructive error state, preserve user-entered form data, and allow retry.
 - If a cookie is missing, invalid, expired, or revoked, protected HTTP and WebSocket operations must fail safely and trigger a clear re-authentication path; no bearer-token alternative is attempted.
+- A missing cookie permits anonymous public subscriptions after Origin validation. A supplied invalid, empty, malformed, duplicate, expired, or revoked session cookie is rejected rather than downgraded to anonymous access.
 - If WebSocket upgrade fails in development, the UI must continue supporting non-subscription flows and display a diagnostic message for subscription-dependent sections.
 - If introspection is unavailable or lacks the active schema, the editor must show a clear language-service-unavailable diagnostic and must not imply that schema-aware validation is active.
 - If schema documentation is absent, hover must not invent descriptions; completion and diagnostics should still reflect available schema data.
@@ -115,6 +118,7 @@ As a developer, I can run the Angular app locally with proxy routing for GraphQL
 - **FR-006**: The browser GraphQL editor MUST provide schema-aware completion, hover documentation, and live syntax/type diagnostics against the active GraphQL schema. Schema and documentation data MUST be obtained through `/graphql`; the language service MUST NOT introduce another external backend endpoint.
 - **FR-007**: The Angular administration journey MUST support organization and user management through GraphQL `/graphql`, with user-visible outcomes and actionable validation/authorization/conflict/transport errors.
 - **FR-008**: Browser authentication MUST use a Secure, HttpOnly, SameSite=Strict cookie for `/graphql` HTTP and WebSocket session authentication. Successful login and first-run platform-admin bootstrap responses MUST set the cookie through the HTTP response layer and MUST NOT return the JWT in their JSON payloads. The browser MUST NOT use an Authorization bearer header, JWT in-memory bearer state, URL token, or WebSocket bearer payload. FR-004's persistent-storage prohibition is a distinct requirement and MUST NOT be treated as a substitute for this transport rule.
+  Anonymous public subscriptions remain supported only when no session cookie is supplied and the Origin is allowed. Protected subscriptions require a valid cookie session and the existing role/tenant authorization before resolver execution or broker registration. Invalid supplied cookies MUST NOT fall back to anonymous access; neither `connection_init` credentials nor an Authorization header may authenticate the WebSocket.
 - **FR-009**: The server MUST validate an exact configured allowed Origin for every GraphQL HTTP request and WebSocket handshake. Missing, `null`, malformed, wildcard, or unlisted origins MUST fail closed; Referer MUST NOT substitute for Origin. Credentialed CORS MUST NOT use wildcard `Access-Control-Allow-Origin`.
 - **FR-010**: Every authenticated HTTP GraphQL mutation MUST require a session-bound CSRF token and validate it before executing mutation side effects. Login and first-run platform-admin bootstrap are explicit pre-session exceptions only when no authenticated session exists; they remain Origin-validated and rate-limited. Repository behavior creates an authenticated session during first-run bootstrap. Successful login and bootstrap MUST return that session's CSRF value through GraphQL, and a read-only existing-session GraphQL bootstrap query MUST provide/reacquire it. The pre-session exception MUST NOT apply when a valid session cookie is already present. This MUST NOT introduce a non-GraphQL endpoint or database migration.
 

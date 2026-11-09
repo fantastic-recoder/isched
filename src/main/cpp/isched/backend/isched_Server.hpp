@@ -319,7 +319,10 @@ public:
      * @param variables_json GraphQL variables as a JSON string
      * @param authorization_header Value of the HTTP Authorization header (optional)
      * @param remote_ip Client IP address for rate-limiting and logging
-     * @param request_headers Additional request headers (X-CSRF-Token, Origin, Referer for CSRF validation)
+     * @param request_headers Request headers including Cookie, X-CSRF-Token, and Origin
+     * @param operation_name Selected operation name for multi-operation documents
+     * @param set_cookie Non-owning output for private HTTP cookie metadata; when supplied,
+     *        enables the cookie-only HTTP authentication and parsed mutation-CSRF policy
      * @return JSON-encoded GraphQL response payload
      */
     String execute_graphql(const String& query, const String& variables_json = "{}",

@@ -1,7 +1,8 @@
 # Implementation Plan: LSP GraphQL Angular Integration
 
 **Branch**: `013-lsp-graphql-angular` | **Date**: 2026-11-08 | **Spec**: [spec.md](spec.md)
-**Input**: `/home/groby/dev/isched/specs/013-lsp-graphql-angular/spec.md`
+**Input**: `specs/013-lsp-graphql-angular/spec.md`
+**Status**: Completed; implementation and review evidence is recorded in [quickstart.md](quickstart.md).
 
 ## Summary
 
@@ -21,7 +22,7 @@ Deliver both required Angular journeys—the GraphQL Playground and organization
 
 ## Constitution Check
 
-*Gate: design reviewed before Phase 0 and again after Phase 1. Design passes; implementation closeout review remains a required blocking gate.*
+*Gate: design reviewed before Phase 0 and again after Phase 1. Implementation closeout, including changed backend C++/Clean Code and synchronization review, passed on 2026-11-09; see quickstart.md.*
 
 - [x] **GraphQL-only boundary**: FR-001 is canonical; all browser/server application requests stay at `/graphql` over HTTP or WebSocket. FCR-004 explicitly references FR-001. No LSP protocol endpoint is planned.
 - [x] **Language/build baseline**: Preserve C++23, Conan-managed dependencies, CMake + Ninja.
@@ -31,16 +32,16 @@ Deliver both required Angular journeys—the GraphQL Playground and organization
 - [x] **Verification**: Include unit/component, integration, security and E2E checks for each journey; test evidence is required before story completion.
 - [x] **Threat models**: Maintain the feature threat model and corresponding project-wide summary; both describe planned controls without claiming implementation evidence.
 - [x] **Clean Code**: Plan focused server/client responsibilities and require implementation review for conditional complexity and any profiled hot-path abstraction trade-off.
-- [ ] **Closeout gate**: A documented constitution-compliance review must be completed before any required journey or the feature is marked complete. A pending/failed review blocks closeout; this planning run does not satisfy it.
+- [x] **Closeout gate**: The documented implementation review covers frontend conventions, changed backend C++/Clean Code, CSRF synchronization, and both public/protected subscription policies. Verification and review scope are recorded in `quickstart.md`.
 
-**Gate result**: No design violation identified; no complexity exception is requested. The closeout checklist intentionally remains open until implementation and review evidence exist.
+**Gate result**: Design and implementation reviews passed. The post-analysis refactor removed duplicated HTTP/WS cookie validation and extracted focused parsed-operation policy helpers. No new complexity exception is requested; this review covers feature changes, not a repository-wide audit of legacy code.
 
 ## Design Decisions and Execution Notes
 
 1. **Browser-local editor assistance**: Use the installed CodeMirror/`cm6-graphql` stack with a complete described schema built from `/graphql` introspection. Declare GraphQL.js directly (and GraphQL Language Service directly if its APIs are imported rather than reached through an undeclared transitive dependency). Implement completion, hover descriptions, and live syntax/type diagnostics. No LSP JSON-RPC wire compatibility or external language-service endpoint is required.
 2. **Cookie session and CSRF bootstrap**: Login and first-run `bootstrapPlatformAdmin` are pre-session operations when no authenticated session exists. Repository inspection confirms that both successful operations create an authenticated session. They remain subject to exact Origin validation and existing login/bootstrap abuse protections, do not require a CSRF token before that session exists, set the cookie through the HTTP response layer, and return the newly session-bound CSRF value in the GraphQL result but never the JWT. Add/extend GraphQL fields within the existing `/graphql` schema: include the CSRF value in the login/bootstrap `AuthPayload`, and expose a read-only `currentSessionCsrfToken` query field for an already authenticated cookie session to reacquire the value after reload. This read-only query needs no CSRF header, so acquisition is non-circular. A login/bootstrap CSRF exemption applies only when no valid session cookie is present; if a valid session is present, authenticated mutation validation applies. Store the value only in app memory and send it as `X-CSRF-Token` for authenticated HTTP mutations. Validate it against the current authenticated session before mutation resolvers run. Logout is an authenticated mutation and is not exempt; the HTTP response layer expires the cookie. Reuse existing session IDs/revocation facilities; keep any CSRF association in server process state so no database migration is required.
 3. **Origin policy**: Normalize and exactly match `Origin` against an explicit configured allowlist for every GraphQL HTTP request and WebSocket handshake. Missing, `null`, wildcard, substring-only, or unlisted origins fail closed. Do not use Referer as a bypass. Credentialed CORS responses, if required, echo only the matched origin; never use `Access-Control-Allow-Origin: *`. Replace the current wildcard default with explicitly configured trusted origins. The same allowlist includes the configured Angular development origin and deployed UI origins.
-4. **WebSocket authentication**: Browser-managed cookie is the only credential at the `/graphql` upgrade handshake; validate Origin and the cookie/session before accepting protected subscriptions. Keep `graphql-transport-ws` for protocol messages, but do not place a token in `connection_init`. Origin validation is required even for unauthenticated/failed handshakes.
+4. **WebSocket authentication**: Browser-managed cookie is the only credential at the `/graphql` upgrade handshake; validate Origin and the cookie/session before accepting protected subscriptions. With an allowed Origin and no cookie, public anonymous subscriptions remain supported. Invalid supplied cookies fail rather than downgrading to anonymous access. Protected subscriptions must pass role/tenant checks before resolver or broker work on both listener routes. Keep `graphql-transport-ws` for protocol messages, but do not place a token in `connection_init`. Origin validation is required even for unauthenticated/failed handshakes.
 5. **Session token mechanism (additional design choice)**: Generate an unpredictable CSRF value per authenticated session, associate it with the existing session identifier in process state, expose it only through the GraphQL login/session-bootstrap responses, and invalidate it on logout/revocation. This is intentionally separate from the JWT and does not change the SQLite schema. Never silently downgrade to a double-submit cookie or bearer-token fallback.
 6. **Performance protocol**: Run each journey separately with 10 users synchronized at a start barrier. Freeze a deterministic 100-operation workload manifest, fixture data, and operation-class counts per journey. Each user first replays the manifest's first 10 operations as unmeasured warmup, then replays all 100 operations as measured UI work; reuse the same manifest for every user and run. Do not drop failed/timeout operations from the 1,000-sample denominator; any operation that does not reach its expected final visible result fails the run. Start a monotonic timer immediately before dispatch on submit; stop only after the expected final result is visible, loading/submitting UI has settled, and an Angular render frame has occurred. Include browser/client processing, HTTP/WS proxy, server, and UI render; exclude login, schema setup, fixture seeding, think time, and warmups. Compute nearest-rank p95 over all 1,000 measured observations for that journey; require `< 2,000 ms`, not `<=`. Report operation-class counts and p95 alongside the required aggregate.
 
@@ -98,4 +99,4 @@ src/test/cpp/isched/                                # Existing Catch2 test targe
 
 ## Complexity Tracking
 
-No constitution exception or additional project/service is proposed. The in-memory per-session CSRF association avoids a schema migration; implementation must verify its lifecycle against the existing single-process session/revocation model.
+No new constitution exception or additional project/service is proposed. The in-memory per-session CSRF association avoids a schema migration. Its lifecycle and exclusive `sessions_mutex_` locking strategy were reviewed against the single-process session/revocation model; see `data-model.md` and the backend review in `quickstart.md`.

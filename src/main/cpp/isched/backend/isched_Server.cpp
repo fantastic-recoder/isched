@@ -1748,8 +1748,8 @@ String Server::execute_graphql(const String& query, const String& variables_json
     m_request_count.fetch_add(1);
     m_impl->total_requests.fetch_add(1);
 
-    // T010: Validate CSRF token and exact Origin for mutations.
-    // Detect if query is a mutation by checking if it starts with "mutation"
+    // Retain the legacy non-HTTP guard for direct callers. Browser HTTP mutation
+    // policy is applied to the selected parsed operation in GqlExecutor.
     std::string trimmed_query = query;
     // Trim leading whitespace
     size_t start = trimmed_query.find_first_not_of(" \t\n\r");
@@ -1760,9 +1760,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
     const bool is_mutation = trimmed_query.size() >= 8 &&
                             trimmed_query.substr(0, 8) == "mutation";
 
-    // Unauthenticated mutations (login, bootstrap, logout) are exempt from
-    // CSRF checks because there is no authenticated session to protect.
-    // The double-submit CSRF pattern only guards cookie-authenticated sessions.
+    // These exemptions apply only to the non-HTTP compatibility path below.
     const auto is_csrf_exempt_mutation = [&trimmed_query]() -> bool {
         static const std::vector<std::string> exempt_ops = {
             "login", "bootstrapPlatformAdmin", "createPlatformAdmin", "logout"
@@ -1827,42 +1825,18 @@ String Server::execute_graphql(const String& query, const String& variables_json
             ctx.csrf_header = it->second;
     }
     if (set_cookie && m_impl->auth && m_impl->database) {
-        std::string credential;
-        bool duplicate = false;
-        bool seen_cookie = false;
-        if (const auto it = request_headers.find("Cookie"); it != request_headers.end()) {
-            std::string_view remaining = it->second;
-            while (!remaining.empty()) {
-                const auto end = remaining.find(';');
-                auto part = remaining.substr(0, end);
-                while (!part.empty() && part.front() == ' ') part.remove_prefix(1);
-                while (!part.empty() && part.back() == ' ') part.remove_suffix(1);
-                constexpr std::string_view prefix = "isched_session=";
-                if (part.starts_with(prefix)) {
-                    if (seen_cookie) duplicate = true;
-                    seen_cookie = true;
-                    credential = std::string(part.substr(prefix.size()));
-                }
-                if (end == std::string_view::npos) break;
-                remaining.remove_prefix(end + 1);
-            }
+        const auto it = request_headers.find("Cookie");
+        const auto cookie = parse_session_cookie(
+            it == request_headers.end() ? std::string_view{} : std::string_view{it->second});
+        if (const auto ar = validate_session_cookie(m_impl->auth.get(), m_impl->database, cookie)) {
+            ctx.current_user_id = ar->user_id;
+            ctx.user_name = ar->user_name;
+            ctx.tenant_id = ar->tenant_id;
+            ctx.roles = ar->roles;
+            ctx.session_id = ar->session_id;
+            ctx.db = m_impl->database;
         }
-        if (!credential.empty() && !duplicate) {
-            const auto ar = m_impl->auth->validate_token(*m_impl->database, credential, "");
-            if (ar.is_valid() && !ar.session_id.empty() &&
-                m_impl->auth->session_csrf_token(ar.session_id)) {
-                const auto persisted = m_impl->database->get_session(ar.tenant_id, ar.session_id);
-                if (persisted && !persisted.value().is_revoked) {
-                    ctx.current_user_id = ar.user_id;
-                    ctx.user_name = ar.user_name;
-                    ctx.tenant_id = ar.tenant_id;
-                    ctx.roles = ar.roles;
-                    ctx.session_id = ar.session_id;
-                    ctx.db = m_impl->database;
-                }
-            }
-        }
-        ctx.session_response->clear_cookie = seen_cookie && ctx.session_id.empty();
+        ctx.session_response->clear_cookie = cookie.present && ctx.session_id.empty();
     } else if (!set_cookie && !authorization_header.empty() && m_impl->auth) {
         std::unordered_map<std::string, std::string> hdrs{{"Authorization", authorization_header}};
         const auto ar = m_impl->auth->validate_request(hdrs, "");

@@ -291,11 +291,19 @@ public:
     virtual bool validate_session_csrf(const std::string& session_id,
                                        const std::string& token) = 0;
 
-    /** @brief Remove CSRF state for every session belonging to a tenant user. */
+    /**
+     * @brief Remove CSRF state for every session belonging to a tenant user.
+     * @param tenant_id Tenant containing the user.
+     * @param user_id User whose session associations are invalidated.
+     */
     virtual void invalidate_user_csrf(const std::string& tenant_id,
                                       const std::string& user_id) = 0;
 
-    /** @brief Remove CSRF state for a tenant except sessions with the protected role. */
+    /**
+     * @brief Remove CSRF state for a tenant except sessions with the protected role.
+     * @param tenant_id Tenant whose session associations are invalidated.
+     * @param protected_role Role whose sessions remain valid.
+     */
     virtual void invalidate_tenant_csrf(const std::string& tenant_id,
                                         const std::string& protected_role) = 0;
     

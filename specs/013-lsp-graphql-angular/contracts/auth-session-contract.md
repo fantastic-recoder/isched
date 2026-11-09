@@ -22,15 +22,19 @@
 - The only CSRF-header exception is a narrowly identified pre-session login/first-run-bootstrap operation when no authenticated session exists; if a valid session cookie is present, normal authenticated mutation CSRF validation applies. It does not bypass Origin validation or rate limiting. Do not exempt logout or any authenticated mutation.
 - Angular retains the CSRF value in memory only, clears it on logout/revocation/reauthentication, and does not automatically replay an ambiguous state-changing operation after CSRF/transport failure.
 - Implementation reuses existing session identity/revocation facilities; no SQLite migration is planned. The token/session association is process state and is invalidated on session close/revocation.
+- `csrf_sessions_` is guarded by `AuthenticationMiddlewareImpl::sessions_mutex_`: insertion, expiry cleanup, lookup, and session/user/tenant invalidation all take an exclusive RAII lock. Lookup copies the value while locked; comparison uses that owned copy after unlocking. Database calls and broker callbacks run outside this lock. Revocation rejects subsequent validation; it does not roll back work already admitted before revocation. Server restart loses this process-local state and requires reauthentication; browser reload within the same process can reacquire the value.
 
 ## WebSocket Contract
 
 - `/graphql` WS handshake validates exact allowed Origin and the cookie/session before a protected subscription is accepted.
 - Browser-managed cookies are the only authentication credential. `connection_init` contains no JWT or Authorization payload; keep the existing `graphql-transport-ws` protocol.
 - Reject an invalid origin/session without executing subscription work. Authentication failure may use the existing unauthorized close behavior after upgrade if required by the transport, but origin validation occurs at handshake.
+- With an allowed Origin and no cookie, public subscriptions (for example `healthChanged`) remain anonymous. Protected subscriptions (for example `serverMetricsUpdated`) require cookie authentication and the existing role/tenant checks before resolver execution; a rejected operation never registers with the broker.
+- A supplied invalid, empty, malformed, duplicate, expired, or revoked cookie closes with 4401, even for public operations; it does not downgrade to anonymous access. These rules apply to both same-port and dedicated listeners.
 
 ## Verification
 
 - Backend/browser integration tests cover cookie attributes and automatic attachment, exact allowed-Origin cases (valid, missing, null, malformed, unlisted), login/bootstrap exception and rate limit, current-session token acquisition, authenticated mutation CSRF success/failure, logout/revocation, and WS cookie+Origin authentication.
 - Tests assert no JWT in localStorage/sessionStorage/IndexedDB, Angular-managed memory, HTTP Authorization header, URL, or WS `connection_init`.
 - Verify a rejected mutation has no resolver side effects, and UI errors do not render token/cookie material.
+- `test_graphql_subscription_auth` verifies public delivery and broker registration/removal, protected rejection with unchanged active-subscription count, and valid-cookie protected success on both listener routes. Source review verifies that the executor's role check precedes resolver invocation and that an execution error returns before `WsSession` registers with the broker.

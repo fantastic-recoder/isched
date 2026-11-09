@@ -334,12 +334,16 @@ public:
             "[]" /*permissions – not separately stored yet*/,
             roles_str, expires_at_str, transport_scope);
         if (!persist_res) {
+            spdlog::error("create_session: unable to persist session ({})",
+                          to_database_error_name(persist_res.error()));
             throw std::runtime_error("create_session: unable to persist session");
         }
 
         unsigned char random_bytes[32];
-        if (RAND_bytes(random_bytes, sizeof(random_bytes)) != 1)
+        if (RAND_bytes(random_bytes, sizeof(random_bytes)) != 1) {
+            spdlog::error("create_session: unable to generate CSRF secret");
             throw std::runtime_error("create_session: unable to generate CSRF secret");
+        }
         constexpr char hex[] = "0123456789abcdef";
         std::string csrf;
         csrf.reserve(sizeof(random_bytes) * 2);

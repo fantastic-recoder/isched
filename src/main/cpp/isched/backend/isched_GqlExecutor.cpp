@@ -62,6 +62,42 @@ using isched::v0_0_1::ast::NodeType;
 
 using isched::v0_0_1::ast::get_node_type;
 
+static const TAstNodePtr* child_of_type(const TAstNodePtr& node, NodeType type) {
+    if (!node) return nullptr;
+    for (const auto& child : node->children) {
+        if (get_node_type(child) == type) return &child;
+    }
+    return nullptr;
+}
+
+static const TAstNodePtr* single_selected_field(
+    const isched::v0_0_1::backend::GqlExecutor& executor,
+    const TAstNodePtr& node,
+    const isched::v0_0_1::backend::GqlExecutor::TFragmentMap& fragments) {
+    const auto selection = child_of_type(node, NodeType::SelectionSet);
+    if (!selection) return nullptr;
+    isched::v0_0_1::gql::TErrorVector errors;
+    const auto fields = executor.collect_field_nodes(*selection, fragments, errors);
+    if (!errors.empty() || fields.size() != 1 || !fields.front() || !*fields.front())
+        return nullptr;
+    return fields.front();
+}
+
+static bool is_pre_session_mutation(
+    const isched::v0_0_1::backend::GqlExecutor& executor,
+    const TAstNodePtr& operation,
+    const isched::v0_0_1::backend::GqlExecutor::TFragmentMap& fragments) {
+    const auto root = single_selected_field(executor, operation, fragments);
+    if (!root) return false;
+    const auto root_name = child_of_type(*root, NodeType::Name);
+    if (!root_name || (*root_name)->string_view() != k_builtin_graphql_namespace) return false;
+    const auto field = single_selected_field(executor, *root, fragments);
+    if (!field) return false;
+    const auto name = child_of_type(*field, NodeType::Name);
+    return name && ((*name)->string_view() == "login" ||
+                    (*name)->string_view() == "bootstrapPlatformAdmin");
+}
+
 static bool is_non_field_non_operation_definition(NodeType t) {
     return t == NodeType::SchemaDefinition ||
            t == NodeType::TypeDefinition ||
@@ -926,7 +962,13 @@ namespace isched::v0_0_1::backend {
             [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
                 static const int seed_rate_limit = []() -> int {
                     if (const char* ev = std::getenv("ISCHED_SEED_RATE_LIMIT"); ev) {
-                        try { return std::stoi(ev); } catch (...) {}
+                        try {
+                            return std::stoi(ev);
+                        } catch (const std::invalid_argument&) {
+                            spdlog::warn("Invalid ISCHED_SEED_RATE_LIMIT; using default");
+                        } catch (const std::out_of_range&) {
+                            spdlog::warn("ISCHED_SEED_RATE_LIMIT out of range; using default");
+                        }
                     }
                     return 5;
                 }();
@@ -4047,41 +4089,10 @@ namespace isched::v0_0_1::backend {
         // Anonymous mutations are limited to one pre-session login/bootstrap field.
         if (tl_resolver_ctx.enforce_http_csrf && !(*targetOp)->children.empty() &&
             (*targetOp)->children[0]->string_view() == "mutation") {
-            bool permitted = false;
-            if (!tl_resolver_ctx.session_id.empty()) {
-                permitted = m_auth && m_auth->validate_session_csrf(
+            const bool permitted = tl_resolver_ctx.session_id.empty()
+                ? is_pre_session_mutation(*this, *targetOp, fragments)
+                : m_auth && m_auth->validate_session_csrf(
                     tl_resolver_ctx.session_id, tl_resolver_ctx.csrf_header);
-            } else {
-                const TAstNodePtr* selection = nullptr;
-                for (const auto& child : (*targetOp)->children)
-                    if (get_node_type(child) == NodeType::SelectionSet) selection = &child;
-                if (selection) {
-                    gql::TErrorVector inspect_errors;
-                    const auto roots = collect_field_nodes(*selection, fragments, inspect_errors);
-                    if (roots.size() == 1 && roots[0] && *roots[0]) {
-                        const auto& root = *roots[0];
-                        const TAstNodePtr* nested = nullptr;
-                        std::string_view root_name;
-                        for (const auto& child : root->children) {
-                            if (get_node_type(child) == NodeType::Name) root_name = child->string_view();
-                            if (get_node_type(child) == NodeType::SelectionSet) nested = &child;
-                        }
-                        if (root_name == "isched" && nested) {
-                            const auto fields = collect_field_nodes(*nested, fragments, inspect_errors);
-                            if (fields.size() == 1 && fields[0] && *fields[0]) {
-                                for (const auto& child : (*fields[0])->children) {
-                                    if (get_node_type(child) == NodeType::Name) {
-                                        const auto name = child->string_view();
-                                        permitted = name == "login" || name == "bootstrapPlatformAdmin";
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    permitted = permitted && inspect_errors.empty();
-                }
-            }
             if (!permitted) {
                 my_result.errors.push_back(gql::Error{
                     .code = gql::EErrorCodes::CSRF_FAILED,

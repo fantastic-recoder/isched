@@ -193,6 +193,15 @@ TEST_CASE_METHOD(Fixture, "Cookie session CSRF lifecycle protects mutations",
     REQUIRE((duplicate_body.contains("errors") ||
              duplicate_body.at("data").at("isched").at("currentSessionCsrfToken").is_null()));
 
+    REQUIRE(read_session_csrf(client, "\t" + cookie1 + "\t") == csrf1);
+    const auto malformed = post(client, current_csrf,
+        {{"Origin", origin}, {"Cookie", cookie1 + "; isched_session"}});
+    REQUIRE(malformed);
+    const auto malformed_body = json::parse(malformed->body);
+    REQUIRE((malformed_body.contains("errors") ||
+             malformed_body.at("data").at("isched").at("currentSessionCsrfToken").is_null()));
+    REQUIRE(malformed->get_header_value("Set-Cookie").find("Max-Age=0") != std::string::npos);
+
     // A cookie value used as a bearer credential is not an alternative transport.
     const auto separator = cookie1.find('=');
     REQUIRE(separator != std::string::npos);

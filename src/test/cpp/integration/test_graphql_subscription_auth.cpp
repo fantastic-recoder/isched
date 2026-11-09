@@ -70,6 +70,22 @@ struct Fixture {
             "subauth-" + suffix + "@example.com", "SubAuthPass!12345", "Sub Auth");
     }
 
+    int active_subscriptions(const isched::test::AuthPayload& auth) const {
+        httplib::Client client("localhost", k_http_port);
+        client.set_read_timeout(10);
+        const auto response = client.Post("/graphql",
+            {{"Origin", "http://localhost:" + std::to_string(k_http_port)},
+             {"Cookie", "isched_session=" + auth.token}},
+            R"({"query":"{ isched { serverMetrics { activeSubscriptions } } }"})",
+            "application/json");
+        REQUIRE(response);
+        REQUIRE(response->status == 200);
+        const auto body = json::parse(response->body);
+        REQUIRE_FALSE(body.contains("errors"));
+        return body.at("data").at("isched").at("serverMetrics")
+            .at("activeSubscriptions").get<int>();
+    }
+
     std::string expired_token() const {
         std::unique_ptr<AuthenticationMiddleware> auth{AuthenticationMiddleware::create()};
         auth->configure_jwt_secret(std::string(k_jwt_secret));
@@ -184,33 +200,55 @@ TEST_CASE_METHOD(Fixture, "invalid, empty, or duplicate session cookie closes wi
 TEST_CASE_METHOD(Fixture, "connection_init credentials are ignored and protected work is rejected",
                  "[subscriptions][auth][T008][T063]") {
     const auto auth = authenticate();
-    SyncWs client;
-    client.connect();
-    client.send({{"type", "connection_init"},
-                 {"payload", {{"Authorization", "Bearer " + auth.token}}}});
-    REQUIRE(client.read_json().value("type", "") == "connection_ack");
+    for (const int port : {k_http_port, k_ws_port}) {
+        const auto before = active_subscriptions(auth);
+        SyncWs client;
+        client.port = port;
+        client.connect();
+        client.send({{"type", "connection_init"},
+                     {"payload", {{"Authorization", "Bearer " + auth.token}}}});
+        REQUIRE(client.read_json().value("type", "") == "connection_ack");
 
-    client.send({{"type", "subscribe"},
-                 {"id", "anonymous-protected"},
-                 {"payload", {{"query", k_protected_subscription}}}});
-    const auto result = client.read_json();
-    REQUIRE(result.value("type", "") == "next");
-    REQUIRE(result["payload"].contains("errors"));
-    const auto complete = client.read_json();
-    REQUIRE(complete.value("type", "") == "complete");
+        client.send({{"type", "subscribe"},
+                     {"id", "anonymous-protected"},
+                     {"payload", {{"query", k_protected_subscription}}}});
+        const auto result = client.read_json();
+        REQUIRE(result.value("type", "") == "next");
+        REQUIRE(result["payload"].contains("errors"));
+        REQUIRE(result["payload"]["data"]["isched"]["serverMetricsUpdated"].is_null());
+        const auto complete = client.read_json();
+        REQUIRE(complete.value("type", "") == "complete");
+        REQUIRE(active_subscriptions(auth) == before);
+        client.ws.close(websocket::close_code::normal);
+    }
 }
 
 TEST_CASE_METHOD(Fixture, "missing cookie remains anonymous for public subscriptions",
                  "[subscriptions][auth][T008]") {
-    SyncWs client;
-    client.connect();
-    client.send({{"type", "connection_init"}});
-    REQUIRE(client.read_json().value("type", "") == "connection_ack");
+    const auto auth = authenticate();
+    for (const int port : {k_http_port, k_ws_port}) {
+        const auto before = active_subscriptions(auth);
+        SyncWs client;
+        client.port = port;
+        client.connect();
+        client.send({{"type", "connection_init"}});
+        REQUIRE(client.read_json().value("type", "") == "connection_ack");
 
-    client.send({{"type", "subscribe"},
-                 {"id", "public"},
-                 {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}});
-    REQUIRE(client.read_json().value("type", "") == "next");
+        client.send({{"type", "subscribe"},
+                     {"id", "public"},
+                     {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}});
+        const auto result = client.read_json();
+        REQUIRE(result.value("type", "") == "next");
+        REQUIRE_FALSE(result["payload"].contains("errors"));
+        REQUIRE(result["payload"]["data"]["isched"]["healthChanged"]["status"] == "UP");
+        client.send({{"type", "ping"}});
+        REQUIRE(client.read_json().value("type", "") == "pong");
+        REQUIRE(active_subscriptions(auth) == before + 1);
+        client.send({{"type", "complete"}, {"id", "public"}});
+        REQUIRE(client.read_json().value("type", "") == "complete");
+        REQUIRE(active_subscriptions(auth) == before);
+        client.ws.close(websocket::close_code::normal);
+    }
 }
 
 TEST_CASE_METHOD(Fixture, "revoked cookie session closes the live WebSocket with 4401",
