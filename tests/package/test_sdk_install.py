@@ -7,6 +7,7 @@ import io
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -82,6 +83,60 @@ class SdkFailureTests(unittest.TestCase):
         cls.verifier = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = cls.verifier
         spec.loader.exec_module(cls.verifier)
+
+    def test_dependency_install_uses_activated_cmake_and_isolated_conan_home(self):
+        versions = self.verifier.json.loads(
+            (ROOT / "packaging/tool-versions.json").read_text()
+        )
+        stages = []
+        environments = []
+
+        def run(stage, command, **kwargs):
+            stages.append(stage)
+            environments.append(kwargs["env"])
+            if stage == "conan-dependencies":
+                self.assertEqual(command[:3], ["bash", "-c", 'source "$1"; shift; exec "$@"'])
+                self.assertEqual(command[5], "/opt/isched-tools/conan/bin/conan")
+                self.assertIn("--build=missing", command)
+                self.assertIn("--profile:build=default", command)
+                raise RuntimeError("dependency-install-reached")
+            output = (f"cmake version {versions['cmake']}\n"
+                      if stage == "cmake-version" else "")
+            return subprocess.CompletedProcess(command, 0, stdout=output)
+
+        for target in TARGETS:
+            stages.clear()
+            environments.clear()
+            with self.subTest(target=target), \
+                    patch.object(self.verifier, "run", side_effect=run), \
+                    patch.object(self.verifier, "_find_one", return_value=Path("/fixture/conanbuild.sh")), \
+                    patch.object(Path, "is_file", return_value=True), \
+                    self.assertRaisesRegex(RuntimeError, "dependency-install-reached"):
+                self.verifier._verify_consumer({"id": target}, CONSUMER)
+            self.assertEqual(
+                stages, ["conan-profile", "conan-cmake", "cmake-version", "conan-dependencies"],
+            )
+            home = environments[0]["CONAN_HOME"]
+            self.assertTrue(home.startswith("/tmp/isched-sdk-conan-"))
+            self.assertTrue(all(env["CONAN_HOME"] == home for env in environments))
+            self.assertFalse(Path(home).exists())
+
+    def test_activation_exposes_tools_and_preserves_conan_home_in_child_process(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tools = root / "bin"
+            tools.mkdir()
+            cmake = tools / "cmake"
+            cmake.write_text('#!/bin/sh\nprintf "fixture cmake\\n"\n')
+            cmake.chmod(0o755)
+            activation = root / "conanbuild.sh"
+            activation.write_text(f'export PATH="{tools}:$PATH"\n')
+            environment = dict(os.environ, CONAN_HOME=str(root / "isolated-conan"))
+            output = self.verifier._activated(
+                activation, ["bash", "-c", 'cmake --version; printf "%s\\n" "$CONAN_HOME"'],
+                stage="conan-dependencies", env=environment,
+            )
+            self.assertEqual(output.splitlines(), ["fixture cmake", environment["CONAN_HOME"]])
 
     def test_mocked_consumer_failure_is_nonzero_and_target_attributed(self):
         for target in TARGETS:

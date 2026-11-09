@@ -81,9 +81,10 @@ def _find_one(root: Path, pattern: str) -> Path:
     return results[0]
 
 
-def _activated(script: Path, command: list[str], *, stage: str, timeout: int = 1200) -> str:
+def _activated(script: Path, command: list[str], *, stage: str, timeout: int = 1200,
+               env: dict[str, str] | None = None) -> str:
     result = run(stage, ["bash", "-c", 'source "$1"; shift; exec "$@"',
-                         "isched-sdk-env", str(script), *command], timeout=timeout)
+                         "isched-sdk-env", str(script), *command], timeout=timeout, env=env)
     return result.stdout
 
 
@@ -102,10 +103,6 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
             require(path.is_file(), f"developer package is missing shipped Conan input: {path}")
         dependencies = scratch / "dependencies"
         conan = "/opt/isched-tools/conan/bin/conan"
-        run("conan-dependencies", [conan, "install", str(manifest),
-                                   f"--lockfile={lockfile}", f"--profile:host={profile}",
-                                   "--profile:build=default", f"--output-folder={dependencies}",
-                                   "--build=missing"], timeout=7200, env=environment)
         tool_manifest = scratch / "tools.txt"
         versions = json.loads((ROOT / "packaging/tool-versions.json").read_text(encoding="utf-8"))
         cmake_version = versions["cmake"]
@@ -117,9 +114,15 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
                             "--profile:build=default", f"--output-folder={tools}",
                             "--build=missing"], timeout=3600, env=environment)
         activation = _find_one(tools, "conanbuild.sh")
-        version_output = _activated(activation, ["cmake", "--version"], stage="cmake-version")
+        version_output = _activated(activation, ["cmake", "--version"], stage="cmake-version",
+                                    env=environment)
         require(re.search(rf"cmake version {re.escape(cmake_version)}\b", version_output, re.I) is not None,
                 f"SDK verifier activated unexpected CMake version: {version_output}")
+        _activated(activation, [conan, "install", str(manifest),
+                                f"--lockfile={lockfile}", f"--profile:host={profile}",
+                                "--profile:build=default", f"--output-folder={dependencies}",
+                                "--build=missing"], stage="conan-dependencies",
+                   timeout=7200, env=environment)
         toolchain = _find_one(dependencies, "conan_toolchain.cmake")
         copied_consumer = scratch / "consumer"
         shutil.copytree(consumer, copied_consumer)
@@ -127,9 +130,9 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         _activated(activation, ["cmake", "-S", str(copied_consumer), "-B", str(build),
                                f"-DCMAKE_TOOLCHAIN_FILE={toolchain}",
                                f"-DCMAKE_PREFIX_PATH={dependencies}"],
-                   stage="consumer-configure", timeout=900)
+                   stage="consumer-configure", timeout=900, env=environment)
         _activated(activation, ["cmake", "--build", str(build), "--parallel", "2"],
-                   stage="consumer-build", timeout=3600)
+                   stage="consumer-build", timeout=3600, env=environment)
         run("consumer-run", [str(build / "isched_sdk_consumer")], timeout=60)
         config_files = list(Path("/usr").glob("lib*/cmake/isched/ischedTargets*.cmake"))
         require(bool(config_files), "installed SDK export targets are not present in the system prefix")

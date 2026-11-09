@@ -26,6 +26,11 @@ directory. Use the matching shipped target profile for the package (`ubuntu-26.0
 `fedora-45`) or a separately reviewed profile that matches the compiler and
 ABI used to build the package:
 
+Make CMake available before running `conan install --build=missing`: dependency
+recipes can invoke it while building from source. The clean SDK verifier
+installs and activates pinned CMake first, using the same isolated `CONAN_HOME`
+for dependency resolution and consumer configuration/build.
+
 ```sh
 python3 -m venv .venv/isched-sdk
 .venv/isched-sdk/bin/python -m pip install --require-hashes \
