@@ -234,6 +234,7 @@ class GeneratedPackageTests(unittest.TestCase):
                 'set(CMAKE_INSTALL_LIBDIR lib)\n'
                 'include(GNUInstallDirs)\n'
                 'set(ISCHED_ENABLE_PACKAGING ON)\n'
+                'set(CPACK_DEBIAN_RUNTIME_PACKAGE_DEPENDS "libc6")\n'
                 f'set(ISCHED_SOURCE_REVISION "{REVISION}")\n'
                 'set(ISCHED_PACKAGE_VERSION "1.0.0")\n'
                 f'set(ISCHED_PACKAGE_TARGET "{target_id}")\n'

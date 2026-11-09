@@ -66,19 +66,21 @@ def _load_graph(path: Path) -> list[dict[str, Any]]:
 
 def _notice_files(node: dict[str, Any]) -> list[tuple[Path, Path]]:
     """Return (file, package-relative path) pairs from cache/source license areas."""
-    candidates: list[Path] = []
+    candidates: list[tuple[Path, Path]] = []
     package_folder = node.get("package_folder")
     source_folder = node.get("source_folder")
     recipe_folder = node.get("recipe_folder")
-    for value in (package_folder, source_folder, recipe_folder):
+    for area, value in (("package", package_folder), ("source", source_folder),
+                        ("recipe", recipe_folder)):
         if isinstance(value, str) and value:
             root = Path(value)
             if root.is_dir():
-                candidates.extend((root / "licenses", root))
+                candidates.extend(((root / "licenses", Path(area) / "licenses"),
+                                   (root, Path(area))))
 
     result: list[tuple[Path, Path]] = []
     seen: set[Path] = set()
-    for root in candidates:
+    for root, prefix in candidates:
         if not root.is_dir():
             continue
         resolved_root = root.resolve()
@@ -91,7 +93,7 @@ def _notice_files(node: dict[str, Any]) -> list[tuple[Path, Path]]:
                 continue
             try:
                 resolved = path.resolve(strict=True)
-                relative = path.relative_to(root)
+                relative = prefix / path.relative_to(root)
                 resolved.relative_to(resolved_root)
             except (OSError, ValueError):
                 continue

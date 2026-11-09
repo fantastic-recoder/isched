@@ -14,6 +14,42 @@ COLLECTOR = ROOT / "packaging/scripts/collect_licenses.py"
 
 
 class LicenseCollectionTests(unittest.TestCase):
+    def test_same_named_notices_from_distinct_conan_areas_do_not_overwrite(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            node = {
+                "ref": "zlib/1.3.1#recipe", "name": "zlib",
+                "context": "host", "license": "Zlib",
+            }
+            expected = {}
+            for area in ("package", "source", "recipe"):
+                directory = root / area
+                (directory / "licenses").mkdir(parents=True)
+                for relative in ("LICENSE", "licenses/LICENSE"):
+                    notice = directory / relative
+                    content = f"{area}/{relative} notice\n".encode()
+                    notice.write_bytes(content)
+                    expected[f"licenses/conan/zlib_1.3.1_recipe/{area}/{relative}"] = content
+                node[f"{area}_folder"] = str(directory)
+            graph = root / "graph.json"
+            graph.write_text(json.dumps({"graph": {"nodes": {"1": node}}}))
+            angular = root / "3rdpartylicenses.txt"
+            angular.write_text("frontend notices\n")
+            output = root / "output"
+            result = self._run(graph, angular, output)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for role in ("runtime", "developer"):
+                inventory = json.loads((output / role / "license-inventory.json").read_text())
+                records = inventory["notices"]
+                self.assertEqual(len({record["path"] for record in records}), len(records))
+                for relative, content in expected.items():
+                    self.assertEqual((output / role / relative).read_bytes(), content)
+                for record in records:
+                    self.assertEqual(
+                        hashlib.sha256((output / role / record["path"]).read_bytes()).hexdigest(),
+                        record["sha256"],
+                    )
+
     def test_role_payloads_include_host_dependencies_and_runtime_angular_notices(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -48,8 +84,8 @@ class LicenseCollectionTests(unittest.TestCase):
             result = self._run(graph, angular, output)
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            runtime = output / "runtime/licenses/conan/sample_1.2.3_recipe/LICENSE.txt"
-            developer = output / "developer/licenses/conan/sample_1.2.3_recipe/LICENSE.txt"
+            runtime = output / "runtime/licenses/conan/sample_1.2.3_recipe/package/licenses/LICENSE.txt"
+            developer = output / "developer/licenses/conan/sample_1.2.3_recipe/package/licenses/LICENSE.txt"
             self.assertEqual(runtime.read_text(), "dependency license\n")
             self.assertEqual(developer.read_text(), "dependency license\n")
             self.assertTrue((output / "runtime/licenses/angular/3rdpartylicenses.txt").is_file())

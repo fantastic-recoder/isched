@@ -48,6 +48,8 @@ The eventual shared build wrapper must reject a mismatched revision.
 
 - Native payload validation reads DEB tar entries and resolves RPM cpio hard
   links before checking notice hashes; formatted file listings are not paths.
+- Conan notices retain package/source/recipe namespaces so same-named license
+  files cannot overwrite each other or invalidate inventory checksums.
 - Never install packages onto the host. Runtime/SDK verification uses fresh,
   exact-target containers, with disposable state and only owned processes.
 - Never run `--seed`, ship application databases, or install service state.
