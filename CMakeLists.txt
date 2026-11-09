@@ -126,7 +126,7 @@ if(ISCHED_ENABLE_PACKAGING)
     endif()
 
     set(_isched_frontend_index "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html")
-    set(_isched_frontend_notices "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/3rdpartylicenses.txt")
+    set(_isched_frontend_notices "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/3rdpartylicenses.txt")
     set(_isched_embedded_ui "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/isched_ui_assets.hpp")
     foreach(frontend_file IN ITEMS "${_isched_frontend_index}" "${_isched_frontend_notices}" "${_isched_embedded_ui}")
         if(NOT EXISTS "${frontend_file}" OR IS_DIRECTORY "${frontend_file}")

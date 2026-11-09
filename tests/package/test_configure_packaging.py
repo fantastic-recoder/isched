@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: MPL-2.0
 """Verify optional packaging inputs do not change ordinary configure behavior."""
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,59 @@ spec.loader.exec_module(module)
 
 
 class ConfigureTests(unittest.TestCase):
+    def test_cmake_frontend_gate_uses_angular_output_layout_and_checks_freshness(self):
+        source = (ROOT / "CMakeLists.txt").read_text()
+        gate = source.split("find_package(Python3 REQUIRED COMPONENTS Interpreter)", 1)[1]
+        gate = gate.split("file(GLOB_RECURSE UI_SRC_FILES", 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            outputs = {
+                "index_sha256": root / "src/ui/dist/isched-ui/browser/index.html",
+                "notices_sha256": root / "src/ui/dist/isched-ui/3rdpartylicenses.txt",
+                "embedded_header_sha256": root / "src/main/cpp/isched/backend/isched_ui_assets.hpp",
+            }
+            evidence = {"schema_version": 1}
+            for key, path in outputs.items():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"fresh generated content\n")
+                evidence[key] = hashlib.sha256(path.read_bytes()).hexdigest()
+            (root / "evidence.json").write_text(json.dumps(evidence))
+            (root / "identity.json").write_text("[]")
+            script = root / "gate.cmake"
+            script.write_text(
+                'set(ISCHED_ENABLE_PACKAGING ON)\n'
+                'set(PNPM_EXE "/pinned/pnpm")\n'
+                f'set(ISCHED_SOURCE_REVISION "{"a" * 40}")\n'
+                'set(ISCHED_PACKAGE_VERSION "1.0.0")\n'
+                'set(ISCHED_PACKAGE_TARGET "ubuntu-26.04")\n'
+                'set(ISCHED_PACKAGE_FORMAT "deb")\n'
+                'set(ISCHED_PACKAGE_IDENTITY_FILE "${CMAKE_SOURCE_DIR}/identity.json")\n'
+                'set(ISCHED_PACKAGE_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/out")\n'
+                'set(ISCHED_PACKAGE_LICENSE_OUTPUT "${CMAKE_SOURCE_DIR}/licenses")\n'
+                'set(ISCHED_FRONTEND_GATE_FILE "${CMAKE_SOURCE_DIR}/evidence.json")\n'
+                + gate
+            )
+            for scenario in ("fresh", "stale", "missing"):
+                with self.subTest(scenario=scenario):
+                    notices = outputs["notices_sha256"]
+                    if scenario == "stale":
+                        notices.write_text("changed after evidence was generated\n")
+                    elif scenario == "missing":
+                        notices.unlink()
+                    result = subprocess.run(
+                        ["cmake", "-P", str(script)], cwd=root,
+                        capture_output=True, text=True, timeout=30,
+                    )
+                    if scenario == "fresh":
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(
+                            "frontend evidence does not match" if scenario == "stale"
+                            else "requires freshly generated frontend input",
+                            result.stderr,
+                        )
+
     def test_ordinary_profiles_unchanged(self):
         for profile, build_type in (("debug", "Debug"), ("release", "Release")):
             with self.subTest(profile=profile):
