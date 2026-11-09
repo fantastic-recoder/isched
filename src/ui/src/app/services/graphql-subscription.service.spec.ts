@@ -42,6 +42,8 @@ describe('GraphQLSubscriptionService', () => {
     const sub = service.subscribe('subscription { x }').subscribe({ error: () => undefined });
     const ws = FakeWebSocket.instances[0];
     expect(ws.url).toMatch(/^wss?:\/\/[^?]+\/graphql$/);
+    expect(ws.protocols).toEqual(['graphql-transport-ws']);
+    expect(ws.url).not.toContain('?');
     ws.open();
     expect(JSON.parse(ws.sent[0])).toEqual({ type: 'connection_init' });
     expect(ws.sent[0]).not.toMatch(/token|authorization|bearer/i);

@@ -27,8 +27,8 @@
 
 - [X] T005 Replace the `connection_init` bearer-token payload with cookie-only WS authentication; ensure no JWT/token is serialized in the protocol payload in `src/ui/src/app/services/graphql-subscription.service.ts`
 - [X] T006 Remove `AuthService` token sourcing from `GraphQLSubscriptionService`; preserve subscription lifecycle state without an in-memory bearer credential in `src/ui/src/app/services/graphql-subscription.service.ts`
-- [ ] T007 [P] Validate the browser cookie/session and exact Origin during the `/graphql` WebSocket handshake, rejecting unauthenticated protected subscription sessions without executing subscription work in `src/main/cpp/isched/backend/isched_Server.cpp` and `src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp`
-- [ ] T008 [P] Add backend regression coverage for cookie-authenticated WS handshake acceptance/rejection and unauthorized close behavior in `src/test/cpp/integration/test_graphql_subscription_auth.cpp`
+- [X] T007 [P] Validate the browser cookie/session and exact Origin during the `/graphql` WebSocket handshake, rejecting unauthenticated protected subscription sessions without executing subscription work in `src/main/cpp/isched/backend/isched_Server.cpp` and `src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp`
+- [X] T008 [P] Add backend regression coverage for cookie-authenticated WS handshake acceptance/rejection and unauthorized close behavior in `src/test/cpp/integration/test_graphql_subscription_auth.cpp`
 - [X] T009 [P] Extend the dev-proxy e2e test to assert WebSocket upgrade success through the proxy in `src/ui/e2e/dev-proxy.spec.ts`
 - [X] T010 [P] Add IndexedDB to the no-persistent-JWT assertion alongside localStorage/sessionStorage checks in `src/ui/src/app/services/auth.service.spec.ts`
 
@@ -139,7 +139,7 @@
 
 - [X] T052 [P] [US3] Add backend HTTP security integration coverage for valid/missing/null/malformed/unlisted Origin, cookie attributes, CSRF success/failure, pre-session login/bootstrap, and no resolver side effects on rejection in `src/test/cpp/integration/test_graphql_http_security.cpp` and register the target in `src/test/cpp/isched/CMakeLists.txt`
 - [X] T053 [US3] Parse and exactly validate configured Origins for every GraphQL HTTP request (including queries, mutations, login/bootstrap, and applicable preflight); fail closed and never use Referer or wildcard credentialed CORS in `src/main/cpp/isched/backend/isched_Server.cpp`, `src/main/cpp/isched/backend/isched_Server.hpp`, and `src/main/cpp/isched/shared/config/isched_config.hpp`
-- [ ] T054 [US3] Validate exact configured Origin and browser cookie/session at the `/graphql` WS handshake before protected subscription work in `src/main/cpp/isched/backend/isched_Server.cpp` and `src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp`
+- [X] T054 [US3] Validate exact configured Origin and browser cookie/session at the `/graphql` WS handshake before protected subscription work in `src/main/cpp/isched/backend/isched_Server.cpp` and `src/main/cpp/isched/backend/isched_SubscriptionBroker.cpp`
 - [X] T055 [US3] Generate unpredictable per-session CSRF values, bind them to existing session identifiers in process state, and invalidate them on logout/revocation without a database migration in `src/main/cpp/isched/backend/isched_AuthenticationMiddleware.cpp` and `src/main/cpp/isched/backend/isched_AuthenticationMiddleware.hpp`
 - [X] T056 [US3] Add the session CSRF value to successful login/bootstrap GraphQL results and expose the read-only authenticated `currentSessionCsrfToken` query, without returning a JWT, in `src/main/cpp/isched/backend/isched_builtin_server_schema.graphql` and `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
 - [X] T057 [US3] Set and expire the Secure, HttpOnly, SameSite=Strict session cookie through HTTP response handling for login/bootstrap/logout while keeping JWT out of GraphQL JSON in `src/main/cpp/isched/backend/isched_Server.cpp` and `src/main/cpp/isched/backend/isched_GqlExecutor.cpp`
@@ -148,7 +148,7 @@
 - [X] T060 [US3] Ensure browser-cookie GraphQL HTTP requests attach the in-memory CSRF header only for mutations and never add Authorization/bearer credentials in `src/ui/src/app/services/graphql.service.ts` and `src/ui/src/app/interceptors/auth.interceptor.ts`
 - [X] T061 [P] [US3] Add frontend tests for CSRF acquisition/reacquisition/clearing, mutation-only header behavior, and absence of bearer state/Authorization headers in `src/ui/src/app/services/auth.service.spec.ts` and `src/ui/src/app/services/graphql.service.spec.ts`
 - [ ] T062 [P] [US3] Add browser security acceptance asserting cookie attributes/automatic attachment, exact-Origin outcomes, pre-session login/bootstrap behavior, session CSRF rejection before side effects, and zero JWT exposure/persistence in `src/ui/e2e/auth-session-security.spec.ts`
-- [ ] T063 [P] [US3] Assert WebSocket authentication uses the browser cookie and exact Origin with no JWT or Authorization data in `connection_init` in `src/ui/src/app/services/graphql-subscription.service.spec.ts`
+- [X] T063 [P] [US3] Assert WebSocket authentication uses the browser cookie and exact Origin with no JWT or Authorization data in `connection_init` in `src/ui/src/app/services/graphql-subscription.service.spec.ts`
 
 ---
 

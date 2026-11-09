@@ -96,6 +96,7 @@ bool is_lifecycle_trace_enabled() noexcept {
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/steady_timer.hpp>
 
 #include <chrono>
 #include <algorithm>
@@ -135,6 +136,58 @@ std::string trim_copy(std::string value) {
     value.erase(std::find_if(value.rbegin(), value.rend(),
         [&](unsigned char ch) { return !is_space(ch); }).base(), value.end());
     return value;
+}
+
+struct ParsedSessionCookie {
+    bool present{false};
+    bool duplicate{false};
+    bool malformed{false};
+    std::string value;
+};
+
+ParsedSessionCookie parse_session_cookie(std::string_view header) {
+    ParsedSessionCookie parsed;
+    constexpr std::string_view cookie_name = "isched_session";
+    while (!header.empty()) {
+        const auto end = header.find(';');
+        auto part = header.substr(0, end);
+        while (!part.empty() && (part.front() == ' ' || part.front() == '\t'))
+            part.remove_prefix(1);
+        while (!part.empty() && (part.back() == ' ' || part.back() == '\t'))
+            part.remove_suffix(1);
+        const auto equals = part.find('=');
+        const auto name = part.substr(0, equals);
+        if (name == cookie_name) {
+            if (parsed.present) parsed.duplicate = true;
+            parsed.present = true;
+            if (equals == std::string_view::npos) {
+                parsed.malformed = true;
+            } else {
+                parsed.value = std::string(part.substr(equals + 1));
+            }
+        }
+        if (end == std::string_view::npos) break;
+        header.remove_prefix(end + 1);
+    }
+    return parsed;
+}
+
+std::optional<isched::v0_0_1::backend::AuthenticationResult> validate_session_cookie(
+    isched::v0_0_1::backend::AuthenticationMiddleware* auth,
+    const std::shared_ptr<isched::v0_0_1::backend::DatabaseManager>& database,
+    const ParsedSessionCookie& cookie) {
+    if (!cookie.present || cookie.duplicate || cookie.malformed ||
+        cookie.value.empty() || !auth || !database)
+        return std::nullopt;
+
+    auto result = auth->validate_token(*database, cookie.value, "");
+    if (!result.is_valid() || result.session_id.empty() ||
+        !auth->session_csrf_token(result.session_id))
+        return std::nullopt;
+
+    const auto persisted = database->get_session(result.tenant_id, result.session_id);
+    if (!persisted || persisted.value().is_revoked) return std::nullopt;
+    return result;
 }
 
 bool etag_matches_if_none_match(const std::string& if_none_match, const std::string& current_etag) {
@@ -281,12 +334,15 @@ public:
               net::io_context& ioc,
               GqlExecutor*       executor,
               SubscriptionBroker* broker,
-              AuthenticationMiddleware* auth = nullptr)
+              AuthenticationMiddleware* auth = nullptr,
+              std::shared_ptr<DatabaseManager> database = {})
         : strand_(net::make_strand(ioc))
         , ws_(std::move(socket))
+        , auth_expiry_timer_(ioc)
         , executor_(executor)
         , broker_(broker)
         , auth_(auth)
+        , database_(std::move(database))
         , session_id_("ws-" + std::to_string(++session_counter_))
     {}
 
@@ -309,6 +365,10 @@ private:
     // ---- WebSocket handshake ----
 
     void do_accept(beast::http::request<beast::http::string_body> req) {
+        cookie_ = parse_session_cookie(req[beast::http::field::cookie]);
+        auth_rejected_ = cookie_.present &&
+                         !validate_session_cookie(auth_, database_, cookie_).has_value();
+
         ws_.set_option(websocket::stream_base::timeout::suggested(beast::role_type::server));
         ws_.set_option(websocket::stream_base::decorator(
             [](websocket::response_type& res) {
@@ -326,7 +386,52 @@ private:
             spdlog::warn("WsSession accept error: {}", ec.message());
             return;
         }
+        if (auth_rejected_ || !refresh_cookie_session()) {
+            close_unauthorized();
+            return;
+        }
+        if (cookie_.present) {
+            if (broker_) {
+                broker_->register_auth_session(
+                    auth_ctx_.session_id, session_id_,
+                    [weak = weak_from_this()]() {
+                        if (auto self = weak.lock()) self->close_unauthorized();
+                    });
+            }
+            arm_auth_expiry();
+        }
         do_read();
+    }
+
+    void arm_auth_expiry() {
+        if (auth_session_expires_at_ == std::chrono::system_clock::time_point{}) return;
+        const auto remaining = auth_session_expires_at_ - std::chrono::system_clock::now();
+        if (remaining <= std::chrono::system_clock::duration::zero()) {
+            close_unauthorized();
+            return;
+        }
+        auth_expiry_timer_.expires_after(
+            std::chrono::duration_cast<net::steady_timer::duration>(remaining));
+        auth_expiry_timer_.async_wait(net::bind_executor(
+            strand_, [weak = weak_from_this()](const beast::error_code& timer_error) {
+                if (!timer_error) {
+                    if (auto self = weak.lock()) self->close_unauthorized();
+                }
+            }));
+    }
+
+    bool refresh_cookie_session() {
+        if (!cookie_.present) return true;
+        const auto auth_result = validate_session_cookie(auth_, database_, cookie_);
+        if (!auth_result) return false;
+        auth_ctx_.current_user_id = auth_result->user_id;
+        auth_ctx_.user_name = auth_result->user_name;
+        auth_ctx_.tenant_id = auth_result->tenant_id;
+        auth_ctx_.roles = auth_result->roles;
+        auth_ctx_.session_id = auth_result->session_id;
+        auth_ctx_.db = database_;
+        auth_session_expires_at_ = auth_result->expires_at;
+        return true;
     }
 
     // ---- Read loop ----
@@ -358,32 +463,6 @@ private:
 
         if (type == "connection_init") {
             // T045 / T049-007: validate Bearer token from payload if present.
-            const auto& payload = j.value("payload", nlohmann::json::object());
-            if (payload.is_object() && auth_ && broker_) {
-                const std::string bearer = payload.value("Authorization", "");
-                if (!bearer.empty()) {
-                    std::unordered_map<std::string, std::string> hdrs{{"Authorization", bearer}};
-                    const auto ar = auth_->validate_request(hdrs, "");
-                    if (ar.is_authenticated && !ar.session_id.empty()) {
-                        auth_ctx_.current_user_id = ar.user_id;
-                        auth_ctx_.user_name = ar.user_name;
-                        auth_ctx_.tenant_id = ar.tenant_id;
-                        auth_ctx_.roles = ar.roles;
-                        // Register so revoke_auth_session() can close this WS.
-                        broker_->register_auth_session(
-                            ar.session_id, session_id_,
-                            [weak = weak_from_this()]() {
-                                if (auto self = weak.lock())
-                                    self->close_terminate();
-                            });
-                    } else {
-                        // 013: a credential was presented but is invalid/expired →
-                        // reject with application close code 4401 (no connection_ack).
-                        close_unauthorized();
-                        return;
-                    }
-                }
-            }
             initialized_ = true;
             enqueue("connection_ack", nlohmann::json::object(), "");
         } else if (type == "ping") {
@@ -391,6 +470,10 @@ private:
         } else if (type == "subscribe") {
             if (!initialized_) {
                 enqueue_raw(R"({"type":"connection_error","payload":{"message":"not initialized"}})");
+                return;
+            }
+            if (!refresh_cookie_session()) {
+                close_unauthorized();
                 return;
             }
             handle_subscribe(j);
@@ -501,10 +584,14 @@ private:
     /** Close the WebSocket with code 4401 (unauthorized, graphql-transport-ws convention). */
     void close_unauthorized() {
         net::post(strand_, [self = shared_from_this()]() {
+            if (self->unauthorized_closing_) return;
+            self->unauthorized_closing_ = true;
+            beast::error_code ignored;
+            self->auth_expiry_timer_.cancel(ignored);
             self->ws_.async_close(
                 websocket::close_reason(static_cast<websocket::close_code>(4401), "Unauthorized"),
                 net::bind_executor(self->strand_,
-                    [](beast::error_code) { /* ignore close errors */ }));
+                    [self](beast::error_code) { /* keep session alive through close */ }));
         });
     }
 
@@ -570,10 +657,16 @@ private:
 
     net::strand<net::io_context::executor_type> strand_;
     websocket::stream<beast::tcp_stream>        ws_;
+    net::steady_timer                           auth_expiry_timer_;
     beast::flat_buffer                          buf_;
     GqlExecutor*                                executor_{nullptr};
     SubscriptionBroker*                         broker_{nullptr};
     AuthenticationMiddleware*                   auth_{nullptr};
+    std::shared_ptr<DatabaseManager>            database_;
+    ParsedSessionCookie                          cookie_;
+    std::chrono::system_clock::time_point        auth_session_expires_at_{};
+    bool                                        auth_rejected_{false};
+    bool                                        unauthorized_closing_{false};
     std::string                                 session_id_;
     bool                                        initialized_{false};
     bool                                        writing_{false};
@@ -592,6 +685,7 @@ public:
     WsConn(tcp::socket socket, net::io_context& ioc,
            GqlExecutor* executor, SubscriptionBroker* broker,
            AuthenticationMiddleware* auth = nullptr,
+           std::shared_ptr<DatabaseManager> database = {},
            OriginValidatorFn origin_validator = nullptr)
         : strand_(net::make_strand(ioc))
         , stream_(std::move(socket))
@@ -599,6 +693,7 @@ public:
         , executor_(executor)
         , broker_(broker)
         , auth_(auth)
+        , database_(std::move(database))
         , origin_validator_(std::move(origin_validator))
     {}
 
@@ -642,7 +737,7 @@ private:
         }
         // Hand the socket to a WsSession
         auto session = std::make_shared<WsSession>(
-            stream_.release_socket(), ioc_, executor_, broker_, auth_);
+            stream_.release_socket(), ioc_, executor_, broker_, auth_, database_);
         session->run(std::move(req_));
     }
 
@@ -654,7 +749,8 @@ private:
     GqlExecutor*                                        executor_{nullptr};
     SubscriptionBroker*                                 broker_{nullptr};
     AuthenticationMiddleware*                           auth_{nullptr};
-    OriginValidatorFn                                   origin_validator_;
+    std::shared_ptr<DatabaseManager>            database_;
+    OriginValidatorFn                           origin_validator_;
 };
 
 // ---------------------------------------------------------------------------
@@ -665,12 +761,14 @@ public:
     WsListener(net::io_context& ioc, tcp::endpoint endpoint,
                GqlExecutor* executor, SubscriptionBroker* broker,
                AuthenticationMiddleware* auth = nullptr,
+               std::shared_ptr<DatabaseManager> database = {},
                OriginValidatorFn origin_validator = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , executor_(executor)
         , broker_(broker)
         , auth_(auth)
+        , database_(std::move(database))
         , origin_validator_(std::move(origin_validator))
     {
         beast::error_code ec;
@@ -697,7 +795,7 @@ private:
     void on_accept(beast::error_code ec, tcp::socket socket) {
         if (!ec) {
             auto conn = std::make_shared<WsConn>(
-                std::move(socket), ioc_, executor_, broker_, auth_, origin_validator_);
+                std::move(socket), ioc_, executor_, broker_, auth_, database_, origin_validator_);
             conn->run();
         } else if (!stopped_) {
             spdlog::warn("WsListener accept error: {}", ec.message());
@@ -710,6 +808,7 @@ private:
     GqlExecutor*     executor_{nullptr};
     SubscriptionBroker* broker_{nullptr};
     AuthenticationMiddleware* auth_{nullptr};
+    std::shared_ptr<DatabaseManager> database_;
     OriginValidatorFn origin_validator_;
     bool             stopped_{false};
 };
@@ -1386,7 +1485,8 @@ bool Server::start() {
                         *m_impl->ioc,
                         m_impl->gql_executor.get(),
                         m_impl->subscription_broker.get(),
-                        m_impl->auth.get());
+                        m_impl->auth.get(),
+                        m_impl->database);
                      ws->run(std::move(req));
                  },
                  [this](const std::string& origin) {
@@ -1415,6 +1515,7 @@ bool Server::start() {
                  m_impl->gql_executor.get(),
                  m_impl->subscription_broker.get(),
                  m_impl->auth.get(),
+                 m_impl->database,
                  [this](const std::string& origin) {
                      return origin_is_allowed(origin, m_config.allowed_origins);
                  });
