@@ -142,6 +142,75 @@ TEST_CASE("DB-backed create_session ensures tenant sessions table and persists r
     CHECK(persisted.value().access_token_id == session.session_id);
     CHECK(persisted.value().transport_scope == "any");
 
+    const auto csrf = auth->session_csrf_token(session.session_id);
+    REQUIRE(csrf);
+    CHECK(csrf->size() == 64);
+    CHECK(auth->validate_session_csrf(session.session_id, *csrf));
+    CHECK_FALSE(auth->validate_session_csrf(session.session_id, "invalid"));
+    const auto other = auth->create_session(db, "db_user_2", "Other", "platform", {});
+    const auto other_csrf = auth->session_csrf_token(other.session_id);
+    REQUIRE(other_csrf);
+    CHECK(*csrf != *other_csrf);
+    CHECK_FALSE(auth->validate_session_csrf(session.session_id, *other_csrf));
+    auth->invalidate_session(session.session_id);
+    CHECK_FALSE(auth->session_csrf_token(session.session_id));
+    CHECK_FALSE(auth->validate_session_csrf(session.session_id, *csrf));
+    CHECK(auth->validate_session_csrf(other.session_id, *other_csrf));
+    auth->invalidate_user_csrf("platform", "db_user_2");
+    CHECK_FALSE(auth->session_csrf_token(other.session_id));
+
+    const auto protected_session = auth->create_session(
+        db, "admin", "Admin", "platform", {std::string(Role::PLATFORM_ADMIN)});
+    const auto unprotected_session = auth->create_session(db, "user", "User", "platform", {});
+    const auto unrelated_session = auth->create_session(db, "user", "User", "other-tenant", {});
+    const auto protected_csrf = auth->session_csrf_token(protected_session.session_id);
+    const auto unrelated_csrf = auth->session_csrf_token(unrelated_session.session_id);
+    REQUIRE(protected_csrf);
+    REQUIRE(unrelated_csrf);
+    auth->invalidate_tenant_csrf("platform", std::string(Role::PLATFORM_ADMIN));
+    CHECK_FALSE(auth->session_csrf_token(unprotected_session.session_id));
+    CHECK(auth->validate_session_csrf(protected_session.session_id, *protected_csrf));
+    CHECK(auth->validate_session_csrf(unrelated_session.session_id, *unrelated_csrf));
+    REQUIRE(db.revoke_session("platform", protected_session.session_id));
+    CHECK_FALSE(auth->validate_token(db, protected_session.token, "").is_authenticated);
+    CHECK_FALSE(auth->session_csrf_token(protected_session.session_id));
+
+    std::error_code ec;
+    fs::remove_all(work_dir, ec);
+}
+
+TEST_CASE("GraphQL session revocation invalidates CSRF state", "[auth][session][csrf]") {
+    namespace fs = std::filesystem;
+    const auto work_dir = fs::temp_directory_path() /
+        ("isched_csrf_revocation_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    REQUIRE(fs::create_directories(work_dir));
+    DatabaseManager::Config cfg;
+    cfg.base_path = (work_dir / "tenants").string();
+    cfg.system_db_path = (work_dir / "system.db").string();
+    auto db = std::make_shared<DatabaseManager>(cfg);
+    auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
+    auth->configure_jwt_secret("test-secret-key-at-least-32-bytes!");
+    GqlExecutor executor(db);
+    executor.set_auth_middleware(auth);
+    const auto session = auth->create_session(*db, "user", "User", "platform", {});
+    REQUIRE(auth->session_csrf_token(session.session_id));
+    ResolverCtx ctx;
+    ctx.db = db;
+    ctx.tenant_id = "platform";
+    ctx.session_id = session.session_id;
+    const auto logout = executor.execute("mutation { isched { logout } }", "{}", ctx);
+    REQUIRE(logout.is_success());
+    CHECK_FALSE(auth->session_csrf_token(session.session_id));
+
+    const auto other = auth->create_session(*db, "user", "User", "platform", {});
+    REQUIRE(auth->session_csrf_token(other.session_id));
+    ctx.current_user_id = "admin";
+    ctx.roles = {std::string(Role::PLATFORM_ADMIN)};
+    const auto revoke = executor.execute(
+        "mutation($id: ID!) { isched { revokeSession(sessionId: $id) } }",
+        nlohmann::json{{"id", other.session_id}}.dump(), ctx);
+    REQUIRE(revoke.is_success());
+    CHECK_FALSE(auth->session_csrf_token(other.session_id));
     std::error_code ec;
     fs::remove_all(work_dir, ec);
 }
@@ -625,4 +694,3 @@ TEST_CASE("create_platform_role stores and retrieves scope", "[rbac][db]") {
 
     (void)db->delete_platform_role(std::string(kScopedRoleId));
 }
-

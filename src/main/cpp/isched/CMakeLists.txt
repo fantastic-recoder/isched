@@ -1,4 +1,7 @@
-# Reads the file and escapes it for a C string
+# Reconfigure when the embedded GraphQL schema changes.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/backend/isched_builtin_server_schema.graphql")
+# Reads the file and embeds it in a C string.
 file(READ "backend/isched_builtin_server_schema.graphql" SCHEMA_CONTENT)
 
 # Create a generated header
@@ -64,5 +67,4 @@ target_include_directories(isched PRIVATE ${pegtl_INCLUDE_DIRS} PRIVATE ${stdlog
 add_executable(isched_srv backend/isched_srv_main.cpp)
 target_link_libraries(isched_srv PRIVATE isched spdlog::spdlog Boost::url openssl::openssl)
 target_include_directories(isched_srv PRIVATE ${openssl_INCLUDE_DIRS})
-
 

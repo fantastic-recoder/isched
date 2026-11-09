@@ -42,6 +42,7 @@ public:
     AdminUiFixture() {
         Server::Configuration cfg;
         cfg.port = PORT;
+        cfg.allowed_origins = {"http://localhost:19081"};
         // min_threads defaults to 4; keep at least that many
         server = Server::create(cfg);
         REQUIRE(server->start());
@@ -55,6 +56,7 @@ public:
 
     httplib::Client make_client() {
         httplib::Client c("localhost", PORT);
+        c.set_default_headers({{"Origin", "http://localhost:19081"}});
         c.set_connection_timeout(2);
         c.set_read_timeout(5);
         return c;
@@ -233,4 +235,3 @@ TEST_CASE_METHOD(AdminUiFixture,
     REQUIRE_FALSE(payload.is_discarded());
     REQUIRE(payload.contains("data"));
 }
-

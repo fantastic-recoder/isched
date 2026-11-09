@@ -13,11 +13,14 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
@@ -65,6 +68,11 @@ public:
         Server::Configuration cfg;
         cfg.port            = k_http_port;
         cfg.ws_port         = k_ws_port;
+        cfg.allowed_origins = {
+            "http://localhost:" + std::to_string(k_http_port),
+            "http://127.0.0.1:" + std::to_string(k_http_port),
+            "http://localhost:4200"
+        };
         cfg.max_threads     = 4;
         cfg.enable_introspection = true;
         cfg.max_query_complexity = 500;
@@ -106,17 +114,15 @@ public:
         const bool is_mutation =
             first_non_ws != std::string::npos && query.compare(first_non_ws, 8, "mutation") == 0;
 
-        auto res = client.Post("/graphql", body.dump(), "application/json");
+        const std::string origin = "http://localhost:" + std::to_string(k_http_port);
+        httplib::Headers headers{{"Origin", origin}};
         if (is_mutation) {
             const auto& current_auth = ensure_auth();
-            httplib::Headers headers;
             headers.emplace("X-CSRF-Token", current_auth.csrf_token);
-            headers.emplace("Authorization", "Bearer " + current_auth.token);
-            const std::string origin = "http://localhost:" + std::to_string(k_http_port);
-            headers.emplace("Origin", origin);
+            headers.emplace("Cookie", "isched_session=" + current_auth.token);
             headers.emplace("Referer", origin + "/graphql");
-            res = client.Post("/graphql", headers, body.dump(), "application/json");
         }
+        auto res = client.Post("/graphql", headers, body.dump(), "application/json");
 
         REQUIRE(res != nullptr);
         return nlohmann::json::parse(res->body);
@@ -131,6 +137,7 @@ struct SyncWs2 {
     tcp::resolver                               resolver{ioc};
     websocket::stream<beast::tcp_stream>        ws{ioc};
     beast::flat_buffer                          buf;
+    std::string origin = "http://localhost:" + std::to_string(k_http_port);
 
     void connect(int port) {
         auto eps = resolver.resolve("127.0.0.1", std::to_string(port));
@@ -138,8 +145,9 @@ struct SyncWs2 {
         // is unreachable instead of blocking until CTest kills us.
         ws.next_layer().expires_after(std::chrono::seconds(10));
         beast::get_lowest_layer(ws).connect(eps);
-        ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
+        ws.set_option(websocket::stream_base::decorator([this](websocket::request_type& req) {
             req.set(beast::http::field::sec_websocket_protocol, "graphql-transport-ws");
+            req.set(beast::http::field::origin, origin);
         }));
         ws.handshake("127.0.0.1:" + std::to_string(port), "/graphql");
     }
@@ -263,6 +271,101 @@ TEST_CASE_METHOD(SubscriptionTestFixture,
     auto complete = c.recv();
     REQUIRE(complete["type"] == "complete");
     REQUIRE(complete["id"] == "ca-1");
+
+    c.close();
+}
+
+// ---------------------------------------------------------------------------
+// Spec 013 / T030: subscription delivery through a proxied connection
+//
+// A minimal TCP relay stands in for the Angular dev-server proxy (`ws: true`):
+// the WebSocket upgrade is made against the relay port and forwarded to the
+// backend HTTP port, which accepts /graphql upgrades.
+// ---------------------------------------------------------------------------
+namespace {
+class TcpRelay {
+public:
+    explicit TcpRelay(int listen_port, int target_port)
+        : acceptor_(ioc_, tcp::endpoint(tcp::v4(), static_cast<unsigned short>(listen_port))),
+          target_port_(target_port) {
+        thread_ = std::thread([this] { accept_loop(); });
+    }
+    ~TcpRelay() {
+        stopped_ = true;
+        beast::error_code ec;
+        {   // Unblock the blocking accept() with a throw-away connection.
+            tcp::socket wake(ioc_);
+            wake.connect(acceptor_.local_endpoint(), ec);
+        }
+        if (thread_.joinable()) thread_.join();
+        acceptor_.close(ec);
+        for (auto& s : sockets_) {
+            s->shutdown(tcp::socket::shutdown_both, ec);
+            s->close(ec);
+        }
+        for (auto& t : pumps_) if (t.joinable()) t.join();
+    }
+
+private:
+    void accept_loop() {
+        while (!stopped_) {
+            beast::error_code ec;
+            auto client = std::make_shared<tcp::socket>(ioc_);
+            acceptor_.accept(*client, ec);
+            if (ec || stopped_) return;
+            auto upstream = std::make_shared<tcp::socket>(ioc_);
+            tcp::resolver resolver(ioc_);
+            upstream->connect(*resolver.resolve("127.0.0.1", std::to_string(target_port_)), ec);
+            if (ec) return;
+            sockets_.push_back(client);
+            sockets_.push_back(upstream);
+            pumps_.emplace_back([client, upstream] { pump(*client, *upstream); });
+            pumps_.emplace_back([client, upstream] { pump(*upstream, *client); });
+        }
+    }
+    static void pump(tcp::socket& from, tcp::socket& to) {
+        std::array<char, 4096> data{};
+        beast::error_code ec;
+        for (;;) {
+            const auto n = from.read_some(net::buffer(data), ec);
+            if (ec) break;
+            net::write(to, net::buffer(data.data(), n), ec);
+            if (ec) break;
+        }
+        to.shutdown(tcp::socket::shutdown_both, ec);
+        from.shutdown(tcp::socket::shutdown_both, ec);
+    }
+
+    net::io_context ioc_;
+    tcp::acceptor   acceptor_;
+    int             target_port_;
+    std::atomic<bool> stopped_{false};
+    std::thread     thread_;
+    std::vector<std::thread> pumps_;
+    std::vector<std::shared_ptr<tcp::socket>> sockets_;
+};
+}  // namespace
+
+TEST_CASE_METHOD(SubscriptionTestFixture,
+                 "healthChanged subscription delivers through a proxied connection",
+                 "[subscriptions][proxy][T030]") {
+    constexpr int k_proxy_port = 18098;
+    TcpRelay relay(k_proxy_port, k_http_port);
+
+    SyncWs2 c;
+    c.connect(k_proxy_port);
+
+    c.send({{"type", "connection_init"}, {"payload", nlohmann::json::object()}});
+    REQUIRE(c.recv()["type"] == "connection_ack");
+
+    c.send({
+        {"type", "subscribe"}, {"id", "px-1"},
+        {"payload", {{"query", "subscription { isched { healthChanged { status } } }"}}}
+    });
+    auto next = c.recv();
+    REQUIRE(next["type"] == "next");
+    REQUIRE(next["id"] == "px-1");
+    REQUIRE(next["payload"]["data"]["isched"]["healthChanged"]["status"] == "UP");
 
     c.close();
 }

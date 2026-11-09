@@ -49,6 +49,7 @@ public:
         Server::Configuration cfg;
         cfg.port            = k_http_port;
         cfg.ws_port         = k_ws_port;
+        cfg.allowed_origins = {"http://127.0.0.1:18086"};
         cfg.max_threads     = 4;
         cfg.enable_introspection = true;
         cfg.max_query_complexity = 500;
@@ -80,6 +81,7 @@ struct SyncWs {
         beast::get_lowest_layer(ws).connect(endpoints);
         ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
             req.set(beast::http::field::sec_websocket_protocol, "graphql-transport-ws");
+            req.set(beast::http::field::origin, "http://127.0.0.1:18086");
         }));
         ws.handshake("127.0.0.1:" + std::to_string(port), "/graphql");
     }

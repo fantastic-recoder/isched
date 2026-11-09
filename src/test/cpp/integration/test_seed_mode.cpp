@@ -141,7 +141,7 @@ TEST_CASE("bootstrapPlatformAdmin: once bootstrap completes, later authenticated
     const std::string email = "bootstrap_" + g_run_suffix + "@example.com";
     const std::string mutation =
         R"(mutation($input: BootstrapPlatformAdminInput!) {
-             isched { bootstrapPlatformAdmin(input: $input) { token expiresAt } }
+             isched { bootstrapPlatformAdmin(input: $input) { csrfToken expiresAt } }
            })";
     const std::string variables = json{
         {"input", {
@@ -153,7 +153,7 @@ TEST_CASE("bootstrapPlatformAdmin: once bootstrap completes, later authenticated
 
     auto bootstrap_result = exec->execute(mutation, variables, anon_ctx());
     REQUIRE(bootstrap_result.is_success());
-    REQUIRE_FALSE(bootstrap_result.data["isched"]["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
+    REQUIRE_FALSE(bootstrap_result.data["isched"]["bootstrapPlatformAdmin"]["csrfToken"].get<std::string>().empty());
 
     auto result = exec->execute(
         "{ isched { systemState { seedModeActive } currentUser { id } } }",

@@ -68,7 +68,11 @@ struct ServerConfig {
     std::string jwt_secret_key;
     std::chrono::seconds jwt_expiration{3600};
     bool enable_cors = true;
-    std::vector<std::string> allowed_origins{"*"};
+    // Keep browser origins explicit; wildcard credentialed CORS is never safe.
+    std::vector<std::string> allowed_origins{
+        "http://localhost:8080", "http://127.0.0.1:8080",
+        "http://localhost:4200", "http://127.0.0.1:4200"
+    };
     
     // GraphQL settings (Constitutional requirement: GraphQL Spec compliance)
     bool enable_introspection = true;

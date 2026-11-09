@@ -137,7 +137,9 @@ public:
      */
     nlohmann::json post_query(const std::string& query) {
         nlohmann::json body = {{"query", query}};
-        return execute_request("/graphql", body.dump(), "application/json", {});
+        httplib::Headers headers;
+        headers.emplace("Origin", browser_origin());
+        return execute_request("/graphql", body.dump(), "application/json", headers);
     }
 
     /**
@@ -158,7 +160,7 @@ public:
         headers.emplace("Origin", browser_origin());
         headers.emplace("Referer", browser_referer());
         if (!auth.token.empty()) {
-            headers.emplace("Authorization", "Bearer " + auth.token);
+            headers.emplace("Cookie", "isched_session=" + auth.token);
         }
 
         return execute_request("/graphql", body.dump(), "application/json", headers);
@@ -212,7 +214,7 @@ public:
                         password: ")" + password + R"("
                         displayName: ")" + display_name + R"("
                     }) {
-                        token
+                        csrfToken
                         expiresAt
                     }
                 }
@@ -232,9 +234,9 @@ public:
         }
 
         AuthPayload auth;
-        auth.token = response["data"]["isched"]["bootstrapPlatformAdmin"]["token"];
+        auth.token = last_session_token_;
         auth.expires_at = response["data"]["isched"]["bootstrapPlatformAdmin"]["expiresAt"];
-        auth.csrf_token = initial_csrf; // Updated CSRF token if server sends it in response
+        auth.csrf_token = response["data"]["isched"]["bootstrapPlatformAdmin"]["csrfToken"];
 
         return auth;
     }
@@ -251,7 +253,7 @@ public:
             mutation {
                 isched {
                     login(email: ")" + email + R"(", password: ")" + password + R"(") {
-                        token
+                        csrfToken
                         expiresAt
                     }
                 }
@@ -269,9 +271,9 @@ public:
         }
 
         AuthPayload auth;
-        auth.token = response["data"]["isched"]["login"]["token"];
+        auth.token = last_session_token_;
         auth.expires_at = response["data"]["isched"]["login"]["expiresAt"];
-        auth.csrf_token = csrf;
+        auth.csrf_token = response["data"]["isched"]["login"]["csrfToken"];
         return auth;
     }
 
@@ -298,10 +300,13 @@ public:
      * @throw std::runtime_error if unable to obtain token
      */
     std::string get_csrf_token() {
-        // Ensure the server is reachable and GraphQL is functional.
-        (void)post_query("{ isched { hello } }");
-        // Current backend CSRF guard validates presence; tests use a stable non-empty token.
-        return "test-csrf-token";
+        if (last_session_token_.empty()) return {};
+        httplib::Headers headers{{"Origin", browser_origin()},
+                                 {"Cookie", "isched_session=" + last_session_token_}};
+        const auto result = execute_request("/graphql",
+            nlohmann::json{{"query", "{ isched { currentSessionCsrfToken } }"}}.dump(),
+            "application/json", headers);
+        return result.at("data").at("isched").at("currentSessionCsrfToken").get<std::string>();
     }
 
     /**
@@ -347,6 +352,7 @@ private:
     std::string host_;
     int port_;
     bool use_ssl_;
+    std::string last_session_token_;
     std::unique_ptr<httplib::Client> client_;
 
     std::string browser_origin() const {
@@ -382,6 +388,13 @@ private:
             throw std::runtime_error("HTTP request failed: connection error");
         }
 
+        const auto cookie = res->get_header_value("Set-Cookie");
+        constexpr std::string_view prefix = "isched_session=";
+        if (cookie.starts_with(prefix)) {
+            const auto end = cookie.find(';');
+            last_session_token_ = cookie.substr(prefix.size(), end - prefix.size());
+        }
+
         if (res->status < 200 || res->status >= 300) {
             throw std::runtime_error("HTTP error " + std::to_string(res->status) + ": " + res->body);
         }
@@ -395,4 +408,3 @@ private:
 };
 
 } // namespace isched::test
-

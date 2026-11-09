@@ -87,7 +87,7 @@ ExecutionResult login_attempt(
 {
     return exec->execute(
         R"(mutation($email: String!, $password: String!) { isched {
-             login(email: $email, password: $password) { token expiresAt }
+             login(email: $email, password: $password) { csrfToken expiresAt }
            } })",
         nlohmann::json{{"email", email}, {"password", password}}.dump(),
         isched::test::anonymous_ctx());
@@ -160,7 +160,7 @@ TEST_CASE("lockout auto-unlocks once the lock window elapses", "[integration][au
     REQUIRE(after_unlock.is_success());
     REQUIRE(after_unlock.data.contains("isched"));
     REQUIRE(after_unlock.data["isched"].contains("login"));
-    REQUIRE_FALSE(after_unlock.data["isched"]["login"]["token"].get<std::string>().empty());
+    REQUIRE_FALSE(after_unlock.data["isched"]["login"]["csrfToken"].get<std::string>().empty());
 }
 
 TEST_CASE("lockout config chain applies bootstrap/auth override before feature and global defaults",
@@ -228,5 +228,4 @@ TEST_CASE("lockout config chain falls back to global defaults when no feature-le
 
     require_lockout_on_nth_failed_attempt(bundle.exec, "precedence-global@example.com", 3);
 }
-
 

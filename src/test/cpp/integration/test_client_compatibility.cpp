@@ -51,6 +51,7 @@ public:
         Server::Configuration cfg;
         cfg.port            = k_http_port;
         cfg.ws_port         = k_ws_port;
+        cfg.allowed_origins = {"http://localhost:18090"};
         cfg.max_threads     = 4;
         cfg.enable_introspection = true;
         cfg.max_query_complexity = 500;
@@ -68,6 +69,7 @@ public:
     nlohmann::json post_graphql(const std::string& query,
                                 const nlohmann::json& variables = nullptr) {
         httplib::Client client("localhost", k_http_port);
+        client.set_default_headers({{"Origin", "http://localhost:18090"}});
         client.set_connection_timeout(2);
         client.set_read_timeout(5);
         nlohmann::json body = {{"query", query}};
@@ -93,6 +95,7 @@ struct WsClient {
         beast::get_lowest_layer(ws).connect(eps);
         ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
             req.set(beast::http::field::sec_websocket_protocol, "graphql-transport-ws");
+            req.set(beast::http::field::origin, "http://localhost:18090");
         }));
         ws.handshake("127.0.0.1:" + std::to_string(port), "/graphql");
     }

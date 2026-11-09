@@ -41,6 +41,7 @@ public:
 
         Server::Configuration cfg;
         cfg.port = PORT;
+        cfg.allowed_origins = {"http://localhost:19082"};
         cfg.work_directory = workDirectory.string();
         server = Server::create(cfg);
         REQUIRE(server);
@@ -58,6 +59,7 @@ public:
 
     [[nodiscard]] httplib::Client makeClient() const {
         httplib::Client client("localhost", PORT);
+        client.set_default_headers({{"Origin", "http://localhost:19082"}});
         client.set_connection_timeout(2);
         client.set_read_timeout(5);
         return client;
@@ -266,7 +268,7 @@ TEST_CASE_METHOD(EmbeddedServingFixture,
         std::chrono::system_clock::now().time_since_epoch().count());
     const auto bootstrap_mutation = postGraphql(
         R"(mutation($input: BootstrapPlatformAdminInput!) { isched {
-               bootstrapPlatformAdmin(input: $input) { token expiresAt }
+               bootstrapPlatformAdmin(input: $input) { csrfToken expiresAt }
            } })",
         json{{"input", {
             {"email", "embedded_" + unique_suffix + "@example.com"},
@@ -278,7 +280,7 @@ TEST_CASE_METHOD(EmbeddedServingFixture,
     REQUIRE(bootstrap_mutation.contains("data"));
     REQUIRE(bootstrap_mutation["data"].contains("isched"));
     REQUIRE(bootstrap_mutation["data"]["isched"].contains("bootstrapPlatformAdmin"));
-    REQUIRE_FALSE(bootstrap_mutation["data"]["isched"]["bootstrapPlatformAdmin"]["token"].get<std::string>().empty());
+    REQUIRE_FALSE(bootstrap_mutation["data"]["isched"]["bootstrapPlatformAdmin"]["csrfToken"].get<std::string>().empty());
 
     auto bootstrap_status_after = postGraphql("query { isched { systemState { seedModeActive } } }");
     REQUIRE_FALSE(bootstrap_status_after["data"]["isched"]["systemState"]["seedModeActive"].get<bool>());
@@ -289,6 +291,4 @@ TEST_CASE_METHOD(EmbeddedServingFixture,
     REQUIRE(bootstrap_route_after->status == 200);
     REQUIRE(bootstrap_route_after->body.find("<app-root") != std::string::npos);
 }
-
-
 

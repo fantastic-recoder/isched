@@ -58,6 +58,7 @@ public:
         Server::Configuration cfg;
         cfg.port                 = static_cast<uint16_t>(k_http_port);
         cfg.ws_port              = 0; // use port+1 = 18093
+        cfg.allowed_origins      = {"http://localhost:18092"};
         cfg.min_threads          = 8;
         cfg.max_threads          = 120;
         cfg.enable_introspection = true;
@@ -94,6 +95,7 @@ struct SyncWsBench {
         beast::get_lowest_layer(ws).connect(eps);
         ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
             req.set(beast::http::field::sec_websocket_protocol, "graphql-transport-ws");
+            req.set(beast::http::field::origin, "http://localhost:18092");
         }));
         ws.handshake("127.0.0.1:" + std::to_string(port), "/graphql");
     }
@@ -126,6 +128,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     using clock = std::chrono::steady_clock;
 
     httplib::Client client("localhost", k_http_port);
+    client.set_default_headers({{"Origin", "http://localhost:18092"}});
     client.set_connection_timeout(2);
     client.set_read_timeout(5);
 
@@ -170,6 +173,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     for (int t = 0; t < k_threads; ++t) {
         threads.emplace_back([&error_count]() {
             httplib::Client client("localhost", k_http_port);
+            client.set_default_headers({{"Origin", "http://localhost:18092"}});
             client.set_connection_timeout(2);
             client.set_read_timeout(5);
             const std::string body_str =
@@ -280,6 +284,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     // server connection pool has settled before the timed concurrent phase.
     {
         httplib::Client warm("localhost", k_http_port);
+        warm.set_default_headers({{"Origin", "http://localhost:18092"}});
         warm.set_connection_timeout(2);
         warm.set_read_timeout(10);
         const std::string body_str =
@@ -299,6 +304,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     for (int t = 0; t < k_threads; ++t) {
         threads.emplace_back([&durations, &error_count, t]() {
             httplib::Client client("localhost", k_http_port);
+            client.set_default_headers({{"Origin", "http://localhost:18092"}});
             client.set_connection_timeout(2);
             client.set_read_timeout(10);
             const std::string body_str =
@@ -343,6 +349,7 @@ TEST_CASE_METHOD(BenchmarkFixture,
     constexpr int k_requests = 1000;
 
     httplib::Client client("localhost", k_http_port);
+    client.set_default_headers({{"Origin", "http://localhost:18092"}});
     client.set_connection_timeout(2);
     client.set_read_timeout(5);
 

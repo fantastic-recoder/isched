@@ -24,9 +24,11 @@
 #include "isched_PluginSystem.hpp"
 
 #include <atomic>
+#include <charconv>
 #include <cstdlib>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <string_view>
 
 // -----------------------------------------------------------------------------
 // Server lifecycle debug logging
@@ -166,6 +168,100 @@ bool is_asset_request_path(const std::string& asset_path) {
         : asset_path.substr(slash_pos + 1);
     return filename.find('.') != std::string::npos;
 }
+
+std::optional<std::string> canonicalize_origin(std::string_view origin) {
+    if (origin.empty() || origin == "null" || origin == "*") return std::nullopt;
+    const auto scheme_end = origin.find("://");
+    if (scheme_end == std::string_view::npos) return std::nullopt;
+
+    std::string scheme(origin.substr(0, scheme_end));
+    std::transform(scheme.begin(), scheme.end(), scheme.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (scheme != "http" && scheme != "https") return std::nullopt;
+
+    const std::string_view authority = origin.substr(scheme_end + 3);
+    if (authority.empty() || authority.find_first_of("/?#@\\") != std::string_view::npos ||
+        std::any_of(authority.begin(), authority.end(), [](unsigned char ch) {
+            return std::isspace(ch) != 0;
+        }))
+        return std::nullopt;
+
+    std::string host;
+    std::string_view port_text;
+    if (authority.front() == '[') {
+        const auto close = authority.find(']');
+        if (close == std::string_view::npos) return std::nullopt;
+        host = std::string(authority.substr(0, close + 1));
+        const auto suffix = authority.substr(close + 1);
+        if (!suffix.empty()) {
+            if (suffix.front() != ':') return std::nullopt;
+            port_text = suffix.substr(1);
+        }
+    } else {
+        const auto colon = authority.rfind(':');
+        if (colon != std::string_view::npos) {
+            if (authority.find(':') != colon) return std::nullopt;
+            host = std::string(authority.substr(0, colon));
+            port_text = authority.substr(colon + 1);
+        } else {
+            host = std::string(authority);
+        }
+    }
+    if (host.empty()) return std::nullopt;
+    std::transform(host.begin(), host.end(), host.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    if (host.front() == '[') {
+        if (host.back() != ']') return std::nullopt;
+        beast::error_code address_error;
+        (void)net::ip::make_address_v6(host.substr(1, host.size() - 2), address_error);
+        if (address_error) return std::nullopt;
+    } else {
+        if (host.size() > 253 || host.front() == '.' || host.back() == '.')
+            return std::nullopt;
+        std::size_t label_length = 0;
+        bool label_starts_with_hyphen = false;
+        for (std::size_t i = 0; i <= host.size(); ++i) {
+            if (i == host.size() || host[i] == '.') {
+                if (label_length == 0 || label_starts_with_hyphen || host[i - 1] == '-')
+                    return std::nullopt;
+                label_length = 0;
+                label_starts_with_hyphen = false;
+                continue;
+            }
+            const unsigned char ch = static_cast<unsigned char>(host[i]);
+            if (!(std::isalnum(ch) || ch == '-')) return std::nullopt;
+            if (label_length == 0) label_starts_with_hyphen = ch == '-';
+            if (++label_length > 63) return std::nullopt;
+        }
+    }
+
+    std::string normalized_port;
+    if (!port_text.empty()) {
+        unsigned int port = 0;
+        const auto [end, error] = std::from_chars(
+            port_text.data(), port_text.data() + port_text.size(), port);
+        if (error != std::errc{} || end != port_text.data() + port_text.size() ||
+            port == 0 || port > 65535) return std::nullopt;
+        if (!((scheme == "http" && port == 80) || (scheme == "https" && port == 443)))
+            normalized_port = ":" + std::to_string(port);
+    } else if (authority.back() == ':') {
+        return std::nullopt;
+    }
+    return scheme + "://" + host + normalized_port;
+}
+
+bool origin_is_allowed(std::string_view origin,
+                       const std::vector<std::string>& allowed_origins) {
+    const auto candidate = canonicalize_origin(origin);
+    if (!candidate) return false;
+    return std::any_of(allowed_origins.begin(), allowed_origins.end(),
+        [&candidate](const std::string& configured) {
+            const auto canonical_configured = canonicalize_origin(configured);
+            return canonical_configured && *canonical_configured == *candidate;
+        });
+}
 } // namespace
 
 // ===========================================================================
@@ -173,6 +269,8 @@ bool is_asset_request_path(const std::string& asset_path) {
 // ===========================================================================
 
 namespace isched::v0_0_1::backend {
+
+using OriginValidatorFn = std::function<bool(const std::string&)>;
 
 // ---------------------------------------------------------------------------
 // WsSession — handles one connected WebSocket client
@@ -278,6 +376,11 @@ private:
                                 if (auto self = weak.lock())
                                     self->close_terminate();
                             });
+                    } else {
+                        // 013: a credential was presented but is invalid/expired →
+                        // reject with application close code 4401 (no connection_ack).
+                        close_unauthorized();
+                        return;
                     }
                 }
             }
@@ -395,6 +498,16 @@ private:
 
     // ---- Topic routing ----
 
+    /** Close the WebSocket with code 4401 (unauthorized, graphql-transport-ws convention). */
+    void close_unauthorized() {
+        net::post(strand_, [self = shared_from_this()]() {
+            self->ws_.async_close(
+                websocket::close_reason(static_cast<websocket::close_code>(4401), "Unauthorized"),
+                net::bind_executor(self->strand_,
+                    [](beast::error_code) { /* ignore close errors */ }));
+        });
+    }
+
     /** Send a connection_terminate frame and close the WebSocket (T049-007). */
     void close_terminate() {
         net::post(strand_, [self = shared_from_this()]() {
@@ -478,13 +591,15 @@ class WsConn : public std::enable_shared_from_this<WsConn> {
 public:
     WsConn(tcp::socket socket, net::io_context& ioc,
            GqlExecutor* executor, SubscriptionBroker* broker,
-           AuthenticationMiddleware* auth = nullptr)
+           AuthenticationMiddleware* auth = nullptr,
+           OriginValidatorFn origin_validator = nullptr)
         : strand_(net::make_strand(ioc))
         , stream_(std::move(socket))
         , ioc_(ioc)
         , executor_(executor)
         , broker_(broker)
         , auth_(auth)
+        , origin_validator_(std::move(origin_validator))
     {}
 
     void run() {
@@ -513,6 +628,18 @@ private:
             beast::http::write(stream_, res);
             return;
         }
+        const auto origin = req_[beast::http::field::origin];
+        const std::string origin_value(origin);
+        if (std::string(req_.target()) != "/graphql" || !origin_validator_ ||
+            !origin_validator_(origin_value)) {
+            beast::http::response<beast::http::string_body> res{
+                beast::http::status::forbidden, req_.version()};
+            res.set(beast::http::field::content_type, "text/plain; charset=utf-8");
+            res.body() = "Origin rejected";
+            res.prepare_payload();
+            beast::http::write(stream_, res);
+            return;
+        }
         // Hand the socket to a WsSession
         auto session = std::make_shared<WsSession>(
             stream_.release_socket(), ioc_, executor_, broker_, auth_);
@@ -527,6 +654,7 @@ private:
     GqlExecutor*                                        executor_{nullptr};
     SubscriptionBroker*                                 broker_{nullptr};
     AuthenticationMiddleware*                           auth_{nullptr};
+    OriginValidatorFn                                   origin_validator_;
 };
 
 // ---------------------------------------------------------------------------
@@ -536,12 +664,14 @@ class WsListener : public std::enable_shared_from_this<WsListener> {
 public:
     WsListener(net::io_context& ioc, tcp::endpoint endpoint,
                GqlExecutor* executor, SubscriptionBroker* broker,
-               AuthenticationMiddleware* auth = nullptr)
+               AuthenticationMiddleware* auth = nullptr,
+               OriginValidatorFn origin_validator = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , executor_(executor)
         , broker_(broker)
         , auth_(auth)
+        , origin_validator_(std::move(origin_validator))
     {
         beast::error_code ec;
         acceptor_.open(endpoint.protocol(), ec); // NOLINT(cert-err33-c) -- error communicated via ec
@@ -567,7 +697,7 @@ private:
     void on_accept(beast::error_code ec, tcp::socket socket) {
         if (!ec) {
             auto conn = std::make_shared<WsConn>(
-                std::move(socket), ioc_, executor_, broker_, auth_);
+                std::move(socket), ioc_, executor_, broker_, auth_, origin_validator_);
             conn->run();
         } else if (!stopped_) {
             spdlog::warn("WsListener accept error: {}", ec.message());
@@ -580,6 +710,7 @@ private:
     GqlExecutor*     executor_{nullptr};
     SubscriptionBroker* broker_{nullptr};
     AuthenticationMiddleware* auth_{nullptr};
+    OriginValidatorFn origin_validator_;
     bool             stopped_{false};
 };
 
@@ -601,7 +732,8 @@ public:
                                                 const std::string&,
                                                 const std::string&,
                                                 const std::string&, /*remote_ip*/
-                                                const std::unordered_map<std::string, std::string>&)>; /*headers*/
+                                                const std::unordered_map<std::string, std::string>&,
+                                                const std::string&, std::string*)>;
     using MetricFn   = std::function<void(double /*ms*/)>;
     using PluginDispatchFn = std::function<std::optional<PluginHttpResponse>(const PluginHttpRequest&)>;
     /// Called when the HTTP session detects a WebSocket upgrade for /graphql.
@@ -612,13 +744,15 @@ public:
     HttpSession(tcp::socket socket, net::io_context& ioc,
                 ExecuteFn execute_fn, MetricFn metric_fn,
                 PluginDispatchFn plugin_dispatch_fn = nullptr,
-                UpgradeFn upgrade_fn = nullptr)
+                UpgradeFn upgrade_fn = nullptr,
+                OriginValidatorFn origin_validator = nullptr)
         : strand_(net::make_strand(ioc))
         , stream_(std::move(socket))
         , execute_fn_(std::move(execute_fn))
         , metric_fn_(std::move(metric_fn))
         , plugin_dispatch_fn_(std::move(plugin_dispatch_fn))
         , upgrade_fn_(std::move(upgrade_fn))
+        , origin_validator_(std::move(origin_validator))
     {}
 
     void run() {
@@ -659,7 +793,6 @@ private:
             beast::http::status::ok, req_.version()};
         res.set(beast::http::field::server, "isched/1.0");
         res.set(beast::http::field::content_type, "application/json");
-        res.set(beast::http::field::access_control_allow_origin, "*");
         res.keep_alive(req_.keep_alive());
 
 
@@ -668,21 +801,33 @@ private:
         const std::string target_path = query_pos == std::string::npos
             ? target
             : target.substr(0, query_pos);
+        const bool graphql_path = target_path == "/graphql";
+        const auto origin_header = req_[beast::http::field::origin];
+        const std::string request_origin(origin_header);
+        const bool origin_valid = graphql_path && origin_validator_ &&
+                                  origin_validator_(request_origin);
+        if (origin_valid) {
+            // Credentialed CORS is opt-in and echoes only an allowlisted origin.
+            res.set(beast::http::field::access_control_allow_origin, request_origin);
+            res.set(beast::http::field::access_control_allow_credentials, "true");
+            res.set(beast::http::field::vary, "Origin");
+        }
 
         // ── WebSocket upgrade: hand /graphql upgrades off to a WsSession ─────
         // This allows WS clients to use the same port as HTTP (no port+1 needed).
-        if (websocket::is_upgrade(req_) && target_path == "/graphql" && upgrade_fn_) {
+        if (graphql_path && !origin_valid) {
+            res.result(beast::http::status::forbidden);
+            res.body() = R"({"errors":[{"message":"Origin rejected"}]})";
+        } else if (websocket::is_upgrade(req_) && graphql_path && upgrade_fn_) {
             auto raw_socket = stream_.release_socket();
             upgrade_fn_(std::move(raw_socket), std::move(req_));
             return; // WsSession takes ownership; never write HTTP response
-        }
-
-        if (req_.method() == beast::http::verb::options) {
+        } else if (req_.method() == beast::http::verb::options) {
             // CORS preflight
             res.result(beast::http::status::no_content);
             res.set(beast::http::field::access_control_allow_methods, "POST, OPTIONS");
             res.set(beast::http::field::access_control_allow_headers,
-                    "Content-Type, Authorization");
+                    "Content-Type, X-CSRF-Token");
             res.body() = "";
         } else if (req_.method() == beast::http::verb::get &&
                    (target_path == "/" || target_path == "/graphql")) {
@@ -771,10 +916,13 @@ private:
             } else {
                 std::string query;
                 std::string variables_json = "{}";
+                std::string operation_name;
                 if (body.contains("query") && body["query"].is_string())
                     query = body["query"].get<std::string>();
                 if (body.contains("variables") && !body["variables"].is_null())
                     variables_json = body["variables"].dump();
+                if (body.contains("operationName") && body["operationName"].is_string())
+                    operation_name = body["operationName"].get<std::string>();
                 if (query.empty()) {
                     res.result(beast::http::status::bad_request);
                     res.body() = R"({"errors":[{"message":"Missing or empty 'query' field"}]})";
@@ -805,12 +953,18 @@ private:
                             req_headers["Referer"] = std::string(field.value());
                         } else if (iequals(name, "Authorization")) {
                             req_headers["Authorization"] = std::string(field.value());
+                        } else if (iequals(name, "Cookie")) {
+                            if (!req_headers["Cookie"].empty()) req_headers["Cookie"] += "; ";
+                            req_headers["Cookie"] += std::string(field.value());
                         }
                     }
 
                     const std::string auth_hdr = req_headers.count("Authorization") ?
                                                  req_headers["Authorization"] : "";
-                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip, req_headers);
+                    std::string set_cookie;
+                    res.body() = execute_fn_(query, variables_json, auth_hdr, remote_ip,
+                                            req_headers, operation_name, &set_cookie);
+                    if (!set_cookie.empty()) res.set(beast::http::field::set_cookie, set_cookie);
                 }
             }
         } else if (target_path.rfind("/plugin/", 0) == 0 && plugin_dispatch_fn_) {
@@ -881,6 +1035,7 @@ private:
     MetricFn                                           metric_fn_;
     PluginDispatchFn                                   plugin_dispatch_fn_;
     UpgradeFn                                          upgrade_fn_;
+    OriginValidatorFn                                  origin_validator_;
 };
 
 // ---------------------------------------------------------------------------
@@ -892,13 +1047,15 @@ public:
                  HttpSession::ExecuteFn execute_fn,
                  HttpSession::MetricFn  metric_fn,
                  HttpSession::PluginDispatchFn plugin_dispatch_fn = nullptr,
-                 HttpSession::UpgradeFn upgrade_fn = nullptr)
+                 HttpSession::UpgradeFn upgrade_fn = nullptr,
+                 OriginValidatorFn origin_validator = nullptr)
         : ioc_(ioc)
         , acceptor_(ioc)
         , execute_fn_(std::move(execute_fn))
         , metric_fn_(std::move(metric_fn))
         , plugin_dispatch_fn_(std::move(plugin_dispatch_fn))
         , upgrade_fn_(std::move(upgrade_fn))
+        , origin_validator_(std::move(origin_validator))
     {
         beast::error_code ec;
         acceptor_.open(endpoint.protocol(), ec);
@@ -925,7 +1082,8 @@ private:
     void on_accept(beast::error_code ec, tcp::socket socket) {
         if (!ec) {
             auto session = std::make_shared<HttpSession>(
-                std::move(socket), ioc_, execute_fn_, metric_fn_, plugin_dispatch_fn_, upgrade_fn_);
+                std::move(socket), ioc_, execute_fn_, metric_fn_, plugin_dispatch_fn_,
+                upgrade_fn_, origin_validator_);
             session->run();
         } else if (!stopped_) {
             spdlog::warn("HttpListener accept error: {}", ec.message());
@@ -940,6 +1098,7 @@ private:
     HttpSession::MetricFn         metric_fn_;
     HttpSession::PluginDispatchFn plugin_dispatch_fn_;
     HttpSession::UpgradeFn        upgrade_fn_;
+    OriginValidatorFn             origin_validator_;
 };
 
 /**
@@ -1110,6 +1269,14 @@ public:
 // ---------------------------------------------------------------------------
 
 bool Server::Configuration::validate() const {
+    if (allowed_origins.empty()) {
+        throw std::invalid_argument("At least one explicit GraphQL origin must be configured");
+    }
+    for (const auto& origin : allowed_origins) {
+        if (!canonicalize_origin(origin)) {
+            throw std::invalid_argument("GraphQL allowed_origins must contain only explicit HTTP(S) origins");
+        }
+    }
     if (min_threads == 0 || max_threads == 0) {
         throw std::invalid_argument("Thread pool sizes must be greater than 0");
     }
@@ -1203,24 +1370,28 @@ bool Server::start() {
                 *m_impl->ioc, http_ep,
                 [this](const std::string& q, const std::string& v,
                        const std::string& a, const std::string& ip,
-                       const std::unordered_map<std::string, std::string>& hdrs) {
-                    return execute_graphql(q, v, a, ip, hdrs);
+                       const std::unordered_map<std::string, std::string>& hdrs,
+                       const std::string& operation_name, std::string* set_cookie) {
+                    return execute_graphql(q, v, a, ip, hdrs, operation_name, set_cookie);
                 },
                 [this](double ms) { update_response_time_metric(ms); },
                 [this](const PluginHttpRequest& req) -> std::optional<PluginHttpResponse> {
                     if (!m_impl->plugin_manager) return std::nullopt;
                     return m_impl->plugin_manager->dispatch_request(req);
                 },
-                [this](tcp::socket socket,
-                       beast::http::request<beast::http::string_body> req) {
+                 [this](tcp::socket socket,
+                        beast::http::request<beast::http::string_body> req) {
                     auto ws = std::make_shared<WsSession>(
                         std::move(socket),
                         *m_impl->ioc,
                         m_impl->gql_executor.get(),
                         m_impl->subscription_broker.get(),
                         m_impl->auth.get());
-                    ws->run(std::move(req));
-                });
+                     ws->run(std::move(req));
+                 },
+                 [this](const std::string& origin) {
+                     return origin_is_allowed(origin, m_config.allowed_origins);
+                 });
             m_impl->http_listener->run();
             spdlog::info("Server data directory: {}", m_config.work_directory);
             spdlog::info(
@@ -1241,9 +1412,12 @@ bool Server::start() {
             tcp::endpoint ws_ep{net::ip::make_address(bind_addr), ws_p};
             m_impl->ws_listener = std::make_shared<WsListener>(
                 *m_impl->ioc, ws_ep,
-                m_impl->gql_executor.get(),
-                m_impl->subscription_broker.get(),
-                m_impl->auth.get());
+                 m_impl->gql_executor.get(),
+                 m_impl->subscription_broker.get(),
+                 m_impl->auth.get(),
+                 [this](const std::string& origin) {
+                     return origin_is_allowed(origin, m_config.allowed_origins);
+                 });
             m_impl->ws_listener->run();
             spdlog::info("WebSocket endpoint ready at ws://{}:{}/graphql",
                          m_config.host, ws_p);
@@ -1465,14 +1639,15 @@ void Server::update_response_time_metric(double response_time_ms) {
 String Server::execute_graphql(const String& query, const String& variables_json,
                                const String& authorization_header,
                                const String& remote_ip,
-                               const std::unordered_map<std::string, std::string>& request_headers) {
+                               const std::unordered_map<std::string, std::string>& request_headers,
+                               const String& operation_name, String* set_cookie) {
     const auto started_at = std::chrono::steady_clock::now();
     const auto request_id = make_request_id();
 
     m_request_count.fetch_add(1);
     m_impl->total_requests.fetch_add(1);
 
-    // T010: Validate CSRF token and Origin/Referer for mutations
+    // T010: Validate CSRF token and exact Origin for mutations.
     // Detect if query is a mutation by checking if it starts with "mutation"
     std::string trimmed_query = query;
     // Trim leading whitespace
@@ -1500,17 +1675,15 @@ String Server::execute_graphql(const String& query, const String& variables_json
     };
 
     ExecutionResult csrf_result;
-    if (is_mutation && !is_csrf_exempt_mutation()) {
+    if (!set_cookie && is_mutation && !is_csrf_exempt_mutation()) {
         // Extract CSRF headers
         const auto csrf_it = request_headers.find("X-CSRF-Token");
         const auto origin_it = request_headers.find("Origin");
-        const auto referer_it = request_headers.find("Referer");
 
         const std::string csrf_token = csrf_it != request_headers.end() ? csrf_it->second : "";
         const std::string origin = origin_it != request_headers.end() ? origin_it->second : "";
-        const std::string referer = referer_it != request_headers.end() ? referer_it->second : "";
 
-        // CSRF validation: require double-submit token and strict Origin/Referer checks.
+        // CSRF validation: require token presence and an explicitly configured Origin.
         if (csrf_token.empty()) {
             csrf_result.errors.push_back(gql::Error{
                 .code = gql::EErrorCodes::CSRF_FAILED,
@@ -1518,49 +1691,10 @@ String Server::execute_graphql(const String& query, const String& variables_json
             });
         }
 
-        // Allow only same-origin browser mutations for local/admin UI hosts.
-        const auto contains_str = [](const std::string& haystack, const std::string& needle) {
-            return haystack.find(needle) != std::string::npos;
-        };
-        std::vector<std::string> allowed_origins;
-        allowed_origins.emplace_back("http://localhost:" + std::to_string(m_config.port));
-        allowed_origins.emplace_back("http://127.0.0.1:" + std::to_string(m_config.port));
-        // Allow Angular dev-server origin for local development proxy workflow.
-        allowed_origins.emplace_back("http://localhost:4200");
-        if (!m_config.host.empty() && m_config.host != "localhost" && m_config.host != "127.0.0.1") {
-            allowed_origins.emplace_back("http://" + m_config.host + ":" + std::to_string(m_config.port));
-        }
-
-        bool origin_valid = false;
-        if (!origin.empty()) {
-            for (const auto& allowed : allowed_origins) {
-                if (origin == allowed) {
-                    origin_valid = true;
-                    break;
-                }
-            }
-        }
-
-        bool referer_valid = false;
-        if (!referer.empty()) {
-            for (const auto& allowed : allowed_origins) {
-                if (referer.rfind(allowed + "/", 0) == 0 || referer == allowed) {
-                    referer_valid = true;
-                    break;
-                }
-            }
-        }
-
-        if (!origin_valid && !referer_valid) {
-            std::string details = "Origin/Referer validation failed";
-            if (!origin.empty() || !referer.empty()) {
-                if (!origin.empty() && contains_str(origin, "Bearer ")) {
-                    details = "Origin validation failed";
-                }
-            }
+        if (!origin_is_allowed(origin, m_config.allowed_origins)) {
             csrf_result.errors.push_back(gql::Error{
                 .code = gql::EErrorCodes::CSRF_FAILED,
-                .message = details
+                .message = "Origin validation failed"
             });
         }
 
@@ -1585,7 +1719,50 @@ String Server::execute_graphql(const String& query, const String& variables_json
     // unauthenticated requests are allowed for public queries such as `login`).
     ResolverCtx ctx;
     ctx.remote_ip = remote_ip;
-    if (!authorization_header.empty() && m_impl->auth) {
+    if (set_cookie) {
+        ctx.enforce_http_csrf = true;
+        ctx.session_response = std::make_shared<SessionResponse>();
+        if (const auto it = request_headers.find("X-CSRF-Token"); it != request_headers.end())
+            ctx.csrf_header = it->second;
+    }
+    if (set_cookie && m_impl->auth && m_impl->database) {
+        std::string credential;
+        bool duplicate = false;
+        bool seen_cookie = false;
+        if (const auto it = request_headers.find("Cookie"); it != request_headers.end()) {
+            std::string_view remaining = it->second;
+            while (!remaining.empty()) {
+                const auto end = remaining.find(';');
+                auto part = remaining.substr(0, end);
+                while (!part.empty() && part.front() == ' ') part.remove_prefix(1);
+                while (!part.empty() && part.back() == ' ') part.remove_suffix(1);
+                constexpr std::string_view prefix = "isched_session=";
+                if (part.starts_with(prefix)) {
+                    if (seen_cookie) duplicate = true;
+                    seen_cookie = true;
+                    credential = std::string(part.substr(prefix.size()));
+                }
+                if (end == std::string_view::npos) break;
+                remaining.remove_prefix(end + 1);
+            }
+        }
+        if (!credential.empty() && !duplicate) {
+            const auto ar = m_impl->auth->validate_token(*m_impl->database, credential, "");
+            if (ar.is_valid() && !ar.session_id.empty() &&
+                m_impl->auth->session_csrf_token(ar.session_id)) {
+                const auto persisted = m_impl->database->get_session(ar.tenant_id, ar.session_id);
+                if (persisted && !persisted.value().is_revoked) {
+                    ctx.current_user_id = ar.user_id;
+                    ctx.user_name = ar.user_name;
+                    ctx.tenant_id = ar.tenant_id;
+                    ctx.roles = ar.roles;
+                    ctx.session_id = ar.session_id;
+                    ctx.db = m_impl->database;
+                }
+            }
+        }
+        ctx.session_response->clear_cookie = seen_cookie && ctx.session_id.empty();
+    } else if (!set_cookie && !authorization_header.empty() && m_impl->auth) {
         std::unordered_map<std::string, std::string> hdrs{{"Authorization", authorization_header}};
         const auto ar = m_impl->auth->validate_request(hdrs, "");
         if (ar.is_authenticated) {
@@ -1606,6 +1783,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
 
     // Save tenant_id before the move so metrics recording can access it afterwards.
     const std::string tenant_id_for_metrics = ctx.tenant_id;
+    const auto session_response = ctx.session_response;
 
     ExecutionResult result;
     if (!m_impl->gql_executor) {
@@ -1614,7 +1792,7 @@ String Server::execute_graphql(const String& query, const String& variables_json
             .message = "GraphQL executor is not initialized"
         });
     } else {
-        result = m_impl->gql_executor->execute(query, variables_json, std::move(ctx));
+        result = m_impl->gql_executor->execute(query, variables_json, std::move(ctx), operation_name);
 
         // T034: Apply any schema change queued by activateSnapshot / rollbackConfiguration
         std::ignore = m_impl->gql_executor->get_pending_schema_change()
@@ -1647,6 +1825,13 @@ String Server::execute_graphql(const String& query, const String& variables_json
     }
 
     auto response = result.to_json();
+    if (set_cookie && session_response) {
+        constexpr std::string_view attributes = "; Path=/; Secure; HttpOnly; SameSite=Strict";
+        if (session_response->clear_cookie)
+            *set_cookie = "isched_session=; Max-Age=0" + std::string(attributes);
+        else if (!session_response->issued_jwt.empty())
+            *set_cookie = "isched_session=" + session_response->issued_jwt + std::string(attributes);
+    }
     response["extensions"]["requestId"] = request_id;
     response["extensions"]["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
@@ -1657,4 +1842,3 @@ String Server::execute_graphql(const String& query, const String& variables_json
 }
 
 } // namespace isched::v0_0_1::backend
-

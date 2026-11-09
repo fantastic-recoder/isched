@@ -16,6 +16,7 @@
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 #include <openssl/rand.h>
+#include <openssl/crypto.h>
 #include <openssl/params.h>
 #include <openssl/core_names.h>
 #include <random>
@@ -246,6 +247,43 @@ public:
             active_sessions_.erase(it);
             --active_sessions_count_;
         }
+        csrf_sessions_.erase(session_id);
+    }
+
+    std::optional<std::string> session_csrf_token(const std::string& session_id) override {
+        std::lock_guard<std::shared_mutex> lock(sessions_mutex_);
+        auto it = csrf_sessions_.find(session_id);
+        if (it == csrf_sessions_.end()) return std::nullopt;
+        if (it->second.expires_at <= std::chrono::system_clock::now()) {
+            csrf_sessions_.erase(it);
+            return std::nullopt;
+        }
+        return it->second.token;
+    }
+
+    bool validate_session_csrf(const std::string& session_id,
+                               const std::string& token) override {
+        const auto expected = session_csrf_token(session_id);
+        return expected && !token.empty() && token.size() == expected->size() &&
+               CRYPTO_memcmp(token.data(), expected->data(), token.size()) == 0;
+    }
+
+    void invalidate_user_csrf(const std::string& tenant_id,
+                              const std::string& user_id) override {
+        std::lock_guard<std::shared_mutex> lock(sessions_mutex_);
+        std::erase_if(csrf_sessions_, [&](const auto& entry) {
+            return entry.second.tenant_id == tenant_id && entry.second.user_id == user_id;
+        });
+    }
+
+    void invalidate_tenant_csrf(const std::string& tenant_id,
+                                const std::string& protected_role) override {
+        std::lock_guard<std::shared_mutex> lock(sessions_mutex_);
+        std::erase_if(csrf_sessions_, [&](const auto& entry) {
+            const auto& session = entry.second;
+            return session.tenant_id == tenant_id &&
+                   std::find(session.roles.begin(), session.roles.end(), protected_role) == session.roles.end();
+        });
     }
 
     // ── T049-002: DB-backed session creation ──────────────────────────────
@@ -296,12 +334,25 @@ public:
             "[]" /*permissions – not separately stored yet*/,
             roles_str, expires_at_str, transport_scope);
         if (!persist_res) {
-            // Non-fatal: we still return the token; login resolver can choose to
-            // surface this as an error.  Log a warning.
-            spdlog::warn("create_session: failed to persist session '{}' for tenant '{}': {} ({})",
-                session_id, tenant_id,
-                to_database_error_name(persist_res.error()),
-                static_cast<int>(persist_res.error()));
+            throw std::runtime_error("create_session: unable to persist session");
+        }
+
+        unsigned char random_bytes[32];
+        if (RAND_bytes(random_bytes, sizeof(random_bytes)) != 1)
+            throw std::runtime_error("create_session: unable to generate CSRF secret");
+        constexpr char hex[] = "0123456789abcdef";
+        std::string csrf;
+        csrf.reserve(sizeof(random_bytes) * 2);
+        for (const auto byte : random_bytes) {
+            csrf.push_back(hex[byte >> 4]);
+            csrf.push_back(hex[byte & 15]);
+        }
+        {
+            std::lock_guard<std::shared_mutex> lock(sessions_mutex_);
+            std::erase_if(csrf_sessions_, [now](const auto& entry) {
+                return entry.second.expires_at <= now;
+            });
+            csrf_sessions_.emplace(session_id, CsrfSession{std::move(csrf), user_id, tenant_id, roles, exp});
         }
 
         return LoginSession{token, session_id, expires_at_str};
@@ -330,7 +381,7 @@ public:
                 return auth_res;
             }
             const std::string jti = decoded.get_id();
-            const auto sess_res = db.get_session(tenant_id, jti);
+            const auto sess_res = db.get_session(auth_res.tenant_id, jti);
             if (!sess_res) {
                 // Session not found — could be platform-level login or table not
                 // yet initialised; fall back to JWT-only validation.
@@ -339,11 +390,12 @@ public:
                 return auth_res;
             }
             if (sess_res.value().is_revoked) {
+                invalidate_session(jti);
                 ++failed_auths_;
                 return {false, "", "", "", {}, {}, "Session has been revoked", {}, ""};
             }
             // Touch last_activity (best-effort).
-            std::ignore = db.update_session_activity(tenant_id, jti);
+            std::ignore = db.update_session_activity(auth_res.tenant_id, jti);
         } catch (const std::exception& e) {
             // JWT decode failed (shouldn't happen since validate_request passed).
             spdlog::warn("validate_token: unexpected decode error: {}", e.what());
@@ -505,6 +557,14 @@ private:
     // Session management with thread safety
     mutable std::shared_mutex sessions_mutex_;
     mutable std::unordered_map<std::string, SessionInfo> active_sessions_;
+    struct CsrfSession {
+        std::string token;
+        std::string user_id;
+        std::string tenant_id;
+        std::vector<std::string> roles;
+        std::chrono::system_clock::time_point expires_at;
+    };
+    std::unordered_map<std::string, CsrfSession> csrf_sessions_;
     
     // Rate limiting state
     struct RateLimitWindow {

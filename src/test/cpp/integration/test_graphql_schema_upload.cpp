@@ -738,3 +738,26 @@ TEST_CASE("T023: schemaDocuments returns empty list for tenant with no documents
     REQUIRE(r.data["isched"]["schemaDocuments"].empty());
 }
 
+// ---------------------------------------------------------------------------
+// Spec 013 / T040: GraphQL-only boundary — schema upload flow has no REST surface
+// ---------------------------------------------------------------------------
+
+TEST_CASE("T040: schema upload/list/fetch are GraphQL operations only",
+          "[schema_upload][boundary][T040]") {
+    auto [db, exec] = make_isolated_executor("boundary");
+    REQUIRE(db->initialize_tenant("org_b"));
+
+    const auto up = exec->execute(
+        R"(mutation($input: UploadSchemaDocumentInput!) { isched {
+             uploadSchemaDocument(input: $input) { success } } })",
+        json{{"input", {{"name", "boundary-doc"}, {"content", k_valid_sdl}, {"overwrite", false}}}}.dump(),
+        make_admin_ctx("org_b"));
+    REQUIRE(up.is_success());
+
+    const auto listed = exec->execute(
+        "query { isched { schemaDocuments { name } } }", "{}", make_admin_ctx("org_b"));
+    REQUIRE(listed.is_success());
+    const auto envelope = listed.to_json();
+    REQUIRE(envelope.contains("data"));
+    REQUIRE_FALSE(envelope.contains("status"));  // no REST-style envelope
+}

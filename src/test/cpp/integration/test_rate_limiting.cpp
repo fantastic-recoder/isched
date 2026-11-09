@@ -94,7 +94,7 @@ ExecutionResult login_attempt(
 {
     return exec->execute(
         R"(mutation($email: String!, $password: String!) { isched {
-             login(email: $email, password: $password) { token expiresAt }
+             login(email: $email, password: $password) { csrfToken expiresAt }
            } })",
         json{{"email", email}, {"password", password}}.dump(),
         isched::test::anonymous_ctx());
@@ -289,5 +289,4 @@ TEST_CASE("Rate Limiting: login resolver returns deterministic RATE_LIMITED enve
             + std::to_string(lockout_json["errors"][0]["extensions"]["retryAfterMs"].get<int>()));
 
 }
-
 

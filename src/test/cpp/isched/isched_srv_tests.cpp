@@ -37,6 +37,7 @@ struct SrvFixture {
         Server::Configuration cfg;
         cfg.port        = k_test_port;
         cfg.host        = "127.0.0.1";
+        cfg.allowed_origins = {"http://127.0.0.1:18482"};
         cfg.min_threads = 2;
         cfg.max_threads = 4;
         server = Server::create(cfg);
@@ -52,6 +53,7 @@ struct SrvFixture {
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: hello query", "[srv][graphql][http]") {
     httplib::Client cli("127.0.0.1", k_test_port);
+    cli.set_default_headers({{"Origin", "http://127.0.0.1:18482"}});
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
@@ -68,6 +70,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: hello query", "[srv][graph
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: version query", "[srv][graphql][http]") {
     httplib::Client cli("127.0.0.1", k_test_port);
+    cli.set_default_headers({{"Origin", "http://127.0.0.1:18482"}});
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
@@ -84,6 +87,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: version query", "[srv][gra
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: missing query field returns 400", "[srv][graphql][http]") {
     httplib::Client cli("127.0.0.1", k_test_port);
+    cli.set_default_headers({{"Origin", "http://127.0.0.1:18482"}});
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
@@ -95,6 +99,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: missing query field return
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: invalid JSON body returns 400", "[srv][graphql][http]") {
     httplib::Client cli("127.0.0.1", k_test_port);
+    cli.set_default_headers({{"Origin", "http://127.0.0.1:18482"}});
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 
@@ -106,6 +111,7 @@ TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: invalid JSON body returns 
 
 TEST_CASE_METHOD(SrvFixture, "HTTP GraphQL transport: extensions block present", "[srv][graphql][http]") {
     httplib::Client cli("127.0.0.1", k_test_port);
+    cli.set_default_headers({{"Origin", "http://127.0.0.1:18482"}});
     cli.set_connection_timeout(std::chrono::seconds(2));
     cli.set_read_timeout(std::chrono::seconds(5));
 

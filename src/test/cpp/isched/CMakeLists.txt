@@ -185,6 +185,19 @@ add_executable(test_graphql_subscriptions ../integration/test_graphql_subscripti
 target_link_libraries(test_graphql_subscriptions PRIVATE ${_ws_common_libs})
 add_test(NAME test_graphql_subscriptions COMMAND test_graphql_subscriptions)
 
+# Spec 013: GraphQL-only Angular integration regression tests
+add_executable(test_graphql_subscription_auth ../integration/test_graphql_subscription_auth.cpp)
+target_link_libraries(test_graphql_subscription_auth PRIVATE ${_ws_common_libs})
+add_test(NAME test_graphql_subscription_auth COMMAND test_graphql_subscription_auth)
+
+add_executable(test_graphql_only_boundary ../integration/test_graphql_only_boundary.cpp)
+target_link_libraries(test_graphql_only_boundary PRIVATE ${_ws_common_libs})
+add_test(NAME test_graphql_only_boundary COMMAND test_graphql_only_boundary)
+
+add_executable(test_graphql_http_security ../integration/test_graphql_http_security.cpp)
+target_link_libraries(test_graphql_http_security PRIVATE ${_ws_common_libs})
+add_test(NAME test_graphql_http_security COMMAND test_graphql_http_security)
+
 add_executable(test_client_compatibility ../integration/test_client_compatibility.cpp)
 target_link_libraries(test_client_compatibility PRIVATE ${_ws_common_libs})
 add_test(NAME test_client_compatibility COMMAND test_client_compatibility)
@@ -384,6 +397,8 @@ set(_isched_integration_tests
     test_configuration_conflicts
     test_graphql_websocket
     test_graphql_subscriptions
+    test_graphql_subscription_auth
+    test_graphql_only_boundary
     test_client_compatibility
     test_user_management
     test_bootstrap_platform_admin

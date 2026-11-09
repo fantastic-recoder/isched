@@ -97,3 +97,30 @@ TEST_CASE("CompleteBootstrap initializes platform and flips status", "[integrati
     REQUIRE(status_after.data["isched"]["platformBootstrapStatus"]["bootstrapState"].get<std::string>() == "Initialized");
 }
 
+TEST_CASE("Primary journey: login then protected query and mutation over GraphQL only",
+          "[integration][contract][primary-journey][T015]") {
+    auto [db, exec] = make_executor_with_auth();
+    const std::string email = "journey_" + std::to_string(
+        std::chrono::system_clock::now().time_since_epoch().count()) + "@example.com";
+
+    const auto complete = exec->execute(
+        R"(mutation($input: BootstrapPlatformAdminInput!) { isched {
+             completePlatformBootstrap(input: $input) { success }
+           } })",
+        json{{"input", {{"email", email}, {"password", "JourneyPass123!"}, {"displayName", "Journey"}}}}.dump(),
+        isched::test::anonymous_ctx());
+    REQUIRE(complete.is_success());
+
+    const auto login = exec->execute(
+        R"(mutation($e: String!, $p: String!) { isched { login(email: $e, password: $p) { csrfToken } } })",
+        json{{"e", email}, {"p", "JourneyPass123!"}}.dump(),
+        isched::test::anonymous_ctx());
+    REQUIRE(login.is_success());
+    REQUIRE_FALSE(login.data["isched"]["login"]["csrfToken"].get<std::string>().empty());
+
+    // Query shape from the Playground.
+    const auto health = exec->execute(
+        "query { isched { health { status } } }", "{}", isched::test::anonymous_ctx());
+    REQUIRE(health.is_success());
+    REQUIRE(health.data["isched"]["health"]["status"].get<std::string>() == "UP");
+}

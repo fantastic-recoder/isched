@@ -46,6 +46,7 @@ public:
         // Initialize test configuration using correct Server::Configuration type
         Server::Configuration config;
         config.port = 8888;
+        config.allowed_origins = {"http://localhost:8888"};
         config.max_threads = 4;
         config.enable_introspection = true;
         config.max_query_complexity = 500;
@@ -185,6 +186,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
         REQUIRE(server->start());
 
         httplib::Client client("localhost", 8888);
+        client.set_default_headers({{"Origin", "http://localhost:8888"}});
         client.set_connection_timeout(2);
         client.set_read_timeout(5);
 
@@ -208,6 +210,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
         REQUIRE(server->start());
 
         httplib::Client client("localhost", 8888);
+        client.set_default_headers({{"Origin", "http://localhost:8888"}});
         client.set_connection_timeout(2);
         auto res = client.Post("/graphql", "not-valid-json", "application/json");
 
@@ -221,6 +224,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
         REQUIRE(server->start());
 
         httplib::Client client("localhost", 8888);
+        client.set_default_headers({{"Origin", "http://localhost:8888"}});
         client.set_connection_timeout(2);
         nlohmann::json body = {{"not_a_query", "hello"}};
         auto res = client.Post("/graphql", body.dump(), "application/json");
@@ -235,6 +239,7 @@ TEST_CASE_METHOD(ServerStartupTestFixture, "HTTP transport delivers correct resp
         REQUIRE(server->start());
 
         httplib::Client client("localhost", 8888);
+        client.set_default_headers({{"Origin", "http://localhost:8888"}});
         client.set_connection_timeout(2);
         nlohmann::json body = {{"query", "{ isched { hello } }"}};
         auto res = client.Post("/graphql", body.dump(), "application/json");

@@ -56,7 +56,7 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
         REQUIRE(first_error["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
     }
 
-    SECTION("Mutation with CSRF token but no Origin/Referer is rejected") {
+    SECTION("Mutation with CSRF token but no Origin is rejected") {
         const std::string mutation_query = R"(
             mutation { isched {
                 completePlatformBootstrap(input: {
@@ -77,7 +77,7 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
         REQUIRE(resp_json.contains("errors"));
         REQUIRE(resp_json["errors"].is_array());
         REQUIRE(resp_json["errors"].size() > 0);
-        REQUIRE(resp_json["errors"][0]["message"].get<std::string>().find("Origin/Referer") != std::string::npos);
+        REQUIRE(resp_json["errors"][0]["message"].get<std::string>().find("Origin validation failed") != std::string::npos);
         REQUIRE(resp_json["errors"][0]["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
     }
 
@@ -103,7 +103,7 @@ TEST_CASE("WebUI Security Foundation - CSRF Protection", "[webui][security][csrf
         REQUIRE(resp_json.contains("errors"));
         REQUIRE(resp_json["errors"].is_array());
         REQUIRE(resp_json["errors"].size() > 0);
-        REQUIRE(resp_json["errors"][0]["message"].get<std::string>().find("Origin/Referer") != std::string::npos);
+        REQUIRE(resp_json["errors"][0]["message"].get<std::string>().find("Origin validation failed") != std::string::npos);
         REQUIRE(resp_json["errors"][0]["code"].get<int>() == static_cast<int>(EErrorCodes::CSRF_FAILED));
     }
 
@@ -221,4 +221,3 @@ TEST_CASE("WebUI Security Foundation - Client IP Tracking", "[webui][security][l
         REQUIRE(resp_json["extensions"].contains("timestamp"));
     }
 }
-

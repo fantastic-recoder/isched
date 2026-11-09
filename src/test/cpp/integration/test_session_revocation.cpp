@@ -111,14 +111,17 @@ static std::pair<std::string, std::string> do_login(
     const std::string& email,
     const std::string& password)
 {
+    auto ctx = anonymous_ctx();
+    ctx.session_response = std::make_shared<SessionResponse>();
+    auto metadata = ctx.session_response;
     auto res = exec->execute(
         R"(mutation($e:String!,$p:String!,$o:ID){ isched {
-             login(email:$e password:$p organizationId:$o){token expiresAt}
+             login(email:$e password:$p organizationId:$o){csrfToken expiresAt}
            } })",
         json{{"e", email}, {"p", password}, {"o", org_id}}.dump(),
-        anonymous_ctx());
+        ctx);
     require_success(res, "login");
-    const std::string token = res.data["isched"]["login"]["token"].get<std::string>();
+    const std::string token = metadata->issued_jwt;
 
     // Extract jti (session_id) via validate_request so we can revoke by ID
     auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
@@ -322,4 +325,37 @@ TEST_CASE("terminateAllSessions: tenant_admin is rejected with FORBIDDEN",
     REQUIRE(!result.is_success());
     REQUIRE(!result.errors.empty());
     REQUIRE(result.errors[0].code == EErrorCodes::FORBIDDEN);
+}
+
+// ============================================================================
+// Spec 013 / T022: session expiry mid-session → UNAUTHENTICATED path
+// ============================================================================
+
+TEST_CASE("expired/revoked session token is rejected so the UI can re-authenticate",
+          "[integration][session][reauth][T022]") {
+    auto [db, exec] = make_executor();
+
+    const std::string org_id = create_org(exec, g_run_suffix + "_reauth");
+    const std::string email = "reauth_user_" + g_run_suffix + "@example.com";
+    create_user(exec, org_id, email, "ReauthPass1!");
+    auto [token, session_id] = do_login(exec, db, org_id, email, "ReauthPass1!");
+
+    auto auth = std::shared_ptr<AuthenticationMiddleware>(AuthenticationMiddleware::create());
+    auth->configure_jwt_secret("test-revoke-jwt-secret-at-least-32-bytes!!");
+    REQUIRE(auth->validate_token(*db, token, org_id).is_authenticated);
+
+    // Revoke (simulates server-side expiry) …
+    ResolverCtx ctx;
+    ctx.tenant_id = org_id;
+    ctx.session_id = session_id;
+    ctx.db = db;
+    require_success(exec->execute("mutation { isched { logout } }", "{}", ctx), "logout");
+
+    // … the same token no longer authenticates.
+    REQUIRE_FALSE(auth->validate_token(*db, token, org_id).is_authenticated);
+
+    // An anonymous caller asking for the current user gets no identity (client → /login).
+    const auto cu = exec->execute("{ isched { currentUser { id } } }", "{}", anonymous_ctx());
+    REQUIRE(cu.is_success());
+    REQUIRE(cu.data["isched"]["currentUser"].is_null());
 }

@@ -113,3 +113,22 @@ TEST_CASE("Authentication and plugin admin RBAC", "[gql][auth][plugin]") {
     CHECK(executor.execute("query { isched { plugin(id: \"missing\") { id } } }", "{}", platform_admin).is_success());
     CHECK(executor.execute("subscription { isched { pluginLifecycleEvents { eventType } } }", "{}", platform_admin).is_success());
 }
+
+// Spec 013 / T021: protected operations surface machine-readable FORBIDDEN codes that the
+// Angular client maps to its authorization / reauth-required outcomes.
+TEST_CASE("Protected mutation error envelope exposes FORBIDDEN extension code",
+          "[gql][auth][envelope][T021]") {
+    auto db = std::make_shared<DatabaseManager>();
+    REQUIRE(db->ensure_system_db().has_value());
+    GqlExecutor proc(db);
+
+    ResolverCtx anon;  // no user, no roles
+    const auto res = proc.execute(
+        R"(mutation { isched { revokeAllSessions(userId: "u1") } })", "{}", anon);
+
+    REQUIRE_FALSE(res.is_success());
+    REQUIRE_FALSE(res.errors.empty());
+    const auto json = res.to_json();
+    REQUIRE(json.contains("errors"));
+    REQUIRE(json["errors"][0]["extensions"]["code"].get<std::string>() == "FORBIDDEN");
+}

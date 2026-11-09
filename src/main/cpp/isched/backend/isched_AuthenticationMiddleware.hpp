@@ -274,6 +274,30 @@ public:
      * @param session_id Session identifier to invalidate
      */
     virtual void invalidate_session(const std::string& session_id) = 0;
+
+    /**
+     * @brief Retrieve the process-local CSRF secret of a registered, unexpired session.
+     * @param session_id Authenticated session identifier.
+     * @return Secret, or nullopt when the session is not registered or has expired.
+     */
+    virtual std::optional<std::string> session_csrf_token(const std::string& session_id) = 0;
+
+    /**
+     * @brief Compare a submitted secret to the session's secret.
+     * @param session_id Authenticated session identifier.
+     * @param token Submitted CSRF value.
+     * @return True only for an unexpired matching session.
+     */
+    virtual bool validate_session_csrf(const std::string& session_id,
+                                       const std::string& token) = 0;
+
+    /** @brief Remove CSRF state for every session belonging to a tenant user. */
+    virtual void invalidate_user_csrf(const std::string& tenant_id,
+                                      const std::string& user_id) = 0;
+
+    /** @brief Remove CSRF state for a tenant except sessions with the protected role. */
+    virtual void invalidate_tenant_csrf(const std::string& tenant_id,
+                                        const std::string& protected_role) = 0;
     
     /**
      * @brief Get authentication metrics for monitoring
@@ -358,4 +382,3 @@ namespace isched::v0_0_1::backend {
                                    const std::string& stored_hash);
 
 } // namespace isched::v0_0_1::backend
-

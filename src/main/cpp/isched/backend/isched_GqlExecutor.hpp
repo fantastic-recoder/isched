@@ -69,6 +69,12 @@ namespace isched::v0_0_1::backend {
      * Populated per-request by Server::execute_graphql() (or set directly in
      * tests) and threaded to every resolver via a thread-local slot.
      */
+    /** @brief Non-JSON transport information produced by session mutations. */
+    struct SessionResponse {
+        std::string issued_jwt;
+        bool clear_cookie = false;
+    };
+
     struct ResolverCtx {
         std::string tenant_id;                          ///< Active tenant identifier
         std::weak_ptr<DatabaseManager> db;              ///< Non-owning handle to the tenant DB
@@ -78,6 +84,9 @@ namespace isched::v0_0_1::backend {
         std::string session_id;                         ///< JWT @c jti claim for the current request; empty if unauthenticated
         std::string bearer_token;                       ///< Raw Bearer token for bearer_passthrough DataSource auth (T048-007)
         std::string remote_ip;                          ///< Client IP address string (populated by Server from Beast socket, used for rate-limiting)
+        std::shared_ptr<SessionResponse> session_response; ///< Per-request private HTTP metadata.
+        bool enforce_http_csrf = false;                  ///< Enforce HTTP mutation CSRF policy.
+        std::string csrf_header;                        ///< Submitted session-bound CSRF value.
     };
 
     /**
@@ -657,4 +666,3 @@ namespace isched::v0_0_1::backend {
 // isched::v0_0_1
 
 #endif //ISCHED_GQL_PROCESSOR_HPP
-

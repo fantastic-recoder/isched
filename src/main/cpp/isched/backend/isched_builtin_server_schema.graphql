@@ -217,6 +217,8 @@ type IschedQueryNamespace {
   activeConfiguration(tenantId: String!): SnapshotRecord
   configurationHistory(tenantId: String!): [SnapshotRecord!]!
   currentUser: User
+  """Session-bound CSRF value for the authenticated session."""
+  currentSessionCsrfToken: String
   user(id: ID!): User
   users: [User!]!
   organization(id: ID!): Organization
@@ -465,9 +467,9 @@ type Organization {
 
 """Returned by the login mutation"""
 type AuthPayload {
-  """Signed JWT to include in subsequent Authorization: Bearer headers"""
-  token: String!
-  """ISO-8601 expiry time of the token"""
+  """Unpredictable session-bound CSRF value for authenticated HTTP mutations"""
+  csrfToken: String!
+  """ISO-8601 expiry time of the session"""
   expiresAt: String!
 }
 

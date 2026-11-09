@@ -30,6 +30,7 @@ public:
     HealthQueryTestFixture() {
         Server::Configuration config;
         config.port = 18082;
+        config.allowed_origins = {"http://localhost:18082"};
         config.max_threads = 4;
         config.enable_introspection = true;
         config.max_query_complexity = 500;
@@ -44,6 +45,7 @@ public:
 
     nlohmann::json post_graphql(const std::string& query) {
         httplib::Client client("localhost", 18082);
+        client.set_default_headers({{"Origin", "http://localhost:18082"}});
         client.set_connection_timeout(2);
         client.set_read_timeout(5);
         nlohmann::json body = {{"query", query}};

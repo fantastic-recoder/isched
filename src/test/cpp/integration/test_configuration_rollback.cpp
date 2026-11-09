@@ -40,6 +40,7 @@ public:
 
         Server::Configuration config;
         config.port = 18085;
+        config.allowed_origins = {"http://localhost:18085"};
         config.max_threads = 4;
         config.enable_introspection = true;
         config.max_query_complexity = 500;

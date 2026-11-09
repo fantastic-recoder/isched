@@ -100,6 +100,11 @@ public:
         /// Secret key used for signing/verifying JWTs.
         /// Must be at least 32 bytes; a random default is generated at startup if empty.
         String jwt_secret_key;
+        /// Explicit browser origins allowed to access the GraphQL HTTP/WS boundary.
+        std::vector<std::string> allowed_origins{
+            "http://localhost:8080", "http://127.0.0.1:8080",
+            "http://localhost:4200", "http://127.0.0.1:4200"
+        };
         
         /**
          * @brief Default constructor with sensible defaults
@@ -318,7 +323,9 @@ public:
     String execute_graphql(const String& query, const String& variables_json = "{}",
                            const String& authorization_header = "",
                            const String& remote_ip = "",
-                           const std::unordered_map<std::string, std::string>& request_headers = {});
+                           const std::unordered_map<std::string, std::string>& request_headers = {},
+                           const String& operation_name = "",
+                           String* set_cookie = nullptr);
 
 private:
     /**

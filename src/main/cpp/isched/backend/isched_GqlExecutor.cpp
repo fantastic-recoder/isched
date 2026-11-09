@@ -923,7 +923,16 @@ namespace isched::v0_0_1::backend {
         // T047-000b: bootstrapPlatformAdmin (one-time, unauthenticated)
         // ---------------------------------------------------------------
         register_resolver(k_builtin_namespace_path, "bootstrapPlatformAdmin",
-            [this](const json&, const json& args, const ResolverCtx&) -> json {
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json {
+                static const int seed_rate_limit = []() -> int {
+                    if (const char* ev = std::getenv("ISCHED_SEED_RATE_LIMIT"); ev) {
+                        try { return std::stoi(ev); } catch (...) {}
+                    }
+                    return 5;
+                }();
+                static RateLimiter limiter;
+                if (ctx.enforce_http_csrf && !limiter.allow(ctx.remote_ip, seed_rate_limit))
+                    throw std::runtime_error("RATE_LIMITED: too many bootstrap attempts");
                 if (!m_database) {
                     throw std::runtime_error("bootstrapPlatformAdmin: database not available");
                 }
@@ -978,7 +987,13 @@ namespace isched::v0_0_1::backend {
                     "platform",
                     {std::string(Role::PLATFORM_ADMIN)});
 
-                return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
+                const auto csrf = m_auth->session_csrf_token(sess.session_id);
+                if (!csrf) throw std::runtime_error("bootstrap: CSRF session unavailable");
+                if (ctx.session_response) {
+                    ctx.session_response->issued_jwt = sess.token;
+                    ctx.session_response->clear_cookie = false;
+                }
+                return json{{"csrfToken", *csrf}, {"expiresAt", sess.expires_at}};
             });
 
         auto normalize_manifest_json = [](const PluginRecord& plugin) -> std::string {
@@ -1647,6 +1662,13 @@ namespace isched::v0_0_1::backend {
             }
             return user;
         });
+        register_resolver(k_builtin_namespace_path, "currentSessionCsrfToken",
+            [this](const json&, const json&, const ResolverCtx& ctx) -> json {
+                if (!m_auth || ctx.current_user_id.empty() || ctx.session_id.empty())
+                    return nullptr;
+                const auto csrf = m_auth->session_csrf_token(ctx.session_id);
+                return csrf ? json(*csrf) : json(nullptr);
+            });
         // ---------------------------------------------------------------
         // T047-015: user / users query resolvers
         // ---------------------------------------------------------------
@@ -1718,12 +1740,19 @@ namespace isched::v0_0_1::backend {
                 if (!db_ptr)
                     throw std::runtime_error("logout: database not available");
 
-                std::ignore = db_ptr->revoke_session(ctx.tenant_id, ctx.session_id);
+                const auto revoked = db_ptr->revoke_session(ctx.tenant_id, ctx.session_id);
+                if (m_auth) m_auth->invalidate_session(ctx.session_id);
+                if (ctx.session_response) {
+                    ctx.session_response->issued_jwt.clear();
+                    ctx.session_response->clear_cookie = true;
+                }
 
                 // Signal subscription broker to close any open WebSocket for this session.
                 if (m_broker)
                     m_broker->revoke_auth_session(ctx.session_id);
 
+                if (!revoked)
+                    throw std::runtime_error("logout: failed to revoke session");
                 return true;
             });
         // logout is available to any authenticated caller — no require_roles gate.
@@ -1747,6 +1776,7 @@ namespace isched::v0_0_1::backend {
                         throw std::runtime_error("Session not found");
                     throw std::runtime_error("revokeSession: database error");
                 }
+                if (m_auth) m_auth->invalidate_session(session_id);
 
                 if (m_broker)
                     m_broker->revoke_auth_session(session_id);
@@ -1760,7 +1790,7 @@ namespace isched::v0_0_1::backend {
         // T049-005: revokeAllSessions mutation — tenant_admin only
         // ---------------------------------------------------------------
         register_resolver(k_builtin_namespace_path, "revokeAllSessions",
-            [](const json&, const json& args, const ResolverCtx& ctx) -> json
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string user_id = args.value("userId", "");
                 if (user_id.empty())
@@ -1770,7 +1800,10 @@ namespace isched::v0_0_1::backend {
                 if (!db_ptr)
                     throw std::runtime_error("revokeAllSessions: database not available");
 
-                std::ignore = db_ptr->revoke_all_sessions_for_user(ctx.tenant_id, user_id);
+                const auto revoked = db_ptr->revoke_all_sessions_for_user(ctx.tenant_id, user_id);
+                if (m_auth) m_auth->invalidate_user_csrf(ctx.tenant_id, user_id);
+                if (!revoked)
+                    throw std::runtime_error("revokeAllSessions: database error");
                 // We don't have individual session IDs here; the broker's revocation is
                 // best-effort for auth sessions that were registered.  A later poll by
                 // validate_token will reject revoked sessions anyway.
@@ -1783,7 +1816,7 @@ namespace isched::v0_0_1::backend {
         // T049-006: terminateAllSessions mutation — platform_admin only
         // ---------------------------------------------------------------
         register_resolver(k_builtin_namespace_path, "terminateAllSessions",
-            [](const json&, const json& args, const ResolverCtx& ctx) -> json
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string org_id = args.value("organizationId", "");
                 if (org_id.empty())
@@ -1794,8 +1827,11 @@ namespace isched::v0_0_1::backend {
                     throw std::runtime_error("terminateAllSessions: database not available");
 
                 // Revoke all sessions except platform_admin sessions (RISK-003).
-                std::ignore = db_ptr->revoke_all_sessions_for_org(
+                const auto revoked = db_ptr->revoke_all_sessions_for_org(
                     org_id, std::string(Role::PLATFORM_ADMIN));
+                if (m_auth) m_auth->invalidate_tenant_csrf(org_id, std::string(Role::PLATFORM_ADMIN));
+                if (!revoked)
+                    throw std::runtime_error("terminateAllSessions: database error");
                 return true;
             });
         require_roles("terminateAllSessions", {std::string(Role::PLATFORM_ADMIN)});
@@ -2428,7 +2464,7 @@ namespace isched::v0_0_1::backend {
         // Unauthenticated — any caller may attempt; no require_roles() gate.
         // ---------------------------------------------------------------
         register_resolver(k_builtin_namespace_path, "login",
-            [this](const json&, const json& args, const ResolverCtx&) -> json
+            [this](const json&, const json& args, const ResolverCtx& ctx) -> json
             {
                 const std::string email    = args.value("email", "");
                 const std::string password = args.value("password", "");
@@ -2518,11 +2554,17 @@ namespace isched::v0_0_1::backend {
 
                 // --- issue JWT + persist session ----------------------------
                 // Session creation is owned by AuthenticationMiddleware (T049-002).
-                // Failures are non-fatal (token is still valid without a DB record).
+                // Session persistence and CSRF registration must both succeed.
                 const LoginSession sess = m_auth->create_session(
                     db, user_id, user_name, tenant_id, roles);
 
-                return json{{"token", sess.token}, {"expiresAt", sess.expires_at}};
+                const auto csrf = m_auth->session_csrf_token(sess.session_id);
+                if (!csrf) throw std::runtime_error("login: CSRF session unavailable");
+                if (ctx.session_response) {
+                    ctx.session_response->issued_jwt = sess.token;
+                    ctx.session_response->clear_cookie = false;
+                }
+                return json{{"csrfToken", *csrf}, {"expiresAt", sess.expires_at}};
             });
         // login is intentionally NOT gated by require_roles().
 
@@ -3304,7 +3346,7 @@ namespace isched::v0_0_1::backend {
             return my_ret_val;
         }
         if (ct != NodeType::Arguments) {
-            spdlog::error("Expected arguments or selection set, got a {}", gql::dump_ast(p_arguments_node));
+            spdlog::error("Expected arguments or selection set");
             return my_ret_val;
         }
         for (const auto &myArg: p_arguments_node->children) {
@@ -3328,7 +3370,6 @@ namespace isched::v0_0_1::backend {
     }
 
     json GqlExecutor::process_argument_field(const TAstNodePtr &p_field_node,gql::TErrorVector &p_errors) const {
-        spdlog::debug("Will extract arguments out field: \n***\n{}\n***\n.", gql::dump_ast(p_field_node));
         json my_ret_val = json::object();
         for (const auto &my_arguments_node: p_field_node->children) {
             if (get_node_type(my_arguments_node) == NodeType::Arguments) {
@@ -3336,7 +3377,6 @@ namespace isched::v0_0_1::backend {
                 break; // a field has at most one Arguments node
             }
         }
-        spdlog::debug("Got args: '{}' for field '{}'", my_ret_val.dump(4), std::string(p_field_node->children[0]->string_view()));
         return my_ret_val;
     }
 
@@ -3354,7 +3394,6 @@ namespace isched::v0_0_1::backend {
         if (ct == NodeType::SelectionSet) {
             const auto fields = collect_field_nodes(node, p_fragments, p_error);
             process_field_nodes(p_parent_result, p_path, fields, p_fragments, p_result, p_error);
-            spdlog::debug("Got subselection: \n***\n{}\n***\n.", gql::dump_ast(node));
             return;
         }
         if (node->type == "isched::v0_0_1::gql::Selection") {
@@ -3388,7 +3427,21 @@ namespace isched::v0_0_1::backend {
                 gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Empty field"});
             return;
         }
-        const std::string_view myFieldName = p_field_node->children[0]->string_view();
+        std::string_view myFieldName;
+        std::string_view responseName;
+        for (const auto& child : p_field_node->children) {
+            if (get_node_type(child) == NodeType::Alias && !child->children.empty())
+                responseName = child->children[0]->string_view();
+            else if (get_node_type(child) == NodeType::Name) {
+                myFieldName = child->string_view();
+                break;
+            }
+        }
+        if (myFieldName.empty()) {
+            p_error.push_back(gql::Error{.code = gql::EErrorCodes::PARSE_ERROR, .message = "Field name missing"});
+            return;
+        }
+        if (responseName.empty()) responseName = myFieldName;
         if (p_result.empty()) {
             p_result = json::object();
         }
@@ -3415,14 +3468,14 @@ namespace isched::v0_0_1::backend {
             }
             if (current_type.empty() && p_parent.is_object() && p_parent.contains(myFieldName))
                 current_type = p_parent["__typename"].get<std::string>();
-            p_result[myFieldName] = current_type.empty() ? json(nullptr) : json(current_type);
+            p_result[responseName] = current_type.empty() ? json(nullptr) : json(current_type);
             return;
         }
 
         if (!m_resolvers.has_resolver(p_path,myFieldName)) {
             // Default field resolver: extract from parent when key is present
             if (p_parent.is_object() && p_parent.contains(myFieldName)) {
-                p_result[myFieldName] = p_parent.at(std::string(myFieldName));
+                p_result[responseName] = p_parent.at(std::string(myFieldName));
             } else {
                 p_path.push_back(std::string(myFieldName));
                 gql::ErrorPath ep;
@@ -3478,7 +3531,7 @@ namespace isched::v0_0_1::backend {
                             .path = std::move(ep),
                         });
                         p_path.pop_back();
-                        p_result[myFieldName] = nullptr;
+                        p_result[responseName] = nullptr;
                         return;
                     }
                 }
@@ -3512,14 +3565,13 @@ namespace isched::v0_0_1::backend {
                                 .path = std::move(ep),
                             });
                             p_path.pop_back();
-                            p_result[myFieldName] = nullptr;
+                            p_result[responseName] = nullptr;
                             return;
                         }
                     }
                 }
             }
 
-            spdlog::debug("Got args: '{}' for field '{}' in Query type", my_args.dump(4), myFieldName);
             const ResolverFunction& my_found_resolver = m_resolvers.get_resolver(p_path,myFieldName);
             json my_result;
             try {
@@ -3535,7 +3587,7 @@ namespace isched::v0_0_1::backend {
                     .path    = std::move(ep),
                 });
                 p_path.pop_back();
-                p_result[myFieldName] = nullptr;
+                p_result[responseName] = nullptr;
                 return;
             } catch (const std::exception& ex) {
                 p_path.push_back(std::string(myFieldName));
@@ -3556,11 +3608,9 @@ namespace isched::v0_0_1::backend {
                     .path    = std::move(ep),
                 });
                 p_path.pop_back();
-                p_result[myFieldName] = nullptr;
+                p_result[responseName] = nullptr;
                 return;
             }
-            spdlog::debug("Got result: '{}' for field '{}' in Query type, going to process sub selections.",
-                my_result.dump(4,'.'), myFieldName);
             // Detect sub-selection set in Field node children (index > 0)
             bool has_sub_sel = false;
             for (size_t i = 1; i < p_field_node->children.size(); ++i) {
@@ -3581,7 +3631,7 @@ namespace isched::v0_0_1::backend {
                 
                 if (my_result.is_null()) {
                     // Nullable field returned null — propagate without sub-selection processing
-                    p_result[myFieldName] = nullptr;
+                    p_result[responseName] = nullptr;
                 } else if (my_result.is_array()) {
                     // List type: apply sub-selections to each element individually
                     json arr = json::array();
@@ -3594,10 +3644,10 @@ namespace isched::v0_0_1::backend {
                         process_field_sub_selections(element, p_path, *selection_set_node, p_fragments, elem_result, p_error, myFieldName);
                         arr.push_back(std::move(elem_result));
                     }
-                    p_result[myFieldName] = std::move(arr);
+                    p_result[responseName] = std::move(arr);
                 } else if (my_result.is_object()) {
-                    p_result[myFieldName] = json::object();
-                    process_field_sub_selections(my_result, p_path, *selection_set_node, p_fragments, p_result[myFieldName], p_error, myFieldName);
+                    p_result[responseName] = json::object();
+                    process_field_sub_selections(my_result, p_path, *selection_set_node, p_fragments, p_result[responseName], p_error, myFieldName);
                 } else {
                     // T-INT-ERR-001: Sub-selection applied to scalar result
                     p_path.push_back(std::string(myFieldName));
@@ -3609,10 +3659,10 @@ namespace isched::v0_0_1::backend {
                         .path    = std::move(ep),
                     });
                     p_path.pop_back();
-                    p_result[myFieldName] = nullptr;
+                    p_result[responseName] = nullptr;
                 }
             } else {
-                p_result[myFieldName] = std::move(my_result);
+                p_result[responseName] = std::move(my_result);
             }
         }
     }
@@ -3993,6 +4043,54 @@ namespace isched::v0_0_1::backend {
             targetOp = it->second;
         }
 
+        // Enforce against the selected parsed operation, not textual substrings.
+        // Anonymous mutations are limited to one pre-session login/bootstrap field.
+        if (tl_resolver_ctx.enforce_http_csrf && !(*targetOp)->children.empty() &&
+            (*targetOp)->children[0]->string_view() == "mutation") {
+            bool permitted = false;
+            if (!tl_resolver_ctx.session_id.empty()) {
+                permitted = m_auth && m_auth->validate_session_csrf(
+                    tl_resolver_ctx.session_id, tl_resolver_ctx.csrf_header);
+            } else {
+                const TAstNodePtr* selection = nullptr;
+                for (const auto& child : (*targetOp)->children)
+                    if (get_node_type(child) == NodeType::SelectionSet) selection = &child;
+                if (selection) {
+                    gql::TErrorVector inspect_errors;
+                    const auto roots = collect_field_nodes(*selection, fragments, inspect_errors);
+                    if (roots.size() == 1 && roots[0] && *roots[0]) {
+                        const auto& root = *roots[0];
+                        const TAstNodePtr* nested = nullptr;
+                        std::string_view root_name;
+                        for (const auto& child : root->children) {
+                            if (get_node_type(child) == NodeType::Name) root_name = child->string_view();
+                            if (get_node_type(child) == NodeType::SelectionSet) nested = &child;
+                        }
+                        if (root_name == "isched" && nested) {
+                            const auto fields = collect_field_nodes(*nested, fragments, inspect_errors);
+                            if (fields.size() == 1 && fields[0] && *fields[0]) {
+                                for (const auto& child : (*fields[0])->children) {
+                                    if (get_node_type(child) == NodeType::Name) {
+                                        const auto name = child->string_view();
+                                        permitted = name == "login" || name == "bootstrapPlatformAdmin";
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    permitted = permitted && inspect_errors.empty();
+                }
+            }
+            if (!permitted) {
+                my_result.errors.push_back(gql::Error{
+                    .code = gql::EErrorCodes::CSRF_FAILED,
+                    .message = "CSRF token missing or invalid"
+                });
+                return my_result;
+            }
+        }
+
         process_operation_definitions(json::object(), *targetOp, fragments, my_result.data, my_result.errors);
         return my_result;
     }
@@ -4016,9 +4114,13 @@ namespace isched::v0_0_1::backend {
         // Install the caller-supplied context into the thread-local slot so that
         // all resolvers dispatched by the inner execute() call can read it.
         tl_resolver_ctx = std::move(p_ctx);
+        struct ResetContext {
+            ~ResetContext() { tl_resolver_ctx = {}; }
+        } reset_context;
         // Delegate to the base overload; tl_resolver_ctx will be picked up in
         // resolve_field_selection_details().
-        return execute(p_query, p_variables_json, p_operation_name, p_print_dot);
+        auto result = execute(p_query, p_variables_json, p_operation_name, p_print_dot);
+        return result;
     }
 
 

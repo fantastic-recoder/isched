@@ -679,7 +679,7 @@ TEST_CASE("Login: valid tenant-user credentials return token and expiresAt",
     auto result = exec->execute(
         R"(mutation($email:String!,$password:String!,$organizationId:ID){ isched {
              login(email:$email password:$password organizationId:$organizationId){
-               token
+               csrfToken
                expiresAt
              }
            } })",
@@ -688,9 +688,10 @@ TEST_CASE("Login: valid tenant-user credentials return token and expiresAt",
 
     require_success(result, "login");
     const auto& payload = result.data["isched"]["login"];
-    REQUIRE(payload.contains("token"));
+    REQUIRE(payload.contains("csrfToken"));
+    REQUIRE_FALSE(payload.contains("token"));
     REQUIRE(payload.contains("expiresAt"));
-    REQUIRE(!payload["token"].get<std::string>().empty());
+    REQUIRE(!payload["csrfToken"].get<std::string>().empty());
     REQUIRE(!payload["expiresAt"].get<std::string>().empty());
 }
 
@@ -719,7 +720,7 @@ TEST_CASE("Login: wrong password returns error, not FORBIDDEN",
     // Attempt login with wrong password
     auto result = exec->execute(
         R"(mutation($e:String!,$p:String!,$o:ID){ isched {
-             login(email:$e password:$p organizationId:$o){token expiresAt}
+             login(email:$e password:$p organizationId:$o){csrfToken expiresAt}
            } })",
         json{{"e", email}, {"p", "WrongPassword!"}, {"o", org_id}}.dump(),
         anonymous_ctx());
@@ -746,7 +747,7 @@ TEST_CASE("Login: unknown email returns error",
 
     auto result = exec->execute(
         R"(mutation($e:String!,$p:String!,$o:ID){ isched {
-             login(email:$e password:$p organizationId:$o){token expiresAt}
+             login(email:$e password:$p organizationId:$o){csrfToken expiresAt}
            } })",
         json{{"e", "nobody@nowhere.com"}, {"p", "any"}, {"o", org_id}}.dump(),
         anonymous_ctx());
@@ -754,4 +755,3 @@ TEST_CASE("Login: unknown email returns error",
     REQUIRE(!result.is_success());
     REQUIRE(!result.errors.empty());
 }
-

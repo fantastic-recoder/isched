@@ -832,3 +832,27 @@ namespace isched::v0_0_1::backend {
     }
 
 } // namespace isched::v0_0_1::backend
+
+// Spec 013 / T011: contract for the primary Playground query/mutation shapes.
+TEST_CASE("Primary Playground operation shapes execute via isched root field",
+          "[gql][contract][T011]") {
+    auto db = std::make_shared<isched::v0_0_1::backend::DatabaseManager>();
+    REQUIRE(db->ensure_system_db().has_value());
+    isched::v0_0_1::backend::GqlExecutor exec(db);
+
+    const auto q = exec.execute("query { isched { health { status } } }", "{}", false);
+    REQUIRE(q.is_success());
+    REQUIRE(q.data["isched"]["health"]["status"].get<std::string>() == "UP");
+
+    // Named operation + variables shape used by the Playground "generate query" stubs.
+    const auto named = exec.execute("query Health { isched { health { status } } }", "{}", false);
+    REQUIRE(named.is_success());
+
+    // Mutation shape: executes through the same root field (unauthenticated → structured error).
+    const auto m = exec.execute("mutation { isched { logout } }", "{}", false);
+    REQUIRE((m.is_success() || !m.errors.empty()));
+
+    // Result envelope is a GraphQL response: data and/or errors only (no REST envelope).
+    const auto json = q.to_json();
+    REQUIRE(json.contains("data"));
+}

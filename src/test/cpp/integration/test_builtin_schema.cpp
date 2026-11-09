@@ -11,6 +11,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <cstdlib>
 #include <memory>
 #include <thread>
 #include <nlohmann/json.hpp>
@@ -30,8 +31,13 @@ public:
     std::unique_ptr<isched::test::GraphQLTestClient> client;
 
     BuiltinSchemaTestFixture() {
+        const auto suffix = std::to_string(
+            std::chrono::steady_clock::now().time_since_epoch().count());
+        const auto data_home = "/tmp/isched-builtin-schema-" + suffix;
+        (void)::setenv("XDG_DATA_HOME", data_home.c_str(), 1);
         Server::Configuration config;
         config.port = 18081;
+        config.allowed_origins = {"http://localhost:18081"};
         config.max_threads = 4;
         config.enable_introspection = true;
         config.max_query_complexity = 500;
@@ -57,9 +63,9 @@ public:
 
     // Helper: POST a GraphQL mutation with CSRF token
     nlohmann::json post_mutation(const std::string& mutation) {
-        // Get CSRF token from a query
-        std::string csrf_token = client->get_csrf_token();
-        return client->post_mutation_with_csrf(mutation, csrf_token);
+        const auto auth = client->bootstrap_platform_admin(
+            "builtin-schema@example.com", "BuiltinSchemaPass!123");
+        return client->post_mutation(mutation, auth);
     }
 };
 
@@ -136,6 +142,7 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Error: invalid JSON body returns 400
     REQUIRE(server->start());
 
     httplib::Client client("localhost", 18081);
+    client.set_default_headers({{"Origin", "http://localhost:18081"}});
     client.set_connection_timeout(2);
     auto res = client.Post("/graphql", "not-valid-json{{{", "application/json");
 
@@ -149,6 +156,7 @@ TEST_CASE_METHOD(BuiltinSchemaTestFixture, "Error: missing query field returns 4
     REQUIRE(server->start());
 
     httplib::Client client("localhost", 18081);
+    client.set_default_headers({{"Origin", "http://localhost:18081"}});
     client.set_connection_timeout(2);
     nlohmann::json body = {{"variables", {}}};
     auto res = client.Post("/graphql", body.dump(), "application/json");
