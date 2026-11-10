@@ -256,3 +256,81 @@ permit the corrective clean-source commit, not T030 completion. Both target
 pipelines must be rerun at that same new clean SHA and aggregate-validated.
 Exact probe commands/results and temporary log paths are retained in the
 absolute durable implementation recovery protocol.
+
+## T030 passed — same corrected clean source for both local targets
+
+Source **`410fd0342dbc9f59f7556c0ff8c4b33231182a95`**, canonical version
+`0.0.0+git.410fd0342dbc`. Corrective commit changed only the approved Perl
+production pin and directly coupled tests/evidence. Both real pipelines ran
+serially from this clean checkout with fresh ignored output directories:
+
+```sh
+cd /home/groby/dev/isched
+PATH="/home/groby/dev/isched/cmake-build-debug/package-native-tools:$PATH" \
+  CMAKE_BUILD_PARALLEL_LEVEL=3 CTEST_PARALLEL_LEVEL=1 \
+  /usr/bin/python3 packaging/scripts/build_local.py --target ubuntu-26.04 \
+  --revision 410fd0342dbc9f59f7556c0ff8c4b33231182a95 \
+  --output /home/groby/dev/isched/cmake-build-debug/package-validation-410fd034/ubuntu-26.04
+CMAKE_BUILD_PARALLEL_LEVEL=3 CTEST_PARALLEL_LEVEL=1 \
+  /usr/bin/python3 packaging/scripts/build_local.py --target fedora-45 \
+  --revision 410fd0342dbc9f59f7556c0ff8c4b33231182a95 \
+  --output /home/groby/dev/isched/cmake-build-debug/package-validation-410fd034/fedora-45
+PATH="/home/groby/dev/isched/cmake-build-debug/package-native-tools:$PATH" \
+  CMAKE_BUILD_PARALLEL_LEVEL=3 CTEST_PARALLEL_LEVEL=1 \
+  /usr/bin/python3 tools/package/validate_artifacts.py \
+  --ubuntu /home/groby/dev/isched/cmake-build-debug/package-validation-410fd034/ubuntu-26.04 \
+  --fedora /home/groby/dev/isched/cmake-build-debug/package-validation-410fd034/fedora-45 \
+  --revision 410fd0342dbc9f59f7556c0ff8c4b33231182a95
+```
+
+**All three commands exited 0**. Each wrapper used `--pull --no-cache` and
+performed bootstrap, frozen frontend install, fresh frontend tests/build/embed,
+producer Release build, full nonempty CTest, notice collection, CPack,
+both-role native validation, clean runtime and external SDK verification,
+export and host-native post-export validation. Existing explicit `-j1` /
+Conan jobs1 / frontend worker limits remained unchanged; env3 did not
+override those lower limits. No simultaneous target/heavyweight test runners.
+The reviewed ignored adapter was reread and its three tests rerun successfully
+in 2.173s before PATH use; host packages were not installed.
+
+| Target | Frontend | Release CTest | Native roles/version/architecture |
+|---|---|---|---|
+| Ubuntu 26.04 | 33 suites / 238 tests, 27 assets | 61/61, 0 failures, 145.09s | `isched-runtime`, `isched-devel`; `0.0.0+git.410fd0342dbc`; `amd64` |
+| Fedora 45 | 33 suites / 238 tests, 27 assets | 61/61, 0 failures, 146.47s | `isched-runtime`, `isched-devel`; version `0.0.0`, release `0.git.410fd0342dbc`; `x86_64` |
+
+Pinned compiler inputs remain Ubuntu GCC/G++ `15.2.0-16ubuntu1` and Fedora
+`16.2.1-2.fc45.1`. Both bootstrapped Conan 2.34.0, Node 24.22.2, pnpm 10.30.3
+and Conan CMake 3.22.6/Ninja 1.12.1 without substitution.
+
+| Target / role | Actual final-package SHA-256 |
+|---|---|
+| Ubuntu runtime | `5f88ba53226f9c9d609b027c16c01f7dfc5559428f5b7063e203ae098c7a6c19` |
+| Ubuntu developer | `b419e3856a3e290ff56b1851fd821811348fe50493c6397bf5fe0090a84923ec` |
+| Fedora runtime | `a9afa1160c2a64ebe1eb87c3c0661545f63883c023c97969551d6194a9f07c10` |
+| Fedora developer | `07c60543f4dbbefed445d8fa2d7c62285698848ab2b0425f4530a303d357d1c4` |
+
+Native inspection used adapter `dpkg-deb -f FILE FIELD` for
+Package/Version/Architecture/Depends, `rpm -qp --qf
+'%{NAME} %{VERSION} %{RELEASE} %{ARCH}\n'`, `rpm -qp --requires`, and
+`sha256sum`. Ubuntu runtime declares `libc6 (>= 2.38), libgcc-s1 (>= 4.3),
+libstdc++6 (>= 14)`. Fedora auto-requires libc/libm/libgcc_s/libstdc++/loader
+ELF capabilities. Neither SDK invents an executable-package dependency.
+
+Both `runtime-verification.json` files confirm loader `resolved`, `seeded:
+false`, GraphQL health `UP`, embedded `/isched` UI and
+`/isched/styles-25ORBMRP.css` **80,894 bytes**. Both
+`sdk-verification.json` files confirm their respective compiler 15/16,
+`configured-built-linked-ran`, `runtime_package: false`, and shipped Conan
+lock SHA-256 `6de84c68c10906a4ba50da5e66729d3370f5f2951ddb002474640f588259e5b7`.
+Build/runtime/SDK JSON and exactly two native packages remain in each
+directory above. Aggregate validator rechecked all four roles successfully.
+
+T030 is now complete. T031 negative evidence and T032 authorized hosted
+failure-isolation evidence are separate gates; no hosted trigger/download,
+push, extra target, human selection, final feature closure or merge is claimed.
+
+After recording T030/T031 evidence, the mandatory full Debug command above
+was rerun before the evidence-only task commit: **61/61, 0 failures, 155.97s**.
+No exclusions or concurrent test/build runners. Target package identity
+remains the actual tested clean `410fd0342dbc9f59f7556c0ff8c4b33231182a95`;
+a later evidence-only commit is not a relabeling or rebuilt source claim.
