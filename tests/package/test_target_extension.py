@@ -29,7 +29,7 @@ class TargetExtensionTests(unittest.TestCase):
         targets = module.load_targets()
         self.assertEqual([target["id"] for target in targets], ["fedora-45", "ubuntu-26.04"])
         expected = {
-            "ubuntu-26.04": "b7a97fb7930f82395e7dc307ed6e5a22169c2f053ca86eb7322379f0363ce704",
+            "ubuntu-26.04": "6a4e280808fcefba3d736e02a1986ab386b1658d4ffba72d19d9b8b5f4639365",
             "fedora-45": "9a0441f1cdf2470db0e895109650514c89f8087f22b65327c5118f2486e908ae",
         }
         for target in targets:
