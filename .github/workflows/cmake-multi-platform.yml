@@ -63,6 +63,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "$ISCHED_TARGET" == "ubuntu-26.04" ]]; then
+            echo "Intentional T032 Ubuntu-only failure" >&2
+            exit 1
+          fi
           revision="$(git rev-parse HEAD)"
           python3 packaging/scripts/prepare_artifacts.py \
             --target "$ISCHED_TARGET" \
