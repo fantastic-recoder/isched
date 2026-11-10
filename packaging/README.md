@@ -25,14 +25,17 @@ The authoritative requirements are
 Evidence and unresolved gates live in
 [`checklists/`](../specs/014-docker-linux-packaging/checklists/).
 
-## Intended shared interfaces — not yet executable
+## Build, validate, and stage
 
-Do not invoke these paths until their implementation tasks are verified:
+These commands are implemented. The workflow invokes the same interfaces for
+each configured target; the artifact preparation step validates both roles and
+all target evidence before staging either role:
 
 ```text
 python3 packaging/scripts/build_local.py --target TARGET --revision FULL_SHA --output DIR
 python3 packaging/scripts/validate_packages.py --target TARGET --revision FULL_SHA --directory DIR
 python3 tools/package/validate_artifacts.py --ubuntu DIR --fedora DIR --revision FULL_SHA
+python3 packaging/scripts/prepare_artifacts.py --target TARGET --revision FULL_SHA --directory DIR --output-dir ARTIFACT_DIR
 ```
 
 Docker context excludes `.git`, host build trees, dependency caches, generated
@@ -42,7 +45,59 @@ canonical `0.0.0+git.<short-sha>` fallback, and supply **both**
 `ISCHED_SOURCE_REVISION` and `ISCHED_PACKAGE_VERSION` as explicit build arguments.
 A PR merge checkout must be labeled with its merge revision, not the PR head.
 No environment credentials or Git authentication should be passed to Docker.
-The eventual shared build wrapper must reject a mismatched revision.
+The build wrapper and artifact staging helper reject a mismatched revision.
+
+## Downloading workflow artifacts
+
+Artifacts are attached only to their GitHub Actions workflow run. Open the
+repository's **Actions** tab, select the Dockerized Linux packages run for the
+commit, and download the named artifact from that run's **Artifacts** section.
+Choose by its complete name rather than by matrix order. Each archive contains
+exactly one native package and `metadata.json`; `runtime` contains
+`isched-runtime`, and `developer` contains `isched-devel`.
+
+Names have the form
+`isched-{role}-{version}-{distribution}-{distribution-version}-x86_64-{format}-{full-sha}`.
+For example, the four initial choices are identifiable as:
+
+```text
+isched-runtime-{version}-ubuntu-26.04-x86_64-deb-{40-digit-sha}
+isched-developer-{version}-ubuntu-26.04-x86_64-deb-{40-digit-sha}
+isched-runtime-{version}-fedora-45-x86_64-rpm-{40-digit-sha}
+isched-developer-{version}-fedora-45-x86_64-rpm-{40-digit-sha}
+```
+
+`{version}` is either the exact tagged `MAJOR.MINOR.PATCH` version or
+`0.0.0+git.{first-12-sha-digits}`. Replace the placeholders with the values
+visible in the artifact name. After extracting an artifact, inspect
+`metadata.json` for `role`, `package_name`, canonical `version`,
+`native_version`/`native_release`, full `source_revision`, target distribution
+and release, `architecture`, `native_architecture`, `format`, `artifact_name`,
+`package_filename`, and `package_sha256`. Verify that the extracted package's
+bytes match its recorded checksum before inspecting native package metadata.
+
+For example, from the extracted archive:
+
+```sh
+package="$(python3 -c 'import json; print(json.load(open("metadata.json"))["package_filename"])')"
+expected="$(python3 -c 'import json; print(json.load(open("metadata.json"))["package_sha256"])')"
+printf '%s  %s\n' "$expected" "$package" | sha256sum --check
+```
+
+Then inspect the package format and native identity with the matching tool:
+
+```sh
+dpkg-deb --field "$package" Package Version Architecture   # Ubuntu DEB
+rpm -qp --qf '%{NAME} %{VERSION}-%{RELEASE} %{ARCH}\n' "$package"  # Fedora RPM
+```
+
+These are unsigned CI validation outputs, not signed packages or formal
+release assets. The checksum detects package-byte changes relative to the
+artifact's own metadata; neither the checksum nor the metadata is signed or
+authenticates the workflow source. Treat downloads, especially pull-request
+artifacts, as untrusted: inspect them and do not install or execute them with
+elevated privileges. This workflow does not publish to a release, package
+repository, or other privileged artifact consumer.
 
 ## Safety and evidence boundaries
 
@@ -60,9 +115,11 @@ The eventual shared build wrapper must reject a mismatched revision.
 - SDK validation must compile, link **and run** an external client that calls an
   existing library symbol, outside the producer source/build/cache trees.
 - Both roles must pass full target CTest, native checks and clean integrations
-  before either is staged/uploaded. No package is an unsigned formal release.
-- Hosted execution/download evidence needs authorization; local simulations do
-  not establish hosted publication behavior.
+  before either is staged/uploaded. These unsigned CI outputs are not formal
+  releases.
+- Workflow downloads are limited to the owning run; hosted execution/download
+  evidence needs authorization, and local simulations do not establish hosted
+  artifact availability or behavior.
 - SC-005 needs one real contributor's four target/role choices, correct within
   one minute **each**, from visible artifact metadata. Never synthesize timings.
 - No commit, push, merge, archive or release is part of this execution. The

@@ -190,7 +190,7 @@ class GeneratedPackageTests(unittest.TestCase):
         self._check_generated_packages("fedora-45")
 
     def _check_generated_packages(self, target_id):
-        from package_identity import identity, load_targets
+        from package_identity import conan_profile, identity, load_targets
 
         target = next(item for item in load_targets() if item["id"] == target_id)
         compiler = (shutil.which(target["compiler"]["c"])
@@ -206,11 +206,13 @@ class GeneratedPackageTests(unittest.TestCase):
                 "LICENSE.md", "README.md", "packaging/sdk/README.md",
                 "packaging/sdk/conanfile.txt", "packaging/sdk/conan.lock",
                 "packaging/requirements-conan.lock",
-                "packaging/conan/profiles/ubuntu-26.04",
             ):
                 destination = source / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ROOT / name, destination)
+            profile = root / "profiles" / target_id
+            profile.parent.mkdir(parents=True, exist_ok=True)
+            profile.write_text(conan_profile(target), encoding="utf-8")
             (root / "identity.json").write_text(json.dumps(records))
             for role in ("runtime", "developer"):
                 directory = root / "licenses" / role
@@ -249,6 +251,7 @@ class GeneratedPackageTests(unittest.TestCase):
                 f'set(ISCHED_PACKAGE_TARGET "{target_id}")\n'
                 f'set(ISCHED_PACKAGE_FORMAT "{target["package_format"]}")\n'
                 f'set(ISCHED_PACKAGE_IDENTITY_FILE "{root / "identity.json"}")\n'
+                f'set(ISCHED_PACKAGE_PROFILE_FILE "{profile}")\n'
                 f'set(ISCHED_PACKAGE_LICENSE_OUTPUT "{root / "licenses"}")\n'
                 f'set(ISCHED_PACKAGE_OUTPUT_DIR "{root / "out"}")\n'
                 'install(TARGETS isched_srv RUNTIME DESTINATION bin COMPONENT runtime)\n'

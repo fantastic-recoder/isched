@@ -6,13 +6,16 @@ if(NOT ISCHED_ENABLE_PACKAGING)
 endif()
 foreach(required_variable IN ITEMS
         ISCHED_SOURCE_REVISION ISCHED_PACKAGE_VERSION ISCHED_PACKAGE_IDENTITY_FILE ISCHED_PACKAGE_TARGET
-        ISCHED_PACKAGE_FORMAT ISCHED_PACKAGE_LICENSE_OUTPUT ISCHED_PACKAGE_OUTPUT_DIR)
+        ISCHED_PACKAGE_FORMAT ISCHED_PACKAGE_PROFILE_FILE ISCHED_PACKAGE_LICENSE_OUTPUT ISCHED_PACKAGE_OUTPUT_DIR)
     if(NOT DEFINED ${required_variable} OR "${${required_variable}}" STREQUAL "")
         message(FATAL_ERROR "${required_variable} is required for package generation")
     endif()
 endforeach()
 if(NOT EXISTS "${ISCHED_PACKAGE_IDENTITY_FILE}")
     message(FATAL_ERROR "package identity input does not exist: ${ISCHED_PACKAGE_IDENTITY_FILE}")
+endif()
+if(NOT EXISTS "${ISCHED_PACKAGE_PROFILE_FILE}")
+    message(FATAL_ERROR "package Conan profile input does not exist: ${ISCHED_PACKAGE_PROFILE_FILE}")
 endif()
 if(NOT ISCHED_PACKAGE_FORMAT STREQUAL "deb" AND NOT ISCHED_PACKAGE_FORMAT STREQUAL "rpm")
     message(FATAL_ERROR "unsupported native package format: ${ISCHED_PACKAGE_FORMAT}")
@@ -84,17 +87,24 @@ if(NOT _isched_runtime_package_name STREQUAL "isched-runtime"
         OR NOT _isched_developer_architecture STREQUAL "x86_64")
     message(FATAL_ERROR "package identity role/name mapping is invalid")
 endif()
-if((ISCHED_PACKAGE_TARGET STREQUAL "ubuntu-26.04"
-            AND (NOT ISCHED_PACKAGE_FORMAT STREQUAL "deb"
-                OR NOT _isched_runtime_native_architecture STREQUAL "amd64"))
-        OR (ISCHED_PACKAGE_TARGET STREQUAL "fedora-45"
-            AND (NOT ISCHED_PACKAGE_FORMAT STREQUAL "rpm"
-                OR NOT _isched_runtime_native_architecture STREQUAL "x86_64"))
-        OR (NOT ISCHED_PACKAGE_TARGET STREQUAL "ubuntu-26.04"
-            AND NOT ISCHED_PACKAGE_TARGET STREQUAL "fedora-45"))
-    message(FATAL_ERROR "unsupported or mismatched initial target identity")
-endif()
-
+foreach(prefix IN ITEMS _isched_runtime _isched_developer)
+    if("${${prefix}_distribution}" STREQUAL "ubuntu"
+            AND "${${prefix}_distribution_version}" MATCHES "^[0-9][0-9]\\.[0-9][0-9]$")
+        set(expected_format "deb")
+        set(expected_native_architecture "amd64")
+    elseif("${${prefix}_distribution}" STREQUAL "fedora"
+            AND "${${prefix}_distribution_version}" MATCHES "^[1-9][0-9]*$")
+        set(expected_format "rpm")
+        set(expected_native_architecture "x86_64")
+    else()
+        message(FATAL_ERROR "unsupported distribution/release in ${prefix} identity")
+    endif()
+    if(NOT "${${prefix}_target}" STREQUAL "${${prefix}_distribution}-${${prefix}_distribution_version}"
+            OR NOT "${${prefix}_format}" STREQUAL expected_format
+            OR NOT "${${prefix}_native_architecture}" STREQUAL expected_native_architecture)
+        message(FATAL_ERROR "${prefix} native format/architecture/target tuple mismatch")
+    endif()
+endforeach()
 set(_isched_expected_extension "${ISCHED_PACKAGE_FORMAT}")
 if(NOT _isched_runtime_package_filename STREQUAL "${_isched_runtime_artifact_name}.${_isched_expected_extension}"
         OR NOT _isched_developer_package_filename STREQUAL "${_isched_developer_artifact_name}.${_isched_expected_extension}")
@@ -124,9 +134,9 @@ install(FILES
         "${PROJECT_SOURCE_DIR}/packaging/sdk/conan.lock"
         "${PROJECT_SOURCE_DIR}/packaging/requirements-conan.lock"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/isched/developer" COMPONENT devel)
-install(DIRECTORY "${PROJECT_SOURCE_DIR}/packaging/conan/profiles/"
+install(FILES "${ISCHED_PACKAGE_PROFILE_FILE}"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/isched/developer/profiles"
-        COMPONENT devel)
+        COMPONENT devel RENAME "${ISCHED_PACKAGE_TARGET}")
 install(DIRECTORY "${ISCHED_PACKAGE_LICENSE_OUTPUT}/runtime/"
         DESTINATION "${CMAKE_INSTALL_DATADIR}/doc/isched-runtime" COMPONENT runtime)
 install(DIRECTORY "${ISCHED_PACKAGE_LICENSE_OUTPUT}/developer/"
@@ -178,8 +188,10 @@ set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "")
 
 if(ISCHED_PACKAGE_FORMAT STREQUAL "deb")
     set(CPACK_GENERATOR "DEB")
-else()
+elseif(ISCHED_PACKAGE_FORMAT STREQUAL "rpm")
     set(CPACK_GENERATOR "RPM")
+else()
+    message(FATAL_ERROR "unsupported native package format: ${ISCHED_PACKAGE_FORMAT}")
 endif()
 
 include(CPack)

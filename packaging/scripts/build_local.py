@@ -50,13 +50,17 @@ def _validate_export(target: dict, revision: str, output: Path, version: str) ->
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--targets", type=Path, default=ROOT / "packaging/targets.json",
+                        help="validated target-set JSON (defaults to the production set)")
     parser.add_argument("--revision", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     target_id = args.target
     try:
         revision = args.revision
-        targets = load_targets()
+        targets_path = args.targets.expanduser().resolve()
+        require(targets_path.is_relative_to(ROOT), "--targets must be inside the Docker build context")
+        targets = load_targets(targets_path)
         target = next((record for record in targets if record["id"] == target_id), None)
         require(target is not None, f"unknown target: {target_id}")
         version = checkout_version(ROOT, revision)
@@ -77,6 +81,9 @@ def main(argv: list[str] | None = None) -> int:
                 "--build-arg", f"ISCHED_SOURCE_REVISION={revision}",
                 "--build-arg", f"ISCHED_PACKAGE_VERSION={version}",
                 "--build-arg", f"ISCHED_OS_PACKAGES={os_packages}",
+                "--build-arg", f"ISCHED_TARGET={target_id}",
+                "--build-arg", f"ISCHED_BASE_IMAGE={target['image']}",
+                "--build-arg", f"ISCHED_TARGETS_FILE={targets_path.relative_to(ROOT).as_posix()}",
                 "--output", f"type=local,dest={exported}", str(ROOT),
             ]
             _run(command, target_id, "image-startup", timeout=14400)
@@ -85,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
             _run([
                 sys.executable, str(ROOT / "packaging/scripts/validate_packages.py"),
                 "--target", target_id, "--revision", revision, "--directory", str(exported),
+                "--targets", str(targets_path),
             ], target_id, "package-validation", timeout=600)
             os.replace(exported, output)
         print(f"[{target_id}] validated output: {output}", flush=True)

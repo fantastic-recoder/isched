@@ -12,7 +12,7 @@
     "url": "https://nodejs.org/dist/v24.22.2/node-v24.22.2-linux-x64.tar.gz",
     "sha256": "361718c444e49af2ca5a110c83ba6a8901143f23ab285ebbef0341f391f482a9"
   },
-  "python_versions": {"ubuntu-26.04": "3.14", "fedora-45": "3.15"},
-  "verification_date": "2026-11-09",
-  "notes": "Verified in pinned target containers on 2026-11-09: Node.js and pnpm archive checksums/versions passed; bootstrap and test requirements locks installed with --require-hashes under Ubuntu Python 3.14.4 (declared target minor 3.14) and Fedora Python 3.15.0. Conan graph resolution was verified separately; Conan recipe binary builds and complete target compatibility remain unverified."
+  "python_versions": {"ubuntu-26.04": "3.14", "fedora-44": "3.14", "fedora-45": "3.15"},
+  "verification_date": "2026-11-10",
+  "notes": "Verified in pinned production target containers on 2026-11-09: Node.js and pnpm archive checksums/versions passed; bootstrap and test requirements locks installed with --require-hashes under Ubuntu Python 3.14.4 (declared target minor 3.14) and Fedora Python 3.15.0. Fedora 44 amd64 image/package pins and pinned OS package installation were inspected in a disposable container on 2026-11-10; its full package/runtime/SDK pipeline remains unverified. Conan graph resolution was verified separately; Conan recipe binary builds and complete target compatibility remain unverified."
 }

@@ -56,3 +56,29 @@ jobs:
             --target "$ISCHED_TARGET" \
             --revision "$revision" \
             --output "dist/$ISCHED_TARGET"
+      - name: Validate and stage both package roles (${{ matrix.id }})
+        id: artifacts
+        env:
+          ISCHED_TARGET: ${{ matrix.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(git rev-parse HEAD)"
+          python3 packaging/scripts/prepare_artifacts.py \
+            --target "$ISCHED_TARGET" \
+            --revision "$revision" \
+            --directory "dist/$ISCHED_TARGET" \
+            --output-dir "dist/artifacts/$ISCHED_TARGET" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Upload runtime artifact (${{ matrix.id }})
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.artifacts.outputs.runtime_artifact_name }}
+          path: dist/artifacts/${{ matrix.id }}/runtime/
+          if-no-files-found: error
+      - name: Upload developer artifact (${{ matrix.id }})
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.artifacts.outputs.developer_artifact_name }}
+          path: dist/artifacts/${{ matrix.id }}/developer/
+          if-no-files-found: error

@@ -219,12 +219,13 @@ def _in_container(target: dict, package: Path, evidence: Path) -> None:
     smoke = _verify_server()
     evidence.write_text(json.dumps({
         "schema_version": 1, "target": target["id"], "package": package.name,
+        "package_sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
         "loader": "resolved", "loader_output_sha256": hashlib.sha256(loader.encode()).hexdigest(),
         "smoke": smoke, "seeded": False,
     }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _container_run(target: dict, package: Path, evidence: Path) -> None:
+def _container_run(target: dict, package: Path, evidence: Path, targets_path: Path) -> None:
     runtime = shutil.which("docker")
     require(runtime is not None, "Docker is required for clean runtime verification")
     container: str | None = None
@@ -240,7 +241,7 @@ def _container_run(target: dict, package: Path, evidence: Path) -> None:
             (package, f"{container}:/tmp/{package.name}"),
             (scripts / "package_identity.py", f"{container}:/opt/isched/packaging/scripts/package_identity.py"),
             (scripts / "verify_runtime.py", f"{container}:/opt/isched/packaging/scripts/verify_runtime.py"),
-            (ROOT / "packaging/targets.json", f"{container}:/opt/isched/packaging/targets.json"),
+            (targets_path, f"{container}:/opt/isched/packaging/targets.json"),
         ):
             run("container-copy", [runtime, "cp", str(source), destination])
         distro = target["distribution"]
@@ -250,8 +251,9 @@ def _container_run(target: dict, package: Path, evidence: Path) -> None:
                           if distro == "ubuntu" else ["dnf", "install", "-y", "python3", "ca-certificates"])
         run("container-python", [runtime, "exec", container, *python_install], timeout=600)
         run("runtime-install", [runtime, "exec", container, "python3",
-                                "/opt/isched/packaging/scripts/verify_runtime.py",
-                                "--target", target["id"], "--package", f"/tmp/{package.name}",
+                                 "/opt/isched/packaging/scripts/verify_runtime.py",
+                                "--target", target["id"], "--targets", "/opt/isched/packaging/targets.json",
+                                "--package", f"/tmp/{package.name}",
                                 "--in-container", "--evidence", "/tmp/runtime-verification.json"], timeout=1800)
         evidence.parent.mkdir(parents=True, exist_ok=True)
         run("evidence-copy", [runtime, "cp", f"{container}:/tmp/runtime-verification.json", str(evidence)])
@@ -263,13 +265,15 @@ def _container_run(target: dict, package: Path, evidence: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--targets", type=Path, default=ROOT / "packaging/targets.json")
     parser.add_argument("--package", type=Path, required=True)
     parser.add_argument("--in-container", action="store_true")
     parser.add_argument("--evidence", type=Path, default=Path("runtime-verification.json"))
     args = parser.parse_args(argv)
     os.environ["ISCHED_BUILD_TARGET"] = args.target
     try:
-        targets = load_targets()
+        targets_path = args.targets.resolve()
+        targets = load_targets(targets_path)
         target = next((record for record in targets if record["id"] == args.target), None)
         require(target is not None, f"unknown target: {args.target}")
         package = args.package.resolve()
@@ -277,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.in_container:
             _in_container(target, package, args.evidence.resolve())
         else:
-            _container_run(target, package, args.evidence.resolve())
+            _container_run(target, package, args.evidence.resolve(), targets_path)
         print(f"[{args.target}] runtime verification passed; evidence={args.evidence}", flush=True)
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError, RuntimeError) as error:

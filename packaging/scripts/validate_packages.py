@@ -294,8 +294,9 @@ def _validate_payload(target: dict, role: str, paths: set[str],
         raise ValidationError(f"target={target_id} {role} package contains forbidden state: {contaminated[:8]}")
 
 
-def validate(target_id: str, revision: str, directory: Path) -> list[dict[str, Any]]:
-    targets = load_targets()
+def validate(target_id: str, revision: str, directory: Path,
+             targets_path: Path = ROOT / "packaging/targets.json") -> list[dict[str, Any]]:
+    targets = load_targets(targets_path)
     target = next((record for record in targets if record["id"] == target_id), None)
     require(target is not None, f"unknown target: {target_id}")
     require(re.fullmatch(r"[0-9a-f]{40}", revision) is not None,
@@ -370,11 +371,12 @@ def validate(target_id: str, revision: str, directory: Path) -> list[dict[str, A
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--targets", type=Path, default=ROOT / "packaging/targets.json")
     parser.add_argument("--revision", required=True)
     parser.add_argument("--directory", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        results = validate(args.target, args.revision, args.directory.resolve())
+        results = validate(args.target, args.revision, args.directory.resolve(), args.targets.resolve())
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError, ValidationError) as error:
         print(f"package validation: target={args.target}: {error}", file=sys.stderr)
         return 1

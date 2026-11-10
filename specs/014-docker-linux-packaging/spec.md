@@ -2,7 +2,7 @@
 
 **Feature Branch**: `014-docker-linux-packaging`  
 **Created**: 2026-11-09  
-**Status**: Draft — ready for planning  
+**Status**: Implementation in progress — initial target pipelines passing; remaining acceptance gates tracked in checklists/completion-evidence.md
 **Input**: User description: "Add github actions which build packages for multiple platforms starting with ubuntu and fedora. The build should utilize docker."
 
 ## Clarifications

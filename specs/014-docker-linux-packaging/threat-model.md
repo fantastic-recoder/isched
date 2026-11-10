@@ -1,6 +1,7 @@
 # Threat Model: Dockerized Linux Package Builds
 
-**Status**: Planning-stage mitigations; implementation and workflow evidence are not yet available.  
+**Status**: Implemented initial-target controls verified in hosted run
+42707740390; artifact and extension closeout evidence remains in progress.
 **Scope**: GitHub Actions PR and `master` validation; Docker-based Ubuntu/Fedora package builds; DEB/RPM and SDK artifact production and download.
 
 ## Assets
@@ -23,7 +24,7 @@
 
 ## Threats, mitigations, and residual risks
 
-| Threat | Attack path / impact | Planned mitigation | Residual risk |
+| Threat | Attack path / impact | Implemented control / required validation | Residual risk |
 |---|---|---|---|
 | PR code steals credentials or writes to repository | Malicious or compromised PR modifies build steps to exfiltrate secrets or mutate refs/releases | Use `pull_request`, not `pull_request_target`; provide no repository secrets; set minimum `GITHUB_TOKEN` read permission; no publishing, signing, or protected-environment jobs | PR code can still use network access and consume build resources; hosted runner and builder vulnerabilities remain possible |
 | Untrusted build abuses Docker host | Dockerfile/build scripts attempt host filesystem access, socket access, privilege escalation, or lateral movement | Use ephemeral GitHub-hosted runner; do not mount host Docker socket into the build; do not use `--privileged`; do not bind-mount broad host paths or pass secrets/build args; export only the package output from BuildKit | Docker daemon/buildkit and kernel attack surface cannot be eliminated; keep hosted runner and Docker engine managed/current |
@@ -54,6 +55,32 @@
 5. Prove clean runtime install/start and installed SDK consumer checks for both targets.
 6. Inspect runtime and developer package payloads for databases, credentials, seed files, build outputs, and notices.
 7. Keep workflow artifacts as untrusted build evidence; do not consume them in a privileged `workflow_run` pipeline.
+
+## Evidence and limits (2026-11-10)
+
+Run [42707740390](https://github.com/fantastic-recoder/isched/actions/runs/42707740390)
+passed full Release CTest (61 tests per target), native metadata/content
+validation, no-build-tool runtime install/loader/GraphQL/UI/asset checks,
+and isolated external SDK configure/build/link/run on both pinned targets.
+The checked package revision is
+`d7771ccdd9b20bd2e298f173907587a036373b53` (PR merge checkout).
+
+The workflow uses read-only contents permission, `pull_request`/`master` push,
+SHA-pinned checkout, no persistent checkout credentials, no shared cache, and
+independent fail-fast-disabled target jobs. BuildKit exports only native
+packages and gate evidence from scratch; no Docker socket or secrets are
+mounted into build containers. Native inspection enforces ELF architecture,
+embedded identity, payload allowlists, notice hashes, and state exclusions.
+CPack staging is not exported.
+
+Package checksums detect accidental corruption/substitution relative to the
+manifest, not malicious code controlling both package and manifest. PR artifacts
+remain untrusted unsigned outputs. Exact OS pins still depend on upstream
+repository retention; no reproducible-bit-for-bit claim is made. Local
+`security_scan` cannot execute without `compile_commands.json`; it is not
+represented as passed. Hosted artifact retrieval, controlled publication
+failure isolation, extra-target compatibility and human selection remain
+completion gates documented in the checklist.
 
 ## Out of scope
 

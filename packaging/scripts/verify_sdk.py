@@ -149,7 +149,8 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         shutil.rmtree(scratch, ignore_errors=True)
 
 
-def _in_container(target: dict, package: Path, consumer: Path, evidence: Path) -> None:
+def _in_container(target: dict, package: Path, consumer: Path, evidence: Path,
+                  targets_path: Path) -> None:
     release = os_release()
     expected_id = "ubuntu" if target["distribution"] == "ubuntu" else "fedora"
     require(release.get("ID") == expected_id and
@@ -165,15 +166,17 @@ def _in_container(target: dict, package: Path, consumer: Path, evidence: Path) -
     # This disposable consumer environment gets the same independently pinned
     # Conan CLI used by the producer; no producer cache or source tree is copied.
     from bootstrap_tools import bootstrap  # pylint: disable=import-outside-toplevel
-    bootstrap(target["id"], Path("/opt/isched-tools"))
+    bootstrap(target["id"], Path("/opt/isched-tools"), targets_path)
     smoke = _verify_consumer(target, consumer)
     evidence.write_text(json.dumps({
         "schema_version": 1, "target": target["id"], "package": package.name,
+        "package_sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
         "compiler": actual_major, "smoke": smoke,
     }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _container_run(target: dict, package: Path, consumer: Path, evidence: Path) -> None:
+def _container_run(target: dict, package: Path, consumer: Path, evidence: Path,
+                   targets_path: Path) -> None:
     runtime = shutil.which("docker")
     require(runtime is not None, "Docker is required for clean SDK verification")
     container_id: str | None = None
@@ -190,7 +193,7 @@ def _container_run(target: dict, package: Path, consumer: Path, evidence: Path) 
             (scripts / "package_identity.py", f"{container_id}:/opt/isched/packaging/scripts/package_identity.py"),
             (scripts / "bootstrap_tools.py", f"{container_id}:/opt/isched/packaging/scripts/bootstrap_tools.py"),
             (scripts / "verify_sdk.py", f"{container_id}:/opt/isched/packaging/scripts/verify_sdk.py"),
-            (ROOT / "packaging/targets.json", f"{container_id}:/opt/isched/packaging/targets.json"),
+            (targets_path, f"{container_id}:/opt/isched/packaging/targets.json"),
             (ROOT / "packaging/tool-versions.json", f"{container_id}:/opt/isched/packaging/tool-versions.json"),
             (ROOT / "packaging/requirements-bootstrap.lock", f"{container_id}:/opt/isched/packaging/requirements-bootstrap.lock"),
             (ROOT / "packaging/requirements-conan.lock", f"{container_id}:/opt/isched/packaging/requirements-conan.lock"),
@@ -208,6 +211,7 @@ def _container_run(target: dict, package: Path, consumer: Path, evidence: Path) 
         run("container-os-deps", [runtime, "exec", container_id, *package_install], timeout=1800)
         run("sdk-install", [runtime, "exec", container_id, "python3",
                             "/opt/isched/packaging/scripts/verify_sdk.py", "--target", target["id"],
+                            "--targets", "/opt/isched/packaging/targets.json",
                             "--package", f"/tmp/{package.name}", "--consumer", "/opt/isched/consumer",
                             "--in-container", "--evidence", "/tmp/sdk-verification.json"], timeout=14400)
         evidence.parent.mkdir(parents=True, exist_ok=True)
@@ -220,6 +224,7 @@ def _container_run(target: dict, package: Path, consumer: Path, evidence: Path) 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--targets", type=Path, default=ROOT / "packaging/targets.json")
     parser.add_argument("--package", type=Path, required=True)
     parser.add_argument("--consumer", type=Path, required=True)
     parser.add_argument("--in-container", action="store_true")
@@ -227,7 +232,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     os.environ["ISCHED_BUILD_TARGET"] = args.target
     try:
-        targets = load_targets()
+        targets_path = args.targets.resolve()
+        targets = load_targets(targets_path)
         target = next((record for record in targets if record["id"] == args.target), None)
         require(target is not None, f"unknown target: {args.target}")
         package, consumer = args.package.resolve(), args.consumer.resolve()
@@ -235,9 +241,9 @@ def main(argv: list[str] | None = None) -> int:
                 f"developer package missing or empty: {package}")
         require(consumer.is_dir(), f"consumer fixture missing: {consumer}")
         if args.in_container:
-            _in_container(target, package, consumer, args.evidence.resolve())
+            _in_container(target, package, consumer, args.evidence.resolve(), targets_path)
         else:
-            _container_run(target, package, consumer, args.evidence.resolve())
+            _container_run(target, package, consumer, args.evidence.resolve(), targets_path)
         print(f"[{args.target}] SDK verification passed; evidence={args.evidence}", flush=True)
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError, RuntimeError) as error:

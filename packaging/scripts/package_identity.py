@@ -26,6 +26,8 @@ def require(condition: bool, message: str) -> None:
 
 def validate_target(target: dict) -> dict:
     """Reject unsupported or incomplete tuples rather than guessing defaults."""
+    require(isinstance(target, dict), "each target record must be an object")
+    target_id = target.get("id", "<missing>")
     distro = target.get("distribution")
     require(distro in FORMATS, f"unsupported distribution: {distro!r}")
     fmt, generator, arch = FORMATS[distro]
@@ -39,18 +41,21 @@ def validate_target(target: dict) -> dict:
         "package_format": fmt, "generator": generator, "native_architecture": arch,
         "dockerfile": f"packaging/docker/{distro}/Dockerfile",
     }.items():
-        require(target.get(key) == expected, f"{target['id']}: invalid {key}")
+        require(target.get(key) == expected, f"{target_id}: invalid {key}")
     image = target.get("image", "")
     require(isinstance(image, str) and IMAGE.fullmatch(image) is not None,
             "image must have an immutable SHA-256 manifest digest")
     require(image.startswith(f"{distro}:{release}@"), "image tag differs from tuple")
     compiler = target.get("compiler", {})
+    require(isinstance(compiler, dict), f"{target_id}: compiler must be an object")
     require(compiler.get("cppstd") == "23" and compiler.get("libcxx") == "libstdc++11",
             "compiler must declare C++23 and libstdc++11 ABI")
-    require(re.fullmatch(r"[1-9]\d*", compiler.get("version", "")) is not None,
+    require(isinstance(compiler.get("version"), str)
+            and re.fullmatch(r"[1-9]\d*", compiler["version"]) is not None,
             "compiler major version required")
     for key in ("c", "cxx"):
-        require(re.fullmatch(r"/usr/bin/[a-z+0-9-]+", compiler.get(key, "")) is not None,
+        require(isinstance(compiler.get(key), str)
+                and re.fullmatch(r"/usr/bin/[a-z+0-9-]+", compiler[key]) is not None,
                 f"explicit compiler executable required: {key}")
     version = compiler.get("package_version", "")
     require(isinstance(version, str) and re.fullmatch(r"[0-9][a-zA-Z0-9.+:~-]*", version)
@@ -74,9 +79,30 @@ def validate_target(target: dict) -> dict:
     return target
 
 
-def load_targets(path: Path = ROOT / "packaging/targets.json") -> list[dict]:
-    """Load an explicit target set; reject duplicates before emitting a matrix."""
-    data = json.loads(path.read_text())
+def conan_profile(target: dict) -> str:
+    """Render the explicit Conan host/build profile from validated compiler inputs."""
+    validate_target(target)
+    compiler = target["compiler"]
+    return (
+        "# SPDX-License-Identifier: MPL-2.0\n"
+        "[settings]\n"
+        "os=Linux\n"
+        "arch=x86_64\n"
+        "build_type=Release\n"
+        "compiler=gcc\n"
+        f"compiler.version={compiler['version']}\n"
+        f"compiler.cppstd={compiler['cppstd']}\n"
+        f"compiler.libcxx={compiler['libcxx']}\n"
+        "\n"
+        "[conf]\n"
+        f"tools.build:compiler_executables={{\"c\": \"{compiler['c']}\", "
+        f"\"cpp\": \"{compiler['cxx']}\"}}\n"
+    )
+
+
+def validate_target_set(data: dict) -> list[dict]:
+    """Validate one explicit target-set object and reject duplicate identities."""
+    require(isinstance(data, dict), "target set must be a JSON object")
     require(data.get("schema_version") == 1, "unsupported targets schema")
     require(data.get("roles") == ROLES, "runtime/developer role mapping required")
     records = data.get("targets")
@@ -84,6 +110,11 @@ def load_targets(path: Path = ROOT / "packaging/targets.json") -> list[dict]:
     targets = [validate_target(t) for t in records]
     require(len({t["id"] for t in targets}) == len(targets), "duplicate target identity")
     return sorted(targets, key=lambda t: t["id"])
+
+
+def load_targets(path: Path = ROOT / "packaging/targets.json") -> list[dict]:
+    """Load an explicit target set; reject duplicates before emitting a matrix."""
+    return validate_target_set(json.loads(path.read_text()))
 
 
 def git_output(root: Path, *args: str) -> str:

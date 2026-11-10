@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from package_identity import ROOT, identity, load_targets, require
+from package_identity import ROOT, conan_profile, identity, load_targets, require
 
 
 def run(stage: str, command: list[str], *, cwd: Path = ROOT,
@@ -103,6 +103,7 @@ def verify_target(target: dict) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--targets", type=Path, default=ROOT / "packaging/targets.json")
     parser.add_argument("--revision", default=os.environ.get("ISCHED_SOURCE_REVISION"))
     parser.add_argument("--version", default=os.environ.get("ISCHED_PACKAGE_VERSION"))
     parser.add_argument("--output-dir", type=Path, default=Path("/out"))
@@ -110,7 +111,8 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["ISCHED_BUILD_TARGET"] = args.target
 
     try:
-        targets = load_targets()
+        targets_path = args.targets.resolve()
+        targets = load_targets(targets_path)
         target = next((record for record in targets if record["id"] == args.target), None)
         require(target is not None, f"unknown target: {args.target}")
         require(re.fullmatch(r"[0-9a-f]{40}", args.revision or "") is not None,
@@ -134,7 +136,8 @@ def main(argv: list[str] | None = None) -> int:
 
         tool_prefix = Path("/opt/isched-tools")
         run("tool-bootstrap", [sys.executable, "packaging/scripts/bootstrap_tools.py",
-                                "--target", args.target, "--prefix", str(tool_prefix)])
+                                "--target", args.target, "--targets", str(targets_path),
+                                "--prefix", str(tool_prefix)])
         node_bin = tool_prefix / "node/bin"
         conan_bin = tool_prefix / "conan/bin"
         env = dict(os.environ)
@@ -156,7 +159,9 @@ def main(argv: list[str] | None = None) -> int:
 
         build_dir = ROOT / "cmake-build-release"
         lockfile = ROOT / "conan.lock"
-        host_profile = ROOT / f"packaging/conan/profiles/{args.target}"
+        host_profile = work / "profiles" / args.target
+        host_profile.parent.mkdir(parents=True, exist_ok=True)
+        host_profile.write_text(conan_profile(target), encoding="utf-8")
         build_profile = host_profile
         for path in (lockfile, host_profile):
             require(path.is_file(), f"missing pinned build input: {path}")
@@ -168,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
             f"-DISCHED_PACKAGE_TARGET={args.target}",
             f"-DISCHED_PACKAGE_FORMAT={target['package_format']}",
             f"-DISCHED_PACKAGE_IDENTITY_FILE={identity_path}",
+            f"-DISCHED_PACKAGE_PROFILE_FILE={host_profile}",
             f"-DISCHED_PACKAGE_OUTPUT_DIR={output}",
             f"-DISCHED_PACKAGE_LICENSE_OUTPUT={license_output}",
             f"-DISCHED_FRONTEND_GATE_FILE={gate}",
@@ -204,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         generate_packages(build_dir, work / "cpack", output, records, tool_env)
         run("package-validation", [
             sys.executable, "packaging/scripts/validate_packages.py",
-            "--target", args.target, "--revision", args.revision,
+            "--target", args.target, "--revision", args.revision, "--targets", str(targets_path),
             "--directory", str(output),
         ], env=tool_env, timeout=600)
         evidence = {

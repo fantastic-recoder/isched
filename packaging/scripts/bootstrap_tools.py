@@ -44,9 +44,10 @@ def archive(url: str, expected: str, algorithm: str, destination: Path) -> None:
         shutil.copytree(children[0], destination, symlinks=True)
 
 
-def bootstrap(target: str, prefix: Path) -> None:
+def bootstrap(target: str, prefix: Path, targets_path: Path = ROOT / "packaging/targets.json") -> None:
     versions = json.loads((ROOT / "packaging/tool-versions.json").read_text())
-    require(target in {t["id"] for t in load_targets()}, f"unknown target: {target}")
+    require(target in {record["id"] for record in load_targets(targets_path)},
+            f"unknown target: {target}")
     require(f"{sys.version_info.major}.{sys.version_info.minor}" ==
             versions["python_versions"][target], "target Python interpreter version mismatch")
     prefix.mkdir(parents=True, exist_ok=True)
@@ -78,10 +79,11 @@ def bootstrap(target: str, prefix: Path) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True)
+    parser.add_argument("--targets", type=Path, default=ROOT / "packaging/targets.json")
     parser.add_argument("--prefix", type=Path, default=Path("/opt"))
     args = parser.parse_args()
     try:
-        bootstrap(args.target, args.prefix.resolve())
+        bootstrap(args.target, args.prefix.resolve(), args.targets.resolve())
         return 0
     except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
         print(f"[{args.target}] tool bootstrap failed: {exc}", file=sys.stderr)
