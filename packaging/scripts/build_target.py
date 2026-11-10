@@ -59,6 +59,11 @@ def frontend_outputs(root: Path) -> tuple[Path, Path, Path]:
     return index, notices, header
 
 
+def frontend_test_command(pnpm: str) -> list[str]:
+    """Use Angular CLI's kebab-case option to bound the Jest worker pool."""
+    return [pnpm, "--filter", "isched-ui", "run", "test", "--max-workers=1"]
+
+
 def configure_command(lockfile: Path, profile: Path, package_args: tuple[str, ...]) -> list[str]:
     """Configure the pinned producer with explicitly bounded build resources."""
     command = [
@@ -157,8 +162,7 @@ def main(argv: list[str] | None = None) -> int:
                    NG_BUILD_MAX_WORKERS="1")
         pnpm = str(node_bin / "pnpm")
         run("frontend-install", [pnpm, "install", "--frozen-lockfile"], env=env)
-        run("frontend-test", [pnpm, "--filter", "isched-ui", "run", "test",
-                              "--maxWorkers=1"], env=env)
+        run("frontend-test", frontend_test_command(pnpm), env=env)
         run("frontend-build", [pnpm, "--filter", "isched-ui", "run", "build"], env=env)
         run("frontend-embed", [sys.executable, "tools/embed_ui_assets.py"], env=env)
 

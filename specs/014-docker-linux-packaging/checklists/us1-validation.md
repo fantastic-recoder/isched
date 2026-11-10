@@ -67,3 +67,38 @@ a safe tooling solution. No system package installation was performed.
 
 T030 remains unchecked until both real local target pipelines and aggregate
 validation pass from a clean committed source revision.
+
+## T030 local Fedora attempt — stopped at frontend command parsing
+
+Executed serially on 2026-11-10 from the clean correction commit:
+
+```sh
+cd /home/groby/dev/isched
+CMAKE_BUILD_PARALLEL_LEVEL=1 CTEST_PARALLEL_LEVEL=1 \
+  /usr/bin/python3 packaging/scripts/build_local.py --target fedora-45 \
+  --revision f910b252b0791a4840811b734b8175003e03c712 \
+  --output /home/groby/dev/isched/cmake-build-debug/package-validation-f910b252/fedora-45
+```
+
+Exit status: **1**. Pinned Fedora OS packages, tool bootstrap, and frozen pnpm
+install succeeded. `frontend-test` failed with
+`Error: Unknown argument: maxWorkers`; Angular CLI requires kebab-case
+`--max-workers=1` even though its builder schema spells the property
+`maxWorkers`. The outer wrapper reports `stage=docker-build`; the inner
+target-qualified log identifies `stage=frontend-test`.
+
+No final packages were exported. Producer C++ build, full target Release CTest,
+native validation, clean runtime and SDK gates were not reached. T030 and
+dependent task execution remain incomplete; no other Docker target was started.
+
+The narrow repair uses `--max-workers=1`. Two new tests cover the constructed
+command and actual installed pnpm/Angular `--help` parsing without executing UI
+tests; the focused six-test suite passes. Schema-only inspection is no longer
+the compatibility proof. This repair still needs a clean-revision Docker rerun;
+it is not a successful Fedora package result.
+
+After the repair, the same full helper command above ran 73 tests in 5.373s,
+OK with the same four environment-dependent skips. The exact mandatory Debug
+CTest command above passed all 61/61 entries with no exclusions or failures
+in 154.46 seconds before the repair commit. These results validate the host
+regressions only; no successful local target pipeline is claimed.

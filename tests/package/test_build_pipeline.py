@@ -60,6 +60,24 @@ class FrontendOutputTests(unittest.TestCase):
         self.assertIn("--cmake-arg=-DISCHED_ENABLE_PACKAGING=ON", command)
         self.assertEqual(command[-1], "release")
 
+    def test_frontend_worker_limit_uses_angular_cli_spelling(self):
+        self.assertEqual(
+            self.builder.frontend_test_command("/pinned/pnpm"),
+            ["/pinned/pnpm", "--filter", "isched-ui", "run", "test", "--max-workers=1"],
+        )
+
+    @unittest.skipUnless(
+        shutil.which("pnpm") and (ROOT / "src/ui/node_modules/@angular/cli").is_dir(),
+        "frontend CLI compatibility requires installed pnpm and UI dependencies",
+    )
+    def test_frontend_cli_accepts_worker_limit_without_running_tests(self):
+        command = self.builder.frontend_test_command(shutil.which("pnpm"))
+        result = subprocess.run(
+            [*command, "--help"], cwd=ROOT, capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("--max-workers", result.stdout)
+
     def test_package_profiles_bound_dependency_build_jobs_in_both_contexts(self):
         from package_identity import conan_profile, load_targets
 
