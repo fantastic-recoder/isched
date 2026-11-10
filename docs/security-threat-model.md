@@ -8,6 +8,7 @@ This document summarizes the security posture and recurring mitigations for Isch
 
 ## Feature Threat Models
 
+- `specs/014-docker-linux-packaging/threat-model.md` — Docker/Actions supply-chain boundaries, least-privilege PR builds, immutable inputs, payload/notices validation and clean runtime/SDK checks verified on both initial targets in run 42707740390; artifact/extension closeout evidence remains pending
 - `specs/archive/001-universal-backend/threat-model.md` — GraphQL transport, bootstrap flow, JWT auth, RBAC, tenant isolation, session revocation, WebSocket auth, and outbound HTTP secret handling
 - `specs/archive/004-add-isched-webui/threat-model.md` — Embedded WebUI serving, proxy-backed local GraphQL flow, CSRF/cookie auth behavior, and organization-context write boundaries
 - `specs/archive/005-rate-limited-auth-bootstrap/threat-model.md` — Deterministic auth lockout signaling, startup guard revalidation, bootstrap route gating transitions, and single-flight auth/bootstrap submission handling

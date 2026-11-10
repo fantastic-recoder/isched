@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MPL-2.0
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# These names and imported targets match the Conan CMakeDeps files used by
+# the producer. Keep the static library's private link closure available to
+# downstream consumers without exporting producer/cache paths.
+find_dependency(pegtl CONFIG REQUIRED)
+find_dependency(httplib CONFIG REQUIRED)
+find_dependency(OpenSSL CONFIG REQUIRED)
+find_dependency(spdlog CONFIG REQUIRED)
+find_dependency(nlohmann_json CONFIG REQUIRED)
+find_dependency(jwt-cpp CONFIG REQUIRED)
+find_dependency(SQLite3 CONFIG REQUIRED)
+find_dependency(Boost CONFIG REQUIRED COMPONENTS url system thread program_options filesystem)
+find_dependency(platform_folders CONFIG REQUIRED)
+find_dependency(fmt CONFIG REQUIRED)
+
+include("${CMAKE_CURRENT_LIST_DIR}/ischedTargets.cmake")
+check_required_components(isched)
