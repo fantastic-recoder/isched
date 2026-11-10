@@ -95,7 +95,7 @@ def conan_profile(target: dict) -> str:
         f"compiler.libcxx={compiler['libcxx']}\n"
         "\n"
         "[conf]\n"
-        "tools.build:jobs=1\n"
+        "tools.build:jobs=3\n"
         f"tools.build:compiler_executables={{\"c\": \"{compiler['c']}\", "
         f"\"cpp\": \"{compiler['cxx']}\"}}\n"
     )

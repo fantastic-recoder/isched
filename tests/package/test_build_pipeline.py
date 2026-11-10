@@ -50,12 +50,12 @@ class FrontendOutputTests(unittest.TestCase):
         cls.builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.builder)
 
-    def test_package_configuration_explicitly_builds_with_one_job(self):
+    def test_package_configuration_explicitly_builds_with_three_jobs(self):
         command = self.builder.configure_command(
             Path("/fixture/conan.lock"), Path("/fixture/profile"),
             ("-DISCHED_ENABLE_PACKAGING=ON",),
         )
-        self.assertIn("-j1", command)
+        self.assertIn("-j3", command)
         self.assertIn("--conan-build-tools", command)
         self.assertIn("--cmake-arg=-DISCHED_ENABLE_PACKAGING=ON", command)
         self.assertEqual(command[-1], "release")
@@ -84,7 +84,7 @@ class FrontendOutputTests(unittest.TestCase):
         for target in load_targets():
             with self.subTest(target=target["id"]):
                 profile = conan_profile(target)
-                self.assertIn("\ntools.build:jobs=1\n", profile)
+                self.assertIn("\ntools.build:jobs=3\n", profile)
                 self.assertEqual(
                     profile,
                     (ROOT / "packaging/conan/profiles" / target["id"]).read_text(),

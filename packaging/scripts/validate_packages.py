@@ -51,6 +51,7 @@ def _capture(path: str) -> bool:
         path.endswith("/package-identity.json")
         or path.endswith("/license-inventory.json")
         or path == "usr/bin/isched_srv"
+        or path == "usr/share/isched/developer/conan.lock"
         or "/licenses/" in f"/{path}/"
         or path.endswith("/cmake/isched/ischedConfig.cmake")
         or path.endswith("/cmake/isched/ischedTargets.cmake")

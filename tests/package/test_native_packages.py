@@ -143,6 +143,39 @@ class GeneratedPackageTests(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
         self.assertIn("--fsys-tarfile", run.call_args.args[0])
 
+    def test_sdk_conan_lockfile_bytes_are_captured_from_deb_and_rpm(self):
+        lock_path = "usr/share/isched/developer/conan.lock"
+        lock_bytes = b'{"version":"0.5","requires":[]}\n'
+
+        deb_archive = io.BytesIO()
+        with tarfile.open(fileobj=deb_archive, mode="w") as tar:
+            member = tarfile.TarInfo("./" + lock_path)
+            member.size = len(lock_bytes)
+            tar.addfile(member, io.BytesIO(lock_bytes))
+
+        encoded_name = lock_path.encode() + b"\0"
+        fields = [1, 0o100644, 0, 0, 1, 0, len(lock_bytes), 1, 0, 0, 0,
+                  len(encoded_name), 0]
+        rpm_archive = b"070701" + "".join(f"{value:08x}" for value in fields).encode()
+        rpm_archive += encoded_name
+        rpm_archive += b"\0" * (-len(rpm_archive) % 4)
+        rpm_archive += lock_bytes
+        rpm_archive += b"\0" * (-len(lock_bytes) % 4)
+
+        cases = (
+            ("ubuntu-26.04", "fixture.deb", self.validator._deb_payload, deb_archive.getvalue()),
+            ("fedora-45", "fixture.rpm", self.validator._rpm_cpio_payload, rpm_archive),
+        )
+        for target, filename, reader, archive in cases:
+            with self.subTest(target=target):
+                with patch.object(
+                    self.validator.subprocess, "run",
+                    return_value=subprocess.CompletedProcess([], 0, stdout=archive),
+                ):
+                    contents, paths = reader(Path(filename), target)
+                self.assertIn(lock_path, paths)
+                self.assertEqual(contents.get(lock_path), lock_bytes)
+
     def test_rpm_hardlinks_resolve_data_independent_of_entry_order(self):
         def entry(name, data, inode, links=2, device=1):
             encoded = name.encode() + b"\0"
