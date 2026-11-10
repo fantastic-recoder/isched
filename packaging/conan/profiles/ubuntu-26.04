@@ -9,4 +9,5 @@ compiler.cppstd=23
 compiler.libcxx=libstdc++11
 
 [conf]
+tools.build:jobs=1
 tools.build:compiler_executables={"c": "/usr/bin/gcc-15", "cpp": "/usr/bin/g++-15"}

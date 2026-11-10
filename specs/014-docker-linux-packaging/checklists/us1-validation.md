@@ -35,3 +35,35 @@ GitHub API reports zero artifacts. Download evidence belongs to US2.
 Separate host executions of both complete Docker builds were not repeated;
 the full pipelines above executed on GitHub runners. This distinction must
 not be represented as additional local target-run evidence.
+
+## Local resource-bound correction — 2026-11-10
+
+Before attempting T030 from checkout
+`10ae436b212042023ece07526b072f04d014313e`, inspection found unrestricted
+producer CMake jobs, two SDK build jobs, and independently scheduled runtime/SDK
+Docker verification stages. Corrective T006/T020/T023/T024/T025 changes now use
+explicit `-j1` for producer/SDK builds and target CTest, Conan
+`tools.build:jobs=1` in both dependency contexts, one frontend test/build worker,
+and a runtime-evidence dependency before SDK verification.
+
+TDD regression tests failed before the fix, then passed all 8 focused tests.
+With `/usr/bin/python3` 3.14:
+
+```sh
+cd /home/groby/dev/isched
+CMAKE_BUILD_PARALLEL_LEVEL=1 CTEST_PARALLEL_LEVEL=1 \
+  /usr/bin/python3 -m unittest discover -s tests/package -p 'test_*.py' -v
+cd /home/groby/dev/isched/cmake-build-debug
+CMAKE_BUILD_PARALLEL_LEVEL=1 CTEST_PARALLEL_LEVEL=1 ctest --output-on-failure
+```
+
+Results: 71 helper tests, OK with 4 environment-dependent skips (two missing
+Debian-tool fixtures and two opt-in container integrations); all 61 Debug CTest
+entries passed, 0 failures, 154.71 seconds. Native RPM fixtures ran; target
+identity snapshots and ordinary configurator defaults passed. These host checks
+are not completed target-container evidence. Host Docker is 29.9.2, Buildx
+0.38.1; `dpkg-deb` is absent, so host-native Ubuntu export inspection still needs
+a safe tooling solution. No system package installation was performed.
+
+T030 remains unchecked until both real local target pipelines and aggregate
+validation pass from a clean committed source revision.

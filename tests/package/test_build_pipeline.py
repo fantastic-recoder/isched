@@ -50,6 +50,47 @@ class FrontendOutputTests(unittest.TestCase):
         cls.builder = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.builder)
 
+    def test_package_configuration_explicitly_builds_with_one_job(self):
+        command = self.builder.configure_command(
+            Path("/fixture/conan.lock"), Path("/fixture/profile"),
+            ("-DISCHED_ENABLE_PACKAGING=ON",),
+        )
+        self.assertIn("-j1", command)
+        self.assertIn("--conan-build-tools", command)
+        self.assertIn("--cmake-arg=-DISCHED_ENABLE_PACKAGING=ON", command)
+        self.assertEqual(command[-1], "release")
+
+    def test_package_profiles_bound_dependency_build_jobs_in_both_contexts(self):
+        from package_identity import conan_profile, load_targets
+
+        for target in load_targets():
+            with self.subTest(target=target["id"]):
+                profile = conan_profile(target)
+                self.assertIn("\ntools.build:jobs=1\n", profile)
+                self.assertEqual(
+                    profile,
+                    (ROOT / "packaging/conan/profiles" / target["id"]).read_text(),
+                )
+
+    def test_docker_sdk_verification_waits_for_runtime_verification(self):
+        from package_identity import load_targets
+
+        for target in load_targets():
+            source = (ROOT / target["dockerfile"]).read_text()
+            sdk_stage = source.split(" AS sdk-verify\n", 1)[1].split(
+                "FROM scratch AS export", 1,
+            )[0]
+            dependency = (
+                "COPY --from=runtime-verify /tmp/runtime-verification.json "
+                "/tmp/runtime-verification.json"
+            )
+            with self.subTest(target=target["id"]):
+                self.assertIn(dependency, sdk_stage)
+                self.assertLess(
+                    sdk_stage.index(dependency),
+                    sdk_stage.index("RUN set -- /tmp/packages/"),
+                )
+
     def test_application_builder_output_layout_and_required_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

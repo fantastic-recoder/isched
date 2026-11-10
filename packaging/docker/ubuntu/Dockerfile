@@ -55,6 +55,8 @@ COPY packaging/tool-versions.json packaging/requirements-bootstrap.lock packagin
 COPY packaging/scripts/package_identity.py packaging/scripts/bootstrap_tools.py packaging/scripts/verify_sdk.py packaging/scripts/
 COPY tests/package/sdk-consumer/ consumer/
 COPY --from=build /out/ /tmp/packages/
+# Keep integration tests serial even when BuildKit schedules independent stages.
+COPY --from=runtime-verify /tmp/runtime-verification.json /tmp/runtime-verification.json
 RUN set -- /tmp/packages/isched-developer-*.deb \
     && test "$#" -eq 1 \
     && python3 packaging/scripts/verify_sdk.py --target "${ISCHED_TARGET}" \

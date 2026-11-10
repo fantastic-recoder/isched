@@ -112,6 +112,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         tools = scratch / "tools"
         run("conan-cmake", [conan, "install", str(tool_manifest),
                             "--profile:build=default", f"--output-folder={tools}",
+                            "-c:a", "tools.build:jobs=1",
                             "--build=missing"], timeout=3600, env=environment)
         activation = _find_one(tools, "conanbuild.sh")
         version_output = _activated(activation, ["cmake", "--version"], stage="cmake-version",
@@ -121,6 +122,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         _activated(activation, [conan, "install", str(manifest),
                                 f"--lockfile={lockfile}", f"--profile:host={profile}",
                                 "--profile:build=default", f"--output-folder={dependencies}",
+                                "-c:a", "tools.build:jobs=1",
                                 "--build=missing"], stage="conan-dependencies",
                    timeout=7200, env=environment)
         toolchain = _find_one(dependencies, "conan_toolchain.cmake")
@@ -132,8 +134,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
                                f"-DCMAKE_TOOLCHAIN_FILE={toolchain}",
                                f"-DCMAKE_PREFIX_PATH={dependencies}"],
                    stage="consumer-configure", timeout=900, env=environment)
-        _activated(activation, ["cmake", "--build", str(build), "--parallel", "2"],
-                   stage="consumer-build", timeout=3600, env=environment)
+        build_consumer(activation, build, environment)
         run("consumer-run", [str(build / "isched_sdk_consumer")], timeout=60)
         config_files = list(Path("/usr").glob("lib*/cmake/isched/ischedTargets*.cmake"))
         require(bool(config_files), "installed SDK export targets are not present in the system prefix")
@@ -147,6 +148,12 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
     finally:
         shutil.rmtree(conan_home, ignore_errors=True)
         shutil.rmtree(scratch, ignore_errors=True)
+
+
+def build_consumer(activation: Path, build: Path, environment: dict[str, str]) -> None:
+    """Build the external consumer with one job in its isolated tool environment."""
+    _activated(activation, ["cmake", "--build", str(build), "-j1"],
+               stage="consumer-build", timeout=3600, env=environment)
 
 
 def _in_container(target: dict, package: Path, consumer: Path, evidence: Path,

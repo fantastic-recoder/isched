@@ -94,6 +94,9 @@ class SdkFailureTests(unittest.TestCase):
         def run(stage, command, **kwargs):
             stages.append(stage)
             environments.append(kwargs["env"])
+            if stage in {"conan-cmake", "conan-dependencies"}:
+                self.assertIn("-c:a", command)
+                self.assertIn("tools.build:jobs=1", command)
             if stage == "conan-dependencies":
                 self.assertEqual(command[:3], ["bash", "-c", 'source "$1"; shift; exec "$@"'])
                 self.assertEqual(command[5], "/opt/isched-tools/conan/bin/conan")
@@ -124,6 +127,19 @@ class SdkFailureTests(unittest.TestCase):
             self.assertTrue(home.startswith("/tmp/isched-sdk-conan-"))
             self.assertTrue(all(env["CONAN_HOME"] == home for env in environments))
             self.assertFalse(Path(home).exists())
+
+    def test_consumer_build_explicitly_uses_one_job(self):
+        with patch.object(self.verifier, "_activated") as activated:
+            self.verifier.build_consumer(
+                Path("/fixture/conanbuild.sh"), Path("/fixture/build"),
+                {"CONAN_HOME": "/fixture/conan"},
+            )
+        command = activated.call_args.args[1]
+        self.assertEqual(command, ["cmake", "--build", "/fixture/build", "-j1"])
+        self.assertEqual(activated.call_args.kwargs["stage"], "consumer-build")
+        self.assertEqual(
+            activated.call_args.kwargs["env"]["CONAN_HOME"], "/fixture/conan",
+        )
 
     def test_activation_exposes_tools_and_preserves_conan_home_in_child_process(self):
         with tempfile.TemporaryDirectory() as directory:

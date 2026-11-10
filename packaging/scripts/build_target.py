@@ -59,6 +59,17 @@ def frontend_outputs(root: Path) -> tuple[Path, Path, Path]:
     return index, notices, header
 
 
+def configure_command(lockfile: Path, profile: Path, package_args: tuple[str, ...]) -> list[str]:
+    """Configure the pinned producer with explicitly bounded build resources."""
+    command = [
+        sys.executable, "configure.py", "-j1", "--conan-lockfile", str(lockfile),
+        "--conan-host-profile", str(profile), "--conan-build-profile", str(profile),
+        "--conan-build-tools",
+    ]
+    command.extend(f"--cmake-arg={value}" for value in package_args)
+    return [*command, "release"]
+
+
 def generate_packages(build_dir: Path, staging: Path, output: Path,
                       records: list[dict], env: dict[str, str]) -> None:
     run("package-generation", [
@@ -142,9 +153,12 @@ def main(argv: list[str] | None = None) -> int:
         conan_bin = tool_prefix / "conan/bin"
         env = dict(os.environ)
         env["PATH"] = os.pathsep.join((str(node_bin), str(conan_bin), env.get("PATH", "")))
+        env.update(CMAKE_BUILD_PARALLEL_LEVEL="1", CTEST_PARALLEL_LEVEL="1",
+                   NG_BUILD_MAX_WORKERS="1")
         pnpm = str(node_bin / "pnpm")
         run("frontend-install", [pnpm, "install", "--frozen-lockfile"], env=env)
-        run("frontend-test", [pnpm, "--filter", "isched-ui", "run", "test"], env=env)
+        run("frontend-test", [pnpm, "--filter", "isched-ui", "run", "test",
+                              "--maxWorkers=1"], env=env)
         run("frontend-build", [pnpm, "--filter", "isched-ui", "run", "build"], env=env)
         run("frontend-embed", [sys.executable, "tools/embed_ui_assets.py"], env=env)
 
@@ -162,7 +176,6 @@ def main(argv: list[str] | None = None) -> int:
         host_profile = work / "profiles" / args.target
         host_profile.parent.mkdir(parents=True, exist_ok=True)
         host_profile.write_text(conan_profile(target), encoding="utf-8")
-        build_profile = host_profile
         for path in (lockfile, host_profile):
             require(path.is_file(), f"missing pinned build input: {path}")
         license_output = work / "licenses"
@@ -178,11 +191,7 @@ def main(argv: list[str] | None = None) -> int:
             f"-DISCHED_PACKAGE_LICENSE_OUTPUT={license_output}",
             f"-DISCHED_FRONTEND_GATE_FILE={gate}",
         )
-        configure = [sys.executable, "configure.py", "--conan-lockfile", str(lockfile),
-                     "--conan-host-profile", str(host_profile),
-                     "--conan-build-profile", str(build_profile), "--conan-build-tools"]
-        configure.extend(f"--cmake-arg={value}" for value in package_args)
-        configure.append("release")
+        configure = configure_command(lockfile, host_profile, package_args)
         run("configure-build", configure, env=env, timeout=7200)
 
         sys.path.insert(0, str(ROOT))
@@ -197,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         discovered = json.loads(show).get("tests", [])
         require(discovered, f"target={args.target} CTest discovered zero tests")
         run("ctest", ["ctest", "--test-dir", str(build_dir),
-                      "--output-on-failure", "--no-tests=error"], env=tool_env,
+                      "-j1", "--output-on-failure", "--no-tests=error"], env=tool_env,
             timeout=7200)
 
         graph_json = build_dir / "conan-install.json"

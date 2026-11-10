@@ -15,7 +15,7 @@
 - Runtime and SDK packages are independent. Require fresh Angular test/build/embed output, full nonempty target Release CTest, native package checks, clean runtime install/smoke, and external SDK compile/link/run before a target can succeed or either role can be uploaded.
 - Hosted workflow/artifact evidence requires a separately authorized hosted run. SC-005 requires the project's one contributor to select each of four target/role artifacts and identify distribution, release, architecture, format, and role within 60 seconds per selection from visible artifact metadata. Keep these tasks unchecked until actual evidence exists.
 - A future-target exercise must use a separately verified, pinned compatible target in temporary configuration; do not expand the two-entry production matrix. If target compatibility or an authorized hosted experiment is unavailable, record the blocker and keep the affected acceptance evidence pending.
-- Local target pipelines are pending: the checkout contains staged, unstaged, and untracked work, so an artifact identified as the current `HEAD` would misrepresent its source. `build_local.py` now rejects dirty checkouts before export; do not commit as part of this task execution.
+- Local target pipelines remain pending. `build_local.py` rejects dirty checkouts before export so packages cannot misrepresent their source as `HEAD`. The 2026-11-10 implementation owner is authorized to commit completed work only after the full Debug CTest gate; no push is authorized. T006/T020/T023/T024/T025 resource-bound corrections now enforce one-job producer/dependency/SDK builds and serial runtime→SDK verification; see `checklists/us1-validation.md`. These corrections do not complete T030.
 
 ## Format and path conventions
 
