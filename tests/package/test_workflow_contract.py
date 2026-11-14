@@ -2,9 +2,11 @@
 """Static workflow checks for safe, uniquely named package downloads."""
 
 from pathlib import Path
+import os
 import re
 import subprocess
 import sys
+import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -51,6 +53,33 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("steps.artifacts.outputs.developer_artifact_name", self.workflow)
         self.assertIn("dist/artifacts/${{ matrix.id }}/runtime/", self.workflow)
         self.assertIn("dist/artifacts/${{ matrix.id }}/developer/", self.workflow)
+
+    def test_intentional_ubuntu_failure_precedes_build_and_does_not_block_fedora(self):
+        build_step = self.workflow.split("name: Build and verify target packages\n", 1)[1]
+        build_step, staging = build_step.split(
+            "      - name: Validate and stage both package roles", 1,
+        )
+        self.assertIn('ISCHED_TARGET: ${{ matrix.id }}', build_step)
+        guard = build_step.split("run: |\n", 1)[1].split(
+            '          revision="$(git rev-parse HEAD)"', 1,
+        )[0]
+        self.assertIn('if [[ "$ISCHED_TARGET" == "ubuntu-26.04" ]]; then', guard)
+        self.assertIn('echo "Intentional T032 Ubuntu-only failure" >&2', guard)
+        self.assertIn("exit 1", guard)
+        self.assertLess(build_step.index("exit 1"), build_step.index("build_local.py"))
+        self.assertNotIn("Intentional T032 Ubuntu-only failure", staging)
+        self.assertRegex(self.workflow, r"(?m)^\s+fail-fast: false$")
+        for target, expected in (("ubuntu-26.04", 1), ("fedora-45", 0)):
+            with self.subTest(target=target):
+                result = subprocess.run(
+                    ["bash", "-c", textwrap.dedent(guard) + "\nprintf 'build reached\\n'\n"],
+                    env=dict(os.environ, ISCHED_TARGET=target),
+                    capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
+                self.assertEqual("build reached" in result.stdout, expected == 0)
+                self.assertEqual("Intentional T032 Ubuntu-only failure\n" in result.stderr,
+                                 expected == 1)
 
     def test_no_continue_on_error_privileged_artifact_consumer_or_release_publication(self):
         forbidden = (
