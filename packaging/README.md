@@ -31,6 +31,11 @@ These commands are implemented. The workflow invokes the same interfaces for
 each configured target; the artifact preparation step validates both roles and
 all target evidence before staging either role:
 
+Hosted and local Docker pipelines use three parallel native build jobs for
+the producer, Conan dependencies/tools, and external SDK consumer. CTest and
+frontend workers remain limited to one; runtime and SDK verification stages
+remain sequential.
+
 ```text
 python3 packaging/scripts/build_local.py --target TARGET --revision FULL_SHA --output DIR
 python3 packaging/scripts/validate_packages.py --target TARGET --revision FULL_SHA --directory DIR

@@ -67,7 +67,7 @@ def frontend_test_command(pnpm: str) -> list[str]:
 def configure_command(lockfile: Path, profile: Path, package_args: tuple[str, ...]) -> list[str]:
     """Configure the pinned producer with explicitly bounded build resources."""
     command = [
-        sys.executable, "configure.py", "-j1", "--conan-lockfile", str(lockfile),
+        sys.executable, "configure.py", "-j3", "--conan-lockfile", str(lockfile),
         "--conan-host-profile", str(profile), "--conan-build-profile", str(profile),
         "--conan-build-tools",
     ]
@@ -158,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         conan_bin = tool_prefix / "conan/bin"
         env = dict(os.environ)
         env["PATH"] = os.pathsep.join((str(node_bin), str(conan_bin), env.get("PATH", "")))
-        env.update(CMAKE_BUILD_PARALLEL_LEVEL="1", CTEST_PARALLEL_LEVEL="1",
+        env.update(CMAKE_BUILD_PARALLEL_LEVEL="3", CTEST_PARALLEL_LEVEL="1",
                    NG_BUILD_MAX_WORKERS="1")
         pnpm = str(node_bin / "pnpm")
         run("frontend-install", [pnpm, "install", "--frozen-lockfile"], env=env)

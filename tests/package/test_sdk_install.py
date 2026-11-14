@@ -96,7 +96,7 @@ class SdkFailureTests(unittest.TestCase):
             environments.append(kwargs["env"])
             if stage in {"conan-cmake", "conan-dependencies"}:
                 self.assertIn("-c:a", command)
-                self.assertIn("tools.build:jobs=1", command)
+                self.assertIn("tools.build:jobs=3", command)
             if stage == "conan-dependencies":
                 self.assertEqual(command[:3], ["bash", "-c", 'source "$1"; shift; exec "$@"'])
                 self.assertEqual(command[5], "/opt/isched-tools/conan/bin/conan")
@@ -128,14 +128,14 @@ class SdkFailureTests(unittest.TestCase):
             self.assertTrue(all(env["CONAN_HOME"] == home for env in environments))
             self.assertFalse(Path(home).exists())
 
-    def test_consumer_build_explicitly_uses_one_job(self):
+    def test_consumer_build_explicitly_uses_three_jobs(self):
         with patch.object(self.verifier, "_activated") as activated:
             self.verifier.build_consumer(
                 Path("/fixture/conanbuild.sh"), Path("/fixture/build"),
                 {"CONAN_HOME": "/fixture/conan"},
             )
         command = activated.call_args.args[1]
-        self.assertEqual(command, ["cmake", "--build", "/fixture/build", "-j1"])
+        self.assertEqual(command, ["cmake", "--build", "/fixture/build", "-j3"])
         self.assertEqual(activated.call_args.kwargs["stage"], "consumer-build")
         self.assertEqual(
             activated.call_args.kwargs["env"]["CONAN_HOME"], "/fixture/conan",

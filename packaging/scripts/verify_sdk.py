@@ -112,7 +112,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         tools = scratch / "tools"
         run("conan-cmake", [conan, "install", str(tool_manifest),
                             "--profile:build=default", f"--output-folder={tools}",
-                            "-c:a", "tools.build:jobs=1",
+                            "-c:a", "tools.build:jobs=3",
                             "--build=missing"], timeout=3600, env=environment)
         activation = _find_one(tools, "conanbuild.sh")
         version_output = _activated(activation, ["cmake", "--version"], stage="cmake-version",
@@ -122,7 +122,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
         _activated(activation, [conan, "install", str(manifest),
                                 f"--lockfile={lockfile}", f"--profile:host={profile}",
                                 "--profile:build=default", f"--output-folder={dependencies}",
-                                "-c:a", "tools.build:jobs=1",
+                                "-c:a", "tools.build:jobs=3",
                                 "--build=missing"], stage="conan-dependencies",
                    timeout=7200, env=environment)
         toolchain = _find_one(dependencies, "conan_toolchain.cmake")
@@ -151,8 +151,8 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
 
 
 def build_consumer(activation: Path, build: Path, environment: dict[str, str]) -> None:
-    """Build the external consumer with one job in its isolated tool environment."""
-    _activated(activation, ["cmake", "--build", str(build), "-j1"],
+    """Build the external consumer with three jobs in its isolated tool environment."""
+    _activated(activation, ["cmake", "--build", str(build), "-j3"],
                stage="consumer-build", timeout=3600, env=environment)
 
 
