@@ -1,6 +1,6 @@
 # Adding a Linux package target
 
-Targets are explicit, immutable inputs—not distribution-name heuristics. The production set in
+Target identities and image digests are explicit inputs, not distribution-name heuristics. The production set in
 `packaging/targets.json` intentionally remains Ubuntu 26.04 and Fedora 45. An experiment belongs in
 a separate target-set file, such as `tests/package/fixtures/additional-target.json`, and is passed
 explicitly to each packaging helper with `--targets`.
@@ -12,9 +12,12 @@ Before adding a target record, independently verify and record:
 1. **Release and base image**: exact distribution release, `linux/amd64` platform, and the registry
    manifest digest for the matching image. Use `docker manifest inspect` and then pull/run that
    digest; never use a floating tag or substitute a nearby release when a digest is unavailable.
-2. **Native build inputs**: query the target's native repositories from that image and pin every
-   required OS package to its exact version (DEB package versions or RPM NEVRAs). Confirm GCC and
-   G++ packages, executable paths, package version, and compiler major agree.
+2. **Native build inputs**: list bare OS package names and use the target's current repository
+   defaults, without exact DEB versions or RPM NEVRAs. Select major-qualified GCC/G++ package names
+   where available (for example `gcc-15`/`g++-15` on Ubuntu). Confirm executable paths and the
+   installed compiler major agree with the declared Conan profile; producer and SDK checks
+   reject major drift while allowing patch/minor updates. Keep the package-manager install output
+   as evidence of resolved versions; repository defaults are not reproducible inputs.
 3. **Python and locked tools**: verify the image Python minor matches the entry in
    `packaging/tool-versions.json`. The Node.js, pnpm, Conan, CMake, Ninja, pip requirements and
    Conan dependency lock inputs remain checksum/version/lockfile controlled; do not add target
@@ -36,7 +39,7 @@ Before adding a target record, independently verify and record:
 Add the candidate record to a separate JSON file containing the normal schema/role map and the
 production entries plus the candidate. Keep `packaging/targets.json` unchanged. The Dockerfile is
 selected by the validated target family, while the helper passes the record's immutable image,
-target ID, OS pins and target-set path as build arguments. Runtime and SDK verifier stages receive
+target ID, OS package names and target-set path as build arguments. Runtime and SDK verifier stages receive
 that same selected target set. Build and verify with a clean committed checkout and a fresh output
 directory:
 
@@ -59,11 +62,12 @@ identity tests and compare the default two-entry matrix before and after the exp
 temporarily overwrite the production target file, and do not leave an experimental target in its
 default matrix.
 
-`fedora-44` in the fixture is an experimental, pinned candidate. On 2026-11-10, Docker inspection
+`fedora-44` in the fixture is an experimental candidate with a pinned image. On 2026-11-10, Docker inspection
 confirmed the Fedora 44 amd64 image digest, GCC `16.2.1-3.fc44`, Python `3.14.10-1.fc44`, the exact
-NEVRAs in the fixture, and `/etc/os-release` support end `2027-05-19`; installing the pinned OS
+NEVRAs then recorded in the fixture, and `/etc/os-release` support end `2027-05-19`; installing that pinned OS
 package set in a disposable container completed successfully. This pin/tool-install check is not
 evidence that the full package, runtime, or SDK pipeline has passed. Keep the corresponding
 validation task pending until the isolated end-to-end Docker run actually succeeds, and record its
 revision, commands, package identities, evidence, and any blocker in the feature's US3 validation
-record.
+record. The fixture now uses repository-default OS package versions, like the production
+targets; the historical pinned-install evidence does not validate the current defaults.

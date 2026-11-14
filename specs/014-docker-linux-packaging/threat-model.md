@@ -28,7 +28,7 @@
 |---|---|---|---|
 | PR code steals credentials or writes to repository | Malicious or compromised PR modifies build steps to exfiltrate secrets or mutate refs/releases | Use `pull_request`, not `pull_request_target`; provide no repository secrets; set minimum `GITHUB_TOKEN` read permission; no publishing, signing, or protected-environment jobs | PR code can still use network access and consume build resources; hosted runner and builder vulnerabilities remain possible |
 | Untrusted build abuses Docker host | Dockerfile/build scripts attempt host filesystem access, socket access, privilege escalation, or lateral movement | Use ephemeral GitHub-hosted runner; do not mount host Docker socket into the build; do not use `--privileged`; do not bind-mount broad host paths or pass secrets/build args; export only the package output from BuildKit | Docker daemon/buildkit and kernel attack surface cannot be eliminated; keep hosted runner and Docker engine managed/current |
-| Mutable or substituted build inputs | Tags or repositories change compiler/base/dependency versions, producing unexpected or compromised packages | Pin distro release plus per-architecture base-image digest; pin toolchain and build tools; lock Conan transitive graph; pin Node/pnpm and use pnpm lockfile; record source SHA and tool versions; review digest/lock refreshes | Upstream repositories and package registries remain trusted external inputs; updates require deliberate reviewed refreshes |
+| Mutable or substituted build inputs | Tags or repositories change compiler/base/dependency versions, producing unexpected or compromised packages | Pin distro release plus per-architecture base-image digest; enforce compiler major/ABI and pin build tools; lock Conan transitive graph; pin Node/pnpm and use pnpm lockfile; record source SHA and tool versions; review digest/lock refreshes | OS package revisions follow target repository defaults and may change between builds; upstream repositories and package registries remain trusted external inputs |
 | Dependency cache poisoning | PR writes shared cache content later trusted by default-branch builds | Avoid cross-PR writable caches for native package inputs initially; if caching is later introduced, use immutable keys scoped to trust boundary and lockfile hashes | Repeated clean dependency resolution costs more time/network |
 | Wrong/malformed package presented as successful | Build emits wrong extension, format, arch, role, target release, or empty content | Inspect native metadata and payload; compare against explicit matrix tuple and source SHA; fail on missing/duplicate/unexpected outputs; upload only after both roles validate | Validators may have bugs; continue checking installed packages and artifact metadata |
 | Runtime package has undeclared dependencies | Package works only in the build image because toolchain/dev packages mask missing runtime dependencies | Derive DEB/RPM runtime dependency metadata from built ELF files and install/smoke-test in a clean target-release container with no build toolchain | Differences from downstream systems on the same release can remain; packages only claim the named distro release/architecture |
@@ -75,8 +75,9 @@ CPack staging is not exported.
 
 Package checksums detect accidental corruption/substitution relative to the
 manifest, not malicious code controlling both package and manifest. PR artifacts
-remain untrusted unsigned outputs. Exact OS pins still depend on upstream
-repository retention; no reproducible-bit-for-bit claim is made. Local
+remain untrusted unsigned outputs. OS package revisions now follow target
+repository defaults rather than the historical exact pins; compiler-major
+checks remain enforced and no reproducible-bit-for-bit claim is made. Local
 `security_scan` cannot execute without `compile_commands.json`; it is not
 represented as passed. Hosted artifact retrieval, controlled publication
 failure isolation, extra-target compatibility and human selection remain

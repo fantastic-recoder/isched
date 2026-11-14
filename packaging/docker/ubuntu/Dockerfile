@@ -44,7 +44,7 @@ RUN set -- /tmp/packages/isched-runtime-*.deb \
           --targets /opt/isched/packaging/targets.json \
           --package "$1" --in-container --evidence /tmp/runtime-verification.json
 
-# The SDK verifier receives a clean target package installation plus pinned OS
+# The SDK verifier receives a clean target package installation plus target OS
 # compiler tooling; it copies only packaging helpers and the external fixture.
 FROM ${ISCHED_BASE_IMAGE} AS sdk-verify
 SHELL ["/bin/sh", "-exc"]

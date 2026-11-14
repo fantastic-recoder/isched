@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MPL-2.0
-"""Validate pinned target inputs and derive order-independent native identities."""
+"""Validate target inputs and derive order-independent native identities."""
 from __future__ import annotations
 
 import argparse
@@ -57,25 +57,19 @@ def validate_target(target: dict) -> dict:
         require(isinstance(compiler.get(key), str)
                 and re.fullmatch(r"/usr/bin/[a-z+0-9-]+", compiler[key]) is not None,
                 f"explicit compiler executable required: {key}")
-    version = compiler.get("package_version", "")
-    require(isinstance(version, str) and re.fullmatch(r"[0-9][a-zA-Z0-9.+:~-]*", version)
-            is not None, "exact compiler package version required")
     packages = target.get("os_packages", [])
-    require(isinstance(packages, list) and bool(packages), "exact OS tool pins required")
-    require(all(isinstance(p, str) and re.fullmatch(r"[a-zA-Z0-9.+:=~_-]+", p)
-                for p in packages), "unsafe OS package pin")
-    require(len(packages) == len(set(packages)), "duplicate OS package pin")
+    require(isinstance(packages, list) and bool(packages), "OS package names required")
+    require(all(isinstance(p, str) and re.fullmatch(r"[a-z][a-z0-9+.-]*", p)
+                and not p.endswith((".noarch", ".x86_64"))
+                for p in packages), "OS packages must be bare package names")
+    require(len(packages) == len(set(packages)), "duplicate OS package name")
     if fmt == "deb":
-        require(all("=" in p and len(p.split("=")) == 2 and p.split("=")[1]
-                    for p in packages), "DEB OS package pin lacks exact version")
-        require(f"gcc-{compiler['version']}={version}" in packages
-                and f"g++-{compiler['version']}={version}" in packages,
-                "compiler package pins disagree")
+        require(f"gcc-{compiler['version']}" in packages
+                and f"g++-{compiler['version']}" in packages,
+                "compiler package names disagree with compiler major")
     else:
-        require(all(re.fullmatch(r".+-[0-9][^/]*\.(x86_64|noarch)", p)
-                    for p in packages), "RPM OS tool pin requires exact NEVRA")
-        require(f"gcc-{version}.x86_64" in packages
-                and f"gcc-c++-{version}.x86_64" in packages, "compiler package pins disagree")
+        require("gcc" in packages and "gcc-c++" in packages,
+                "GCC and G++ OS package names required")
     return target
 
 

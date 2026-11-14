@@ -119,6 +119,43 @@ class IdentityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "mapping"):
                 module.load_targets(path)
 
+    def test_os_packages_use_repository_defaults_with_explicit_compiler_major(self):
+        for target in self.targets:
+            with self.subTest(target=target["id"]):
+                self.assertNotIn("package_version", target["compiler"])
+                self.assertEqual(module.validate_target(target), target)
+                expected = (["gcc-15", "g++-15"] if target["distribution"] == "ubuntu"
+                            else ["gcc", "gcc-c++"])
+                for package in expected:
+                    self.assertIn(package, target["os_packages"])
+                    incomplete = copy.deepcopy(target)
+                    incomplete["os_packages"].remove(package)
+                    with self.assertRaises(ValueError):
+                        module.validate_target(incomplete)
+                for package in target["os_packages"]:
+                    self.assertRegex(package, r"^[a-z][a-z0-9+.-]*$")
+                    self.assertFalse(package.endswith((".noarch", ".x86_64")))
+                self.assertIn(f"compiler.version={target['compiler']['version']}\n",
+                              module.conan_profile(target))
+
+    def test_reject_unsafe_versioned_or_duplicate_os_package_names(self):
+        for target in self.targets:
+            for package in (
+                "--allow-unauthenticated", "-y", "curl;id", "$(id)", "curl\nid",
+                "curl=1.0", "curl/unstable", "/tmp/package.deb",
+                "curl-1.0-1.fc45.x86_64", "python3-pip-1.0-1.fc45.noarch",
+                "perl-4:5.44.0-527.fc45",
+            ):
+                with self.subTest(target=target["id"], package=package):
+                    invalid = copy.deepcopy(target)
+                    invalid["os_packages"].append(package)
+                    with self.assertRaisesRegex(ValueError, "bare package names"):
+                        module.validate_target(invalid)
+            invalid = copy.deepcopy(target)
+            invalid["os_packages"].append(target["os_packages"][0])
+            with self.assertRaisesRegex(ValueError, "duplicate OS package name"):
+                module.validate_target(invalid)
+
     def test_reject_bad_revision_role_and_version(self):
         for role, revision, version in [
             ("devel", REVISION, "1.0.0"), ("runtime", "abc", "1.0.0"),

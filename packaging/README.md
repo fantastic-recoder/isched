@@ -36,6 +36,16 @@ the producer, Conan dependencies/tools, and external SDK consumer. CTest and
 frontend workers remain limited to one; runtime and SDK verification stages
 remain sequential.
 
+OS packages use bare names and the target distribution's current repository
+defaults, not exact package revisions. Ubuntu still selects `gcc-15`/`g++-15`;
+Fedora uses `gcc`/`gcc-c++`, with both producer and SDK verification rejecting a
+compiler major that differs from the declared Conan profile (15/16 respectively).
+Patch/minor compiler updates are allowed. Image digests, Python minor checks,
+checksum-verified tool downloads, and application dependency lockfiles remain
+unchanged. Package-manager output records the selected OS package versions;
+repository updates can change them between builds, so builds are not
+bit-for-bit reproducible from the source revision alone.
+
 ```text
 python3 packaging/scripts/build_local.py --target TARGET --revision FULL_SHA --output DIR
 python3 packaging/scripts/validate_packages.py --target TARGET --revision FULL_SHA --directory DIR

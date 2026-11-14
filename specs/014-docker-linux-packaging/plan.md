@@ -47,7 +47,7 @@ Update [research.md](research.md) using Decision / Rationale / Alternatives cons
 | Ubuntu 26.04 LTS | `ubuntu:26.04@sha256:157dc3d6e4a3e4f2c68d12df9df9ed6e808b59af6d4c3757b432b4f519916725` | `/usr/bin/gcc-15`, `/usr/bin/g++-15`, `15.2.0-16ubuntu1` | `amd64` / DEB |
 | Fedora 45 | `fedora:45@sha256:53d138f25f6738257c78553d51369b662efc0e0eb1cd1556a2fe0ad5a115be88` | `/usr/bin/gcc`, `/usr/bin/g++`, `16.2.1-2.fc45.1` | `x86_64` / RPM |
 
-Use `/home/groby/dev/isched/packaging/targets.json` and `tool-versions.json` as the implementation's machine-readable inputs, not duplicated workflow constants. Their presence and recorded checks do not prove all transitive OS packages or Conan recipes work on both targets. Pin updates must be reviewed; unavailable pins fail closed.
+Use `/home/groby/dev/isched/packaging/targets.json` and `tool-versions.json` as the implementation's machine-readable inputs, not duplicated workflow constants. Their presence and recorded checks do not prove all transitive OS packages or Conan recipes work on both targets. OS packages use bare names resolved from the target repositories; compiler major/ABI checks, immutable image digests, tool pins and application dependency locks remain enforced. Repository updates may change OS package revisions without a source change; unavailable packages and compiler-major drift still fail closed.
 
 **Phase 0 result**: Planning decisions resolved; no outstanding requirements clarification. Target compatibility and end-to-end execution remain explicit implementation gates below.
 

@@ -25,12 +25,12 @@ VERSION = "1.2.3"
 
 
 class TargetExtensionTests(unittest.TestCase):
-    def test_production_target_pins_are_immutable(self):
+    def test_production_target_configuration_snapshot(self):
         targets = module.load_targets()
         self.assertEqual([target["id"] for target in targets], ["fedora-45", "ubuntu-26.04"])
         expected = {
-            "ubuntu-26.04": "6a4e280808fcefba3d736e02a1986ab386b1658d4ffba72d19d9b8b5f4639365",
-            "fedora-45": "0030ddede2f788d2a4eb56515849192c899029239348b4918e9a2a8b2ecf2bd9",
+            "ubuntu-26.04": "20bd4bebf02fb5b1e475f063a65fc374c8a3d6c6fbbdefd142d2722f8dd8a3f7",
+            "fedora-45": "2b88e84a651cdaa551072296d89c0211ff8bc0d64e971af859bdd152d3eda3a8",
         }
         for target in targets:
             digest = hashlib.sha256(json.dumps(
@@ -76,7 +76,7 @@ class TargetExtensionTests(unittest.TestCase):
 
         incomplete = copy.deepcopy(data)
         incomplete["targets"][1]["os_packages"] = []
-        cases.append(("exact OS tool pins required", incomplete))
+        cases.append(("OS package names required", incomplete))
 
         invalid_record = copy.deepcopy(data)
         invalid_record["targets"][1] = "fedora-44"

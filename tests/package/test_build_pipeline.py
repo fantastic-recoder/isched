@@ -90,6 +90,26 @@ class FrontendOutputTests(unittest.TestCase):
                     (ROOT / "packaging/conan/profiles" / target["id"]).read_text(),
                 )
 
+    def test_repository_compiler_updates_must_preserve_declared_major(self):
+        from package_identity import load_targets
+
+        for target in load_targets():
+            release = {
+                "ID": target["distribution"],
+                "VERSION_ID": target["distribution_version"],
+            }
+            major = target["compiler"]["version"]
+            for actual, accepted in ((f"{major}.99.1\n", True), ("999.1.0\n", False)):
+                with self.subTest(target=target["id"], compiler=actual), \
+                        patch.object(self.builder.platform, "machine", return_value="x86_64"), \
+                        patch.object(self.builder, "os_release", return_value=release), \
+                        patch.object(self.builder, "run", return_value=actual):
+                    if accepted:
+                        self.builder.verify_target(target)
+                    else:
+                        with self.assertRaisesRegex(ValueError, f"expected GCC {major}"):
+                            self.builder.verify_target(target)
+
     def test_docker_sdk_verification_waits_for_runtime_verification(self):
         from package_identity import load_targets
 
