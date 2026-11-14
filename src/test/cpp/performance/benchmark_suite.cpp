@@ -11,7 +11,7 @@
  * T052-005  10 concurrent __schema { types } requests, each ≤ 500 ms
  * T052-006  1000 sequential { version } queries, p95 ≤ 20 ms
  *
- * HTTP port: 18092  |  WebSocket port: 18093 (= port + 1)
+ * HTTP and WebSocket port: 18092.
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -45,7 +45,7 @@ using tcp           = net::ip::tcp;
 using namespace isched::v0_0_1::backend;
 
 static constexpr int k_http_port = 18092;
-static constexpr int k_ws_port   = 18093; // ws_port=0 means port+1 in Server
+static constexpr int k_ws_port   = k_http_port;
 
 // ---------------------------------------------------------------------------
 // Fixture — one server instance per TEST_CASE
@@ -57,7 +57,7 @@ public:
     BenchmarkFixture() {
         Server::Configuration cfg;
         cfg.port                 = static_cast<uint16_t>(k_http_port);
-        cfg.ws_port              = 0; // use port+1 = 18093
+        cfg.ws_port              = 0;
         cfg.allowed_origins      = {"http://localhost:18092"};
         cfg.min_threads          = 8;
         cfg.max_threads          = 120;

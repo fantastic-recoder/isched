@@ -11,10 +11,11 @@
  *  - complete echo
  *  - ping → pong
  *
- * HTTP port: 18086  |  WebSocket port: 18087 (= port + 1)
+ * HTTP and default WebSocket port: 18086; optional separate WebSocket port: 18087.
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -36,7 +37,7 @@ using tcp           = net::ip::tcp;
 using namespace isched::v0_0_1::backend;
 
 static constexpr int k_http_port = 18086;
-static constexpr int k_ws_port   = 18087;
+static constexpr int k_ws_port   = k_http_port;
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -45,17 +46,17 @@ class WsLifecycleFixture {
 public:
     std::unique_ptr<Server> server;
 
-    WsLifecycleFixture() {
+    explicit WsLifecycleFixture(uint16_t wsPort = 0) {
         Server::Configuration cfg;
         cfg.port            = k_http_port;
-        cfg.ws_port         = k_ws_port;
+        cfg.ws_port         = wsPort;
         cfg.allowed_origins = {"http://127.0.0.1:18086"};
         cfg.max_threads     = 4;
         cfg.enable_introspection = true;
         cfg.max_query_complexity = 500;
         server = Server::create(cfg);
         REQUIRE(server->start());
-        // Small pause so both HTTP and WebSocket listeners are ready
+        // Allow the listener's asynchronous accept to run.
         std::this_thread::sleep_for(std::chrono::milliseconds(80));
     }
 
@@ -116,6 +117,31 @@ struct SyncWs {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+TEST_CASE("Default WebSocket listener does not bind the adjacent HTTP port",
+          "[websocket][lifecycle][regression]") {
+    net::io_context ioc;
+    tcp::acceptor adjacent(ioc);
+    adjacent.open(tcp::v4());
+    adjacent.set_option(net::socket_base::reuse_address(true));
+    adjacent.bind({net::ip::make_address("127.0.0.1"), k_http_port + 1});
+    adjacent.listen();
+    WsLifecycleFixture fixture;
+    SyncWs client;
+    client.connect(k_http_port);
+    REQUIRE(client.send_recv({{"type", "connection_init"}})["type"] == "connection_ack");
+    client.close();
+}
+
+TEST_CASE("Explicit WebSocket port supports separate and shared listeners",
+          "[websocket][lifecycle][regression]") {
+    const auto wsPort = GENERATE(k_http_port, k_http_port + 1);
+    WsLifecycleFixture fixture(static_cast<uint16_t>(wsPort));
+    SyncWs client;
+    client.connect(wsPort);
+    REQUIRE(client.send_recv({{"type", "connection_init"}})["type"] == "connection_ack");
+    client.close();
+}
 
 TEST_CASE_METHOD(WsLifecycleFixture,
                  "WebSocket upgrade succeeds and connection_ack is received",

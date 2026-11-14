@@ -89,7 +89,7 @@ public:
      */
     struct Configuration {
         uint16_t port;                           ///< HTTP server port
-        uint16_t ws_port;                        ///< WebSocket server port (0 = port + 1)
+        uint16_t ws_port;                        ///< Optional separate WebSocket port (0 = share HTTP port)
         String host;                             ///< Bind address
         size_t min_threads;                      ///< Minimum thread pool size
         size_t max_threads;                      ///< Maximum thread pool size

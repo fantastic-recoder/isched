@@ -104,6 +104,6 @@ Durations measured as wall-clock time around `httplib::Client::Post()`.
 ## Notes
 
 - All measurements are from **Debug** builds; Release builds will be faster.
-- The benchmark server starts fresh for each test case (port 18092 HTTP, 18093 WS).
+- The benchmark server starts fresh for each test case (port 18092 for both HTTP and WebSocket).
 - Server thread pool starts at 8 threads; adaptive growth to 120 under WS load.
 - To re-measure: `ctest --test-dir cmake-build-debug -R benchmark_suite --output-on-failure`

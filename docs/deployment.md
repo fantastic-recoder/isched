@@ -20,7 +20,7 @@ This guide covers production and embedded deployment of `isched`, a single-proce
 `isched` exposes a single endpoint at `/graphql` that serves:
 
 - **HTTP POST** — standard GraphQL query / mutation transport  
-- **WebSocket** — `graphql-transport-ws` protocol for subscriptions (default port: `http_port + 1`)
+- **WebSocket** — `graphql-transport-ws` protocol for subscriptions (shares the HTTP port by default)
 
 There is no REST API, IPC interface, or scripting surface.  All management operations — including tenant provisioning, user management, and configuration — are performed exclusively through GraphQL mutations.
 
@@ -38,7 +38,7 @@ using isched::v0_0_1::backend::Server;
 Server::Configuration cfg;
 cfg.host        = "0.0.0.0";   // bind address (default: "localhost")
 cfg.port        = 8080;        // HTTP port (default: 8080)
-cfg.ws_port     = 8081;        // WebSocket port (0 = port + 1)
+cfg.ws_port     = 0;           // share HTTP listener; set a different port for a separate WS listener
 cfg.min_threads = 4;           // minimum thread-pool workers (default: 4)
 cfg.max_threads = 100;         // maximum thread-pool workers (default: 100)
 
@@ -53,7 +53,7 @@ server->start();
 |-------|---------|-------|
 | `host` | `"localhost"` | Loopback only by default. Use `"0.0.0.0"` for all interfaces. |
 | `port` | `8080` | HTTP/GraphQL port. |
-| `ws_port` | `0` | `0` means `port + 1`. Set explicitly to separate HTTP and WS ports. |
+| `ws_port` | `0` | `0` or the HTTP port shares its listener. A different nonzero value enables an additional WS listener. |
 | `min_threads` | `4` | Thread pool lower bound. Reduce to `2` on low-memory hardware. |
 | `max_threads` | `100` | Thread pool upper bound. Reduce to `8–16` on Raspberry Pi. |
 | `jwt_secret_key` | (auto-generated) | Random secret generated at startup if empty. Production deployments **must** set a stable value so tokens survive restarts. |
@@ -61,6 +61,11 @@ server->start();
 | `enable_introspection` | `true` | Disable in production if the GraphQL schema should remain private. |
 
 The log level is controlled by the `SPDLOG_LEVEL` environment variable (e.g. `SPDLOG_LEVEL=info`).
+
+The server no longer automatically binds `port + 1`. Clients that relied on that
+legacy default must use the HTTP port for WebSocket upgrades, or explicitly set
+`ws_port` to the old separate port. This avoids startup failures when an unrelated
+socket occupies the adjacent port.
 
 ---
 

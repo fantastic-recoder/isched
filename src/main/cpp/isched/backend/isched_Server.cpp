@@ -1504,31 +1504,33 @@ bool Server::start() {
             return false;
         }
 
-        // ── WebSocket listener (T042) — shares the same io_context ───────────
-        const uint16_t ws_p = m_config.ws_port != 0
-                              ? m_config.ws_port
-                              : static_cast<uint16_t>(m_config.port + 1);
-        try {
-            tcp::endpoint ws_ep{net::ip::make_address(bind_addr), ws_p};
-            m_impl->ws_listener = std::make_shared<WsListener>(
-                *m_impl->ioc, ws_ep,
-                 m_impl->gql_executor.get(),
-                 m_impl->subscription_broker.get(),
-                 m_impl->auth.get(),
-                 m_impl->database,
-                 [this](const std::string& origin) {
-                     return origin_is_allowed(origin, m_config.allowed_origins);
-                 });
-            m_impl->ws_listener->run();
+        if (m_config.ws_port != 0 && m_config.ws_port != m_config.port) {
+            try {
+                tcp::endpoint ws_ep{net::ip::make_address(bind_addr), m_config.ws_port};
+                m_impl->ws_listener = std::make_shared<WsListener>(
+                    *m_impl->ioc, ws_ep,
+                    m_impl->gql_executor.get(),
+                    m_impl->subscription_broker.get(),
+                    m_impl->auth.get(),
+                    m_impl->database,
+                    [this](const std::string& origin) {
+                        return origin_is_allowed(origin, m_config.allowed_origins);
+                    });
+                m_impl->ws_listener->run();
+            } catch (const std::exception& e) {
+                spdlog::error("WebSocket listener startup failed at {}:{}: {}",
+                              bind_addr, m_config.ws_port, e.what());
+                m_impl->http_listener->stop();
+                m_impl->work_guard.reset();
+                m_impl->ioc->stop();
+                m_status.store(Status::ERROR);
+                return false;
+            }
             spdlog::info("WebSocket endpoint ready at ws://{}:{}/graphql",
-                         m_config.host, ws_p);
-        } catch (const std::exception& e) {
-            spdlog::error("WebSocket listener startup failed: {}", e.what());
-            m_impl->http_listener->stop();
-            m_impl->work_guard.reset();
-            m_impl->ioc->stop();
-            m_status.store(Status::ERROR);
-            return false;
+                         m_config.host, m_config.ws_port);
+        } else {
+            spdlog::info("WebSocket endpoint shares HTTP listener at ws://{}:{}/graphql",
+                         m_config.host, m_config.port);
         }
 
         // ── Launch io_context worker threads ─────────────────────────────────
