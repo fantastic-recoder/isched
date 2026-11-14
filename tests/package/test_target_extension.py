@@ -30,7 +30,7 @@ class TargetExtensionTests(unittest.TestCase):
         self.assertEqual([target["id"] for target in targets], ["fedora-45", "ubuntu-26.04"])
         expected = {
             "ubuntu-26.04": "6a4e280808fcefba3d736e02a1986ab386b1658d4ffba72d19d9b8b5f4639365",
-            "fedora-45": "9a0441f1cdf2470db0e895109650514c89f8087f22b65327c5118f2486e908ae",
+            "fedora-45": "0030ddede2f788d2a4eb56515849192c899029239348b4918e9a2a8b2ecf2bd9",
         }
         for target in targets:
             digest = hashlib.sha256(json.dumps(

@@ -62,6 +62,19 @@ class WorkflowContractTests(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertNotIn(token, self.workflow)
 
+    def test_build_logs_are_unbuffered_traced_and_not_clipped_by_buildkit(self):
+        self.assertIn("env.BUILDKIT_STEP_LOG_MAX_SIZE=-1", self.workflow)
+        self.assertIn("env.BUILDKIT_STEP_LOG_MAX_SPEED=-1", self.workflow)
+        self.assertIn("docker buildx inspect --bootstrap", self.workflow)
+        self.assertIn("python3 -u packaging/scripts/build_local.py", self.workflow)
+        self.assertEqual(self.workflow.count("set -euxo pipefail"), 4)
+        for distribution in ("ubuntu", "fedora"):
+            dockerfile = (ROOT / "packaging/docker" / distribution / "Dockerfile").read_text()
+            with self.subTest(distribution=distribution):
+                self.assertEqual(dockerfile.count('SHELL ["/bin/sh", "-exc"]'), 3)
+                self.assertEqual(dockerfile.count("ENV PYTHONUNBUFFERED=1"), 3)
+                self.assertEqual(dockerfile.count("packaging/scripts/logged_process.py"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

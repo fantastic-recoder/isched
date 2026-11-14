@@ -17,6 +17,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from package_identity import ROOT, conan_profile, identity, load_targets, require
+from logged_process import run_logged
 
 
 def run(stage: str, command: list[str], *, cwd: Path = ROOT,
@@ -25,8 +26,8 @@ def run(stage: str, command: list[str], *, cwd: Path = ROOT,
     target = os.environ.get("ISCHED_BUILD_TARGET", "unknown")
     print(f"[{target}] stage={stage} $ {' '.join(command)}", flush=True)
     try:
-        completed = subprocess.run(
-            command, cwd=cwd, env=env, text=True, capture_output=True,
+        completed = run_logged(
+            command, cwd=cwd, env=env,
             check=True, timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError) as error:
@@ -34,10 +35,6 @@ def run(stage: str, command: list[str], *, cwd: Path = ROOT,
         if isinstance(error, subprocess.CalledProcessError):
             detail = f"\nstdout:\n{error.stdout or ''}\nstderr:\n{error.stderr or ''}"
         raise RuntimeError(f"target={target} stage={stage} failed: {error}{detail}") from error
-    if completed.stdout:
-        print(completed.stdout, end="", flush=True)
-    if completed.stderr:
-        print(completed.stderr, end="", file=sys.stderr, flush=True)
     return completed.stdout
 
 
@@ -109,9 +106,8 @@ def verify_target(target: dict) -> None:
     require(actual_version == expected_version,
             f"target={target['id']} expected release {expected_version}, got {actual_version}")
     compiler = target["compiler"]
-    actual_major = subprocess.check_output(
-        [compiler["cxx"], "-dumpfullversion"], text=True, timeout=30
-    ).strip().split(".", 1)[0]
+    actual_major = run("compiler-version", [compiler["cxx"], "-dumpfullversion"],
+                       timeout=30).strip().split(".", 1)[0]
     require(actual_major == compiler["version"],
             f"target={target['id']} expected GCC {compiler['version']}, got {actual_major}")
 
@@ -159,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
         env = dict(os.environ)
         env["PATH"] = os.pathsep.join((str(node_bin), str(conan_bin), env.get("PATH", "")))
         env.update(CMAKE_BUILD_PARALLEL_LEVEL="3", CTEST_PARALLEL_LEVEL="1",
-                   NG_BUILD_MAX_WORKERS="1")
+                   NG_BUILD_MAX_WORKERS="1", VERBOSE="1")
         pnpm = str(node_bin / "pnpm")
         run("frontend-install", [pnpm, "install", "--frozen-lockfile"], env=env)
         run("frontend-test", frontend_test_command(pnpm), env=env)
@@ -210,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         discovered = json.loads(show).get("tests", [])
         require(discovered, f"target={args.target} CTest discovered zero tests")
         run("ctest", ["ctest", "--test-dir", str(build_dir),
-                      "-j1", "--output-on-failure", "--no-tests=error"], env=tool_env,
+                      "-j1", "--verbose", "--output-on-failure", "--no-tests=error"], env=tool_env,
             timeout=7200)
 
         graph_json = build_dir / "conan-install.json"

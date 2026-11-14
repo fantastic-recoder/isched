@@ -26,7 +26,11 @@ jobs:
       - name: Validate target inputs
         id: matrix
         shell: bash
-        run: printf 'value=%s\n' "$(python3 packaging/scripts/package_identity.py --matrix)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euxo pipefail
+          matrix="$(python3 -u packaging/scripts/package_identity.py --matrix)"
+          printf '%s\n' "$matrix"
+          printf 'value=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
 
   build:
     name: ${{ matrix.id }} (${{ matrix.package_format }})
@@ -45,14 +49,22 @@ jobs:
           persist-credentials: false
       - name: Confirm Buildx availability
         run: docker buildx version
+      - name: Configure BuildKit with untruncated step logs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx create --name isched-ci --use --driver docker-container \
+            --driver-opt env.BUILDKIT_STEP_LOG_MAX_SIZE=-1 \
+            --driver-opt env.BUILDKIT_STEP_LOG_MAX_SPEED=-1
+          docker buildx inspect --bootstrap
       - name: Build and verify target packages
         env:
           ISCHED_TARGET: ${{ matrix.id }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           revision="$(git rev-parse HEAD)"
-          python3 packaging/scripts/build_local.py \
+          python3 -u packaging/scripts/build_local.py \
             --target "$ISCHED_TARGET" \
             --revision "$revision" \
             --output "dist/$ISCHED_TARGET"
@@ -62,13 +74,13 @@ jobs:
           ISCHED_TARGET: ${{ matrix.id }}
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           if [[ "$ISCHED_TARGET" == "ubuntu-26.04" ]]; then
             echo "Intentional T032 Ubuntu-only failure" >&2
             exit 1
           fi
           revision="$(git rev-parse HEAD)"
-          python3 packaging/scripts/prepare_artifacts.py \
+          python3 -u packaging/scripts/prepare_artifacts.py \
             --target "$ISCHED_TARGET" \
             --revision "$revision" \
             --directory "dist/$ISCHED_TARGET" \

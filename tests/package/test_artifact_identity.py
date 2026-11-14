@@ -5,6 +5,7 @@ import hashlib
 import importlib
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 import shutil
 import sys
@@ -402,7 +403,8 @@ class VerifierEvidenceTests(unittest.TestCase):
                 patch.object(verify_sdk.platform, "machine", return_value="x86_64"), \
                 patch.object(verify_sdk, "_install_package"), \
                 patch.object(verify_sdk, "_assert_runtime_absent"), \
-                patch.object(verify_sdk.subprocess, "check_output", return_value="15.2.0"), \
+                patch.object(verify_sdk, "run", return_value=subprocess.CompletedProcess(
+                    ["g++", "-dumpfullversion"], 0, stdout="15.2.0")), \
                 patch.object(bootstrap_tools, "bootstrap"), \
                 patch.object(verify_sdk, "_verify_consumer", return_value={
                     "consumer": "configured-built-linked-ran",

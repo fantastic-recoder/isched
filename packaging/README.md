@@ -52,6 +52,20 @@ A PR merge checkout must be labeled with its merge revision, not the PR head.
 No environment credentials or Git authentication should be passed to Docker.
 The build wrapper and artifact staging helper reject a mismatched revision.
 
+## Build logs in GitHub Actions
+
+Open the target job's **Build and verify target packages** step for plain-text
+BuildKit logs. Workflow and Docker shell commands are traced, Python output is
+unbuffered, and producer/runtime/SDK subprocess stdout and stderr stream live
+instead of waiting for a stage to finish. Native builds print compiler commands,
+and CTest prints successful test output as well as failures. Target and `stage=`
+labels identify the failing gate; timeouts retain output already emitted.
+Machine-readable stdout (such as CTest discovery JSON) stays separate from
+stderr for parsing. The workflow creates a dedicated BuildKit builder with
+per-step log size and rate limits disabled, avoiding BuildKit's clipped-log
+messages. GitHub Actions' own overall log limits still apply. Commands must not
+contain credentials.
+
 ## Downloading workflow artifacts
 
 Artifacts are attached only to their GitHub Actions workflow run. Open the

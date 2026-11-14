@@ -24,6 +24,7 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from package_identity import ROOT, load_targets, require
+from logged_process import run_logged
 
 
 def _failure_stage(error: BaseException, default: str) -> str:
@@ -37,18 +38,13 @@ def run(stage: str, command: list[str], *, timeout: int = 300,
     target = os.environ.get("ISCHED_BUILD_TARGET", "unknown")
     print(f"[{target}] stage={stage} $ {' '.join(command)}", flush=True)
     try:
-        result = subprocess.run(command, check=check, timeout=timeout, text=True,
-                                capture_output=capture)
+        result = run_logged(command, check=check, timeout=timeout, capture=capture)
     except (OSError, subprocess.SubprocessError) as error:
         actual_stage = _failure_stage(error, stage)
         detail = ""
         if isinstance(error, subprocess.CalledProcessError):
             detail = f"\nstdout:\n{error.stdout or ''}\nstderr:\n{error.stderr or ''}"
         raise RuntimeError(f"target={target} stage={actual_stage} failed: {error}{detail}") from error
-    if result.stdout:
-        print(result.stdout, end="", flush=True)
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr, flush=True)
     return result
 
 

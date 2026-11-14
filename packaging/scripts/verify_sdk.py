@@ -18,6 +18,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from package_identity import ROOT, load_targets, require
+from logged_process import run_logged
 
 
 def _failure_stage(error: BaseException, default: str) -> str:
@@ -32,18 +33,14 @@ def run(stage: str, command: list[str], *, timeout: int = 1200,
     target = os.environ.get("ISCHED_BUILD_TARGET", "unknown")
     print(f"[{target}] stage={stage} $ {' '.join(command)}", flush=True)
     try:
-        result = subprocess.run(command, check=check, timeout=timeout, text=True,
-                                capture_output=capture, env=env)
+        result = run_logged(command, check=check, timeout=timeout,
+                            capture=capture, env=env)
     except (OSError, subprocess.SubprocessError) as error:
         actual_stage = _failure_stage(error, stage)
         detail = ""
         if isinstance(error, subprocess.CalledProcessError):
             detail = f"\nstdout:\n{error.stdout or ''}\nstderr:\n{error.stderr or ''}"
         raise RuntimeError(f"target={target} stage={actual_stage} failed: {error}{detail}") from error
-    if result.stdout:
-        print(result.stdout, end="", flush=True)
-    if result.stderr:
-        print(result.stderr, end="", file=sys.stderr, flush=True)
     return result
 
 
@@ -93,7 +90,7 @@ def _verify_consumer(target: dict, consumer: Path) -> dict:
     conan_home = Path(tempfile.mkdtemp(prefix="isched-sdk-conan-", dir="/tmp"))
     scratch = Path(tempfile.mkdtemp(prefix="isched-sdk-consumer-", dir="/tmp"))
     try:
-        environment = dict(os.environ, CONAN_HOME=str(conan_home))
+        environment = dict(os.environ, CONAN_HOME=str(conan_home), VERBOSE="1")
         run("conan-profile", [str(Path("/opt/isched-tools/conan/bin/conan")),
                               "profile", "detect", "--force"], timeout=180, env=environment)
         manifest = Path("/usr/share/isched/developer/conanfile.txt")
@@ -167,7 +164,8 @@ def _in_container(target: dict, package: Path, consumer: Path, evidence: Path,
     _install_package(target, package)
     _assert_runtime_absent(target)
     compiler = target["compiler"]["cxx"]
-    actual_major = subprocess.check_output([compiler, "-dumpfullversion"], text=True, timeout=30).strip().split(".", 1)[0]
+    actual_major = run("compiler-version", [compiler, "-dumpfullversion"],
+                       timeout=30).stdout.strip().split(".", 1)[0]
     require(actual_major == target["compiler"]["version"],
             f"target={target['id']} expected GCC {target['compiler']['version']}, got {actual_major}")
     # This disposable consumer environment gets the same independently pinned

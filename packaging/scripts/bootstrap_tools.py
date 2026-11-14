@@ -17,6 +17,7 @@ import tempfile
 import urllib.request
 
 from package_identity import ROOT, load_targets, require
+from logged_process import run_logged
 
 
 def run(args: list[str], **kwargs) -> None:
@@ -71,9 +72,9 @@ def bootstrap(target: str, prefix: Path, targets_path: Path = ROOT / "packaging/
         ([str(node / "bin/pnpm"), "--version"], versions["pnpm"]),
         ([str(conan / "bin/conan"), "--version"], "Conan version " + versions["conan"]),
     ]:
-        actual = subprocess.check_output(args, text=True, env=env, timeout=60).strip()
+        print("+", " ".join(args), flush=True)
+        actual = run_logged(args, env=env, timeout=60).stdout.strip()
         require(actual == expected, f"tool version mismatch: {args[0]}: {actual}")
-        print(actual, flush=True)
 
 
 def main() -> int:
