@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "verified_on": "2026-11-09",
+  "roles": {"runtime": "isched-runtime", "developer": "isched-devel"},
+  "targets": [
+    {
+      "id": "ubuntu-26.04",
+      "distribution": "ubuntu",
+      "distribution_version": "26.04",
+      "platform": "linux/amd64",
+      "architecture": "x86_64",
+      "native_architecture": "amd64",
+      "package_format": "deb",
+      "generator": "DEB",
+      "dockerfile": "packaging/docker/ubuntu/Dockerfile",
+      "image": "ubuntu:26.04@sha256:157dc3d6e4a3e4f2c68d12df9df9ed6e808b59af6d4c3757b432b4f519916725",
+      "compiler": {
+        "c": "/usr/bin/gcc-15",
+        "cxx": "/usr/bin/g++-15",
+        "version": "15",
+        "package_version": "15.2.0-16ubuntu1",
+        "libcxx": "libstdc++11",
+        "cppstd": "23"
+      },
+      "os_packages": [
+        "gcc-15=15.2.0-16ubuntu1", "g++-15=15.2.0-16ubuntu1",
+        "python3=3.14.3-0ubuntu2", "python3-venv=3.14.3-0ubuntu2",
+        "python3-pip=25.1.1+dfsg-1ubuntu2", "ca-certificates=20260816ubuntu0.26.04.2",
+        "curl=8.18.0-1ubuntu2.8", "xz-utils=5.8.3-1ubuntu0.1",
+        "git=1:2.53.0-1ubuntu1.1", "make=4.4.1-3", "pkg-config=2.5.1-4",
+        "dpkg-dev=1.23.7ubuntu1", "file=1:5.46-5build2", "binutils=2.46-3ubuntu2",
+        "autoconf=2.72-3.1ubuntu2", "automake=1:1.18.1-3build1", "libtool=2.5.4-9",
+        "perl=5.40.1-7ubuntu0.4", "tar=1.35+dfsg-4ubuntu0.4",
+        "gzip=1.14-1~exp2ubuntu1.1", "bzip2=1.0.8-6ubuntu0.1",
+        "unzip=6.0-29ubuntu1", "zip=3.0-15ubuntu3", "patch=2.8-2build1"
+      ]
+    },
+    {
+      "id": "fedora-45",
+      "distribution": "fedora",
+      "distribution_version": "45",
+      "platform": "linux/amd64",
+      "architecture": "x86_64",
+      "native_architecture": "x86_64",
+      "package_format": "rpm",
+      "generator": "RPM",
+      "dockerfile": "packaging/docker/fedora/Dockerfile",
+      "image": "fedora:45@sha256:53d138f25f6738257c78553d51369b662efc0e0eb1cd1556a2fe0ad5a115be88",
+      "compiler": {
+        "c": "/usr/bin/gcc",
+        "cxx": "/usr/bin/g++",
+        "version": "16",
+        "package_version": "16.2.1-2.fc45.1",
+        "libcxx": "libstdc++11",
+        "cppstd": "23"
+      },
+      "os_packages": [
+        "gcc-16.2.1-2.fc45.1.x86_64", "gcc-c++-16.2.1-2.fc45.1.x86_64",
+        "python3-3.15.0-1.fc45.x86_64", "python3-pip-26.1.2-5.fc45.noarch",
+        "ca-certificates-2026.2.92_v9.0.319-2.fc45.noarch", "curl-8.21.0-8.fc45.x86_64",
+        "xz-1:5.8.3-2.fc45.x86_64", "git-core-2.56.1-1.fc45.x86_64",
+        "make-1:4.4.1-13.fc45.x86_64", "pkgconf-pkg-config-2.5.1-2.fc45.x86_64",
+        "rpm-build-6.1.0-1.fc45.x86_64", "file-5.48-3.fc45.x86_64",
+        "binutils-2.47-1.fc45.x86_64", "autoconf-2.73-4.fc45.noarch",
+        "automake-1.18.1-5.fc45.noarch", "libtool-2.5.4-11.fc45.x86_64",
+        "perl-4:5.44.0-527.fc45.x86_64", "tar-2:1.35-10.fc45.x86_64",
+        "gzip-1.14-4.fc45.x86_64", "bzip2-1.0.8-24.fc45.x86_64",
+        "unzip-6.0-71.fc45.x86_64", "zip-3.0-46.fc45.x86_64",
+        "patch-2.8-6.fc45.x86_64", "findutils-1:4.11.0-2.fc45.x86_64",
+        "diffutils-3.12-6.fc45.x86_64"
+      ]
+    }
+  ]
+}

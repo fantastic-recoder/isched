@@ -1,0 +1,23 @@
+{
+    "version": "0.5",
+    "requires": [
+        "zlib/1.4#f51abf05ab684e2283b6d4c1243b624f%1793979742.583",
+        "taocpp-pegtl/3.2.8#2bf8e42be8198d83de8c276fd4b8859d%1726766797.372",
+        "sqlite3/3.44.0#e295bb156df8709739375cedb5cdf7ad%1707810432.121",
+        "spdlog/1.12.0#492ea1d5dce6a5a4c985c3f36db8b354%1767604746.066",
+        "platformfolders/4.3.0#e1d3269cb1ad3bf90819b3134712d8db%1754263861.345",
+        "openssl/3.5.0#62d21a127982d5ddc42a83cffc147a4b%1748533231.389",
+        "nlohmann_json/3.11.3#45828be26eb619a2e04ca517bb7b828d%1701220705.259",
+        "libbacktrace/cci.20210118#a7691bfccd8caaf66309df196790a5a1%1722218217.276",
+        "jwt-cpp/0.7.0#8866e2b13d06704e8d1b48e15a384639%1725009084.676",
+        "fmt/10.2.1#15db2a3ea0646365bf05a6f50369ac59%1785754570.436",
+        "cpp-httplib/0.18.3#ad62795f35f0fecaea1fd4bdb7b949f0%1748426309.372",
+        "bzip2/1.0.8#c470882369c2d95c5c77e970c0c7e321%1762886692.465",
+        "boost/1.84.0#fc2fd00e54dffc953c94ea842ef95f35%1790854197.405"
+    ],
+    "build_requires": [
+        "b2/5.6.1#41ae5699a0588de1202afe5b675cc86d%1793034698.727"
+    ],
+    "python_requires": [],
+    "config_requires": []
+}

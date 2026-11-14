@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MPL-2.0
+# Native helper tests otherwise use Python's standard-library unittest.
+PyYAML==6.0.3

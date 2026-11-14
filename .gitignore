@@ -95,3 +95,7 @@ nohup.out
 /cmake-build-release/
 data/tenants/config_snapshots.sqlite3*
 /docs/.scratch.md.kate-swp
+
+# Additional C++ build/editor outputs
+*.swp
+/cmake-build-*/

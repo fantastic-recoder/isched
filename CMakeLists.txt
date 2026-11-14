@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.16.3)
 project(isched)
 message("Building with CMake version: ${CMAKE_VERSION}")
 
+option(ISCHED_ENABLE_PACKAGING "Enable native runtime and developer package generation" OFF)
+if(ISCHED_ENABLE_PACKAGING AND CMAKE_VERSION VERSION_LESS 3.19)
+    message(FATAL_ERROR "ISCHED_ENABLE_PACKAGING requires CMake 3.19 or newer for strict JSON identity checks")
+endif()
+
 # Set C++23 standard for Universal Application Server Backend
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -80,7 +85,7 @@ find_package(spdlog)
 find_package(httplib)
 find_package(nlohmann_json REQUIRED)
 find_package(jwt-cpp REQUIRED)
-find_package(SQLite3 REQUIRED)
+find_package(SQLite3 CONFIG REQUIRED)
 find_package(platform_folders REQUIRED)
 # Find Boost package
 find_package(Boost REQUIRED COMPONENTS url system thread program_options)
@@ -95,6 +100,58 @@ include_directories("src/main/cpp")
 
 find_program(PNPM_EXE NAMES "pnpm")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+if(ISCHED_ENABLE_PACKAGING)
+    foreach(required_variable IN ITEMS
+            ISCHED_SOURCE_REVISION ISCHED_PACKAGE_VERSION ISCHED_PACKAGE_TARGET ISCHED_PACKAGE_FORMAT
+            ISCHED_PACKAGE_IDENTITY_FILE ISCHED_PACKAGE_OUTPUT_DIR
+            ISCHED_PACKAGE_LICENSE_OUTPUT ISCHED_FRONTEND_GATE_FILE)
+        if(NOT DEFINED ${required_variable} OR "${${required_variable}}" STREQUAL "")
+            message(FATAL_ERROR "${required_variable} is required when ISCHED_ENABLE_PACKAGING=ON")
+        endif()
+    endforeach()
+    string(LENGTH "${ISCHED_SOURCE_REVISION}" _isched_revision_length)
+    if(NOT _isched_revision_length EQUAL 40
+            OR NOT ISCHED_SOURCE_REVISION MATCHES "^[0-9a-f]+$")
+        message(FATAL_ERROR "ISCHED_SOURCE_REVISION must be a full lowercase 40-digit checkout SHA")
+    endif()
+    if(NOT PNPM_EXE)
+        message(FATAL_ERROR "package mode requires the pinned pnpm executable; UI build stubs are forbidden")
+    endif()
+    if(NOT EXISTS "${ISCHED_PACKAGE_IDENTITY_FILE}")
+        message(FATAL_ERROR "package identity input is missing: ${ISCHED_PACKAGE_IDENTITY_FILE}")
+    endif()
+    if(NOT EXISTS "${ISCHED_FRONTEND_GATE_FILE}")
+        message(FATAL_ERROR "fresh frontend evidence is missing: ${ISCHED_FRONTEND_GATE_FILE}")
+    endif()
+
+    set(_isched_frontend_index "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/browser/index.html")
+    set(_isched_frontend_notices "${CMAKE_SOURCE_DIR}/src/ui/dist/isched-ui/3rdpartylicenses.txt")
+    set(_isched_embedded_ui "${CMAKE_SOURCE_DIR}/src/main/cpp/isched/backend/isched_ui_assets.hpp")
+    foreach(frontend_file IN ITEMS "${_isched_frontend_index}" "${_isched_frontend_notices}" "${_isched_embedded_ui}")
+        if(NOT EXISTS "${frontend_file}" OR IS_DIRECTORY "${frontend_file}")
+            message(FATAL_ERROR "package mode requires freshly generated frontend input: ${frontend_file}")
+        endif()
+    endforeach()
+    file(READ "${ISCHED_FRONTEND_GATE_FILE}" _isched_frontend_evidence)
+    string(JSON _isched_frontend_schema ERROR_VARIABLE _isched_frontend_json_error
+        GET "${_isched_frontend_evidence}" schema_version)
+    if(_isched_frontend_json_error OR NOT _isched_frontend_schema EQUAL 1)
+        message(FATAL_ERROR "frontend evidence has an unsupported or malformed schema")
+    endif()
+    foreach(pair IN ITEMS
+            "index_sha256;${_isched_frontend_index}"
+            "notices_sha256;${_isched_frontend_notices}"
+            "embedded_header_sha256;${_isched_embedded_ui}")
+        list(GET pair 0 evidence_key)
+        list(GET pair 1 evidence_file)
+        string(JSON expected_hash ERROR_VARIABLE evidence_error GET "${_isched_frontend_evidence}" "${evidence_key}")
+        file(SHA256 "${evidence_file}" actual_hash)
+        if(evidence_error OR NOT expected_hash STREQUAL actual_hash)
+            message(FATAL_ERROR "frontend evidence does not match ${evidence_file}; stale generated UI is not allowed")
+        endif()
+    endforeach()
+endif()
 
 file(GLOB_RECURSE UI_SRC_FILES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/src/ui/src/*"
@@ -156,10 +213,18 @@ endif()
 add_subdirectory("src/main/cpp/isched")
 add_subdirectory("src/example/cpp")
 add_subdirectory("src/test/cpp/isched")
+add_subdirectory("tests/package")
 
 # Intentional load-bearing dependency: the isched library must not be compiled
 # until the generated isched_ui_assets.hpp header exists (produced by isched_ui_embed).
 add_dependencies(isched isched_ui_embed)
+
+if(ISCHED_ENABLE_PACKAGING)
+    include(GNUInstallDirs)
+    include("${CMAKE_SOURCE_DIR}/packaging/sdk/install-config.cmake")
+    isched_install_sdk_config()
+    include("${CMAKE_SOURCE_DIR}/packaging/cmake/Package.cmake")
+endif()
 
 # US3/T042: Unified refactor-pass gate target for local and CI pass verification.
 set(ISCHED_REFACTOR_PASS_DIR
@@ -221,4 +286,3 @@ else()
     message(STATUS "clang-tidy not found — security_scan target not available")
     message(STATUS "Install: sudo apt install clang-tidy (Ubuntu/Debian) or sudo dnf install clang-tools-extra (Fedora/RHEL)")
 endif()
-
